@@ -10,7 +10,7 @@ data:
   width: 256
   combineall: False
   transforms: ['random_flip']
-  save_dir: 'log/osnet_x1_0_aic20_softmax_cosinelr'
+  save_dir: 'log/osnet_x1_0_aic20_softmax_cosinelr_v1'
 
 aic20:
   use_simulation_data: False
