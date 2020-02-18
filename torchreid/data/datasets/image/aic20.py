@@ -9,7 +9,7 @@ class AIC20(ImageDataset):
     """AIC20.
 
     URL: `<https://www.aicitychallenge.org/2020-track2-download>`_
-    
+
     Dataset statistics:
         - identities: 666.
         - images: 36935 (train) + 1052 (query) + 18290 (gallery).
