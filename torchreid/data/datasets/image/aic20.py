@@ -11,10 +11,9 @@ class AIC20(ImageDataset):
     URL: `<https://www.aicitychallenge.org/2020-track2-download>`_
     
     Dataset statistics:
-        - identities: 666 (+1 for background).
+        - identities: 666.
         - images: 36935 (train) + 1052 (query) + 18290 (gallery).
     """
-    _junk_pids = [0, -1]
     dataset_dir = 'aic20_reduced'
 
     def __init__(self, root='', simulation_data=False, **kwargs):
