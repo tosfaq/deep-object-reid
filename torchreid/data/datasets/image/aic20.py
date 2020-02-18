@@ -16,7 +16,8 @@ class AIC20(ImageDataset):
     """
     dataset_dir = 'aic20_reduced'
 
-    def __init__(self, root='', simulation_data=False, **kwargs):
+    def __init__(self, root='', aic20_simulation_data=False, **kwargs):
+        self.simulation_data = aic20_simulation_data
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
@@ -35,7 +36,7 @@ class AIC20(ImageDataset):
             self.data_dir, self.train_dir, self.query_dir, self.gallery_dir,
             self.train_annot, self.query_annot, self.gallery_annot,
         ]
-        if simulation_data:
+        if self.simulation_data:
             required_files += [
                 self.extra_train_dir, self.extra_train_annot
             ]
@@ -44,7 +45,7 @@ class AIC20(ImageDataset):
         train = self.load_annotation(self.train_annot, self.train_dir)
         query = self.load_annotation(self.query_annot, self.query_dir)
         gallery = self.load_annotation(self.gallery_annot, self.gallery_dir)
-        if simulation_data:
+        if self.simulation_data:
             train += self.load_annotation(self.extra_train_annot, self.extra_train_dir)
 
         train = self.compress_labels(train)

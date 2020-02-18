@@ -35,6 +35,8 @@ def get_default_config():
     cfg.cuhk03.labeled_images = False # use labeled images, if False, use detected images
     cfg.cuhk03.classic_split = False # use classic split by Li et al. CVPR14
     cfg.cuhk03.use_metric_cuhk03 = False # use cuhk03's metric for evaluation
+    cfg.aic20 = CN()
+    cfg.aic20.use_simulation_data = False
 
     # sampler
     cfg.sampler = CN()
@@ -129,6 +131,7 @@ def imagedata_kwargs(cfg):
         'cuhk03_labeled': cfg.cuhk03.labeled_images,
         'cuhk03_classic_split': cfg.cuhk03.classic_split,
         'market1501_500k': cfg.market1501.use_500k_distractors,
+        'aic20_simulation_data': cfg.aic20.use_simulation_data,
     }
 
 

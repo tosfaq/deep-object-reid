@@ -6,11 +6,14 @@ data:
   type: 'image'
   sources: ['aic20']
   targets: ['aic20']
-  height: 256
-  width: 128
+  height: 192
+  width: 256
   combineall: False
   transforms: ['random_flip']
   save_dir: 'log/osnet_x1_0_aic20_softmax_cosinelr'
+
+aic20:
+  use_simulation_data: False
 
 loss:
   name: 'softmax'
@@ -20,7 +23,7 @@ loss:
 train:
   optim: 'amsgrad'
   lr: 0.0015
-  max_epoch: 64
+  max_epoch: 250
   batch_size: 64
   fixbase_epoch: 5
   open_layers: ['classifier']
