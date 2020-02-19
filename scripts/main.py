@@ -13,7 +13,7 @@ from torchreid.utils import (
 
 from scripts.default_config import (
     imagedata_kwargs, optimizer_kwargs, videodata_kwargs, engine_run_kwargs,
-    get_default_config, lr_scheduler_kwargs
+    get_default_config, lr_scheduler_kwargs, model_kwargs
 )
 
 
@@ -89,38 +89,14 @@ def reset_config(cfg, args):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    parser.add_argument(
-        '--config-file', type=str, default='', help='path to config file'
-    )
-    parser.add_argument(
-        '-s',
-        '--sources',
-        type=str,
-        nargs='+',
-        help='source datasets (delimited by space)'
-    )
-    parser.add_argument(
-        '-t',
-        '--targets',
-        type=str,
-        nargs='+',
-        help='target datasets (delimited by space)'
-    )
-    parser.add_argument(
-        '--transforms', type=str, nargs='+', help='data augmentation'
-    )
-    parser.add_argument(
-        '--root', type=str, default='', help='path to data root'
-    )
-    parser.add_argument(
-        'opts',
-        default=None,
-        nargs=argparse.REMAINDER,
-        help='Modify config options using the command-line'
-    )
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--config-file', type=str, default='', help='path to config file')
+    parser.add_argument('-s', '--sources', type=str, nargs='+', help='source datasets (delimited by space)')
+    parser.add_argument('-t', '--targets', type=str, nargs='+', help='target datasets (delimited by space)')
+    parser.add_argument('--transforms', type=str, nargs='+', help='data augmentation')
+    parser.add_argument('--root', type=str, default='', help='path to data root')
+    parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
+                        help='Modify config options using the command-line')
     args = parser.parse_args()
 
     cfg = get_default_config()
@@ -145,16 +121,8 @@ def main():
     datamanager = build_datamanager(cfg)
 
     print('Building model: {}'.format(cfg.model.name))
-    model = torchreid.models.build_model(
-        name=cfg.model.name,
-        num_classes=datamanager.num_train_pids,
-        loss=cfg.loss.name,
-        pretrained=cfg.model.pretrained,
-        use_gpu=cfg.use_gpu
-    )
-    num_params, flops = compute_model_complexity(
-        model, (1, 3, cfg.data.height, cfg.data.width)
-    )
+    model = torchreid.models.build_model(**model_kwargs(cfg, datamanager.num_train_pids))
+    num_params, flops = compute_model_complexity(model, (1, 3, cfg.data.height, cfg.data.width))
     print('Model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
     if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
@@ -164,18 +132,14 @@ def main():
         model = nn.DataParallel(model).cuda()
 
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-    scheduler = torchreid.optim.build_lr_scheduler(
-        optimizer, **lr_scheduler_kwargs(cfg)
-    )
+    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 
     if cfg.model.resume and check_isfile(cfg.model.resume):
         cfg.train.start_epoch = resume_from_checkpoint(
             cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
         )
 
-    print(
-        'Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type)
-    )
+    print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
     engine = build_engine(cfg, datamanager, model, optimizer, scheduler)
     engine.run(**engine_run_kwargs(cfg))
 

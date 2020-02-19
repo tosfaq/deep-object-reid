@@ -1,6 +1,7 @@
 model:
   name: 'osnet_ain_x1_0'
   pretrained: False
+  feature_dim: 512
 
 data:
   type: 'image'

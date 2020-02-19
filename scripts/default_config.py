@@ -10,6 +10,7 @@ def get_default_config():
     cfg.model.pretrained = True # automatically load pretrained model weights if available
     cfg.model.load_weights = '' # path to model weights
     cfg.model.resume = '' # path to checkpoint for resume training
+    cfg.model.feature_dim = 512 # embedding size
 
     # data
     cfg.data = CN()
@@ -182,6 +183,17 @@ def lr_scheduler_kwargs(cfg):
         'stepsize': cfg.train.stepsize,
         'gamma': cfg.train.gamma,
         'max_epoch': cfg.train.max_epoch
+    }
+
+
+def model_kwargs(cfg, num_classes):
+    return {
+        'name': cfg.model.name,
+        'num_classes': num_classes,
+        'loss': cfg.loss.name,
+        'pretrained': cfg.model.pretrained,
+        'use_gpu': cfg.use_gpu,
+        'feature_dim': cfg.model.feature_dim
     }
 
 

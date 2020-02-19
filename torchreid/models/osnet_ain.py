@@ -521,6 +521,7 @@ def init_pretrained_weights(model, key=''):
 ##########
 # Instantiation
 ##########
+
 def osnet_ain_x1_0(
     num_classes=1000, pretrained=True, loss='softmax', **kwargs
 ):
@@ -536,6 +537,8 @@ def osnet_ain_x1_0(
         conv1_IN=True,
         **kwargs
     )
+
     if pretrained:
         init_pretrained_weights(model, key='osnet_ain_x1_0')
+
     return model
