@@ -14,12 +14,13 @@ data:
   save_dir: 'log/v2_osnet_ain_x1_0_aic20_softmax_cosinelr'
 
 aic20:
-  use_simulation_data: True
+  use_simulation_data: False
 
 loss:
   name: 'softmax'
   softmax:
     label_smooth: True
+    conf_penalty: 0.085
 
 train:
   optim: 'amsgrad'
@@ -27,7 +28,7 @@ train:
   max_epoch: 250
   batch_size: 64
   fixbase_epoch: 5
-  open_layers: ['classifier']
+  open_layers: ['classifier', 'fc']
   lr_scheduler: 'cosine'
 
 test:

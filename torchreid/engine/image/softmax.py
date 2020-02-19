@@ -65,7 +65,8 @@ class ImageSoftmaxEngine(Engine):
         optimizer,
         scheduler=None,
         use_gpu=True,
-        label_smooth=True
+        label_smooth=True,
+        conf_penalty=0.0
     ):
         super(ImageSoftmaxEngine, self
               ).__init__(datamanager, model, optimizer, scheduler, use_gpu)
@@ -73,7 +74,8 @@ class ImageSoftmaxEngine(Engine):
         self.criterion = CrossEntropyLoss(
             num_classes=self.datamanager.num_train_pids,
             use_gpu=self.use_gpu,
-            label_smooth=label_smooth
+            label_smooth=label_smooth,
+            conf_penalty=conf_penalty
         )
 
     def train(
