@@ -1,6 +1,6 @@
 model:
-  name: 'osnet_x1_0'
-  pretrained: True
+  name: 'osnet_ain_x1_0'
+  pretrained: False
 
 data:
   type: 'image'
@@ -9,8 +9,8 @@ data:
   height: 192
   width: 256
   combineall: False
-  transforms: ['random_flip']
-  save_dir: 'log/osnet_x1_0_aic20_softmax_cosinelr_v1'
+  transforms: ['random_flip', 'random_erase']
+  save_dir: 'log/v2_osnet_ain_x1_0_aic20_softmax_cosinelr'
 
 aic20:
   use_simulation_data: False
@@ -34,6 +34,6 @@ test:
   dist_metric: 'euclidean'
   normalize_feature: False
   evaluate: False
-  eval_freq: 5
+  eval_freq: 10
   rerank: False
   visactmap: False
