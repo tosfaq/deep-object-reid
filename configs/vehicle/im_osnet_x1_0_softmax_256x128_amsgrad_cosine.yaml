@@ -14,7 +14,7 @@ data:
   save_dir: 'log/v2_osnet_ain_x1_0_aic20_softmax_cosinelr'
 
 aic20:
-  use_simulation_data: False
+  use_simulation_data: True
 
 loss:
   name: 'softmax'
