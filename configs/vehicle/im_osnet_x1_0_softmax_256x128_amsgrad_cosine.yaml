@@ -11,10 +11,14 @@ data:
   width: 256
   combineall: False
   transforms: ['random_flip', 'random_erase']
-  save_dir: 'log/v2_osnet_ain_x1_0_aic20_softmax_cosinelr'
+  save_dir: 'log/osnet_ain_x1_0_aic20_softmax_cosinelr'
 
 aic20:
   use_simulation_data: False
+
+sampler:
+  train_sampler: 'RandomIdentitySampler'
+  num_instances: 4
 
 loss:
   name: 'softmax'
