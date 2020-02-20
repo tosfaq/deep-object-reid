@@ -34,7 +34,7 @@ class AngleSimpleLinear(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
         self.weight = Parameter(torch.Tensor(in_features, out_features))
-        self.weight.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
+        self.weight.data.normal_().renorm_(2, 1, 1e-5).mul_(1e5)
 
     def forward(self, x):
         cos_theta = F.normalize(x, dim=1).mm(F.normalize(self.weight, dim=0))
@@ -51,8 +51,7 @@ def focal_loss(input_values, gamma):
 class AMSoftmaxLoss(nn.Module):
     margin_types = ['cos', 'arc']
 
-    def __init__(self, num_classes, epsilon=0.1, use_gpu=True,
-                 conf_penalty=0.,
+    def __init__(self, num_classes, epsilon=0.1, use_gpu=True, conf_penalty=0.,
                  margin_type='cos', gamma=0., m=0.5, s=30, t=1.):
         super(AMSoftmaxLoss, self).__init__()
         self.num_classes = num_classes
@@ -80,9 +79,9 @@ class AMSoftmaxLoss(nn.Module):
     def forward(self, cos_theta, target):
         """
         Args:
-            inputs (torch.Tensor): prediction matrix (before softmax) with
+            cos_theta (torch.Tensor): prediction matrix (before softmax) with
                 shape (batch_size, num_classes).
-            targets (torch.LongTensor): ground truth labels with shape (batch_size).
+            target (torch.LongTensor): ground truth labels with shape (batch_size).
                 Each position contains the label index.
         """
 
@@ -90,7 +89,7 @@ class AMSoftmaxLoss(nn.Module):
             phi_theta = cos_theta - self.m
         else:
             sine = torch.sqrt(1.0 - torch.pow(cos_theta, 2))
-            phi_theta = cos_theta * self.cos_m - sine * self.sin_m #cos(theta+m)
+            phi_theta = cos_theta * self.cos_m - sine * self.sin_m
             phi_theta = torch.where(cos_theta > self.th, phi_theta, cos_theta - self.sin_m * self.m)
 
         index = torch.zeros_like(cos_theta, dtype=torch.uint8)
@@ -102,13 +101,13 @@ class AMSoftmaxLoss(nn.Module):
                 output *= self.s
                 log_probs = self.logsoftmax(output)
                 probs = torch.exp(log_probs)
-                ent = (-probs*torch.log(probs.clamp(min=1e-12))).sum(1)
+                ent = (-probs * torch.log(probs.clamp(min=1e-12))).sum(1)
                 loss = F.relu(F.cross_entropy(output, target, reduction='none') - self.conf_penalty * ent)
                 with torch.no_grad():
                     nonzero_count = loss.nonzero().size(0)
                 return loss.sum() / nonzero_count
             else:
-                return F.cross_entropy(self.s*output, target)
+                return F.cross_entropy(self.s * output, target)
 
         if self.t > 1:
             h_theta = self.t - 1 + self.t*cos_theta

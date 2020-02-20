@@ -435,7 +435,7 @@ class OSNet(nn.Module):
 
         return y
 
-    def forward(self, x, return_featuremaps=False):
+    def forward(self, x, return_featuremaps=False, get_embeddings=False):
         x = self.featuremaps(x)
         if return_featuremaps:
             return x
@@ -449,6 +449,9 @@ class OSNet(nn.Module):
             return v
 
         y = self.classifier(v)
+
+        if get_embeddings:
+            return v, y
 
         if self.loss in ['softmax', 'am_softmax']:
             return y

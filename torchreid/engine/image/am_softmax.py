@@ -66,7 +66,8 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 num_classes=self.datamanager.num_train_pids,
                 use_gpu=self.use_gpu,
                 conf_penalty=conf_penalty,
-                m=m, s=s
+                m=m,
+                s=s
             )
 
         self.batch_transform_cfg = batch_transform_cfg
