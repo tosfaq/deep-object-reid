@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 
 import torchreid
+from torchreid.engine import build_engine
 from torchreid.utils import (
     Logger, check_isfile, set_random_seed, collect_env_info,
     resume_from_checkpoint, load_pretrained_weights, compute_model_complexity
@@ -22,63 +23,6 @@ def build_datamanager(cfg):
         return torchreid.data.ImageDataManagerWithTransforms(**imagedata_kwargs(cfg))
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
-
-
-def build_engine(cfg, datamanager, model, optimizer, scheduler):
-    if cfg.data.type == 'image':
-        if cfg.loss.name == 'softmax':
-            engine = torchreid.engine.ImageSoftmaxEngine(
-                datamanager,
-                model,
-                optimizer=optimizer,
-                scheduler=scheduler,
-                use_gpu=cfg.use_gpu,
-                label_smooth=cfg.loss.softmax.label_smooth,
-                conf_penalty=cfg.loss.softmax.conf_penalty
-            )
-
-        else:
-            engine = torchreid.engine.ImageTripletEngine(
-                datamanager,
-                model,
-                optimizer=optimizer,
-                margin=cfg.loss.triplet.margin,
-                weight_t=cfg.loss.triplet.weight_t,
-                weight_x=cfg.loss.triplet.weight_x,
-                scheduler=scheduler,
-                use_gpu=cfg.use_gpu,
-                label_smooth=cfg.loss.softmax.label_smooth,
-                conf_penalty=cfg.loss.softmax.conf_penalty
-            )
-
-    else:
-        if cfg.loss.name == 'softmax':
-            engine = torchreid.engine.VideoSoftmaxEngine(
-                datamanager,
-                model,
-                optimizer=optimizer,
-                scheduler=scheduler,
-                use_gpu=cfg.use_gpu,
-                label_smooth=cfg.loss.softmax.label_smooth,
-                conf_penalty=cfg.loss.softmax.conf_penalty,
-                pooling_method=cfg.video.pooling_method
-            )
-
-        else:
-            engine = torchreid.engine.VideoTripletEngine(
-                datamanager,
-                model,
-                optimizer=optimizer,
-                margin=cfg.loss.triplet.margin,
-                weight_t=cfg.loss.triplet.weight_t,
-                weight_x=cfg.loss.triplet.weight_x,
-                scheduler=scheduler,
-                use_gpu=cfg.use_gpu,
-                label_smooth=cfg.loss.softmax.label_smooth,
-                conf_penalty=cfg.loss.softmax.conf_penalty
-            )
-
-    return engine
 
 
 def reset_config(cfg, args):
