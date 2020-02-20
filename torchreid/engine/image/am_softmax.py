@@ -30,7 +30,6 @@ from tqdm import tqdm
 
 import torch
 from torch.nn import functional as F
-from torch.utils.tensorboard import SummaryWriter
 
 from torchreid import metrics
 from torchreid.engine.image.softmax import ImageSoftmaxEngine
@@ -83,70 +82,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         else:
             self.metric_losses = None
 
-    def run(self, save_dir='log', max_epoch=0, start_epoch=0, fixbase_epoch=0, open_layers=None,
-            start_eval=0, eval_freq=-1, test_only=False, print_freq=10,
-            dist_metric='euclidean', normalize_feature=False, visrank=False, visrank_topk=10,
-            use_metric_cuhk03=False, ranks=(1, 5, 10, 20), rerank=False, visactmap=False):
-        r"""A unified pipeline for training and evaluating a model.
-        """
-
-        if visrank and not test_only:
-            raise ValueError('visrank=True is valid only if test_only=True')
-
-        if test_only:
-            self.test(
-                0,
-                self.test_loader,
-                dist_metric=dist_metric,
-                normalize_feature=normalize_feature,
-                visrank=visrank,
-                visrank_topk=visrank_topk,
-                save_dir=save_dir,
-                use_metric_cuhk03=use_metric_cuhk03,
-                ranks=ranks,
-                rerank=rerank
-            )
-            return
-
-        if visactmap:
-            self.visactmap(self.test_loader, save_dir, self.datamanager.width, self.datamanager.height, print_freq)
-            return
-
-        if self.writer is None:
-            self.writer = SummaryWriter(log_dir=save_dir)
-
-        time_start = time.time()
-        print('=> Start training')
-
-        # Save zeroth checkpoint
-        self._save_checkpoint(-1, 0.0, save_dir)
-
-        for epoch in range(start_epoch, max_epoch):
-            self.train(epoch, max_epoch, self.train_loader, fixbase_epoch, open_layers, print_freq)
-
-            if (epoch + 1) >= start_eval and eval_freq > 0 and (epoch + 1) % eval_freq == 0:
-                rank1 = self.test(
-                    epoch,
-                    self.test_loader,
-                    dist_metric=dist_metric,
-                    normalize_feature=normalize_feature,
-                    visrank=visrank,
-                    visrank_topk=visrank_topk,
-                    save_dir=save_dir,
-                    use_metric_cuhk03=use_metric_cuhk03,
-                    ranks=ranks
-                )
-                self._save_checkpoint(epoch, rank1, save_dir)
-
-        elapsed = round(time.time() - time_start)
-        elapsed = str(datetime.timedelta(seconds=elapsed))
-        print('Elapsed {}'.format(elapsed))
-
-        if self.writer is not None:
-            self.writer.flush()
-            self.writer.close()
-
-    def train(self, epoch, max_epoch, trainloader, fixbase_epoch=0, open_layers=None, print_freq=10):
+    def train(self, epoch, max_epoch, writer, print_freq=10, fixbase_epoch=0, open_layers=None):
         losses = AverageMeter()
         reg_ow_loss = AverageMeter()
         metric_losses = AverageMeter()
@@ -161,9 +97,9 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         else:
             open_all_layers(self.model)
 
-        num_batches = len(trainloader)
+        num_batches = len(self.train_loader)
         start_time = time.time()
-        for batch_idx, data in enumerate(trainloader):
+        for batch_idx, data in enumerate(self.train_loader):
             data_time.update(time.time() - start_time)
 
             imgs, pids = self._parse_data_for_train(data)
@@ -186,7 +122,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 loss += reg_loss
 
             if self.metric_losses is not None:
-                self.metric_losses.writer = self.writer
+                self.metric_losses.writer = writer
                 self.metric_losses.init_iteration()
                 metric_loss = self.metric_losses(embeddings, pids, epoch, epoch * num_batches + batch_idx)
                 self.metric_losses.end_iteration()
@@ -223,64 +159,54 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                       )
                 )
 
-                if self.writer is not None:
+                if writer is not None:
                     n_iter = epoch * num_batches + batch_idx
-                    self.writer.add_scalar('Train/Time', batch_time.avg, n_iter)
-                    self.writer.add_scalar('Train/Data', data_time.avg, n_iter)
+                    writer.add_scalar('Train/Time', batch_time.avg, n_iter)
+                    writer.add_scalar('Train/Data', data_time.avg, n_iter)
                     info = self.criterion.get_last_info()
                     for k in info:
-                        self.writer.add_scalar('AUX info/' + k, info[k], n_iter)
-                    self.writer.add_scalar('Loss/train', losses.avg, n_iter)
+                        writer.add_scalar('AUX info/' + k, info[k], n_iter)
+                    writer.add_scalar('Loss/train', losses.avg, n_iter)
                     if (epoch + 1) > fixbase_epoch:
-                        self.writer.add_scalar('Loss/reg_ow', reg_ow_loss.avg, n_iter)
-                    self.writer.add_scalar('Accuracy/train', accs.avg, n_iter)
-                    self.writer.add_scalar('Learning rate', self.optimizer.param_groups[0]['lr'], n_iter)
+                        writer.add_scalar('Loss/reg_ow', reg_ow_loss.avg, n_iter)
+                    writer.add_scalar('Accuracy/train', accs.avg, n_iter)
+                    writer.add_scalar('Learning rate', self.optimizer.param_groups[0]['lr'], n_iter)
             start_time = time.time()
 
         if self.scheduler is not None:
             self.scheduler.step()
 
     @torch.no_grad()
-    def _evaluate(self, epoch, dataset_name='', queryloader=None, galleryloader=None,
+    def _evaluate(self, epoch, dataset_name='', query_loader=None, gallery_loader=None,
                   dist_metric='euclidean', normalize_feature=False, visrank=False,
                   visrank_topk=10, save_dir='', use_metric_cuhk03=False, ranks=(1, 5, 10, 20),
-                  rerank=False, iteration=0):
+                  rerank=False):
         batch_time = AverageMeter()
 
+        def _feature_extraction(data_loader):
+            f_, pids_, camids_ = [], [], []
+            for batch_idx, data in enumerate(data_loader):
+                imgs, pids, camids = self._parse_data_for_eval(data)
+                if self.use_gpu:
+                    imgs = imgs.cuda()
+                end = time.time()
+                features = self._extract_features(imgs)
+                batch_time.update(time.time() - end)
+                features = features.data.cpu()
+                f_.append(features)
+                pids_.extend(pids)
+                camids_.extend(camids)
+            f_ = torch.cat(f_, 0)
+            pids_ = np.asarray(pids_)
+            camids_ = np.asarray(camids_)
+            return f_, pids_, camids_
+
         print('Extracting features from query set...')
-        qf, q_pids, q_camids = [], [], []  # query features, query person IDs and query camera IDs
-        for batch_idx, data in tqdm(enumerate(queryloader), 'Processing query...'):
-            imgs, pids, camids = self._parse_data_for_eval(data)
-            if self.use_gpu:
-                imgs = imgs.cuda()
-            end = time.time()
-            features = self._extract_features(imgs, data[3])
-            batch_time.update(time.time() - end)
-            features = features.data.cpu()
-            qf.append(features)
-            q_pids.extend(pids)
-            q_camids.extend(camids)
-        qf = torch.cat(qf, 0)
-        q_pids = np.asarray(q_pids)
-        q_camids = np.asarray(q_camids)
+        qf, q_pids, q_camids = _feature_extraction(query_loader)
         print('Done, obtained {}-by-{} matrix'.format(qf.size(0), qf.size(1)))
 
         print('Extracting features from gallery set...')
-        gf, g_pids, g_camids = [], [], []  # gallery features, gallery person IDs and gallery camera IDs
-        for batch_idx, data in tqdm(enumerate(galleryloader), 'Processing gallery...'):
-            imgs, pids, camids = self._parse_data_for_eval(data)
-            if self.use_gpu:
-                imgs = imgs.cuda()
-            end = time.time()
-            features = self._extract_features(imgs, data[3])
-            batch_time.update(time.time() - end)
-            features = features.data.cpu()
-            gf.append(features)
-            g_pids.extend(pids)
-            g_camids.extend(camids)
-        gf = torch.cat(gf, 0)
-        g_pids = np.asarray(g_pids)
-        g_camids = np.asarray(g_camids)
+        gf, g_pids, g_camids = _feature_extraction(gallery_loader)
         print('Done, obtained {}-by-{} matrix'.format(gf.size(0), gf.size(1)))
 
         print('Speed: {:.4f} sec/batch'.format(batch_time.avg))
@@ -309,6 +235,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             g_camids,
             use_metric_cuhk03=use_metric_cuhk03
         )
+
         if self.writer is not None:
             self.writer.add_scalar('Val/{}/mAP'.format(dataset_name), mAP, epoch + 1)
             for r in ranks:
@@ -345,4 +272,5 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     + (1 - self.batch_transform_cfg.anchor_bias) \
                     * self.lambd_distr.sample((imgs.shape[0],))
             imgs = lambd * imgs + (1 - lambd) * imgs[permuted_idx]
+
         return imgs, pids

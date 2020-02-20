@@ -280,9 +280,7 @@ class Engine(object):
             qf = F.normalize(qf, p=2, dim=1)
             gf = F.normalize(gf, p=2, dim=1)
 
-        print(
-            'Computing distance matrix with metric={} ...'.format(dist_metric)
-        )
+        print('Computing distance matrix with metric={} ...'.format(dist_metric))
         distmat = metrics.compute_distance_matrix(qf, gf, dist_metric)
         distmat = distmat.numpy()
 
@@ -301,6 +299,11 @@ class Engine(object):
             g_camids,
             use_metric_cuhk03=use_metric_cuhk03
         )
+
+        if self.writer is not None:
+            self.writer.add_scalar('Val/{}/mAP'.format(dataset_name), mAP, epoch + 1)
+            for r in ranks:
+                self.writer.add_scalar('Val/{}/Rank-{}'.format(dataset_name, r), cmc[r - 1], epoch + 1)
 
         print('** Results **')
         print('mAP: {:.1%}'.format(mAP))

@@ -57,6 +57,6 @@ test:
   dist_metric: 'cosine'
   normalize_feature: False
   evaluate: False
-  eval_freq: 5
+  eval_freq: 1
   rerank: False
   visactmap: False
