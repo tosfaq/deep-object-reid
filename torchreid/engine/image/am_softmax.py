@@ -23,18 +23,13 @@ from __future__ import print_function
 from __future__ import division
 
 import datetime
-import numpy as np
 import time
-from os import path as osp
-from tqdm import tqdm
 
 import torch
-from torch.nn import functional as F
 
 from torchreid import metrics
 from torchreid.engine.image.softmax import ImageSoftmaxEngine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers, visualize_ranked_results, re_ranking
-
 from torchreid.losses.am_softmax import AMSoftmaxLoss
 from torchreid.losses.cross_entropy_loss import CrossEntropyLoss
 from torchreid.losses.regularizers import get_regularizer
@@ -42,7 +37,7 @@ from torchreid.losses.metric import MetricLosses
 
 
 class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
-    r"""Softmax-loss engine for image-reid.
+    r"""AM-Softmax-loss engine for image-reid.
     """
 
     def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, batch_transform_cfg,
@@ -175,95 +170,6 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
         if self.scheduler is not None:
             self.scheduler.step()
-
-    @torch.no_grad()
-    def _evaluate(self, epoch, dataset_name='', query_loader=None, gallery_loader=None,
-                  dist_metric='euclidean', normalize_feature=False, visrank=False,
-                  visrank_topk=10, save_dir='', use_metric_cuhk03=False, ranks=(1, 5, 10, 20),
-                  rerank=False):
-        batch_time = AverageMeter()
-
-        def _feature_extraction(data_loader):
-            f_, pids_, camids_ = [], [], []
-            for batch_idx, data in enumerate(data_loader):
-                imgs, pids, camids = self._parse_data_for_eval(data)
-                if self.use_gpu:
-                    imgs = imgs.cuda()
-                end = time.time()
-                features = self._extract_features(imgs)
-                batch_time.update(time.time() - end)
-                features = features.data.cpu()
-                f_.append(features)
-                pids_.extend(pids)
-                camids_.extend(camids)
-            f_ = torch.cat(f_, 0)
-            pids_ = np.asarray(pids_)
-            camids_ = np.asarray(camids_)
-            return f_, pids_, camids_
-
-        print('Extracting features from query set...')
-        qf, q_pids, q_camids = _feature_extraction(query_loader)
-        print('Done, obtained {}-by-{} matrix'.format(qf.size(0), qf.size(1)))
-
-        print('Extracting features from gallery set...')
-        gf, g_pids, g_camids = _feature_extraction(gallery_loader)
-        print('Done, obtained {}-by-{} matrix'.format(gf.size(0), gf.size(1)))
-
-        print('Speed: {:.4f} sec/batch'.format(batch_time.avg))
-
-        if normalize_feature:
-            print('Normalizing features with L2 norm...')
-            qf = F.normalize(qf, p=2, dim=1)
-            gf = F.normalize(gf, p=2, dim=1)
-
-        print('Computing distance matrix with metric={}...'.format(dist_metric))
-        distmat = metrics.compute_distance_matrix(qf, gf, dist_metric)
-        distmat = distmat.numpy()
-
-        if rerank:
-            print('Applying person re-ranking ...')
-            distmat_qq = metrics.compute_distance_matrix(qf, qf, dist_metric)
-            distmat_gg = metrics.compute_distance_matrix(gf, gf, dist_metric)
-            distmat = re_ranking(distmat, distmat_qq, distmat_gg)
-
-        print('Computing CMC and mAP ...')
-        cmc, mAP = metrics.evaluate_rank(
-            distmat,
-            q_pids,
-            g_pids,
-            q_camids,
-            g_camids,
-            use_metric_cuhk03=use_metric_cuhk03
-        )
-
-        if self.writer is not None:
-            self.writer.add_scalar('Val/{}/mAP'.format(dataset_name), mAP, epoch + 1)
-            for r in ranks:
-                self.writer.add_scalar('Val/{}/Rank-{}'.format(dataset_name, r), cmc[r - 1], epoch + 1)
-
-        print('** Results **')
-        print('mAP: {:.2%}'.format(mAP))
-        print('CMC curve')
-        for r in ranks:
-            print('Rank-{:<3}: {:.2%}'.format(r, cmc[r-1]))
-
-        if visrank:
-            visualize_ranked_results(
-                distmat,
-                self.datamanager.return_testdataset_by_name(dataset_name),
-                self.datamanager.data_type,
-                width=self.datamanager.width,
-                height=self.datamanager.height,
-                save_dir=osp.join(save_dir, 'visrank_' + dataset_name),
-                topk=visrank_topk
-            )
-
-        return cmc[0]
-
-    def _extract_features(self, input, img_path=None):
-        self.model.eval()
-        out_pytorch = self.model(input)
-        return out_pytorch
 
     def _apply_batch_transform(self, imgs, pids):
         if self.batch_transform_cfg.enable:

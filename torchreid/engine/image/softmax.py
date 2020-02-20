@@ -159,9 +159,7 @@ class ImageSoftmaxEngine(Engine):
                 writer.add_scalar('Train/Data', data_time.avg, n_iter)
                 writer.add_scalar('Train/Loss', losses.avg, n_iter)
                 writer.add_scalar('Train/Acc', accs.avg, n_iter)
-                writer.add_scalar(
-                    'Train/Lr', self.optimizer.param_groups[0]['lr'], n_iter
-                )
+                writer.add_scalar('Train/Lr', self.optimizer.param_groups[0]['lr'], n_iter)
 
             end = time.time()
 
