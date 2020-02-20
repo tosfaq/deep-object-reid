@@ -89,7 +89,6 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             use_metric_cuhk03=False, ranks=(1, 5, 10, 20), rerank=False, visactmap=False):
         r"""A unified pipeline for training and evaluating a model.
         """
-        trainloader, testloader = self.datamanager.return_dataloaders()
 
         if visrank and not test_only:
             raise ValueError('visrank=True is valid only if test_only=True')
@@ -97,7 +96,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         if test_only:
             self.test(
                 0,
-                testloader,
+                self.test_loader,
                 dist_metric=dist_metric,
                 normalize_feature=normalize_feature,
                 visrank=visrank,
@@ -110,7 +109,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             return
 
         if visactmap:
-            self.visactmap(testloader, save_dir, self.datamanager.width, self.datamanager.height, print_freq)
+            self.visactmap(self.test_loader, save_dir, self.datamanager.width, self.datamanager.height, print_freq)
             return
 
         if self.writer is None:
@@ -123,12 +122,12 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         self._save_checkpoint(-1, 0.0, save_dir)
 
         for epoch in range(start_epoch, max_epoch):
-            self.train(epoch, max_epoch, trainloader, fixbase_epoch, open_layers, print_freq)
+            self.train(epoch, max_epoch, self.train_loader, fixbase_epoch, open_layers, print_freq)
 
             if (epoch + 1) >= start_eval and eval_freq > 0 and (epoch + 1) % eval_freq == 0:
                 rank1 = self.test(
                     epoch,
-                    testloader,
+                    self.test_loader,
                     dist_metric=dist_metric,
                     normalize_feature=normalize_feature,
                     visrank=visrank,
