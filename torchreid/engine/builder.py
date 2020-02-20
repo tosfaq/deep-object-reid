@@ -1,24 +1,19 @@
 from torchreid.engine import (
-    ImageAMSoftmaxEngine, ImageTripletEngine, VideoSoftmaxEngine, VideoTripletEngine
+    ImageSoftmaxEngine, ImageAMSoftmaxEngine, VideoSoftmaxEngine,
+    ImageTripletEngine, VideoTripletEngine
 )
 
 
 def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
     if cfg.data.type == 'image':
         if cfg.loss.name == 'softmax':
-            engine = ImageAMSoftmaxEngine(
+            engine = ImageSoftmaxEngine(
                 datamanager,
                 model,
-                optimizer,
-                cfg.reg,
-                cfg.metric_losses,
-                cfg.data.transforms.batch_transform,
-                scheduler,
-                cfg.use_gpu,
-                label_smooth=cfg.loss.softmax.label_smooth,
-                conf_penalty=cfg.loss.softmax.conf_pen,
-                softmax_type='stock',
-                writer=writer
+                optimizer=optimizer,
+                scheduler=scheduler,
+                use_gpu=cfg.use_gpu,
+                label_smooth=cfg.loss.softmax.label_smooth
             )
         elif cfg.loss.name == 'am_softmax':
             engine = ImageAMSoftmaxEngine(
@@ -30,7 +25,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
                 cfg.data.transforms.batch_transform,
                 scheduler,
                 cfg.use_gpu,
-                conf_penalty=cfg.loss.softmax.conf_pen,
+                conf_penalty=cfg.loss.softmax.conf_penalty,
                 softmax_type='am',
                 m=cfg.loss.softmax.m,
                 s=cfg.loss.softmax.s,

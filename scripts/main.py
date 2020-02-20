@@ -20,7 +20,7 @@ from scripts.default_config import (
 
 def build_datamanager(cfg):
     if cfg.data.type == 'image':
-        return torchreid.data.ImageDataManagerWithTransforms(**imagedata_kwargs(cfg))
+        return torchreid.data.ImageDataManager(**imagedata_kwargs(cfg))
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
