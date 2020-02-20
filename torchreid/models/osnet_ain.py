@@ -4,6 +4,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from torchreid.losses import AngleSimpleLinear
+
 __all__ = ['osnet_ain_x1_0']
 
 pretrained_urls = {
@@ -15,6 +17,7 @@ pretrained_urls = {
 ##########
 # Basic layers
 ##########
+
 class ConvLayer(nn.Module):
     """Convolution layer (conv + bn + relu)."""
 
@@ -166,6 +169,7 @@ class LightConvStream(nn.Module):
 ##########
 # Building blocks for omni-scale feature learning
 ##########
+
 class ChannelGate(nn.Module):
     """A mini-network that generates channel-wise gates conditioned on input tensor."""
 
@@ -298,6 +302,7 @@ class OSBlockINin(nn.Module):
 ##########
 # Network architecture
 ##########
+
 class OSNet(nn.Module):
     """Omni-Scale Network.
     
@@ -347,12 +352,13 @@ class OSNet(nn.Module):
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
         self.global_avgpool = nn.AdaptiveAvgPool2d(1)
-        # fully connected layer
-        self.fc = self._construct_fc_layer(
-            self.feature_dim, channels[3], dropout_p=None
-        )
-        # identity classification layer
-        self.classifier = nn.Linear(self.feature_dim, num_classes)
+
+        self.fc = self._construct_fc_layer(self.feature_dim, channels[3], dropout_p=None)
+
+        if self.loss not in ['am_softmax']:
+            self.classifier = nn.Linear(self.feature_dim, num_classes)
+        else:
+            self.classifier = AngleSimpleLinear(self.feature_dim, num_classes)
 
         self._init_params()
 
@@ -361,6 +367,7 @@ class OSNet(nn.Module):
         layers += [blocks[0](in_channels, out_channels)]
         for i in range(1, len(blocks)):
             layers += [blocks[i](out_channels, out_channels)]
+
         return nn.Sequential(*layers)
 
     def _construct_fc_layer(self, fc_dims, input_dim, dropout_p=None):
@@ -375,9 +382,15 @@ class OSNet(nn.Module):
         for dim in fc_dims:
             layers.append(nn.Linear(input_dim, dim))
             layers.append(nn.BatchNorm1d(dim))
-            layers.append(nn.ReLU())
+
+            if self.loss not in ['am_softmax']:
+                layers.append(nn.ReLU())
+            else:
+                layers.append(nn.PReLU())
+
             if dropout_p is not None:
                 layers.append(nn.Dropout(p=dropout_p))
+
             input_dim = dim
 
         self.feature_dim = fc_dims[-1]
@@ -411,30 +424,35 @@ class OSNet(nn.Module):
                     nn.init.constant_(m.bias, 0)
 
     def featuremaps(self, x):
-        x = self.conv1(x)
-        x = self.maxpool(x)
-        x = self.conv2(x)
-        x = self.pool2(x)
-        x = self.conv3(x)
-        x = self.pool3(x)
-        x = self.conv4(x)
-        x = self.conv5(x)
-        return x
+        y = self.conv1(x)
+        y = self.maxpool(y)
+        y = self.conv2(y)
+        y = self.pool2(y)
+        y = self.conv3(y)
+        y = self.pool3(y)
+        y = self.conv4(y)
+        y = self.conv5(y)
+
+        return y
 
     def forward(self, x, return_featuremaps=False):
         x = self.featuremaps(x)
         if return_featuremaps:
             return x
+
         v = self.global_avgpool(x)
         v = v.view(v.size(0), -1)
         if self.fc is not None:
             v = self.fc(v)
+
         if not self.training:
             return v
+
         y = self.classifier(v)
-        if self.loss == 'softmax':
+
+        if self.loss in ['softmax', 'am_softmax']:
             return y
-        elif self.loss == 'triplet':
+        elif self.loss in ['triplet']:
             return y, v
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
@@ -522,9 +540,7 @@ def init_pretrained_weights(model, key=''):
 # Instantiation
 ##########
 
-def osnet_ain_x1_0(
-    num_classes=1000, pretrained=True, loss='softmax', **kwargs
-):
+def osnet_ain_x1_0(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
     model = OSNet(
         num_classes,
         blocks=[

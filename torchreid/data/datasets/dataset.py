@@ -24,8 +24,7 @@ class Dataset(object):
             dataset for training.
         verbose (bool): show information.
     """
-    _junk_pids = [
-    ] # contains useless person IDs, e.g. background, false detections
+    _junk_pids = []  # contains useless person IDs, e.g. background, false detections
 
     def __init__(
         self,
