@@ -5,7 +5,37 @@ import random
 from collections import defaultdict
 from torch.utils.data.sampler import Sampler, RandomSampler, SequentialSampler
 
-AVAI_SAMPLERS = ['RandomIdentitySampler', 'SequentialSampler', 'RandomSampler']
+AVAI_SAMPLERS = ['RandomIdentitySampler', 'RandomIdentitySamplerV2', 'RandomIdentitySamplerV3',
+                 'SequentialSampler', 'RandomSampler']
+
+
+def build_train_sampler(data_source, train_sampler, batch_size=32, num_instances=4, **kwargs):
+    """Builds a training sampler.
+
+    Args:
+        data_source (list): contains tuples of (img_path(s), pid, camid).
+        train_sampler (str): sampler name (default: ``RandomSampler``).
+        batch_size (int, optional): batch size. Default is 32.
+        num_instances (int, optional): number of instances per identity in a
+            batch (when using ``RandomIdentitySampler``). Default is 4.
+    """
+    assert train_sampler in AVAI_SAMPLERS, \
+        'train_sampler must be one of {}, but got {}'.format(AVAI_SAMPLERS, train_sampler)
+
+    if train_sampler == 'RandomIdentitySampler':
+        sampler = RandomIdentitySampler(data_source, batch_size, num_instances)
+    elif train_sampler == 'RandomIdentitySamplerV2':
+        sampler = RandomIdentitySamplerV2(data_source, batch_size, num_instances)
+    elif train_sampler == 'RandomIdentitySamplerV3':
+        sampler = RandomIdentitySamplerV3(data_source, batch_size, num_instances)
+    elif train_sampler == 'SequentialSampler':
+        sampler = SequentialSampler(data_source)
+    elif train_sampler == 'RandomSampler':
+        sampler = RandomSampler(data_source)
+    else:
+        raise ValueError('Unknown sampler: {}'.format(train_sampler))
+
+    return sampler
 
 
 class RandomIdentitySampler(Sampler):
@@ -99,30 +129,54 @@ class RandomIdentitySamplerV2(RandomIdentitySampler):
         return len(self.data_source)
 
 
-def build_train_sampler(
-    data_source, train_sampler, batch_size=32, num_instances=4, **kwargs
-):
-    """Builds a training sampler.
+class RandomIdentitySamplerV3(Sampler):
+    def __init__(self, data_source, batch_size, num_instances):
+        super().__init__(data_source)
 
-    Args:
-        data_source (list): contains tuples of (img_path(s), pid, camid).
-        train_sampler (str): sampler name (default: ``RandomSampler``).
-        batch_size (int, optional): batch size. Default is 32.
-        num_instances (int, optional): number of instances per identity in a
-            batch (when using ``RandomIdentitySampler``). Default is 4.
-    """
-    assert train_sampler in AVAI_SAMPLERS, \
-        'train_sampler must be one of {}, but got {}'.format(AVAI_SAMPLERS, train_sampler)
+        if batch_size < num_instances:
+            raise ValueError('batch_size={} must be no less than num_instances={}'
+                             .format(batch_size, num_instances))
 
-    if train_sampler == 'RandomIdentitySampler':
-        sampler = RandomIdentitySampler(data_source, batch_size, num_instances)
-    elif train_sampler == 'RandomIdentitySamplerV2':
-        sampler = RandomIdentitySamplerV2(data_source, batch_size, num_instances)
-    elif train_sampler == 'SequentialSampler':
-        sampler = SequentialSampler(data_source)
-    elif train_sampler == 'RandomSampler':
-        sampler = RandomSampler(data_source)
-    else:
-        raise ValueError('Unknown sampler: {}'.format(train_sampler))
+        self.data_source = data_source
+        self.batch_size = batch_size
+        self.num_instances = num_instances
+        self.num_pids_per_batch = self.batch_size // self.num_instances
 
-    return sampler
+        self.index_dic = defaultdict(list)
+        for index, (_, pid, _) in enumerate(self.data_source):
+            self.index_dic[pid].append(index)
+
+        self.pids = list(self.index_dic.keys())
+
+        average_num_instances = np.median([len(indices) for indices in self.index_dic.values()])
+        self.num_packages = int(average_num_instances) // self.num_instances
+        self.instances_per_pid = self.num_packages * self.num_instances
+        self.length = len(self.pids) * self.instances_per_pid
+
+    def __iter__(self):
+        pids = copy.deepcopy(self.pids)
+        random.shuffle(pids)
+
+        final_indices = []
+        for pid in pids:
+            sampled_indices = copy.deepcopy(self.index_dic[pid])
+            random.shuffle(sampled_indices)
+
+            if len(sampled_indices) < self.instances_per_pid:
+                num_extra = self.instances_per_pid - len(sampled_indices)
+                extra_indices = np.random.choice(sampled_indices, size=num_extra, replace=True)
+
+                sampled_indices.extend(extra_indices)
+                random.shuffle(sampled_indices)
+            elif len(sampled_indices) > self.instances_per_pid:
+                sampled_indices = sampled_indices[:self.instances_per_pid]
+
+            final_indices.append(sampled_indices)
+
+        final_indices = np.array(final_indices).reshape((len(pids), -1, self.num_instances))
+        final_indices = np.transpose(final_indices, (1, 0, 2)).reshape(-1)
+
+        return iter(final_indices.tolist())
+
+    def __len__(self):
+        return self.length

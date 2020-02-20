@@ -35,11 +35,11 @@ aic20:
   use_simulation_data: False
 
 sampler:
-  train_sampler: 'RandomSampler'
+  train_sampler: 'RandomIdentitySamplerV3'
   num_instances: 4
 
 loss:
-  name: 'am_softmax'
+  name: 'softmax'
   softmax:
     label_smooth: True
     conf_penalty: 0.0
@@ -69,6 +69,6 @@ test:
   dist_metric: 'cosine'
   normalize_feature: False
   evaluate: False
-  eval_freq: 5
+  eval_freq: 2
   rerank: False
   visactmap: False
