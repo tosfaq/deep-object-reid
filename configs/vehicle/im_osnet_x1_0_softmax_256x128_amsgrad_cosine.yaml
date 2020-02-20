@@ -34,6 +34,12 @@ loss:
     m: 0.35
     s: 15.0
 
+metric_losses:
+  enable: False
+  center_coeff: 1.0
+  glob_push_plus_loss_coeff: 1.2
+  balance_losses: True
+
 train:
   optim: 'amsgrad'
   lr: 0.0015
