@@ -77,6 +77,28 @@ class RandomIdentitySampler(Sampler):
         return self.length
 
 
+class RandomIdentitySamplerV2(RandomIdentitySampler):
+    def __init__(self, data_source, batch_size, num_instances):
+        super().__init__(data_source, batch_size, num_instances)
+
+    def __iter__(self):
+        random.shuffle(self.pids)
+        output_ids = []
+        for pid in self.pids:
+            random.shuffle(self.index_dic[pid])
+            output_ids += self.index_dic[pid]
+        extra_samples = len(output_ids) % self.num_instances
+        output_ids = output_ids[: len(output_ids) - extra_samples]
+        ids = np.array(output_ids)
+        ids = ids.reshape((-1, self.num_instances))
+        np.random.shuffle(ids)
+        ids = ids.reshape((-1))
+        return iter(ids.tolist())
+
+    def __len__(self):
+        return len(self.data_source)
+
+
 def build_train_sampler(
     data_source, train_sampler, batch_size=32, num_instances=4, **kwargs
 ):
@@ -94,11 +116,13 @@ def build_train_sampler(
 
     if train_sampler == 'RandomIdentitySampler':
         sampler = RandomIdentitySampler(data_source, batch_size, num_instances)
-
+    elif train_sampler == 'RandomIdentitySamplerV2':
+        sampler = RandomIdentitySamplerV2(data_source, batch_size, num_instances)
     elif train_sampler == 'SequentialSampler':
         sampler = SequentialSampler(data_source)
-
     elif train_sampler == 'RandomSampler':
         sampler = RandomSampler(data_source)
+    else:
+        raise ValueError('Unknown sampler: {}'.format(train_sampler))
 
     return sampler
