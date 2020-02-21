@@ -32,7 +32,7 @@ data:
   save_dir: 'log/osnet_ain_x1_0_aic20_softmax_cosinelr'
 
 aic20:
-  use_simulation_data: False
+  use_simulation_data: True
 
 sampler:
   train_sampler: 'RandomIdentitySamplerV3'
@@ -56,11 +56,11 @@ train:
   optim: 'amsgrad'
   lr: 0.0015
   max_epoch: 15
-  batch_size: 64
+  batch_size: 128
   fixbase_epoch: 2
   open_layers: ['classifier', 'fc']
   lr_scheduler: 'multi_step_warmup'
-  stepsize: [9]
+  stepsize: [10]
   warmup: 3
   warmup_factor_base: 0.01
 
