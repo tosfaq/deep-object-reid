@@ -44,7 +44,7 @@ loss:
     label_smooth: True
     conf_penalty: 0.0
     m: 0.35
-    s: 30.0
+    s: 15.0
 
 metric_losses:
   enable: False
