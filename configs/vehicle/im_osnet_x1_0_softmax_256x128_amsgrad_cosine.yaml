@@ -55,12 +55,12 @@ metric_losses:
 train:
   optim: 'amsgrad'
   lr: 0.0015
-  max_epoch: 30
+  max_epoch: 15
   batch_size: 64
   fixbase_epoch: 2
   open_layers: ['classifier', 'fc']
   lr_scheduler: 'multi_step_warmup'
-  stepsize: [10, 20]
+  stepsize: [9]
   warmup: 3
   warmup_factor_base: 0.01
 
@@ -69,6 +69,6 @@ test:
   dist_metric: 'cosine'
   normalize_feature: False
   evaluate: False
-  eval_freq: 2
+  eval_freq: 1
   rerank: False
   visactmap: False
