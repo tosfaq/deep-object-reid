@@ -56,7 +56,7 @@ train:
   optim: 'amsgrad'
   lr: 0.0015
   max_epoch: 15
-  batch_size: 128
+  batch_size: 64
   fixbase_epoch: 2
   open_layers: ['classifier', 'fc']
   lr_scheduler: 'multi_step_warmup'
