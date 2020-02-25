@@ -16,8 +16,12 @@ class AIC20(ImageDataset):
     """
     dataset_dir = 'aic20_reduced'
 
-    def __init__(self, root='', aic20_simulation_data=False, **kwargs):
+    def __init__(self, root='', aic20_simulation_data=False, aic20_simulation_only=False, **kwargs):
+        if not aic20_simulation_data and aic20_simulation_only:
+            raise ValueError('To use simulation only data it should be switched on')
+
         self.simulation_data = aic20_simulation_data
+        self.simulation_only = aic20_simulation_only
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
@@ -33,20 +37,24 @@ class AIC20(ImageDataset):
         self.extra_train_annot = osp.join(self.data_dir, 'train_simulation_label.xml')
 
         required_files = [
-            self.data_dir, self.train_dir, self.query_dir, self.gallery_dir,
-            self.train_annot, self.query_annot, self.gallery_annot,
+            self.data_dir, self.query_dir, self.gallery_dir,
+            self.query_annot, self.gallery_annot,
         ]
+        if not self.simulation_only:
+            required_files += [self.train_dir, self.train_annot]
         if self.simulation_data:
-            required_files += [
-                self.extra_train_dir, self.extra_train_annot
-            ]
+            required_files += [self.extra_train_dir, self.extra_train_annot]
         self.check_before_run(required_files)
 
         train = self.load_annotation(self.train_annot, self.train_dir)
         query = self.load_annotation(self.query_annot, self.query_dir)
         gallery = self.load_annotation(self.gallery_annot, self.gallery_dir)
         if self.simulation_data:
-            train += self.load_annotation(self.extra_train_annot, self.extra_train_dir)
+            extra_train = self.load_annotation(self.extra_train_annot, self.extra_train_dir)
+            if self.simulation_only:
+                train = extra_train
+            else:
+                train += extra_train
 
         train = self.compress_labels(train)
 

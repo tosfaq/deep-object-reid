@@ -163,6 +163,7 @@ class ImageDataManager(DataManager):
         cuhk03_classic_split=False,
         market1501_500k=False,
         aic20_simulation_data=False,
+        aic20_simulation_only=False,
     ):
 
         super(ImageDataManager, self).__init__(
@@ -189,7 +190,8 @@ class ImageDataManager(DataManager):
                 cuhk03_labeled=cuhk03_labeled,
                 cuhk03_classic_split=cuhk03_classic_split,
                 market1501_500k=market1501_500k,
-                aic20_simulation_data=aic20_simulation_data
+                aic20_simulation_data=aic20_simulation_data,
+                aic20_simulation_only=aic20_simulation_only
             )
             trainset.append(trainset_)
         trainset = sum(trainset)
