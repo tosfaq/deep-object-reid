@@ -5,7 +5,7 @@ model:
 
 data:
   type: 'image'
-  sources: ['aic20', 'vric', 'veri']
+  sources: ['aic20']
   targets: ['aic20', 'vric', 'veri']
   height: 192
   width: 256
@@ -32,15 +32,15 @@ data:
       enable: True
       p: 0.25
     random_crop:
-      enable: False
+      enable: True
       p: 0.25
       scale: 1.2
     random_rotate:
       enable: True
       p: 0.33
     random_perspective:
-      enable: False
-      p: 0.25
+      enable: True
+      p: 0.33
       distortion_scale: 0.3
     random_grid:
       enable: True
