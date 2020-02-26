@@ -28,23 +28,27 @@ class Random2DTranslation(object):
             ``PIL.Image.BILINEAR``
     """
 
-    def __init__(self, height, width, p=0.5, interpolation=Image.BILINEAR, **kwargs):
+    def __init__(self, height, width, p=0.5, scale=1.125, interpolation=Image.BILINEAR, **kwargs):
         self.height = height
         self.width = width
         self.p = p
+        self.scale = scale
         self.interpolation = interpolation
 
     def __call__(self, img, *args, **kwargs):
         if random.uniform(0, 1) > self.p:
             return img.resize((self.width, self.height), self.interpolation)
 
-        new_width, new_height = int(round(self.width * 1.125)), int(round(self.height * 1.125))
+        new_width, new_height = int(round(self.width * self.scale)), int(round(self.height * self.scale))
         resized_img = img.resize((new_width, new_height), self.interpolation)
+
         x_maxrange = new_width - self.width
         y_maxrange = new_height - self.height
         x1 = int(round(random.uniform(0, x_maxrange)))
         y1 = int(round(random.uniform(0, y_maxrange)))
+
         croped_img = resized_img.crop((x1, y1, x1 + self.width, y1 + self.height))
+
         return croped_img
 
 
@@ -62,40 +66,46 @@ class RandomErasing(object):
         sl (float, optional): min erasing area.
         sh (float, optional): max erasing area.
         r1 (float, optional): min aspect ratio.
-        mean (list, optional): erasing value.
     """
 
-    def __init__(self, p=0.5, sl=0.02, sh=0.4, r1=0.3, mean=(0.4914, 0.4822, 0.4465), **kwargs):
+    def __init__(self, p=0.5, sl=0.02, sh=0.4, rl=0.5, rh=2.0, **kwargs):
         self.probability = p
-        self.mean = mean
         self.sl = sl
         self.sh = sh
-        self.r1 = r1
+        self.rl = rl
+        self.rh = rh
 
     def __call__(self, img, *args, **kwargs):
         if random.uniform(0, 1) > self.probability:
             return img
 
         for attempt in range(100):
-            area = img.size()[1] * img.size()[2]
-
-            target_area = random.uniform(self.sl, self.sh) * area
-            aspect_ratio = random.uniform(self.r1, 1.0 / self.r1)
+            source_area = img.size[0] * img.size[1]
+            target_area = random.uniform(self.sl, self.sh) * source_area
+            aspect_ratio = random.uniform(self.rl, self.rh)
 
             h = int(round(math.sqrt(target_area * aspect_ratio)))
             w = int(round(math.sqrt(target_area / aspect_ratio)))
 
-            if w < img.size()[2] and h < img.size()[1]:
-                x1 = random.randint(0, img.size()[1] - h)
-                y1 = random.randint(0, img.size()[2] - w)
-                if img.size()[0] == 3:
-                    img[0, x1:x1 + h, y1:y1 + w] = self.mean[0]
-                    img[1, x1:x1 + h, y1:y1 + w] = self.mean[1]
-                    img[2, x1:x1 + h, y1:y1 + w] = self.mean[2]
-                else:
-                    img[0, x1:x1 + h, y1:y1 + w] = self.mean[0]
+            if w < img.size[1] and h < img.size[0]:
+                x1 = random.randint(0, img.size[0] - h)
+                y1 = random.randint(0, img.size[1] - w)
 
-                return img
+                img = np.array(img)
+                if img.shape[2] == 3:
+                    if random.randint(0, 1):
+                        color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+                    else:
+                        level = random.randint(0, 255)
+                        color = (level, level, level)
+
+                    img[x1:x1 + h, y1:y1 + w, 0] = color[0]
+                    img[x1:x1 + h, y1:y1 + w, 1] = color[1]
+                    img[x1:x1 + h, y1:y1 + w, 2] = color[2]
+                else:
+                    img[x1:x1 + h, y1:y1 + w, 0] = random.randint(0, 255)
+
+                return Image.fromarray(img)
 
         return img
 
@@ -400,10 +410,8 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
         transform_tr += [RandomHorizontalFlip(p=transforms.random_flip.p)]
     if transforms.random_crop.enable:
         print('+ random crop (enlarge to {}x{} and crop {}x{})'
-              .format(int(round(height*1.125)),
-                      int(round(width*1.125)),
-                      height, width,
-                      transforms.random_crop.p))
+              .format(int(round(height*1.125)), int(round(width*1.125)),
+                      height, width, transforms.random_crop.p))
         transform_tr += [Random2DTranslation(height, width, **transforms.random_crop)]
     if transforms.random_patch.enable:
         print('+ random patch')
@@ -416,20 +424,18 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
         transform_tr += [RandomGrayscale(p=transforms.random_gray_scale.p)]
     if transforms.random_perspective.enable:
         print('+ random_perspective')
-        transform_tr += [RandomPerspective(
-            p=transforms.random_perspective.p,
-            distortion_scale=transforms.random_perspective.distortion_scale)
-        ]
+        transform_tr += [RandomPerspective(p=transforms.random_perspective.p,
+                                           distortion_scale=transforms.random_perspective.distortion_scale)]
     if transforms.random_rotate.enable:
         print('+ random_rotate')
         transform_tr += [RandomRotate(**transforms.random_rotate)]
+    if transforms.random_erase.enable:
+        print('+ random erase')
+        transform_tr += [RandomErasing(**transforms.random_erase)]
     print('+ to torch tensor of range [0, 1]')
     transform_tr += [ToTensor()]
     print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
     transform_tr += [normalize]
-    if transforms.random_erase.enable:
-        print('+ random erase')
-        transform_tr += [RandomErasing(**transforms.random_erase)]
     transform_tr = Compose(transform_tr)
 
     print('Building test transforms ...')

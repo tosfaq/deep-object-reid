@@ -11,22 +11,41 @@ data:
   width: 256
   combineall: False
   transforms:
+    color_jitter:
+      enable: True
+      p: 0.8
+      saturation: 0.1
+      hue: 0.1
+      brightness: 0.15
+      contrast: 0.15
     random_flip:
       enable: True
       p: 0.5
     random_erase:
       enable: True
       p: 0.5
-    random_figures:
-      enable: True
-      p: 0.33
+      sl: 0.1
+      sh: 0.3
+      rl: 0.5
+      rh: 2.0
     random_padding:
       enable: True
       p: 0.25
+    random_crop:
+      enable: True
+      p: 0.25
+      scale: 1.2
     random_rotate:
       enable: True
-      p: 0.33
+      p: 0.25
+    random_perspective:
+      enable: True
+      p: 0.25
+      distortion_scale: 0.3
     random_grid:
+      enable: True
+      p: 0.15
+    random_figures:
       enable: True
       p: 0.15
   save_dir: 'log/osnet_ain_x1_0_aic20_softmax_cosinelr'

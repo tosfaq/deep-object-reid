@@ -134,6 +134,7 @@ def get_default_config():
     cfg.data.transforms.random_crop = CN()
     cfg.data.transforms.random_crop.enable = False
     cfg.data.transforms.random_crop.p = 0.5
+    cfg.data.transforms.random_crop.scale = 1.125
 
     cfg.data.transforms.random_gray_scale = CN()
     cfg.data.transforms.random_gray_scale.enable = False
@@ -162,8 +163,8 @@ def get_default_config():
     cfg.data.transforms.random_erase.p = 0.5
     cfg.data.transforms.random_erase.sl = 0.2
     cfg.data.transforms.random_erase.sh = 0.4
-    cfg.data.transforms.random_erase.r1 = 0.3
-    cfg.data.transforms.random_erase.mean = (0.4914, 0.4822, 0.4465)
+    cfg.data.transforms.random_erase.rl = 0.5
+    cfg.data.transforms.random_erase.rh = 2.0
 
     cfg.data.transforms.random_rotate = CN()
     cfg.data.transforms.random_rotate.enable = False
