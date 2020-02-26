@@ -12,7 +12,7 @@ data:
   combineall: False
   transforms:
     color_jitter:
-      enable: False
+      enable: True
       p: 0.8
       saturation: 0.1
       hue: 0.1
