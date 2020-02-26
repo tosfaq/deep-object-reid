@@ -36,7 +36,7 @@ aic20:
   simulation_data_only: False
 
 sampler:
-  train_sampler: 'RandomSampler'
+  train_sampler: 'RandomIdentitySamplerV3'
   num_instances: 4
 
 loss:
