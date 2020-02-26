@@ -32,8 +32,8 @@ data:
   save_dir: 'log/osnet_ain_x1_0_aic20_softmax_cosinelr'
 
 aic20:
-  use_simulation_data: True
-  simulation_data_only: True
+  use_simulation_data: False
+  simulation_data_only: False
 
 sampler:
   train_sampler: 'RandomSampler'
@@ -48,7 +48,7 @@ loss:
     s: 15.0
 
 metric_losses:
-  enable: False
+  enable: True
   center_coeff: 1.0
   glob_push_plus_loss_coeff: 1.2
   balance_losses: True
