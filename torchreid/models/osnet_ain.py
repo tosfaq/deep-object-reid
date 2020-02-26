@@ -5,6 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from torchreid.losses import AngleSimpleLinear
+from torchreid.ops import Dropout
 
 __all__ = ['osnet_ain_x1_0']
 
@@ -234,7 +235,7 @@ class ChannelGate(nn.Module):
 class OSBlock(nn.Module):
     """Omni-scale feature learning block."""
 
-    def __init__(self, in_channels, out_channels, reduction=4, T=4, **kwargs):
+    def __init__(self, in_channels, out_channels, reduction=4, T=4, dropout_prob=None, **kwargs):
         super(OSBlock, self).__init__()
         assert T >= 1
         assert out_channels >= reduction and out_channels % reduction == 0
@@ -246,28 +247,40 @@ class OSBlock(nn.Module):
             self.conv2 += [LightConvStream(mid_channels, mid_channels, t)]
         self.gate = ChannelGate(mid_channels)
         self.conv3 = Conv1x1Linear(mid_channels, out_channels)
+
         self.downsample = None
         if in_channels != out_channels:
             self.downsample = Conv1x1Linear(in_channels, out_channels)
 
+        self.dropout = None
+        if dropout_prob is not None and dropout_prob > 0.0:
+            self.dropout = Dropout(p=dropout_prob)
+
     def forward(self, x):
         identity = x
+        if self.downsample is not None:
+            identity = self.downsample(identity)
+
         x1 = self.conv1(x)
+
         x2 = 0
         for conv2_t in self.conv2:
             x2_t = conv2_t(x1)
             x2 = x2 + self.gate(x2_t)
+
         x3 = self.conv3(x2)
-        if self.downsample is not None:
-            identity = self.downsample(identity)
+        if self.dropout is not None:
+            x3 = self.dropout(x3)
+
         out = x3 + identity
+
         return F.relu(out)
 
 
 class OSBlockINin(nn.Module):
     """Omni-scale feature learning block with instance normalization."""
 
-    def __init__(self, in_channels, out_channels, reduction=4, T=4, **kwargs):
+    def __init__(self, in_channels, out_channels, reduction=4, T=4, dropout_prob=None, **kwargs):
         super(OSBlockINin, self).__init__()
         assert T >= 1
         assert out_channels >= reduction and out_channels % reduction == 0
@@ -279,23 +292,36 @@ class OSBlockINin(nn.Module):
             self.conv2 += [LightConvStream(mid_channels, mid_channels, t)]
         self.gate = ChannelGate(mid_channels)
         self.conv3 = Conv1x1Linear(mid_channels, out_channels, bn=False)
+
         self.downsample = None
         if in_channels != out_channels:
             self.downsample = Conv1x1Linear(in_channels, out_channels)
+
         self.IN = nn.InstanceNorm2d(out_channels, affine=True)
+
+        self.dropout = None
+        if dropout_prob is not None and dropout_prob > 0.0:
+            self.dropout = Dropout(p=dropout_prob)
 
     def forward(self, x):
         identity = x
+        if self.downsample is not None:
+            identity = self.downsample(identity)
+
         x1 = self.conv1(x)
+
         x2 = 0
         for conv2_t in self.conv2:
             x2_t = conv2_t(x1)
             x2 = x2 + self.gate(x2_t)
+
         x3 = self.conv3(x2)
-        x3 = self.IN(x3) # IN inside residual
-        if self.downsample is not None:
-            identity = self.downsample(identity)
+        x3 = self.IN(x3)  # IN inside residual
+        if self.dropout is not None:
+            x3 = self.dropout(x3)
+
         out = x3 + identity
+
         return F.relu(out)
 
 
@@ -316,8 +342,8 @@ class OSNet(nn.Module):
         self,
         num_classes,
         blocks,
-        layers,
         channels,
+        dropout_probs=None,
         feature_dim=512,
         loss='softmax',
         conv1_IN=False,
@@ -325,10 +351,13 @@ class OSNet(nn.Module):
     ):
         super(OSNet, self).__init__()
         num_blocks = len(blocks)
-        assert num_blocks == len(layers)
         assert num_blocks == len(channels) - 1
         self.loss = loss
         self.feature_dim = feature_dim
+        self.dropout_probs = dropout_probs
+        if self.dropout_probs is None:
+            self.dropout_probs = [None] * num_blocks
+        assert num_blocks == len(self.dropout_probs)
 
         # convolutional backbone
         self.conv1 = ConvLayer(
@@ -336,19 +365,19 @@ class OSNet(nn.Module):
         )
         self.maxpool = nn.MaxPool2d(3, stride=2, padding=1)
         self.conv2 = self._make_layer(
-            blocks[0], layers[0], channels[0], channels[1]
+            blocks[0], channels[0], channels[1]
         )
         self.pool2 = nn.Sequential(
             Conv1x1(channels[1], channels[1]), nn.AvgPool2d(2, stride=2)
         )
         self.conv3 = self._make_layer(
-            blocks[1], layers[1], channels[1], channels[2]
+            blocks[1], channels[1], channels[2]
         )
         self.pool3 = nn.Sequential(
             Conv1x1(channels[2], channels[2]), nn.AvgPool2d(2, stride=2)
         )
         self.conv4 = self._make_layer(
-            blocks[2], layers[2], channels[2], channels[3]
+            blocks[2], channels[2], channels[3]
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
         self.global_avgpool = nn.AdaptiveAvgPool2d(1)
@@ -362,11 +391,15 @@ class OSNet(nn.Module):
 
         self._init_params()
 
-    def _make_layer(self, blocks, layer, in_channels, out_channels):
+    def _make_layer(self, blocks, in_channels, out_channels, dropout_probs=None):
+        if dropout_probs is None:
+            dropout_probs = [None] * len(blocks)
+        assert len(dropout_probs) == len(blocks)
+
         layers = []
-        layers += [blocks[0](in_channels, out_channels)]
+        layers += [blocks[0](in_channels, out_channels, dropout_prob=dropout_probs[0])]
         for i in range(1, len(blocks)):
-            layers += [blocks[i](out_channels, out_channels)]
+            layers += [blocks[i](out_channels, out_channels, dropout_prob=dropout_probs[i])]
 
         return nn.Sequential(*layers)
 
@@ -547,11 +580,16 @@ def osnet_ain_x1_0(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
     model = OSNet(
         num_classes,
         blocks=[
-            [OSBlockINin, OSBlockINin], [OSBlock, OSBlockINin],
+            [OSBlockINin, OSBlockINin],
+            [OSBlock, OSBlockINin],
             [OSBlockINin, OSBlock]
         ],
-        layers=[2, 2, 2],
         channels=[64, 256, 384, 512],
+        dropout_probs=[
+            [False, True],
+            [True, False],
+            [True, False]
+        ],
         loss=loss,
         conv1_IN=True,
         **kwargs
