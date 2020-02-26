@@ -12,3 +12,5 @@ from .sensereid import SenseReID
 from .market1501 import Market1501
 from .dukemtmcreid import DukeMTMCreID
 from .aic20 import AIC20
+from .vric import VRIC
+from .veri import VeRi

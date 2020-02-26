@@ -6,13 +6,13 @@ model:
 data:
   type: 'image'
   sources: ['aic20']
-  targets: ['aic20']
+  targets: ['aic20', 'vric', 'veri']
   height: 192
   width: 256
   combineall: False
   transforms:
     color_jitter:
-      enable: True
+      enable: False
       p: 0.8
       saturation: 0.1
       hue: 0.1
@@ -24,22 +24,22 @@ data:
     random_erase:
       enable: True
       p: 0.5
-      sl: 0.1
-      sh: 0.3
-      rl: 0.5
-      rh: 2.0
+      sl: 0.2
+      sh: 0.4
+      rl: 0.3
+      rh: 1.7
     random_padding:
       enable: True
       p: 0.25
     random_crop:
-      enable: True
+      enable: False
       p: 0.25
       scale: 1.2
     random_rotate:
       enable: True
-      p: 0.25
+      p: 0.33
     random_perspective:
-      enable: True
+      enable: False
       p: 0.25
       distortion_scale: 0.3
     random_grid:
@@ -47,7 +47,7 @@ data:
       p: 0.15
     random_figures:
       enable: True
-      p: 0.15
+      p: 0.33
   save_dir: 'log/osnet_ain_x1_0_aic20_softmax_cosinelr'
 
 aic20:
