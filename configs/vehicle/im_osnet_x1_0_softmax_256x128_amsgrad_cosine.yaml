@@ -5,7 +5,7 @@ model:
 
 data:
   type: 'image'
-  sources: ['aic20']
+  sources: ['aic20', 'vric', 'veri']
   targets: ['aic20', 'vric', 'veri']
   height: 192
   width: 256
