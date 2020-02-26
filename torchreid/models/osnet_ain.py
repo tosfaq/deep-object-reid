@@ -213,9 +213,7 @@ class ChannelGate(nn.Module):
         elif gate_activation == 'linear':
             self.gate_activation = None
         else:
-            raise RuntimeError(
-                "Unknown gate activation: {}".format(gate_activation)
-            )
+            raise RuntimeError("Unknown gate activation: {}".format(gate_activation))
 
     def forward(self, x):
         input = x
@@ -586,9 +584,9 @@ def osnet_ain_x1_0(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
         ],
         channels=[64, 256, 384, 512],
         dropout_probs=[
-            [False, True],
-            [True, False],
-            [True, False]
+            [None, 0.1],
+            [0.1, None],
+            [0.1, None]
         ],
         loss=loss,
         conv1_IN=True,
