@@ -5,14 +5,14 @@ model:
 
 data:
   type: 'image'
-  sources: ['aic20']
+  sources: ['aic20', 'vric', 'veri']
   targets: ['aic20', 'vric', 'veri']
   height: 192
   width: 256
   combineall: False
   transforms:
     color_jitter:
-      enable: True
+      enable: False
       p: 0.8
       saturation: 0.1
       hue: 0.1
@@ -75,12 +75,12 @@ metric_losses:
 train:
   optim: 'amsgrad'
   lr: 0.0015
-  max_epoch: 50
+  max_epoch: 100
   batch_size: 64
   fixbase_epoch: 2
   open_layers: ['classifier', 'fc']
   lr_scheduler: 'multi_step_warmup'
-  stepsize: [10]
+  stepsize: [20, 60]
   warmup: 3
   warmup_factor_base: 0.01
 
