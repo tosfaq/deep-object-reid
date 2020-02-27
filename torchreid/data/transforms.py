@@ -92,18 +92,7 @@ class RandomErasing(object):
                 y1 = random.randint(0, img.size[1] - w)
 
                 img = np.array(img)
-                if img.shape[2] == 3:
-                    if random.randint(0, 1):
-                        color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-                    else:
-                        level = random.randint(0, 255)
-                        color = (level, level, level)
-
-                    img[x1:x1 + h, y1:y1 + w, 0] = color[0]
-                    img[x1:x1 + h, y1:y1 + w, 1] = color[1]
-                    img[x1:x1 + h, y1:y1 + w, 2] = color[2]
-                else:
-                    img[x1:x1 + h, y1:y1 + w, 0] = random.randint(0, 255)
+                img[x1:x1 + h, y1:y1 + w] = random.randint(0, 255)
 
                 return Image.fromarray(img)
 
