@@ -104,7 +104,7 @@ def conv_1x1_bn(inp, oup):
 
 
 class InvertedResidual(nn.Module):
-    def __init__(self, inplaces, hidden_dim, outplaces, kernel_size, stride, use_se, use_hs):
+    def __init__(self, inplaces, hidden_dim, outplaces, kernel_size, stride, use_se, use_hs, dropout_prob=None):
         super(InvertedResidual, self).__init__()
         assert stride in [1, 2]
 
@@ -146,11 +146,17 @@ class InvertedResidual(nn.Module):
                 nn.BatchNorm2d(outplaces),
             )
 
+        self.dropout = None
+        if dropout_prob is not None and dropout_prob > 0.0:
+            self.dropout = Dropout(p=dropout_prob)
+
     def forward(self, x):
-        if self.identity:
-            return x + self.conv(x)
-        else:
-            return self.conv(x)
+        y = self.conv(x)
+
+        if self.dropout is not None:
+            y = self.dropout(y)
+
+        return x + y if self.identity else y
 
 
 class MobileNetV3(nn.Module):
@@ -189,7 +195,8 @@ class MobileNetV3(nn.Module):
         ]
     }
 
-    def __init__(self, mode, num_classes, width_mult=1.0, feature_dim=512, loss='softmax', conv1_IN=False, **kwargs):
+    def __init__(self, mode, num_classes, width_mult=1.0, feature_dim=512, loss='softmax', conv1_IN=False,
+                 dropout_prob=None, **kwargs):
         super(MobileNetV3, self).__init__()
 
         self.feature_dim = feature_dim
@@ -211,7 +218,7 @@ class MobileNetV3(nn.Module):
         block = InvertedResidual
         for k, exp_size, c, use_se, use_hs, s in self.cfg:
             output_channel = make_divisible(c * width_mult, 8)
-            layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs))
+            layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs, dropout_prob))
             input_channel = output_channel
         self.features = nn.Sequential(*layers)
 
@@ -292,7 +299,7 @@ class MobileNetV3(nn.Module):
 ##########
 
 def mobilenetv3_small(num_classes=1000, pretrained=True, **kwargs):
-    model = MobileNetV3('small', num_classes, conv1_IN=False, **kwargs)
+    model = MobileNetV3('small', num_classes, conv1_IN=False, dropout_prob=0.1, **kwargs)
 
     if pretrained:
         warnings.warn('The imagenet pretrained weights need to be manually downloaded from {}'
@@ -302,7 +309,7 @@ def mobilenetv3_small(num_classes=1000, pretrained=True, **kwargs):
 
 
 def mobilenetv3_large(num_classes=1000, pretrained=True, **kwargs):
-    model = MobileNetV3('large', num_classes, conv1_IN=False, **kwargs)
+    model = MobileNetV3('large', num_classes, conv1_IN=False, dropout_prob=0.1, **kwargs)
 
     if pretrained:
         warnings.warn('The imagenet pretrained weights need to be manually downloaded from {}'

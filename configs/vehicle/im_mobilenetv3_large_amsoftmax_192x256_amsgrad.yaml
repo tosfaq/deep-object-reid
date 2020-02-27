@@ -27,7 +27,7 @@ data:
       sl: 0.2
       sh: 0.4
       rl: 0.3
-      rh: 1.7
+      rh: 3.0
     random_padding:
       enable: True
       p: 0.25
