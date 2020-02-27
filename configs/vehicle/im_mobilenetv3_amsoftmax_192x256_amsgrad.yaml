@@ -1,5 +1,5 @@
 model:
-  name: 'mobilenetv3_large'
+  name: 'mobilenetv3_small'
   pretrained: False
   feature_dim: 512
 
