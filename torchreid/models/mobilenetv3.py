@@ -195,7 +195,7 @@ class MobileNetV3(nn.Module):
         ]
     }
 
-    def __init__(self, mode, num_classes, width_mult=1.0, feature_dim=512, loss='softmax', conv1_IN=False,
+    def __init__(self, mode, num_classes, width_mult=1.0, feature_dim=512, loss='softmax', input_instance_norm=False,
                  dropout_prob=None, **kwargs):
         super(MobileNetV3, self).__init__()
 
@@ -207,7 +207,7 @@ class MobileNetV3(nn.Module):
         self.cfg = MobileNetV3.arch_settings[mode]
 
         self.instance_norm_input = None
-        if conv1_IN:
+        if input_instance_norm:
             self.instance_norm_input = nn.InstanceNorm2d(3, affine=True)
 
         # building first layer
@@ -299,7 +299,7 @@ class MobileNetV3(nn.Module):
 ##########
 
 def mobilenetv3_small(num_classes=1000, pretrained=True, **kwargs):
-    model = MobileNetV3('small', num_classes, conv1_IN=False, dropout_prob=0.1, **kwargs)
+    model = MobileNetV3('small', num_classes, input_instance_norm=True, dropout_prob=0.1, **kwargs)
 
     if pretrained:
         warnings.warn('The imagenet pretrained weights need to be manually downloaded from {}'
@@ -309,7 +309,7 @@ def mobilenetv3_small(num_classes=1000, pretrained=True, **kwargs):
 
 
 def mobilenetv3_large(num_classes=1000, pretrained=True, **kwargs):
-    model = MobileNetV3('large', num_classes, conv1_IN=False, dropout_prob=0.1, **kwargs)
+    model = MobileNetV3('large', num_classes, input_instance_norm=True, dropout_prob=0.1, **kwargs)
 
     if pretrained:
         warnings.warn('The imagenet pretrained weights need to be manually downloaded from {}'
