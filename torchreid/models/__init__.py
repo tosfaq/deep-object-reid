@@ -17,6 +17,7 @@ from .shufflenet import *
 from .squeezenet import *
 from .inceptionv4 import *
 from .mobilenetv2 import *
+from .mobilenetv3 import *
 from .resnet_ibn_a import *
 from .resnet_ibn_b import *
 from .shufflenetv2 import *
@@ -51,6 +52,8 @@ __model_factory = {
     'nasnsetmobile': nasnetamobile,
     'mobilenetv2_x1_0': mobilenetv2_x1_0,
     'mobilenetv2_x1_4': mobilenetv2_x1_4,
+    'mobilenetv3_small': mobilenetv3_small,
+    'mobilenetv3_large': mobilenetv3_large,
     'shufflenet': shufflenet,
     'squeezenet1_0': squeezenet1_0,
     'squeezenet1_0_fc512': squeezenet1_0_fc512,

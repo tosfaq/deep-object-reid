@@ -431,24 +431,18 @@ class OSNet(nn.Module):
     def _init_params(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(
-                    m.weight, mode='fan_out', nonlinearity='relu'
-                )
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
-
             elif isinstance(m, nn.BatchNorm1d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
-
             elif isinstance(m, nn.InstanceNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
-
             elif isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, 0, 0.01)
                 if m.bias is not None:
@@ -552,22 +546,13 @@ def init_pretrained_weights(model, key=''):
     model.load_state_dict(model_dict)
 
     if len(matched_layers) == 0:
-        warnings.warn(
-            'The pretrained weights from "{}" cannot be loaded, '
-            'please check the key names manually '
-            '(** ignored and continue **)'.format(cached_file)
-        )
+        warnings.warn('The pretrained weights from "{}" cannot be loaded, please check the key names manually '
+                      '(** ignored and continue **)'.format(cached_file))
     else:
-        print(
-            'Successfully loaded imagenet pretrained weights from "{}"'.
-            format(cached_file)
-        )
+        print('Successfully loaded imagenet pretrained weights from "{}"'.format(cached_file))
         if len(discarded_layers) > 0:
-            print(
-                '** The following layers are discarded '
-                'due to unmatched keys or layer size: {}'.
-                format(discarded_layers)
-            )
+            print('** The following layers are discarded due to unmatched keys or layer size: {}'.
+                  format(discarded_layers))
 
 
 ##########
@@ -583,11 +568,11 @@ def osnet_ain_x1_0(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        dropout_probs=[
-            [None, 0.1],
-            [0.1, None],
-            [0.1, None]
-        ],
+        # dropout_probs=[
+        #     [None, 0.1],
+        #     [0.1, None],
+        #     [0.1, None]
+        # ],
         loss=loss,
         conv1_IN=True,
         **kwargs
