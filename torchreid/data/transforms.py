@@ -68,12 +68,18 @@ class RandomErasing(object):
         r1 (float, optional): min aspect ratio.
     """
 
-    def __init__(self, p=0.5, sl=0.02, sh=0.4, rl=0.5, rh=2.0, **kwargs):
+    def __init__(self, p=0.5, sl=0.02, sh=0.4, rl=0.5, rh=2.0, fill_color=None, **kwargs):
         self.probability = p
         self.sl = sl
         self.sh = sh
         self.rl = rl
         self.rh = rh
+        self.fill_color = fill_color
+        if self.fill_color is not None:
+            if len(self.fill_color) == 1:
+                self.fill_color = [self.fill_color] * 3
+
+            assert len(self.fill_color) == 3
 
     def __call__(self, img, *args, **kwargs):
         if random.uniform(0, 1) > self.probability:
@@ -92,7 +98,11 @@ class RandomErasing(object):
                 y1 = random.randint(0, img.size[1] - w)
 
                 img = np.array(img)
-                img[x1:x1 + h, y1:y1 + w] = random.randint(0, 255)
+
+                fill_color = self.fill_color if self.fill_color is not None else [random.randint(0, 255)] * 3
+                img[x1:x1 + h, y1:y1 + w, 0] = fill_color[0]
+                img[x1:x1 + h, y1:y1 + w, 1] = fill_color[1]
+                img[x1:x1 + h, y1:y1 + w, 2] = fill_color[2]
 
                 return Image.fromarray(img)
 

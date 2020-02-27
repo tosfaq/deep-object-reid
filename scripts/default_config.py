@@ -165,6 +165,7 @@ def get_default_config():
     cfg.data.transforms.random_erase.sh = 0.4
     cfg.data.transforms.random_erase.rl = 0.5
     cfg.data.transforms.random_erase.rh = 2.0
+    cfg.data.transforms.random_erase.fill_color = (123.675, 116.28, 103.53)
 
     cfg.data.transforms.random_rotate = CN()
     cfg.data.transforms.random_rotate.enable = False

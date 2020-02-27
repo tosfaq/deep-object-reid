@@ -39,7 +39,7 @@ data:
       enable: True
       p: 0.33
     random_perspective:
-      enable: True
+      enable: False
       p: 0.33
       distortion_scale: 0.3
     random_grid:
