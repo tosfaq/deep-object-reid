@@ -42,10 +42,10 @@ class Random2DTranslation(object):
         new_width, new_height = int(round(self.width * self.scale)), int(round(self.height * self.scale))
         resized_img = img.resize((new_width, new_height), self.interpolation)
 
-        x_maxrange = new_width - self.width
-        y_maxrange = new_height - self.height
-        x1 = int(round(random.uniform(0, x_maxrange)))
-        y1 = int(round(random.uniform(0, y_maxrange)))
+        x_max_range = new_width - self.width
+        y_max_range = new_height - self.height
+        x1 = int(round(random.uniform(0, x_max_range)))
+        y1 = int(round(random.uniform(0, y_max_range)))
 
         croped_img = resized_img.crop((x1, y1, x1 + self.width, y1 + self.height))
 
