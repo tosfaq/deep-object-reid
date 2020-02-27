@@ -80,8 +80,8 @@ train:
   fixbase_epoch: 2
   open_layers: ['classifier', 'fc']
   lr_scheduler: 'multi_step_warmup'
-  stepsize: [10]
-  warmup: 3
+  stepsize: [12]
+  warmup: 5
   warmup_factor_base: 0.01
 
 test:
