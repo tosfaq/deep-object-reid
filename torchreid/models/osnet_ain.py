@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout
+from torchreid.ops import Dropout, HSwish, gumbel_sigmoid
 
 __all__ = ['osnet_ain_x1_0']
 
@@ -57,7 +57,7 @@ class ConvLayer(nn.Module):
 class Conv1x1(nn.Module):
     """1x1 convolution + bn + relu."""
 
-    def __init__(self, in_channels, out_channels, stride=1, groups=1):
+    def __init__(self, in_channels, out_channels, stride=1, groups=1, use_relu=True):
         super(Conv1x1, self).__init__()
         self.conv = nn.Conv2d(
             in_channels,
@@ -69,12 +69,16 @@ class Conv1x1(nn.Module):
             groups=groups
         )
         self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU()
+
+        self.relu = None
+        if use_relu:
+            self.relu = nn.ReLU()
 
     def forward(self, x):
-        x = self.conv(x)
-        x = self.bn(x)
-        return self.relu(x)
+        y = self.conv(x)
+        y = self.bn(y)
+        y = self.relu(y) if self.relu is not None else y
+        return y
 
 
 class Conv1x1Linear(nn.Module):
@@ -99,7 +103,7 @@ class Conv1x1Linear(nn.Module):
 class Conv3x3(nn.Module):
     """3x3 convolution + bn + relu."""
 
-    def __init__(self, in_channels, out_channels, stride=1, groups=1):
+    def __init__(self, in_channels, out_channels, stride=1, groups=1, use_relu=True):
         super(Conv3x3, self).__init__()
         self.conv = nn.Conv2d(
             in_channels,
@@ -111,12 +115,16 @@ class Conv3x3(nn.Module):
             groups=groups
         )
         self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU()
+
+        self.relu = None
+        if use_relu:
+            self.relu = nn.ReLU()
 
     def forward(self, x):
-        x = self.conv(x)
-        x = self.bn(x)
-        return self.relu(x)
+        y = self.conv(x)
+        y = self.bn(y)
+        y = self.relu(y) if self.relu is not None else y
+        return y
 
 
 class LightConv3x3(nn.Module):
@@ -165,6 +173,51 @@ class LightConvStream(nn.Module):
 
     def forward(self, x):
         return self.layers(x)
+
+
+##########
+# Building blocks for spatial attention
+##########
+
+class ResidualAttention(nn.Module):
+    def __init__(self, in_channels, gumbel=True, reg_weight=1.0):
+        super(ResidualAttention, self).__init__()
+
+        self.gumbel = gumbel
+        self.reg_weight = reg_weight
+        assert self.reg_weight > 0.0
+
+        # self.tv_loss = TotalVarianceLoss(kernels=3, num_channels=1, hard_values=True,
+        #                                  limits=(0.0, 1.0), threshold=0.5)
+
+        self.spatial_logits = nn.Sequential(
+            Conv3x3(in_channels, in_channels, groups=in_channels, use_relu=False),
+            HSwish(),
+            Conv1x1(in_channels, 1, use_relu=False),
+        )
+
+    def forward(self, x, return_extra_data=False):
+        logits = self.spatial_logits(x)
+
+        if self.gumbel and self.training:
+            soft_mask = gumbel_sigmoid(logits)
+        else:
+            soft_mask = torch.sigmoid(logits)
+
+        out = (1.0 + soft_mask) * x
+
+        if return_extra_data:
+            return out, dict(logits=logits)
+        else:
+            return out
+
+    # def loss(self, spatial_logits, temporal_logits):
+    #     logits = spatial_logits + temporal_logits
+    #     conf = gumbel_sigmoid(logits)
+    #
+    #     out_loss = self.tv_loss(conf)
+    #
+    #     return self.reg_weight * out_loss
 
 
 ##########
@@ -341,6 +394,7 @@ class OSNet(nn.Module):
         num_classes,
         blocks,
         channels,
+        attentions=None,
         dropout_probs=None,
         feature_dim=512,
         loss='softmax',
@@ -348,16 +402,23 @@ class OSNet(nn.Module):
         **kwargs
     ):
         super(OSNet, self).__init__()
+
         num_blocks = len(blocks)
         assert num_blocks == len(channels) - 1
+
         self.loss = loss
         self.feature_dim = feature_dim
+
         self.dropout_probs = dropout_probs
         if self.dropout_probs is None:
             self.dropout_probs = [None] * num_blocks
-        assert num_blocks == len(self.dropout_probs)
+        assert len(self.dropout_probs) == num_blocks
 
-        # convolutional backbone
+        self.use_attentions = attentions
+        if self.use_attentions is None:
+            self.use_attentions = [False] * num_blocks
+        assert len(self.use_attentions) == num_blocks
+
         self.conv1 = ConvLayer(
             3, channels[0], 7, stride=2, padding=3, IN=conv1_IN
         )
@@ -365,17 +426,26 @@ class OSNet(nn.Module):
         self.conv2 = self._make_layer(
             blocks[0], channels[0], channels[1]
         )
+        self.att2 = self._make_attention(
+            channels[1], self.use_attentions[0]
+        )
         self.pool2 = nn.Sequential(
             Conv1x1(channels[1], channels[1]), nn.AvgPool2d(2, stride=2)
         )
         self.conv3 = self._make_layer(
             blocks[1], channels[1], channels[2]
         )
+        self.att3 = self._make_attention(
+            channels[2], self.use_attentions[1]
+        )
         self.pool3 = nn.Sequential(
             Conv1x1(channels[2], channels[2]), nn.AvgPool2d(2, stride=2)
         )
         self.conv4 = self._make_layer(
             blocks[2], channels[2], channels[3]
+        )
+        self.att4 = self._make_attention(
+            channels[3], self.use_attentions[2]
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
         self.global_avgpool = nn.AdaptiveAvgPool2d(1)
@@ -389,7 +459,8 @@ class OSNet(nn.Module):
 
         self._init_params()
 
-    def _make_layer(self, blocks, in_channels, out_channels, dropout_probs=None):
+    @staticmethod
+    def _make_layer(blocks, in_channels, out_channels, dropout_probs=None):
         if dropout_probs is None:
             dropout_probs = [None] * len(blocks)
         assert len(dropout_probs) == len(blocks)
@@ -400,6 +471,10 @@ class OSNet(nn.Module):
             layers += [blocks[i](out_channels, out_channels, dropout_prob=dropout_probs[i])]
 
         return nn.Sequential(*layers)
+
+    @staticmethod
+    def _make_attention(num_channels, enable):
+        return ResidualAttention(num_channels) if enable else None
 
     def _construct_fc_layer(self, fc_dims, input_dim, dropout_p=None):
         if fc_dims is None or fc_dims < 0:
@@ -451,11 +526,21 @@ class OSNet(nn.Module):
     def featuremaps(self, x):
         y = self.conv1(x)
         y = self.maxpool(y)
+
         y = self.conv2(y)
+        if self.att2 is not None:
+            y = self.att2(y)
         y = self.pool2(y)
+
         y = self.conv3(y)
+        if self.att3 is not None:
+            y = self.att3(y)
         y = self.pool3(y)
+
         y = self.conv4(y)
+        if self.att4 is not None:
+            y = self.att4(y)
+
         y = self.conv5(y)
 
         return y
@@ -534,7 +619,7 @@ def init_pretrained_weights(model, key=''):
 
     for k, v in state_dict.items():
         if k.startswith('module.'):
-            k = k[7:] # discard module.
+            k = k[7:]  # discard module.
 
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
@@ -568,11 +653,12 @@ def osnet_ain_x1_0(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        # dropout_probs=[
-        #     [None, 0.1],
-        #     [0.1, None],
-        #     [0.1, None]
-        # ],
+        attentions=[True, True, True],
+        dropout_probs=[
+            [None, 0.1],
+            [0.1, None],
+            [0.1, None]
+        ],
         loss=loss,
         conv1_IN=True,
         **kwargs

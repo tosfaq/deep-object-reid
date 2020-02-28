@@ -15,7 +15,7 @@ import warnings
 import torch.nn as nn
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout
+from torchreid.ops import Dropout, HSigmoid, HSwish
 
 __all__ = ['mobilenetv3_small', 'mobilenetv3_large']
 
@@ -25,24 +25,6 @@ pretrained_urls = {
     'mobilenetv3_large':
     'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-large-657e7b3d.pth',
 }
-
-
-class HSigmoid(nn.Module):
-    def __init__(self, inplace=True):
-        super(HSigmoid, self).__init__()
-        self.relu = nn.ReLU6(inplace=inplace)
-
-    def forward(self, x):
-        return self.relu(x + 3) / 6
-
-
-class HSwish(nn.Module):
-    def __init__(self, inplace=True):
-        super(HSwish, self).__init__()
-        self.sigmoid = HSigmoid(inplace=inplace)
-
-    def forward(self, x):
-        return x * self.sigmoid(x)
 
 
 def make_divisible(v, divisor, min_value=None):
