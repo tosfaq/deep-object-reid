@@ -1,7 +1,7 @@
 model:
   name: 'osnet_ain_x1_0'
   pretrained: False
-  feature_dim: 512
+  feature_dim: 256
 
 data:
   type: 'image'
@@ -48,7 +48,7 @@ data:
     random_figures:
       enable: True
       p: 0.33
-  save_dir: 'log/osnet_ain_x1_0_aic20_softmax_cosinelr'
+  save_dir: 'log/osnet_ain_x1_0_aic20_amsoftmax'
 
 aic20:
   use_simulation_data: False
