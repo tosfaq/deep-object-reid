@@ -491,8 +491,6 @@ class OSNet(nn.Module):
 
             if self.loss not in ['am_softmax']:
                 layers.append(nn.ReLU())
-            else:
-                layers.append(nn.PReLU())
 
             if dropout_p is not None:
                 layers.append(nn.Dropout(p=dropout_p))
