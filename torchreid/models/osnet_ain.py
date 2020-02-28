@@ -448,7 +448,7 @@ class OSNet(nn.Module):
             channels[3], self.use_attentions[2]
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
-        self.global_avgpool = nn.AdaptiveMaxPool2d(1)
+        self.global_avgpool = nn.AdaptiveAvgPool2d(1)
 
         self.fc = self._construct_fc_layer(self.feature_dim, channels[3], dropout_p=None)
 
