@@ -58,10 +58,8 @@ class Dataset(object):
         elif self.mode == 'gallery':
             self.data = self.gallery
         else:
-            raise ValueError(
-                'Invalid mode. Got {}, but expected to be '
-                'one of [train | query | gallery]'.format(self.mode)
-            )
+            raise ValueError('Invalid mode. Got {}, but expected to be '
+                             'one of [train | query | gallery]'.format(self.mode))
 
         if self.verbose:
             self.show_summary()
@@ -76,10 +74,11 @@ class Dataset(object):
         """Adds two datasets together (only the train set)."""
         train = copy.deepcopy(self.train)
 
-        for img_path, pid, camid in other.train:
-            pid += self.num_train_pids
-            camid += self.num_train_cams
-            train.append((img_path, pid, camid))
+        for record in other.train:
+            pid = record[1] + self.num_train_pids
+            cam_id = record[2] + self.num_train_cams
+            updated_record = tuple([record[0], pid, cam_id] + list(record[3:]))
+            train.append(updated_record)
 
         ###################################
         # Things to do beforehand:
@@ -118,7 +117,8 @@ class Dataset(object):
         else:
             return self.__add__(other)
 
-    def parse_data(self, data):
+    @staticmethod
+    def parse_data(data):
         """Parses data list and returns the number of person IDs
         and the number of camera views.
 
@@ -127,9 +127,9 @@ class Dataset(object):
         """
         pids = set()
         cams = set()
-        for _, pid, camid in data:
-            pids.add(pid)
-            cams.add(camid)
+        for record in data:
+            pids.add(record[1])
+            cams.add(record[2])
         return len(pids), len(cams)
 
     def get_num_pids(self, data):
@@ -211,7 +211,8 @@ class Dataset(object):
 
         print('{} dataset is ready'.format(self.__class__.__name__))
 
-    def check_before_run(self, required_files):
+    @staticmethod
+    def check_before_run(required_files):
         """Checks if required files exist before going deeper.
 
         Args:
@@ -260,10 +261,16 @@ class ImageDataset(Dataset):
         super(ImageDataset, self).__init__(train, query, gallery, **kwargs)
 
     def __getitem__(self, index):
-        img_path, pid, camid = self.data[index]
-        img = read_image(img_path)
+        input_record = self.data[index]
+        img_path = input_record[0]
+        pid = input_record[1]
+        cam_id = input_record[2]
+
+        img = read_image(input_record[0])
         if self.transform is not None:
             img = self.transform(img)
+
+        output_record = tuple([img, pid, cam_id, img_path] + list(input_record[3:]))
 
         # import matplotlib.pyplot as plt
         # std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, -1)
@@ -272,7 +279,7 @@ class ImageDataset(Dataset):
         # plt.imshow(real_image.astype(np.uint8))
         # plt.show()
 
-        return img, pid, camid, img_path
+        return output_record
 
     def show_summary(self):
         num_train_pids, num_train_cams = self.parse_data(self.train)

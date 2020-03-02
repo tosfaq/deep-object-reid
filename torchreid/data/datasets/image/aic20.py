@@ -2,6 +2,8 @@ from __future__ import division, print_function, absolute_import
 import os.path as osp
 from lxml import etree
 
+import numpy as np
+
 from ..dataset import ImageDataset
 
 
@@ -15,6 +17,7 @@ class AIC20(ImageDataset):
         - images: 36935 (train) + 1052 (query) + 18290 (gallery).
     """
     dataset_dir = 'aic20_reduced'
+    angle_bins = np.array([0, 30, 60, 90, 120, 210, 240, 270, 300, 330, 360], dtype=np.float32)
 
     def __init__(self, root='', aic20_simulation_data=False, aic20_simulation_only=False, **kwargs):
         if not aic20_simulation_data and aic20_simulation_only:
@@ -46,11 +49,11 @@ class AIC20(ImageDataset):
             required_files += [self.extra_train_dir, self.extra_train_annot]
         self.check_before_run(required_files)
 
-        train = self.load_annotation(self.train_annot, self.train_dir)
+        train = self.load_annotation(self.train_annot, self.train_dir, train_mode=True)
         query = self.load_annotation(self.query_annot, self.query_dir)
         gallery = self.load_annotation(self.gallery_annot, self.gallery_dir)
         if self.simulation_data:
-            extra_train = self.load_annotation(self.extra_train_annot, self.extra_train_dir)
+            extra_train = self.load_annotation(self.extra_train_annot, self.extra_train_dir, train_mode=True)
             if self.simulation_only:
                 train = extra_train
             else:
@@ -60,8 +63,7 @@ class AIC20(ImageDataset):
 
         super(AIC20, self).__init__(train, query, gallery, **kwargs)
 
-    @staticmethod
-    def load_annotation(annot_path, data_dir):
+    def load_annotation(self, annot_path, data_dir, train_mode=False):
         tree = etree.parse(annot_path)
         root = tree.getroot()
 
@@ -77,15 +79,44 @@ class AIC20(ImageDataset):
             pid = int(item.attrib['vehicleID'])
             cam_id = int(item.attrib['cameraID'][1:])
 
-            data.append((full_image_path, pid, cam_id))
+            if train_mode:
+                color = int(item.attrib['colorID']) if 'colorID' in item.attrib else -1
+                object_type = int(item.attrib['typeID']) if 'typeID' in item.attrib else -1
+                orientation = float(item.attrib['orientation']) if 'orientation' in item.attrib else None
+
+                quantized_angle = self.quantize_angle(orientation, AIC20.angle_bins)
+
+                record = full_image_path, pid, cam_id, color, object_type, quantized_angle
+            else:
+                record = full_image_path, pid, cam_id
+
+            data.append(record)
 
         return data
 
     @staticmethod
     def compress_labels(data):
-        pid_container = set(pid for _, pid, _ in data)
+        pid_container = set(record[1] for record in data)
         pid2label = {pid: label for label, pid in enumerate(pid_container)}
 
-        out_data = [(image_name, pid2label[pid], cam_id) for image_name, pid, cam_id in data]
+        out_data = []
+        for record in data:
+            pid = pid2label[record[1]]
+            updated_record = tuple([record[0], pid] + list(record[2:]))
+            out_data.append(updated_record)
 
         return out_data
+
+    @staticmethod
+    def quantize_angle(angle, centers):
+        if angle is None:
+            return -1
+
+        dist = np.abs(centers - float(angle))
+
+        class_id = int(np.argmin(dist))
+        if class_id == len(centers) - 1:
+            class_id = 0
+
+        return class_id
+

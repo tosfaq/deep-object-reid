@@ -98,7 +98,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             data_time.update(time.time() - start_time)
 
             imgs, pids = self._parse_data_for_train(data)
-            imgs, pids = self._apply_batch_transform(imgs, pids)
+            imgs = self._apply_batch_transform(imgs)
             if self.use_gpu:
                 imgs = imgs.cuda()
                 pids = pids.cuda()
@@ -171,7 +171,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         if self.scheduler is not None:
             self.scheduler.step()
 
-    def _apply_batch_transform(self, imgs, pids):
+    def _apply_batch_transform(self, imgs):
         if self.batch_transform_cfg.enable:
             permuted_idx = torch.randperm(imgs.shape[0])
             lambd = self.batch_transform_cfg.anchor_bias \
@@ -179,4 +179,4 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     * self.lambd_distr.sample((imgs.shape[0],))
             imgs = lambd * imgs + (1 - lambd) * imgs[permuted_idx]
 
-        return imgs, pids
+        return imgs
