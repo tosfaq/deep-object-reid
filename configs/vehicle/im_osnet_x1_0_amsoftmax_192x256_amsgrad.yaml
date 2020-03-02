@@ -75,13 +75,13 @@ metric_losses:
 train:
   optim: 'sgd'
   lr: 0.01
-  max_epoch: 20
+  max_epoch: 30
   batch_size: 64
   fixbase_epoch: 2
   open_layers: ['classifier', 'fc']
   lr_scheduler: 'multi_step_warmup'
-  stepsize: [10]
-  warmup: 3
+  stepsize: [12]
+  warmup: 5
   warmup_factor_base: 0.001
 
 test:
