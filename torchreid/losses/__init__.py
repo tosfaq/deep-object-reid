@@ -5,6 +5,7 @@ from .cross_entropy_loss import CrossEntropyLoss
 from .metric import MetricLosses, CenterLoss, GlobalPushPlus
 from .regularizers import ConvRegularizer, SVMORegularizer, NoneRegularizer, get_regularizer
 from .hard_mine_triplet_loss import TripletLoss
+from .entropy import entropy, MaxEntropyLoss, MinEntropyLoss
 
 
 def DeepSupervision(criterion, xs, y):

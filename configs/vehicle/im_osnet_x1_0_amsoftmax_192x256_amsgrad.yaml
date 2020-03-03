@@ -52,7 +52,7 @@ data:
 
 aic20:
   use_simulation_data: True
-  simulation_data_only: True
+  simulation_data_only: False
 
 sampler:
   train_sampler: 'RandomIdentitySamplerV3'

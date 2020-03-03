@@ -26,15 +26,11 @@ import datetime
 import time
 
 import torch
-from torch import nn
 
 from torchreid import metrics
 from torchreid.engine.image.softmax import ImageSoftmaxEngine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
-from torchreid.losses.am_softmax import AMSoftmaxLoss
-from torchreid.losses.cross_entropy_loss import CrossEntropyLoss
-from torchreid.losses.regularizers import get_regularizer
-from torchreid.losses.metric import MetricLosses
+from torchreid.losses import get_regularizer, MetricLosses, AMSoftmaxLoss, CrossEntropyLoss, MinEntropyLoss
 
 
 class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
@@ -87,6 +83,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 m=extra_losses_cfg.m,
                 s=extra_losses_cfg.s
             )
+            self.extra_neg_loss = MinEntropyLoss(scale=extra_losses_cfg.s)
         else:
             self.extra_pos_loss = None
             self.extra_tasks = None
@@ -100,9 +97,11 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         data_time = AverageMeter()
         attr_loss = AverageMeter()
         if self.extra_tasks is not None:
-            attr_losses = dict()
+            attr_pos_losses = dict()
+            attr_neg_losses = dict()
             for attr_loss_name in self.extra_tasks.keys():
-                attr_losses[attr_loss_name] = AverageMeter()
+                attr_pos_losses[attr_loss_name] = AverageMeter()
+                attr_neg_losses[attr_loss_name] = AverageMeter()
 
         self.model.train()
         if (epoch + 1) <= fixbase_epoch and open_layers is not None:
@@ -131,13 +130,28 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             loss = self._compute_loss(self.criterion, outputs, pids)
 
             if self.extra_tasks is not None:
-                # TODO: process -1 labels for color and type classification
                 extra_labels = self._parse_extra_data_for_train(data, self.use_gpu)
                 attr_losses_list = []
                 for task_name in self.extra_tasks.keys():
-                    extra_loss_value = self.extra_pos_loss(extra_outputs[task_name], extra_labels[task_name])
+                    task_labels = extra_labels[task_name]
+                    task_outputs = extra_outputs[task_name]
+
+                    pos_mask = task_labels >= 0
+                    pos_labels = task_labels[pos_mask]
+                    if pos_labels.numel() > 0:
+                        pos_outputs = task_outputs[pos_mask]
+                        extra_pos_loss = self.extra_pos_loss(pos_outputs, pos_labels)
+                    else:
+                        extra_pos_loss = torch.zeros([], dtype=loss.dtype, device=loss.device)
+                    attr_pos_losses[task_name].update(extra_pos_loss.item(), pids.size(0))
+
+                    neg_mask = task_labels < 0
+                    neg_outputs = task_outputs[neg_mask]
+                    extra_neg_loss = self.extra_neg_loss(neg_outputs)
+                    attr_neg_losses[task_name].update(extra_neg_loss.item(), pids.size(0))
+
+                    extra_loss_value = extra_pos_loss + extra_neg_loss
                     attr_losses_list.append(extra_loss_value)
-                    attr_losses[task_name].update(extra_loss_value.item(), pids.size(0))
 
                 attr_loss_value = torch.stack(attr_losses_list).sum()
                 loss += attr_loss_value
@@ -202,8 +216,10 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     writer.add_scalar('Learning rate', self.optimizer.param_groups[0]['lr'], n_iter)
                     if self.extra_tasks is not None:
                         for task_name in self.extra_tasks.keys():
-                            writer.add_scalar('Loss/attr_{}'.format(task_name),
-                                              attr_losses[task_name].avg, n_iter)
+                            writer.add_scalar('Loss/attr_pos_{}'.format(task_name),
+                                              attr_pos_losses[task_name].avg, n_iter)
+                            writer.add_scalar('Loss/attr_neg_{}'.format(task_name),
+                                              attr_neg_losses[task_name].avg, n_iter)
             start_time = time.time()
 
         if self.scheduler is not None:

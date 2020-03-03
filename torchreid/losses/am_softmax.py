@@ -55,7 +55,7 @@ class AMSoftmaxLoss(nn.Module):
         super(AMSoftmaxLoss, self).__init__()
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
-        self.log_softmax = nn.LogSoftmax(dim=1)
+        self.softmax = nn.Softmax(dim=1)
 
         assert margin_type in AMSoftmaxLoss.margin_types
         self.margin_type = margin_type
@@ -97,21 +97,23 @@ class AMSoftmaxLoss(nn.Module):
         if self.gamma == 0 and self.t == 1.:
             if self.conf_penalty > 0.:
                 output *= self.s
-                log_probs = self.log_softmax(output)
-                probs = torch.exp(log_probs)
+                probs = self.softmax(output)
                 ent = (-probs * torch.log(probs.clamp(min=1e-12))).sum(1)
-                loss = F.relu(F.cross_entropy(output, target, reduction='none') - self.conf_penalty * ent)
-                with torch.no_grad():
-                    nonzero_count = loss.nonzero().size(0)
-                return loss.sum() / nonzero_count
+                losses = F.relu(F.cross_entropy(output, target, reduction='none') - self.conf_penalty * ent)
             else:
-                return F.cross_entropy(self.s * output, target)
+                losses = F.cross_entropy(self.s * output, target, reduction='none')
+
+            with torch.no_grad():
+                nonzero_count = losses.nonzero().size(0)
+
+            return losses.sum() / nonzero_count if nonzero_count > 0 else losses.sum()
 
         if self.t > 1:
             h_theta = self.t - 1 + self.t*cos_theta
             support_vecs_mask = (1 - index) * \
                 torch.lt(torch.masked_select(phi_theta, index).view(-1, 1).repeat(1, h_theta.shape[1]) - cos_theta, 0)
             output = torch.where(support_vecs_mask, h_theta, output)
-            return F.cross_entropy(self.s*output, target)
 
-        return focal_loss(F.cross_entropy(self.s*output, target, reduction='none'), self.gamma)
+            return F.cross_entropy(self.s * output, target)
+
+        return focal_loss(F.cross_entropy(self.s * output, target, reduction='none'), self.gamma)
