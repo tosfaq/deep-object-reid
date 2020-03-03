@@ -51,13 +51,11 @@ def focal_loss(input_values, gamma):
 class AMSoftmaxLoss(nn.Module):
     margin_types = ['cos', 'arc']
 
-    def __init__(self, num_classes, epsilon=0.1, use_gpu=True, conf_penalty=0.,
-                 margin_type='cos', gamma=0., m=0.5, s=30, t=1.):
+    def __init__(self, use_gpu=True, conf_penalty=0.0, margin_type='cos', gamma=0.0, m=0.5, s=30, t=1.0):
         super(AMSoftmaxLoss, self).__init__()
-        self.num_classes = num_classes
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
-        self.logsoftmax = nn.LogSoftmax(dim=1)
+        self.log_softmax = nn.LogSoftmax(dim=1)
 
         assert margin_type in AMSoftmaxLoss.margin_types
         self.margin_type = margin_type
@@ -99,7 +97,7 @@ class AMSoftmaxLoss(nn.Module):
         if self.gamma == 0 and self.t == 1.:
             if self.conf_penalty > 0.:
                 output *= self.s
-                log_probs = self.logsoftmax(output)
+                log_probs = self.log_softmax(output)
                 probs = torch.exp(log_probs)
                 ent = (-probs * torch.log(probs.clamp(min=1e-12))).sum(1)
                 loss = F.relu(F.cross_entropy(output, target, reduction='none') - self.conf_penalty * ent)

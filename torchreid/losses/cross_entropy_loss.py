@@ -9,11 +9,10 @@ class CrossEntropyLoss(nn.Module):
 
     def __init__(self, num_classes, epsilon=0.1, use_gpu=True, label_smooth=True, conf_penalty=None):
         super(CrossEntropyLoss, self).__init__()
-        self.num_classes = num_classes
         self.epsilon = epsilon if label_smooth else 0
         self.use_gpu = use_gpu
         self.softmax = nn.Softmax(dim=1)
-        self.logsoftmax = nn.LogSoftmax(dim=1)
+        self.log_softmax = nn.LogSoftmax(dim=1)
         self.conf_penalty = conf_penalty
 
     def forward(self, inputs, targets):
@@ -25,12 +24,13 @@ class CrossEntropyLoss(nn.Module):
                 Each position contains the label index.
         """
 
-        log_probs = self.logsoftmax(inputs)
+        log_probs = self.log_softmax(inputs)
         targets = torch.zeros(log_probs.size()).scatter_(1, targets.unsqueeze(1).data.cpu(), 1)
         if self.use_gpu:
             targets = targets.cuda()
 
-        targets = (1.0 - self.epsilon) * targets + self.epsilon / self.num_classes
+        num_classes = inputs.size(1)
+        targets = (1.0 - self.epsilon) * targets + self.epsilon / float(num_classes)
         sm_loss = (- targets * log_probs).sum(dim=1)
 
         if self.conf_penalty is not None and self.conf_penalty > 0.0:

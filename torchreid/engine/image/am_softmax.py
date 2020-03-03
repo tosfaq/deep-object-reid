@@ -58,7 +58,6 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             )
         elif softmax_type == 'am':
             self.criterion = AMSoftmaxLoss(
-                num_classes=self.datamanager.num_train_pids,
                 use_gpu=self.use_gpu,
                 conf_penalty=conf_penalty,
                 m=m,
@@ -79,19 +78,18 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             self.metric_losses = None
 
         if extra_losses_cfg.enable:
-            assert len(extra_losses_cfg.tasks) > 0
-            extra_losses = dict()
-            for extra_loss_name, extra_num_classes in extra_losses_cfg.tasks.items():
-                extra_losses[extra_loss_name] = AMSoftmaxLoss(
-                    num_classes=extra_num_classes,
-                    use_gpu=self.use_gpu,
-                    conf_penalty=extra_losses_cfg.conf_penalty,
-                    m=extra_losses_cfg.m,
-                    s=extra_losses_cfg.s
-                )
-            self.extra_losses = nn.ModuleDict(extra_losses)
+            self.extra_tasks = extra_losses_cfg.tasks
+            assert len(self.extra_tasks) > 0
+
+            self.extra_pos_loss = AMSoftmaxLoss(
+                use_gpu=self.use_gpu,
+                conf_penalty=extra_losses_cfg.conf_penalty,
+                m=extra_losses_cfg.m,
+                s=extra_losses_cfg.s
+            )
         else:
-            self.extra_losses = None
+            self.extra_pos_loss = None
+            self.extra_tasks = None
 
     def train(self, epoch, max_epoch, writer, print_freq=10, fixbase_epoch=0, open_layers=None):
         losses = AverageMeter()
@@ -101,9 +99,9 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         batch_time = AverageMeter()
         data_time = AverageMeter()
         attr_loss = AverageMeter()
-        if self.extra_losses is not None:
+        if self.extra_tasks is not None:
             attr_losses = dict()
-            for attr_loss_name in self.extra_losses.keys():
+            for attr_loss_name in self.extra_tasks.keys():
                 attr_losses[attr_loss_name] = AverageMeter()
 
         self.model.train()
@@ -132,16 +130,14 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
             loss = self._compute_loss(self.criterion, outputs, pids)
 
-            if self.extra_losses is not None:
-                assert len(extra_outputs) == len(self.extra_losses)
-
+            if self.extra_tasks is not None:
                 # TODO: process -1 labels for color and type classification
                 extra_labels = self._parse_extra_data_for_train(data, self.use_gpu)
                 attr_losses_list = []
-                for extra_loss_name, extra_loss in self.extra_losses.items():
-                    extra_loss_value = extra_loss(extra_outputs[extra_loss_name], extra_labels[extra_loss_name])
+                for task_name in self.extra_tasks.keys():
+                    extra_loss_value = self.extra_pos_loss(extra_outputs[task_name], extra_labels[task_name])
                     attr_losses_list.append(extra_loss_value)
-                    attr_losses[extra_loss_name].update(extra_loss_value.item(), pids.size(0))
+                    attr_losses[task_name].update(extra_loss_value.item(), pids.size(0))
 
                 attr_loss_value = torch.stack(attr_losses_list).sum()
                 loss += attr_loss_value
@@ -204,10 +200,10 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                         writer.add_scalar('Loss/reg_ow', reg_ow_loss.avg, n_iter)
                     writer.add_scalar('Accuracy/train', accs.avg, n_iter)
                     writer.add_scalar('Learning rate', self.optimizer.param_groups[0]['lr'], n_iter)
-                    if self.extra_losses is not None:
-                        for extra_loss_name in self.extra_losses.keys():
-                            writer.add_scalar('Loss/attr_{}'.format(extra_loss_name),
-                                              attr_losses[extra_loss_name].avg, n_iter)
+                    if self.extra_tasks is not None:
+                        for task_name in self.extra_tasks.keys():
+                            writer.add_scalar('Loss/attr_{}'.format(task_name),
+                                              attr_losses[task_name].avg, n_iter)
             start_time = time.time()
 
         if self.scheduler is not None:
