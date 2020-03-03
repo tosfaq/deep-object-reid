@@ -216,9 +216,9 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     writer.add_scalar('Learning rate', self.optimizer.param_groups[0]['lr'], n_iter)
                     if self.extra_tasks is not None:
                         for task_name in self.extra_tasks.keys():
-                            writer.add_scalar('Loss/attr_pos_{}'.format(task_name),
+                            writer.add_scalar('Loss/pos_{}'.format(task_name),
                                               attr_pos_losses[task_name].avg, n_iter)
-                            writer.add_scalar('Loss/attr_neg_{}'.format(task_name),
+                            writer.add_scalar('Loss/neg_{}'.format(task_name),
                                               attr_neg_losses[task_name].avg, n_iter)
             start_time = time.time()
 
