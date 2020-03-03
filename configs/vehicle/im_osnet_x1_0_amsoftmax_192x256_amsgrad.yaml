@@ -87,7 +87,7 @@ train:
   max_epoch: 30
   batch_size: 64
   fixbase_epoch: 2
-  open_layers: ['classifier', 'fc', 'extra_fc', 'extra_classifier']
+  open_layers: ['classifier', 'fc', 'extra_fc', 'extra_classifier', 'aux_fc', 'aux_classifier']
   lr_scheduler: 'multi_step_warmup'
   stepsize: [10]
   warmup: 3

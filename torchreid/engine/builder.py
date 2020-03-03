@@ -45,7 +45,6 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
                 label_smooth=cfg.loss.softmax.label_smooth,
                 conf_penalty=cfg.loss.softmax.conf_penalty
             )
-
     else:
         if cfg.loss.name == 'softmax':
             engine = VideoSoftmaxEngine(
@@ -58,7 +57,6 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
                 conf_penalty=cfg.loss.softmax.conf_penalty,
                 pooling_method=cfg.video.pooling_method
             )
-
         else:
             engine = VideoTripletEngine(
                 datamanager,

@@ -46,19 +46,20 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         self.writer = writer
 
         if softmax_type == 'stock':
-            self.criterion = CrossEntropyLoss(
-                num_classes=self.datamanager.num_train_pids,
+            self.main_loss = CrossEntropyLoss(
                 use_gpu=self.use_gpu,
                 label_smooth=label_smooth,
                 conf_penalty=conf_penalty
             )
         elif softmax_type == 'am':
-            self.criterion = AMSoftmaxLoss(
+            self.main_loss = AMSoftmaxLoss(
                 use_gpu=self.use_gpu,
                 conf_penalty=conf_penalty,
                 m=m,
                 s=s
             )
+        else:
+            raise ValueError('Unknown softmax type: {}'.format(softmax_type))
 
         self.batch_transform_cfg = batch_transform_cfg
         self.lambd_distr = torch.distributions.beta.Beta(self.batch_transform_cfg.alpha,
@@ -121,13 +122,36 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 imgs = imgs.cuda()
                 pids = pids.cuda()
 
+            batch_size = pids.size(0)
+
             self.optimizer.zero_grad()
             if self.metric_losses is not None:
                 embeddings, outputs, extra_outputs = self.model(imgs, get_embeddings=True)
             else:
                 outputs, extra_outputs = self.model(imgs)
+                embeddings = None
 
-            loss = self._compute_loss(self.criterion, outputs, pids)
+            if isinstance(outputs, dict):
+                real_outputs = outputs['real']
+                synthetic_outputs = outputs['synthetic']
+
+                real_data_mask = self._get_real_mask(data, self.use_gpu)
+                real_pids = pids[real_data_mask]
+                synthetic_pids = pids[~real_data_mask]
+
+                real_embeddings = None
+                if embeddings is not None:
+                    real_embeddings = embeddings['real']
+
+                real_data_loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
+                synthetic_data_loss = self._compute_loss(self.main_loss, synthetic_outputs, synthetic_pids)
+                loss = real_data_loss + synthetic_data_loss
+            else:
+                real_outputs = outputs
+                real_pids = pids
+                real_embeddings = embeddings
+
+                loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
 
             if self.extra_tasks is not None:
                 extra_labels = self._parse_extra_data_for_train(data, self.use_gpu)
@@ -143,38 +167,38 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                         extra_pos_loss = self.extra_pos_loss(pos_outputs, pos_labels)
                     else:
                         extra_pos_loss = torch.zeros([], dtype=loss.dtype, device=loss.device)
-                    attr_pos_losses[task_name].update(extra_pos_loss.item(), pids.size(0))
+                    attr_pos_losses[task_name].update(extra_pos_loss.item(), batch_size)
 
                     neg_mask = task_labels < 0
                     neg_outputs = task_outputs[neg_mask]
                     extra_neg_loss = self.extra_neg_loss(neg_outputs)
-                    attr_neg_losses[task_name].update(extra_neg_loss.item(), pids.size(0))
+                    attr_neg_losses[task_name].update(extra_neg_loss.item(), batch_size)
 
                     extra_loss_value = extra_pos_loss + extra_neg_loss
                     attr_losses_list.append(extra_loss_value)
 
                 attr_loss_value = torch.stack(attr_losses_list).sum()
                 loss += attr_loss_value
-                attr_loss.update(attr_loss_value.item(), pids.size(0))
+                attr_loss.update(attr_loss_value.item(), batch_size)
 
             if (epoch + 1) > fixbase_epoch:
                 reg_loss = self.regularizer(self.model)
-                reg_ow_loss.update(reg_loss.item(), pids.size(0))
+                reg_ow_loss.update(reg_loss.item(), batch_size)
                 loss += reg_loss
 
-            if self.metric_losses is not None:
+            if self.metric_losses is not None and real_embeddings is not None:
                 self.metric_losses.writer = writer
                 self.metric_losses.init_iteration()
-                metric_loss = self.metric_losses(embeddings, pids, epoch, epoch * num_batches + batch_idx)
+                metric_loss = self.metric_losses(real_embeddings, real_pids, epoch, epoch * num_batches + batch_idx)
                 self.metric_losses.end_iteration()
                 loss += metric_loss
-                metric_losses.update(metric_loss.item(), pids.size(0))
+                metric_losses.update(metric_loss.item(), batch_size)
 
             loss.backward()
             self.optimizer.step()
 
-            losses.update(loss.item(), pids.size(0))
-            accs.update(metrics.accuracy(outputs, pids)[0].item())
+            losses.update(loss.item(), batch_size)
+            accs.update(metrics.accuracy(real_outputs, real_pids)[0].item())
             batch_time.update(time.time() - start_time)
 
             if print_freq > 0 and (batch_idx + 1) % print_freq == 0:
@@ -206,7 +230,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     n_iter = epoch * num_batches + batch_idx
                     writer.add_scalar('Train/Time', batch_time.avg, n_iter)
                     writer.add_scalar('Train/Data', data_time.avg, n_iter)
-                    info = self.criterion.get_last_info()
+                    info = self.main_loss.get_last_info()
                     for k in info:
                         writer.add_scalar('AUX info/' + k, info[k], n_iter)
                     writer.add_scalar('Loss/train', losses.avg, n_iter)
@@ -229,6 +253,14 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
     def _parse_extra_data_for_train(data, use_gpu=False):
         return dict(attr_color=data[4].cuda() if use_gpu else data[4],
                     attr_type=data[5].cuda() if use_gpu else data[5])
+
+    @staticmethod
+    def _get_real_mask(data, use_gpu=False):
+        mask = data[4] < 0
+        if use_gpu:
+            mask = mask.cuda()
+
+        return mask
 
     def _apply_batch_transform(self, imgs):
         if self.batch_transform_cfg.enable:

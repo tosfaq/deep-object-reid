@@ -422,6 +422,12 @@ class OSNet(nn.Module):
             self.use_attentions = [False] * num_blocks
         assert len(self.use_attentions) == num_blocks
 
+        if isinstance(num_classes, list):
+            assert len(num_classes) == 2
+            real_data_num_classes, synthetic_data_num_classes = num_classes
+        else:
+            real_data_num_classes, synthetic_data_num_classes = num_classes, None
+
         self.conv1 = ConvLayer(
             3, channels[0], 7, stride=2, padding=3, IN=conv1_IN
         )
@@ -453,21 +459,24 @@ class OSNet(nn.Module):
         self.conv5 = Conv1x1(channels[3], channels[3])
         self.global_avgpool = nn.AdaptiveAvgPool2d(1)
 
-        self.fc = self._construct_fc_layer(channels[3], self.feature_dim, dropout_p=None)
+        self.fc = self._construct_fc_layer(channels[3], self.feature_dim)
 
-        if self.loss not in ['am_softmax']:
-            self.classifier = nn.Linear(self.feature_dim, num_classes)
+        classifier = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
+        self.classifier = classifier(self.feature_dim, real_data_num_classes)
+
+        self.split_embeddings = synthetic_data_num_classes is not None
+        if self.split_embeddings:
+            self.aux_fc = self._construct_fc_layer(channels[3], self.feature_dim)
+            self.aux_classifier = classifier(self.feature_dim, synthetic_data_num_classes)
         else:
-            self.classifier = AngleSimpleLinear(self.feature_dim, num_classes)
+            self.aux_fc = None
+            self.aux_classifier = None
 
         if enable_extra_tasks and extra_tasks is not None and len(extra_tasks) > 0:
             extra_fc = dict()
             extra_classifier = dict()
             for extra_task_name, extra_num_classes in extra_tasks.items():
-                extra_fc[extra_task_name] = nn.Sequential(
-                    nn.Linear(channels[3], self.feature_dim),
-                    nn.BatchNorm1d(self.feature_dim)
-                )
+                extra_fc[extra_task_name] = self._construct_fc_layer(channels[3], self.feature_dim)
                 extra_classifier[extra_task_name] = AngleSimpleLinear(self.feature_dim, extra_num_classes)
             self.extra_fc = nn.ModuleDict(extra_fc)
             self.extra_classifier = nn.ModuleDict(extra_classifier)
@@ -494,28 +503,12 @@ class OSNet(nn.Module):
     def _make_attention(num_channels, enable):
         return ResidualAttention(num_channels) if enable else None
 
-    def _construct_fc_layer(self, input_dim, fc_dims, dropout_p=None):
-        if isinstance(fc_dims, int):
-            fc_dims = [fc_dims]
-
-        layers = []
-        for dim in fc_dims:
-            layers.append(nn.Linear(input_dim, dim))
-            layers.append(nn.BatchNorm1d(dim))
-
-            if self.loss not in ['am_softmax']:
-                layers.append(nn.ReLU())
-            else:
-                layers.append(nn.PReLU())
-
-            if dropout_p is not None:
-                layers.append(nn.Dropout(p=dropout_p))
-
-            input_dim = dim
-
-        self.feature_dim = fc_dims[-1]
-
-        return nn.Sequential(*layers)
+    @staticmethod
+    def _construct_fc_layer(input_dim, out_dim):
+        return nn.Sequential(
+            nn.Linear(input_dim, out_dim),
+            nn.BatchNorm1d(out_dim)
+        )
 
     def _init_params(self):
         for m in self.modules():
@@ -582,6 +575,13 @@ class OSNet(nn.Module):
         if self.extra_classifier is not None:
             for extra_classifier_name, extra_classifier in self.extra_classifier.items():
                 extra_logits[extra_classifier_name] = extra_classifier(extra_embeddings[extra_classifier_name])
+
+        if self.split_embeddings:
+            aux_embeddings = self.aux_fc(feature_vector)
+            aux_logits = self.aux_classifier(aux_embeddings)
+
+            main_embeddings = dict(real=main_embeddings, synthetic=aux_embeddings)
+            main_logits = dict(real=main_logits, synthetic=aux_logits)
 
         if get_embeddings:
             return main_embeddings, main_logits, extra_logits
@@ -667,7 +667,7 @@ def init_pretrained_weights(model, key=''):
 # Instantiation
 ##########
 
-def osnet_ain_x1_0(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
+def osnet_ain_x1_0(num_classes=1000, pretrained=True, **kwargs):
     model = OSNet(
         num_classes,
         blocks=[
@@ -682,7 +682,6 @@ def osnet_ain_x1_0(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
         #     [0.1, None],
         #     [0.1, None]
         # ],
-        loss=loss,
         conv1_IN=True,
         **kwargs
     )

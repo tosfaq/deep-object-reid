@@ -7,7 +7,7 @@ class CrossEntropyLoss(nn.Module):
     r"""Cross entropy loss with label smoothing regularizer.
     """
 
-    def __init__(self, num_classes, epsilon=0.1, use_gpu=True, label_smooth=True, conf_penalty=None):
+    def __init__(self, epsilon=0.1, use_gpu=True, label_smooth=True, conf_penalty=None):
         super(CrossEntropyLoss, self).__init__()
         self.epsilon = epsilon if label_smooth else 0
         self.use_gpu = use_gpu
