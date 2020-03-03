@@ -325,7 +325,8 @@ class Engine(object):
 
         return cmc[0]
 
-    def _compute_loss(self, criterion, outputs, targets):
+    @staticmethod
+    def _compute_loss(criterion, outputs, targets):
         if isinstance(outputs, (tuple, list)):
             loss = DeepSupervision(criterion, outputs, targets)
         else:
@@ -336,12 +337,14 @@ class Engine(object):
         self.model.eval()
         return self.model(input)
 
-    def _parse_data_for_train(self, data):
+    @staticmethod
+    def _parse_data_for_train(data):
         imgs = data[0]
         pids = data[1]
         return imgs, pids
 
-    def _parse_data_for_eval(self, data):
+    @staticmethod
+    def _parse_data_for_eval(data):
         imgs = data[0]
         pids = data[1]
         camids = data[2]

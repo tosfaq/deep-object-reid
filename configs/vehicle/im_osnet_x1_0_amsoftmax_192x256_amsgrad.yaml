@@ -51,8 +51,8 @@ data:
   save_dir: 'log/osnet_ain_x1_0_aic20_amsoftmax'
 
 aic20:
-  use_simulation_data: False
-  simulation_data_only: False
+  use_simulation_data: True
+  simulation_data_only: True
 
 sampler:
   train_sampler: 'RandomIdentitySamplerV3'
@@ -71,6 +71,15 @@ metric_losses:
   center_coeff: 1.0
   glob_push_plus_loss_coeff: 1.2
   balance_losses: True
+
+extra_losses:
+  enable: True
+  m: 0.35
+  s: 10.0
+  conf_penalty: 0.0
+  tasks:
+    attr_color: 12
+    attr_type: 11
 
 train:
   optim: 'sgd'

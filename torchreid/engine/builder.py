@@ -22,6 +22,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
                 optimizer,
                 cfg.reg,
                 cfg.metric_losses,
+                cfg.extra_losses,
                 cfg.data.transforms.batch_transform,
                 scheduler,
                 cfg.use_gpu,

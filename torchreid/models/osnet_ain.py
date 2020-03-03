@@ -399,6 +399,8 @@ class OSNet(nn.Module):
         feature_dim=512,
         loss='softmax',
         conv1_IN=False,
+        extra_tasks=None,
+        enable_extra_tasks=False,
         **kwargs
     ):
         super(OSNet, self).__init__()
@@ -408,6 +410,7 @@ class OSNet(nn.Module):
 
         self.loss = loss
         self.feature_dim = feature_dim
+        assert self.feature_dim is not None and self.feature_dim > 0
 
         self.dropout_probs = dropout_probs
         if self.dropout_probs is None:
@@ -450,12 +453,27 @@ class OSNet(nn.Module):
         self.conv5 = Conv1x1(channels[3], channels[3])
         self.global_avgpool = nn.AdaptiveAvgPool2d(1)
 
-        self.fc = self._construct_fc_layer(self.feature_dim, channels[3], dropout_p=None)
+        self.fc = self._construct_fc_layer(channels[3], self.feature_dim, dropout_p=None)
 
         if self.loss not in ['am_softmax']:
             self.classifier = nn.Linear(self.feature_dim, num_classes)
         else:
             self.classifier = AngleSimpleLinear(self.feature_dim, num_classes)
+
+        if enable_extra_tasks and extra_tasks is not None and len(extra_tasks) > 0:
+            extra_fc = dict()
+            extra_classifier = dict()
+            for extra_task_name, extra_num_classes in extra_tasks.items():
+                extra_fc[extra_task_name] = nn.Sequential(
+                    nn.Linear(channels[3], self.feature_dim),
+                    nn.BatchNorm1d(self.feature_dim)
+                )
+                extra_classifier[extra_task_name] = AngleSimpleLinear(self.feature_dim, extra_num_classes)
+            self.extra_fc = nn.ModuleDict(extra_fc)
+            self.extra_classifier = nn.ModuleDict(extra_classifier)
+        else:
+            self.extra_fc = None
+            self.extra_classifier = None
 
         self._init_params()
 
@@ -476,11 +494,7 @@ class OSNet(nn.Module):
     def _make_attention(num_channels, enable):
         return ResidualAttention(num_channels) if enable else None
 
-    def _construct_fc_layer(self, fc_dims, input_dim, dropout_p=None):
-        if fc_dims is None or fc_dims < 0:
-            self.feature_dim = input_dim
-            return None
-
+    def _construct_fc_layer(self, input_dim, fc_dims, dropout_p=None):
         if isinstance(fc_dims, int):
             fc_dims = [fc_dims]
 
@@ -546,27 +560,36 @@ class OSNet(nn.Module):
         return y
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False):
-        x = self.featuremaps(x)
+        feature_maps = self.featuremaps(x)
         if return_featuremaps:
-            return x
+            return feature_maps
 
-        v = self.global_avgpool(x)
-        v = v.view(v.size(0), -1)
-        if self.fc is not None:
-            v = self.fc(v)
+        feature_vector = self.global_avgpool(feature_maps)
+        feature_vector = feature_vector.view(feature_vector.size(0), -1)
+
+        main_embeddings = self.fc(feature_vector)
+        extra_embeddings = dict()
+        if self.extra_fc is not None:
+            for extra_fc_name, extra_fc in self.extra_fc.items():
+                extra_embeddings[extra_fc_name] = extra_fc(feature_vector)
 
         if not self.training:
-            return v
+            all_embeddings = [e for e in extra_embeddings.values()] + [main_embeddings]
+            return torch.cat(all_embeddings, dim=-1)
 
-        y = self.classifier(v)
+        main_logits = self.classifier(main_embeddings)
+        extra_logits = dict()
+        if self.extra_classifier is not None:
+            for extra_classifier_name, extra_classifier in self.extra_classifier.items():
+                extra_logits[extra_classifier_name] = extra_classifier(extra_embeddings[extra_classifier_name])
 
         if get_embeddings:
-            return v, y
+            return main_embeddings, main_logits, extra_logits
 
         if self.loss in ['softmax', 'am_softmax']:
-            return y
+            return main_logits, extra_logits
         elif self.loss in ['triplet']:
-            return y, v
+            return main_logits, extra_logits, main_embeddings
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 

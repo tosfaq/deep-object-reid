@@ -26,10 +26,11 @@ import datetime
 import time
 
 import torch
+from torch import nn
 
 from torchreid import metrics
 from torchreid.engine.image.softmax import ImageSoftmaxEngine
-from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers, visualize_ranked_results, re_ranking
+from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
 from torchreid.losses.am_softmax import AMSoftmaxLoss
 from torchreid.losses.cross_entropy_loss import CrossEntropyLoss
 from torchreid.losses.regularizers import get_regularizer
@@ -40,7 +41,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
     r"""AM-Softmax-loss engine for image-reid.
     """
 
-    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, batch_transform_cfg,
+    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, extra_losses_cfg, batch_transform_cfg,
                  scheduler=None, use_gpu=False, softmax_type='stock', label_smooth=True, conf_penalty=False,
                  m=0.35, s=10, writer=None):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
@@ -77,6 +78,21 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         else:
             self.metric_losses = None
 
+        if extra_losses_cfg.enable:
+            assert len(extra_losses_cfg.tasks) > 0
+            extra_losses = dict()
+            for extra_loss_name, extra_num_classes in extra_losses_cfg.tasks.items():
+                extra_losses[extra_loss_name] = AMSoftmaxLoss(
+                    num_classes=extra_num_classes,
+                    use_gpu=self.use_gpu,
+                    conf_penalty=extra_losses_cfg.conf_penalty,
+                    m=extra_losses_cfg.m,
+                    s=extra_losses_cfg.s
+                )
+            self.extra_losses = nn.ModuleDict(extra_losses)
+        else:
+            self.extra_losses = None
+
     def train(self, epoch, max_epoch, writer, print_freq=10, fixbase_epoch=0, open_layers=None):
         losses = AverageMeter()
         reg_ow_loss = AverageMeter()
@@ -84,6 +100,11 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         accs = AverageMeter()
         batch_time = AverageMeter()
         data_time = AverageMeter()
+        attr_loss = AverageMeter()
+        if self.extra_losses is not None:
+            attr_losses = dict()
+            for attr_loss_name in self.extra_losses.keys():
+                attr_losses[attr_loss_name] = AverageMeter()
 
         self.model.train()
         if (epoch + 1) <= fixbase_epoch and open_layers is not None:
@@ -105,11 +126,26 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
             self.optimizer.zero_grad()
             if self.metric_losses is not None:
-                embeddings, outputs = self.model(imgs, get_embeddings=True)
+                embeddings, outputs, extra_outputs = self.model(imgs, get_embeddings=True)
             else:
-                outputs = self.model(imgs)
+                outputs, extra_outputs = self.model(imgs)
 
             loss = self._compute_loss(self.criterion, outputs, pids)
+
+            if self.extra_losses is not None:
+                assert len(extra_outputs) == len(self.extra_losses)
+
+                # TODO: process -1 labels for color and type classification
+                extra_labels = self._parse_extra_data_for_train(data, self.use_gpu)
+                attr_losses_list = []
+                for extra_loss_name, extra_loss in self.extra_losses.items():
+                    extra_loss_value = extra_loss(extra_outputs[extra_loss_name], extra_labels[extra_loss_name])
+                    attr_losses_list.append(extra_loss_value)
+                    attr_losses[extra_loss_name].update(extra_loss_value.item(), pids.size(0))
+
+                attr_loss_value = torch.stack(attr_losses_list).sum()
+                loss += attr_loss_value
+                attr_loss.update(attr_loss_value.item(), pids.size(0))
 
             if (epoch + 1) > fixbase_epoch:
                 reg_loss = self.regularizer(self.model)
@@ -134,19 +170,21 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             if print_freq > 0 and (batch_idx + 1) % print_freq == 0:
                 eta_seconds = batch_time.avg * (num_batches-(batch_idx + 1) + (max_epoch - (epoch + 1)) * num_batches)
                 eta_str = str(datetime.timedelta(seconds=int(eta_seconds)))
-                print('Epoch: [{0}/{1}][{2}/{3}]\t'
-                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                      'AUX Losses {aux_losses.val:.4f} ({aux_losses.avg:.4f})\t'
-                      'Acc {acc.val:.2f} ({acc.avg:.2f})\t'
-                      'Lr {lr:.6f}\t'
+                print('Epoch: [{0}/{1}][{2}/{3}] '
+                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f}) '
+                      'Data {data_time.val:.3f} ({data_time.avg:.3f}) '
+                      'Loss {loss.val:.4f} ({loss.avg:.4f}) '
+                      'ML Loss {ml_loss.val:.4f} ({ml_loss.avg:.4f}) '
+                      'Attr Loss {attr_loss.val:.4f} ({attr_loss.avg:.4f}) '
+                      'Acc {acc.val:.2f} ({acc.avg:.2f}) '
+                      'Lr {lr:.6f} '
                       'eta {eta}'.
                       format(
                           epoch + 1, max_epoch, batch_idx + 1, num_batches,
                           batch_time=batch_time,
                           data_time=data_time,
-                          aux_losses=metric_losses,
+                          ml_loss=metric_losses,
+                          attr_loss=attr_loss,
                           loss=losses,
                           acc=accs,
                           lr=self.optimizer.param_groups[0]['lr'],
@@ -166,10 +204,19 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                         writer.add_scalar('Loss/reg_ow', reg_ow_loss.avg, n_iter)
                     writer.add_scalar('Accuracy/train', accs.avg, n_iter)
                     writer.add_scalar('Learning rate', self.optimizer.param_groups[0]['lr'], n_iter)
+                    if self.extra_losses is not None:
+                        for extra_loss_name in self.extra_losses.keys():
+                            writer.add_scalar('Loss/attr_{}'.format(extra_loss_name),
+                                              attr_losses[extra_loss_name].avg, n_iter)
             start_time = time.time()
 
         if self.scheduler is not None:
             self.scheduler.step()
+
+    @staticmethod
+    def _parse_extra_data_for_train(data, use_gpu=False):
+        return dict(attr_color=data[4].cuda() if use_gpu else data[4],
+                    attr_type=data[5].cuda() if use_gpu else data[5])
 
     def _apply_batch_transform(self, imgs):
         if self.batch_transform_cfg.enable:
