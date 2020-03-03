@@ -19,12 +19,14 @@ class AIC20(ImageDataset):
     dataset_dir = 'aic20_reduced'
     angle_bins = np.array([0, 30, 60, 90, 120, 210, 240, 270, 300, 330, 360], dtype=np.float32)
 
-    def __init__(self, root='', aic20_simulation_data=False, aic20_simulation_only=False, **kwargs):
+    def __init__(self, root='', aic20_simulation_data=False, aic20_simulation_only=False,
+                 aic20_split=False, **kwargs):
         if not aic20_simulation_data and aic20_simulation_only:
             raise ValueError('To use simulation only data it should be switched on')
 
         self.simulation_data = aic20_simulation_data
         self.simulation_only = aic20_simulation_only
+        self.split_data = aic20_split and self.simulation_data and not self.simulation_data
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
@@ -54,14 +56,29 @@ class AIC20(ImageDataset):
         gallery = self.load_annotation(self.gallery_annot, self.gallery_dir)
         if self.simulation_data:
             extra_train = self.load_annotation(self.extra_train_annot, self.extra_train_dir, train_mode=True)
+
+            if self.split_data:
+                train = self.compress_labels(train)
+                extra_train = self.compress_labels(extra_train)
+
             if self.simulation_only:
                 train = extra_train
             else:
                 train += extra_train
 
-        train = self.compress_labels(train)
+        if not self.split_data:
+            train = self.compress_labels(train)
 
         super(AIC20, self).__init__(train, query, gallery, **kwargs)
+
+    def get_num_pids(self, data):
+        if self.split_data:
+            real_pids = set(record[1] for record in data if record[3] < 0)
+            synthetic_pids = set(record[1] for record in data if record[3] >= 0)
+
+            return len(real_pids), len(synthetic_pids)
+        else:
+            return len(set(record[1] for record in data))
 
     def load_annotation(self, annot_path, data_dir, train_mode=False):
         tree = etree.parse(annot_path)
