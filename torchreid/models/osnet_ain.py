@@ -422,7 +422,7 @@ class OSNet(nn.Module):
             self.use_attentions = [False] * num_blocks
         assert len(self.use_attentions) == num_blocks
 
-        if isinstance(num_classes, list):
+        if isinstance(num_classes, (list, tuple)):
             assert len(num_classes) == 2
             real_data_num_classes, synthetic_data_num_classes = num_classes
         else:

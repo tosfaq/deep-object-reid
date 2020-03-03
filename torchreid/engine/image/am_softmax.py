@@ -66,7 +66,11 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                                                          self.batch_transform_cfg.alpha)
 
         if metric_cfg.enable:
-            self.metric_losses = MetricLosses(self.datamanager.num_train_pids,
+            num_classes = self.datamanager.num_train_pids
+            if isinstance(num_classes, (list, tuple)):
+                num_classes = num_classes[0]
+
+            self.metric_losses = MetricLosses(num_classes,
                                               self.model.module.feature_dim, self.writer,
                                               metric_cfg.balance_losses,
                                               metric_cfg.center_coeff,
@@ -132,20 +136,28 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 embeddings = None
 
             if isinstance(outputs, dict):
-                real_outputs = outputs['real']
-                synthetic_outputs = outputs['synthetic']
-
                 real_data_mask = self._get_real_mask(data, self.use_gpu)
+                synthetic_data_mask = ~real_data_mask
+
+                real_outputs = outputs['real'][real_data_mask]
+                synthetic_outputs = outputs['synthetic'][synthetic_data_mask]
+
                 real_pids = pids[real_data_mask]
-                synthetic_pids = pids[~real_data_mask]
+                synthetic_pids = pids[synthetic_data_mask]
 
                 real_embeddings = None
                 if embeddings is not None:
-                    real_embeddings = embeddings['real']
+                    real_embeddings = embeddings['real'][real_data_mask]
 
-                real_data_loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
-                synthetic_data_loss = self._compute_loss(self.main_loss, synthetic_outputs, synthetic_pids)
-                loss = real_data_loss + synthetic_data_loss
+                loss = torch.zeros([], dtype=real_outputs.dtype, device=real_outputs.device)
+                num_losses = 0
+                if real_pids.numel() > 0:
+                    loss += self._compute_loss(self.main_loss, real_outputs, real_pids)
+                    num_losses += 1
+                if synthetic_pids.numel() > 0:
+                    loss += self._compute_loss(self.main_loss, synthetic_outputs, synthetic_pids)
+                    num_losses += 1
+                loss /= num_losses
             else:
                 real_outputs = outputs
                 real_pids = pids
@@ -187,10 +199,14 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 loss += reg_loss
 
             if self.metric_losses is not None and real_embeddings is not None:
-                self.metric_losses.writer = writer
-                self.metric_losses.init_iteration()
-                metric_loss = self.metric_losses(real_embeddings, real_pids, epoch, epoch * num_batches + batch_idx)
-                self.metric_losses.end_iteration()
+                if real_pids.numel() > 0:
+                    self.metric_losses.writer = writer
+                    self.metric_losses.init_iteration()
+                    metric_loss = self.metric_losses(real_embeddings, real_pids,
+                                                     epoch, epoch * num_batches + batch_idx)
+                    self.metric_losses.end_iteration()
+                else:
+                    metric_loss = torch.zeros([], dtype=loss.dtype, device=loss.device)
                 loss += metric_loss
                 metric_losses.update(metric_loss.item(), batch_size)
 

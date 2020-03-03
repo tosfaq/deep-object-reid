@@ -26,7 +26,7 @@ class AIC20(ImageDataset):
 
         self.simulation_data = aic20_simulation_data
         self.simulation_only = aic20_simulation_only
-        self.split_data = aic20_split and self.simulation_data and not self.simulation_data
+        self.split_data = aic20_split and self.simulation_data and not self.simulation_only
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
@@ -75,7 +75,6 @@ class AIC20(ImageDataset):
         if self.split_data:
             real_pids = set(record[1] for record in data if record[3] < 0)
             synthetic_pids = set(record[1] for record in data if record[3] >= 0)
-
             return len(real_pids), len(synthetic_pids)
         else:
             return len(set(record[1] for record in data))
