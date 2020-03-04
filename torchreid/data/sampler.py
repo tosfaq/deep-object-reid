@@ -9,7 +9,7 @@ AVAI_SAMPLERS = ['RandomIdentitySampler', 'RandomIdentitySamplerV2', 'RandomIden
                  'SequentialSampler', 'RandomSampler']
 
 
-def build_train_sampler(data_source, train_sampler, batch_size=32, num_instances=4, **kwargs):
+def build_train_sampler(data_source, train_sampler, batch_size=32, num_instances=4, split_ids=False, **kwargs):
     """Builds a training sampler.
 
     Args:
@@ -27,7 +27,7 @@ def build_train_sampler(data_source, train_sampler, batch_size=32, num_instances
     elif train_sampler == 'RandomIdentitySamplerV2':
         sampler = RandomIdentitySamplerV2(data_source, batch_size, num_instances)
     elif train_sampler == 'RandomIdentitySamplerV3':
-        sampler = RandomIdentitySamplerV3(data_source, batch_size, num_instances)
+        sampler = RandomIdentitySamplerV3(data_source, batch_size, num_instances, split_ids)
     elif train_sampler == 'SequentialSampler':
         sampler = SequentialSampler(data_source)
     elif train_sampler == 'RandomSampler':
@@ -130,36 +130,43 @@ class RandomIdentitySamplerV2(RandomIdentitySampler):
 
 
 class RandomIdentitySamplerV3(Sampler):
-    def __init__(self, data_source, batch_size, num_instances):
+    def __init__(self, data_source, batch_size, num_instances, split_ids=False):
         super().__init__(data_source)
 
         if batch_size < num_instances:
             raise ValueError('batch_size={} must be no less than num_instances={}'
                              .format(batch_size, num_instances))
 
-        self.data_source = data_source
-        self.batch_size = batch_size
         self.num_instances = num_instances
-        self.num_pids_per_batch = self.batch_size // self.num_instances
 
-        self.index_dic = defaultdict(list)
-        for index, record in enumerate(self.data_source):
-            self.index_dic[record[1]].append(index)
+        self.index_dic = dict(
+            real=defaultdict(list),
+            synthetic=defaultdict(list)
+        )
+        for index, record in enumerate(data_source):
+            if split_ids:
+                trg_name = 'real' if record[3] < 0 else 'synthetic'
+                self.index_dic[trg_name][record[1]].append(index)
+            else:
+                self.index_dic['real'][record[1]].append(index)
 
-        self.pids = list(self.index_dic.keys())
+        self.pids = dict(
+            real=list(self.index_dic['real'].keys()),
+            synthetic=list(self.index_dic['synthetic'].keys())
+        )
 
-        average_num_instances = np.median([len(indices) for indices in self.index_dic.values()])
+        average_num_instances = np.median([len(indices) for indices in self.index_dic['real'].values()])
         self.num_packages = int(average_num_instances) // self.num_instances
         self.instances_per_pid = self.num_packages * self.num_instances
-        self.length = len(self.pids) * self.instances_per_pid
+        self.length = sum([len(ids) for ids in self.pids.values()]) * self.instances_per_pid
 
     def __iter__(self):
-        pids = copy.deepcopy(self.pids)
-        random.shuffle(pids)
+        trg_pids = [(trg_name, trg_pid) for trg_name, trg_pids in self.pids.items() for trg_pid in trg_pids]
+        random.shuffle(trg_pids)
 
         final_indices = []
-        for pid in pids:
-            sampled_indices = copy.deepcopy(self.index_dic[pid])
+        for trg_name, trg_pid in trg_pids:
+            sampled_indices = copy.deepcopy(self.index_dic[trg_name][trg_pid])
             random.shuffle(sampled_indices)
 
             if len(sampled_indices) < self.instances_per_pid:
@@ -173,7 +180,7 @@ class RandomIdentitySamplerV3(Sampler):
 
             final_indices.append(sampled_indices)
 
-        final_indices = np.array(final_indices).reshape((len(pids), -1, self.num_instances))
+        final_indices = np.array(final_indices).reshape((len(trg_pids), -1, self.num_instances))
         final_indices = np.transpose(final_indices, (1, 0, 2)).reshape(-1)
 
         return iter(final_indices.tolist())

@@ -207,7 +207,8 @@ class ImageDataManager(DataManager):
                 trainset.train,
                 train_sampler,
                 batch_size=batch_size_train,
-                num_instances=num_instances
+                num_instances=num_instances,
+                split_ids=aic20_split
             ),
             batch_size=batch_size_train,
             shuffle=False,
@@ -245,7 +246,8 @@ class ImageDataManager(DataManager):
                     trainset_t.train,
                     train_sampler,
                     batch_size=batch_size_train,
-                    num_instances=num_instances
+                    num_instances=num_instances,
+                    split_ids=aic20_split
                 ),
                 batch_size=batch_size_train,
                 shuffle=False,
