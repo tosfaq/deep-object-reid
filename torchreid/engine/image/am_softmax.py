@@ -95,6 +95,8 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
     def train(self, epoch, max_epoch, writer, print_freq=10, fixbase_epoch=0, open_layers=None):
         losses = AverageMeter()
+        real_loss = AverageMeter()
+        synthetic_loss = AverageMeter()
         reg_ow_loss = AverageMeter()
         metric_losses = AverageMeter()
         accs = AverageMeter()
@@ -152,11 +154,15 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 loss = torch.zeros([], dtype=real_outputs.dtype, device=real_outputs.device)
                 num_losses = 0
                 if real_pids.numel() > 0:
-                    loss += self._compute_loss(self.main_loss, real_outputs, real_pids)
+                    real_data_loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
+                    real_loss.update(real_data_loss.item(), batch_size)
+                    loss += real_data_loss
                     num_losses += 1
                 if synthetic_pids.numel() > 0:
-                    loss += self._compute_loss(self.main_loss, synthetic_outputs, synthetic_pids)
+                    synthetic_data_loss = self._compute_loss(self.main_loss, synthetic_outputs, synthetic_pids)
+                    synthetic_loss.update(synthetic_data_loss.item(), batch_size)
                     num_losses += 1
+                    loss += synthetic_data_loss
                 loss /= num_losses
             else:
                 real_outputs = outputs
@@ -164,6 +170,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 real_embeddings = embeddings
 
                 loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
+                real_loss.update(loss.item(), batch_size)
 
             if self.extra_tasks is not None:
                 extra_labels = self._parse_extra_data_for_train(data, self.use_gpu)
@@ -250,6 +257,8 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     for k in info:
                         writer.add_scalar('AUX info/' + k, info[k], n_iter)
                     writer.add_scalar('Loss/train', losses.avg, n_iter)
+                    writer.add_scalar('Loss/train_real', real_loss.avg, n_iter)
+                    writer.add_scalar('Loss/train_synth', synthetic_loss.avg, n_iter)
                     if (epoch + 1) > fixbase_epoch:
                         writer.add_scalar('Loss/reg_ow', reg_ow_loss.avg, n_iter)
                     writer.add_scalar('Accuracy/train', accs.avg, n_iter)
