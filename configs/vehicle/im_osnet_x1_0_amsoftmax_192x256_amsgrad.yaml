@@ -54,11 +54,11 @@ aic20:
   use_simulation_data: True
   simulation_data_only: False
   split_real_synthetic: True
-  balance_real_synthetic_ids: True
+  balance_real_synthetic_ids: False
 
 sampler:
   train_sampler: 'RandomIdentitySamplerV3'
-  num_instances: 4
+  num_instances: 2
 
 loss:
   name: 'am_softmax'
