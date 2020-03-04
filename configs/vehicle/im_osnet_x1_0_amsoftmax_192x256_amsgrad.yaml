@@ -58,7 +58,7 @@ aic20:
 
 sampler:
   train_sampler: 'RandomIdentitySamplerV3'
-  num_instances: 2
+  num_instances: 4
 
 loss:
   name: 'am_softmax'
