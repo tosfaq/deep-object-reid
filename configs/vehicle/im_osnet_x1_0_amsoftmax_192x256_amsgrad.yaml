@@ -54,6 +54,7 @@ aic20:
   use_simulation_data: True
   simulation_data_only: False
   split_real_synthetic: True
+  balance_real_synthetic_ids: True
 
 sampler:
   train_sampler: 'RandomIdentitySamplerV3'

@@ -165,6 +165,7 @@ class ImageDataManager(DataManager):
         aic20_simulation_data=False,
         aic20_simulation_only=False,
         aic20_split=False,
+        aic20_balance_ids=False
     ):
 
         super(ImageDataManager, self).__init__(
@@ -208,7 +209,8 @@ class ImageDataManager(DataManager):
                 train_sampler,
                 batch_size=batch_size_train,
                 num_instances=num_instances,
-                split_ids=aic20_split
+                split_ids=aic20_split,
+                balance_ids=aic20_balance_ids
             ),
             batch_size=batch_size_train,
             shuffle=False,
@@ -247,7 +249,8 @@ class ImageDataManager(DataManager):
                     train_sampler,
                     batch_size=batch_size_train,
                     num_instances=num_instances,
-                    split_ids=aic20_split
+                    split_ids=aic20_split,
+                    balance_ids=aic20_balance_ids
                 ),
                 batch_size=batch_size_train,
                 shuffle=False,

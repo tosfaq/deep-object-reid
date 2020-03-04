@@ -39,6 +39,7 @@ def get_default_config():
     cfg.aic20.use_simulation_data = False
     cfg.aic20.simulation_data_only = False
     cfg.aic20.split_real_synthetic = False
+    cfg.aic20.balance_real_synthetic_ids = False
 
     # sampler
     cfg.sampler = CN()
@@ -246,6 +247,7 @@ def imagedata_kwargs(cfg):
         'aic20_simulation_data': cfg.aic20.use_simulation_data,
         'aic20_simulation_only': cfg.aic20.simulation_data_only,
         'aic20_split': cfg.aic20.split_real_synthetic,
+        'aic20_balance_ids': cfg.aic20.balance_real_synthetic_ids,
     }
 
 
