@@ -432,28 +432,28 @@ class OSNet(nn.Module):
             3, channels[0], 7, stride=2, padding=3, IN=conv1_IN
         )
         self.maxpool = nn.MaxPool2d(3, stride=2, padding=1)
-        self.conv2 = self._make_layer(
+        self.conv2 = self._construct_layer(
             blocks[0], channels[0], channels[1]
         )
-        self.att2 = self._make_attention(
+        self.att2 = self._construct_attention(
             channels[1], self.use_attentions[0]
         )
         self.pool2 = nn.Sequential(
             Conv1x1(channels[1], channels[1]), nn.AvgPool2d(2, stride=2)
         )
-        self.conv3 = self._make_layer(
+        self.conv3 = self._construct_layer(
             blocks[1], channels[1], channels[2]
         )
-        self.att3 = self._make_attention(
+        self.att3 = self._construct_attention(
             channels[2], self.use_attentions[1]
         )
         self.pool3 = nn.Sequential(
             Conv1x1(channels[2], channels[2]), nn.AvgPool2d(2, stride=2)
         )
-        self.conv4 = self._make_layer(
+        self.conv4 = self._construct_layer(
             blocks[2], channels[2], channels[3]
         )
-        self.att4 = self._make_attention(
+        self.att4 = self._construct_attention(
             channels[3], self.use_attentions[2]
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
@@ -487,7 +487,7 @@ class OSNet(nn.Module):
         self._init_params()
 
     @staticmethod
-    def _make_layer(blocks, in_channels, out_channels, dropout_probs=None):
+    def _construct_layer(blocks, in_channels, out_channels, dropout_probs=None):
         if dropout_probs is None:
             dropout_probs = [None] * len(blocks)
         assert len(dropout_probs) == len(blocks)
@@ -500,7 +500,7 @@ class OSNet(nn.Module):
         return nn.Sequential(*layers)
 
     @staticmethod
-    def _make_attention(num_channels, enable):
+    def _construct_attention(num_channels, enable):
         return ResidualAttention(num_channels) if enable else None
 
     @staticmethod
@@ -568,6 +568,7 @@ class OSNet(nn.Module):
 
         if not self.training:
             all_embeddings = [e for e in extra_embeddings.values()] + [main_embeddings]
+            # return torch.cat([F.normalize(e, p=2, dim=-1) for e in all_embeddings], dim=-1)
             return torch.cat(all_embeddings, dim=-1)
 
         main_logits = self.classifier(main_embeddings)
