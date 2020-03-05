@@ -435,7 +435,7 @@ class OSNet(nn.Module):
         self.conv2 = self._construct_layer(
             blocks[0], channels[0], channels[1]
         )
-        self.att2 = self._construct_attention(
+        self.att2 = self._construct_attention_layer(
             channels[1], self.use_attentions[0]
         )
         self.pool2 = nn.Sequential(
@@ -444,7 +444,7 @@ class OSNet(nn.Module):
         self.conv3 = self._construct_layer(
             blocks[1], channels[1], channels[2]
         )
-        self.att3 = self._construct_attention(
+        self.att3 = self._construct_attention_layer(
             channels[2], self.use_attentions[1]
         )
         self.pool3 = nn.Sequential(
@@ -453,7 +453,7 @@ class OSNet(nn.Module):
         self.conv4 = self._construct_layer(
             blocks[2], channels[2], channels[3]
         )
-        self.att4 = self._construct_attention(
+        self.att4 = self._construct_attention_layer(
             channels[3], self.use_attentions[2]
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
@@ -500,7 +500,7 @@ class OSNet(nn.Module):
         return nn.Sequential(*layers)
 
     @staticmethod
-    def _construct_attention(num_channels, enable):
+    def _construct_attention_layer(num_channels, enable):
         return ResidualAttention(num_channels) if enable else None
 
     @staticmethod
