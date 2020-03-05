@@ -669,7 +669,7 @@ def osnet_ain_x1_0(num_classes=1000, pretrained=True, **kwargs):
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        attentions=[True, False, False],
+        # attentions=[True, False, False],
         # dropout_probs=[
         #     [None, 0.1],
         #     [0.1, None],
