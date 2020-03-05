@@ -443,8 +443,8 @@ class OSNet(nn.Module):
         self.att4 = self._construct_attention_layer(
             channels[3], self.use_attentions[2]
         )
-        self.conv5 = Conv1x1(channels[3], channels[3])
-        self.conv5_att = Conv1x1(channels[3], channels[3])
+        self.conv5 = Conv1x1(channels[3], channels[3], out_fn=HSwish)
+        self.conv5_att = Conv1x1(channels[3], channels[3], out_fn=HSwish)
 
         self.fc = self._construct_fc_layer(channels[3], self.feature_dim)
 
@@ -517,7 +517,7 @@ class OSNet(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def backbone(self, x):
+    def _backbone(self, x):
         y = self.conv1(x)
         y = self.maxpool(y)
 
@@ -538,21 +538,21 @@ class OSNet(nn.Module):
         return y
 
     @staticmethod
-    def feature_vector(x, conv_block):
+    def _feature_vector(x, conv_block):
         feature_maps = conv_block(x)
         feature_vector = F.adaptive_avg_pool2d(feature_maps, 1).view(feature_maps.size(0), -1)
         return feature_maps, feature_vector
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False):
-        backbone_out = self.backbone(x)
+        backbone_out = self._backbone(x)
 
-        main_feature_maps, main_feature_vector = self.feature_vector(backbone_out, self.conv5)
+        main_feature_maps, main_feature_vector = self._feature_vector(backbone_out, self.conv5)
         if return_featuremaps:
             return main_feature_maps
 
         main_embeddings = self.fc(main_feature_vector)
 
-        _, attr_feature_vector = self.feature_vector(backbone_out, self.conv5_att)
+        _, attr_feature_vector = self._feature_vector(backbone_out, self.conv5_att)
         attr_embeddings = dict()
         if self.attr_fc is not None:
             for attr_name, attr_fc in self.attr_fc.items():
