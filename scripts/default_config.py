@@ -104,15 +104,15 @@ def get_default_config():
     cfg.metric_losses.glob_push_plus_loss_coeff = 0.0
     cfg.metric_losses.balance_losses = False
 
-    # extra_losses
-    cfg.extra_losses = CN()
-    cfg.extra_losses.enable = False
-    cfg.extra_losses.m = 0.35
-    cfg.extra_losses.s = 10.0
-    cfg.extra_losses.conf_penalty = 0.0
-    cfg.extra_losses.tasks = CN()
-    cfg.extra_losses.tasks.attr_color = 12
-    cfg.extra_losses.tasks.attr_type = 11
+    # attr_losses
+    cfg.attr_losses = CN()
+    cfg.attr_losses.enable = False
+    cfg.attr_losses.m = 0.35
+    cfg.attr_losses.s = 10.0
+    cfg.attr_losses.conf_penalty = 0.0
+    cfg.attr_losses.tasks = CN()
+    cfg.attr_losses.tasks.attr_color = 12
+    cfg.attr_losses.tasks.attr_type = 11
 
     # regularizers
     cfg.reg = CN()
@@ -312,8 +312,8 @@ def model_kwargs(cfg, num_classes):
         'pretrained': cfg.model.pretrained,
         'use_gpu': cfg.use_gpu,
         'feature_dim': cfg.model.feature_dim,
-        'extra_tasks': cfg.extra_losses.tasks,
-        'enable_extra_tasks': cfg.extra_losses.enable
+        'attr_tasks': cfg.attr_losses.tasks,
+        'enable_attr_tasks': cfg.attr_losses.enable
     }
 
 

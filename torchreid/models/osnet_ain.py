@@ -391,8 +391,8 @@ class OSNet(nn.Module):
         feature_dim=512,
         loss='softmax',
         conv1_IN=False,
-        extra_tasks=None,
-        enable_extra_tasks=False,
+        attr_tasks=None,
+        enable_attr_tasks=False,
         **kwargs
     ):
         super(OSNet, self).__init__()
@@ -449,7 +449,6 @@ class OSNet(nn.Module):
             channels[3], self.use_attentions[2]
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
-        self.global_avgpool = nn.AdaptiveAvgPool2d(1)
 
         self.fc = self._construct_fc_layer(channels[3], self.feature_dim)
 
@@ -464,17 +463,17 @@ class OSNet(nn.Module):
             self.aux_fc = None
             self.aux_classifier = None
 
-        if enable_extra_tasks and extra_tasks is not None and len(extra_tasks) > 0:
-            extra_fc = dict()
-            extra_classifier = dict()
-            for extra_task_name, extra_num_classes in extra_tasks.items():
-                extra_fc[extra_task_name] = self._construct_fc_layer(channels[3], self.feature_dim)
-                extra_classifier[extra_task_name] = AngleSimpleLinear(self.feature_dim, extra_num_classes)
-            self.extra_fc = nn.ModuleDict(extra_fc)
-            self.extra_classifier = nn.ModuleDict(extra_classifier)
+        if enable_attr_tasks and attr_tasks is not None and len(attr_tasks) > 0:
+            attr_fc = dict()
+            attr_classifier = dict()
+            for attr_name, attr_num_classes in attr_tasks.items():
+                attr_fc[attr_name] = self._construct_fc_layer(channels[3], self.feature_dim)
+                attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim, attr_num_classes)
+            self.attr_fc = nn.ModuleDict(attr_fc)
+            self.attr_classifiers = nn.ModuleDict(attr_classifier)
         else:
-            self.extra_fc = None
-            self.extra_classifier = None
+            self.attr_fc = None
+            self.attr_classifiers = None
 
         self._init_params()
 
@@ -522,7 +521,7 @@ class OSNet(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def featuremaps(self, x):
+    def backbone(self, x):
         y = self.conv1(x)
         y = self.maxpool(y)
 
@@ -540,37 +539,40 @@ class OSNet(nn.Module):
         if self.att4 is not None:
             y = self.att4(y)
 
-        y = self.conv5(y)
-
         return y
 
+    @staticmethod
+    def feature_vector(x, conv_block):
+        feature_maps = conv_block(x)
+        feature_vector = F.adaptive_avg_pool2d(feature_maps, 1).view(feature_maps.size(0), -1)
+        return feature_maps, feature_vector
+
     def forward(self, x, return_featuremaps=False, get_embeddings=False):
-        feature_maps = self.featuremaps(x)
+        backbone_out = self.backbone(x)
+
+        main_feature_maps, main_feature_vector = self.feature_vector(backbone_out, self.conv5)
         if return_featuremaps:
-            return feature_maps
+            return main_feature_maps
 
-        feature_vector = self.global_avgpool(feature_maps)
-        feature_vector = feature_vector.view(feature_vector.size(0), -1)
-
-        main_embeddings = self.fc(feature_vector)
-        extra_embeddings = dict()
-        if self.extra_fc is not None:
-            for extra_fc_name, extra_fc in self.extra_fc.items():
-                extra_embeddings[extra_fc_name] = extra_fc(feature_vector)
+        main_embeddings = self.fc(main_feature_vector)
+        attr_embeddings = dict()
+        if self.attr_fc is not None:
+            for extra_fc_name, extra_fc in self.attr_fc.items():
+                attr_embeddings[extra_fc_name] = extra_fc(main_feature_vector)
 
         if not self.training:
-            all_embeddings = [e for e in extra_embeddings.values()] + [main_embeddings]
+            all_embeddings = [e for e in attr_embeddings.values()] + [main_embeddings]
             # return torch.cat([F.normalize(e, p=2, dim=-1) for e in all_embeddings], dim=-1)
             return torch.cat(all_embeddings, dim=-1)
 
         main_logits = self.classifier(main_embeddings)
         extra_logits = dict()
-        if self.extra_classifier is not None:
-            for extra_classifier_name, extra_classifier in self.extra_classifier.items():
-                extra_logits[extra_classifier_name] = extra_classifier(extra_embeddings[extra_classifier_name])
+        if self.attr_classifiers is not None:
+            for extra_classifier_name, extra_classifier in self.attr_classifiers.items():
+                extra_logits[extra_classifier_name] = extra_classifier(attr_embeddings[extra_classifier_name])
 
         if self.split_embeddings:
-            aux_embeddings = self.aux_fc(feature_vector)
+            aux_embeddings = self.aux_fc(main_feature_vector)
             aux_logits = self.aux_classifier(aux_embeddings)
 
             main_embeddings = dict(real=main_embeddings, synthetic=aux_embeddings)
