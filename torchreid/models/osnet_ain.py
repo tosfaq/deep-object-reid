@@ -57,8 +57,9 @@ class ConvLayer(nn.Module):
 class Conv1x1(nn.Module):
     """1x1 convolution + bn + relu."""
 
-    def __init__(self, in_channels, out_channels, stride=1, groups=1, use_relu=True):
+    def __init__(self, in_channels, out_channels, stride=1, groups=1, out_fn=nn.ReLU):
         super(Conv1x1, self).__init__()
+
         self.conv = nn.Conv2d(
             in_channels,
             out_channels,
@@ -69,15 +70,12 @@ class Conv1x1(nn.Module):
             groups=groups
         )
         self.bn = nn.BatchNorm2d(out_channels)
-
-        self.relu = None
-        if use_relu:
-            self.relu = nn.ReLU()
+        self.out_fn = out_fn() if out_fn is not None else None
 
     def forward(self, x):
         y = self.conv(x)
         y = self.bn(y)
-        y = self.relu(y) if self.relu is not None else y
+        y = self.out_fn(y) if self.out_fn is not None else y
         return y
 
 
@@ -103,7 +101,7 @@ class Conv1x1Linear(nn.Module):
 class Conv3x3(nn.Module):
     """3x3 convolution + bn + relu."""
 
-    def __init__(self, in_channels, out_channels, stride=1, groups=1, use_relu=True):
+    def __init__(self, in_channels, out_channels, stride=1, groups=1, out_fn=nn.ReLU):
         super(Conv3x3, self).__init__()
         self.conv = nn.Conv2d(
             in_channels,
@@ -115,15 +113,12 @@ class Conv3x3(nn.Module):
             groups=groups
         )
         self.bn = nn.BatchNorm2d(out_channels)
-
-        self.relu = None
-        if use_relu:
-            self.relu = nn.ReLU()
+        self.out_fn = out_fn() if out_fn is not None else None
 
     def forward(self, x):
         y = self.conv(x)
         y = self.bn(y)
-        y = self.relu(y) if self.relu is not None else y
+        y = self.out_fn(y) if self.out_fn is not None else y
         return y
 
 
@@ -189,11 +184,11 @@ class ResidualAttention(nn.Module):
 
         internal_channels = int(in_channels / reduction)
         self.spatial_logits = nn.Sequential(
-            Conv1x1(in_channels, internal_channels, use_relu=False),
+            Conv1x1(in_channels, internal_channels, out_fn=None),
             HSwish(),
-            Conv3x3(internal_channels, internal_channels, groups=internal_channels, use_relu=False),
+            Conv3x3(internal_channels, internal_channels, groups=internal_channels, out_fn=None),
             HSwish(),
-            Conv1x1(internal_channels, 1, use_relu=False),
+            Conv1x1(internal_channels, 1, out_fn=None),
         )
 
     def forward(self, x, return_extra_data=False):
@@ -449,6 +444,7 @@ class OSNet(nn.Module):
             channels[3], self.use_attentions[2]
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
+        self.conv5_att = Conv1x1(channels[3], channels[3])
 
         self.fc = self._construct_fc_layer(channels[3], self.feature_dim)
 
@@ -555,10 +551,12 @@ class OSNet(nn.Module):
             return main_feature_maps
 
         main_embeddings = self.fc(main_feature_vector)
+
+        _, attr_feature_vector = self.feature_vector(backbone_out, self.conv5_att)
         attr_embeddings = dict()
         if self.attr_fc is not None:
-            for extra_fc_name, extra_fc in self.attr_fc.items():
-                attr_embeddings[extra_fc_name] = extra_fc(main_feature_vector)
+            for attr_name, attr_fc in self.attr_fc.items():
+                attr_embeddings[attr_name] = attr_fc(attr_feature_vector)
 
         if not self.training:
             all_embeddings = [e for e in attr_embeddings.values()] + [main_embeddings]
@@ -566,10 +564,10 @@ class OSNet(nn.Module):
             return torch.cat(all_embeddings, dim=-1)
 
         main_logits = self.classifier(main_embeddings)
-        extra_logits = dict()
+        attr_logits = dict()
         if self.attr_classifiers is not None:
-            for extra_classifier_name, extra_classifier in self.attr_classifiers.items():
-                extra_logits[extra_classifier_name] = extra_classifier(attr_embeddings[extra_classifier_name])
+            for att_name, attr_classifier in self.attr_classifiers.items():
+                attr_logits[att_name] = attr_classifier(attr_embeddings[att_name])
 
         if self.split_embeddings:
             aux_embeddings = self.aux_fc(main_feature_vector)
@@ -579,12 +577,12 @@ class OSNet(nn.Module):
             main_logits = dict(real=main_logits, synthetic=aux_logits)
 
         if get_embeddings:
-            return main_embeddings, main_logits, extra_logits
+            return main_embeddings, main_logits, attr_logits
 
         if self.loss in ['softmax', 'am_softmax']:
-            return main_logits, extra_logits
+            return main_logits, attr_logits
         elif self.loss in ['triplet']:
-            return main_logits, extra_logits, main_embeddings
+            return main_logits, attr_logits, main_embeddings
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
