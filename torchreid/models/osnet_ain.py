@@ -180,20 +180,20 @@ class LightConvStream(nn.Module):
 ##########
 
 class ResidualAttention(nn.Module):
-    def __init__(self, in_channels, gumbel=True, reg_weight=1.0):
+    def __init__(self, in_channels, gumbel=True, reduction=4.0, reg_weight=1.0):
         super(ResidualAttention, self).__init__()
 
         self.gumbel = gumbel
         self.reg_weight = reg_weight
         assert self.reg_weight > 0.0
 
-        # self.tv_loss = TotalVarianceLoss(kernels=3, num_channels=1, hard_values=True,
-        #                                  limits=(0.0, 1.0), threshold=0.5)
-
+        internal_channels = int(in_channels / reduction)
         self.spatial_logits = nn.Sequential(
-            Conv3x3(in_channels, in_channels, groups=in_channels, use_relu=False),
+            Conv1x1(in_channels, internal_channels, use_relu=False),
             HSwish(),
-            Conv1x1(in_channels, 1, use_relu=False),
+            Conv3x3(internal_channels, internal_channels, groups=internal_channels, use_relu=False),
+            HSwish(),
+            Conv1x1(internal_channels, 1, use_relu=False),
         )
 
     def forward(self, x, return_extra_data=False):
@@ -210,14 +210,6 @@ class ResidualAttention(nn.Module):
             return out, dict(logits=logits)
         else:
             return out
-
-    # def loss(self, spatial_logits, temporal_logits):
-    #     logits = spatial_logits + temporal_logits
-    #     conf = gumbel_sigmoid(logits)
-    #
-    #     out_loss = self.tv_loss(conf)
-    #
-    #     return self.reg_weight * out_loss
 
 
 ##########
@@ -677,7 +669,7 @@ def osnet_ain_x1_0(num_classes=1000, pretrained=True, **kwargs):
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        # attentions=[True, True, True],
+        attentions=[False, True, True],
         # dropout_probs=[
         #     [None, 0.1],
         #     [0.1, None],
