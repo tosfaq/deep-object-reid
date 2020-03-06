@@ -155,14 +155,17 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 num_losses = 0
                 if real_pids.numel() > 0:
                     real_data_loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
-                    real_loss.update(real_data_loss.item(), batch_size)
+                    real_loss.update(real_data_loss.item(), real_pids.numel())
                     loss += real_data_loss
                     num_losses += 1
                 if synthetic_pids.numel() > 0:
                     synthetic_data_loss = self._compute_loss(self.main_loss, synthetic_outputs, synthetic_pids)
-                    synthetic_loss.update(synthetic_data_loss.item(), batch_size)
+                    synthetic_loss.update(synthetic_data_loss.item(), synthetic_pids.numel())
+
+                    synthetic_loss_weight = (real_loss.avg if real_loss.avg > 0.0 else 1.0) / \
+                                            (synthetic_loss.avg if synthetic_loss.avg > 0.0 else 1.0)
+                    loss += synthetic_loss_weight * synthetic_data_loss
                     num_losses += 1
-                    loss += synthetic_data_loss
                 loss /= num_losses
             else:
                 real_outputs = outputs
@@ -181,17 +184,17 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
                     pos_mask = task_labels >= 0
                     pos_labels = task_labels[pos_mask]
-                    if pos_labels.numel() > 0:
+                    if pos_mask.numel() > 0:
                         pos_outputs = task_outputs[pos_mask]
                         extra_pos_loss = self.extra_pos_loss(pos_outputs, pos_labels)
                     else:
                         extra_pos_loss = torch.zeros([], dtype=loss.dtype, device=loss.device)
-                    attr_pos_losses[task_name].update(extra_pos_loss.item(), batch_size)
+                    attr_pos_losses[task_name].update(extra_pos_loss.item(), pos_mask.numel())
 
                     neg_mask = task_labels < 0
                     neg_outputs = task_outputs[neg_mask]
                     extra_neg_loss = self.extra_neg_loss(neg_outputs)
-                    attr_neg_losses[task_name].update(extra_neg_loss.item(), batch_size)
+                    attr_neg_losses[task_name].update(extra_neg_loss.item(), neg_mask.numel())
 
                     extra_loss_value = extra_pos_loss + extra_neg_loss
                     attr_losses_list.append(extra_loss_value)
