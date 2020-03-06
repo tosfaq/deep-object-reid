@@ -443,17 +443,19 @@ class OSNet(nn.Module):
         self.att4 = self._construct_attention_layer(
             channels[3], self.use_attentions[2]
         )
-        self.conv5 = Conv1x1(channels[3], channels[3], out_fn=HSwish)
-        self.attr_conv5 = Conv1x1(channels[3], channels[3], out_fn=HSwish)
 
-        self.fc = self._construct_fc_layer(channels[3], self.feature_dim)
+        out_channels = channels[3] // 2
+        self.conv5 = Conv1x1(channels[3], out_channels, out_fn=HSwish)
+        self.attr_conv5 = Conv1x1(channels[3], out_channels, out_fn=HSwish)
+
+        self.fc = self._construct_fc_layer(out_channels, self.feature_dim)
 
         classifier = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
         self.classifier = classifier(self.feature_dim, real_data_num_classes)
 
         self.split_embeddings = synthetic_data_num_classes is not None
         if self.split_embeddings:
-            self.aux_fc = self._construct_fc_layer(channels[3], self.feature_dim)
+            self.aux_fc = self._construct_fc_layer(out_channels, self.feature_dim)
             self.aux_classifier = classifier(self.feature_dim, synthetic_data_num_classes)
         else:
             self.aux_fc = None
@@ -463,7 +465,7 @@ class OSNet(nn.Module):
             attr_fc = dict()
             attr_classifier = dict()
             for attr_name, attr_num_classes in attr_tasks.items():
-                attr_fc[attr_name] = self._construct_fc_layer(channels[3], self.feature_dim)
+                attr_fc[attr_name] = self._construct_fc_layer(out_channels, self.feature_dim)
                 attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim, attr_num_classes)
             self.attr_fc = nn.ModuleDict(attr_fc)
             self.attr_classifiers = nn.ModuleDict(attr_classifier)
