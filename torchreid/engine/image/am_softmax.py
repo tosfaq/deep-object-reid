@@ -26,18 +26,19 @@ import datetime
 import time
 
 import torch
+import numpy as np
 
 from torchreid import metrics
 from torchreid.engine.image.softmax import ImageSoftmaxEngine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
-from torchreid.losses import get_regularizer, MetricLosses, AMSoftmaxLoss, CrossEntropyLoss, MinEntropyLoss
+from torchreid.losses import get_regularizer, MetricLosses, AMSoftmaxLoss, CrossEntropyLoss, MinEntropyLoss, set_kl_div
 
 
 class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
     r"""AM-Softmax-loss engine for image-reid.
     """
 
-    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, extra_losses_cfg, batch_transform_cfg,
+    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, attr_losses_cfg, batch_transform_cfg,
                  scheduler=None, use_gpu=False, softmax_type='stock', label_smooth=True, conf_penalty=False,
                  m=0.35, s=10, writer=None):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
@@ -78,20 +79,20 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         else:
             self.metric_losses = None
 
-        if extra_losses_cfg.enable:
-            self.extra_tasks = extra_losses_cfg.tasks
-            assert len(self.extra_tasks) > 0
+        if attr_losses_cfg.enable:
+            self.attr_tasks = attr_losses_cfg.tasks
+            assert len(self.attr_tasks) > 0
 
-            self.extra_pos_loss = AMSoftmaxLoss(
+            self.attr_pos_loss = AMSoftmaxLoss(
                 use_gpu=self.use_gpu,
-                conf_penalty=extra_losses_cfg.conf_penalty,
-                m=extra_losses_cfg.m,
-                s=extra_losses_cfg.s
+                conf_penalty=attr_losses_cfg.conf_penalty,
+                m=attr_losses_cfg.m,
+                s=attr_losses_cfg.s
             )
-            self.extra_neg_loss = MinEntropyLoss(scale=extra_losses_cfg.s)
+            self.attr_neg_loss = MinEntropyLoss(scale=attr_losses_cfg.s)
         else:
-            self.extra_pos_loss = None
-            self.extra_tasks = None
+            self.attr_pos_loss = None
+            self.attr_tasks = None
 
     def train(self, epoch, max_epoch, writer, print_freq=10, fixbase_epoch=0, open_layers=None):
         losses = AverageMeter()
@@ -103,12 +104,14 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         batch_time = AverageMeter()
         data_time = AverageMeter()
         attr_loss = AverageMeter()
-        if self.extra_tasks is not None:
+        if self.attr_tasks is not None:
             attr_pos_losses = dict()
             attr_neg_losses = dict()
-            for attr_loss_name in self.extra_tasks.keys():
+            attr_neg_sync_losses = dict()
+            for attr_loss_name in self.attr_tasks.keys():
                 attr_pos_losses[attr_loss_name] = AverageMeter()
                 attr_neg_losses[attr_loss_name] = AverageMeter()
+                attr_neg_sync_losses[attr_loss_name] = AverageMeter()
 
         self.model.train()
         if (epoch + 1) <= fixbase_epoch and open_layers is not None:
@@ -175,29 +178,37 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
                 real_loss.update(loss.item(), batch_size)
 
-            if self.extra_tasks is not None:
-                extra_labels = self._parse_extra_data_for_train(data, self.use_gpu)
+            if self.attr_tasks is not None:
+                attr_labels_dict = self._parse_attr_data_for_train(data, self.use_gpu)
                 attr_losses_list = []
-                for task_name in self.extra_tasks.keys():
-                    task_labels = extra_labels[task_name]
-                    task_outputs = extra_outputs[task_name]
+                for attr_name in self.attr_tasks.keys():
+                    attr_labels = attr_labels_dict[attr_name]
+                    attr_outputs = extra_outputs[attr_name]
 
-                    pos_mask = task_labels >= 0
-                    pos_labels = task_labels[pos_mask]
+                    pos_mask = attr_labels >= 0
+                    pos_labels = attr_labels[pos_mask]
                     if pos_mask.numel() > 0:
-                        pos_outputs = task_outputs[pos_mask]
-                        extra_pos_loss = self.extra_pos_loss(pos_outputs, pos_labels)
+                        pos_outputs = attr_outputs[pos_mask]
+                        attr_pos_loss = self.attr_pos_loss(pos_outputs, pos_labels)
                     else:
-                        extra_pos_loss = torch.zeros([], dtype=loss.dtype, device=loss.device)
-                    attr_pos_losses[task_name].update(extra_pos_loss.item(), pos_mask.numel())
+                        attr_pos_loss = torch.zeros([], dtype=loss.dtype, device=loss.device)
+                    attr_pos_losses[attr_name].update(attr_pos_loss.item(), pos_mask.numel())
 
-                    neg_mask = task_labels < 0
-                    neg_outputs = task_outputs[neg_mask]
-                    extra_neg_loss = self.extra_neg_loss(neg_outputs)
-                    attr_neg_losses[task_name].update(extra_neg_loss.item(), neg_mask.numel())
+                    neg_mask = attr_labels < 0
+                    neg_outputs = attr_outputs[neg_mask]
+                    attr_neg_loss = self.attr_neg_loss(neg_outputs)
+                    attr_neg_losses[attr_name].update(attr_neg_loss.item(), neg_mask.numel())
 
-                    extra_loss_value = extra_pos_loss + extra_neg_loss
-                    attr_losses_list.append(extra_loss_value)
+                    attr_neg_sync_loss = torch.zeros([], dtype=loss.dtype, device=loss.device)
+                    unique_neg_pids = np.unique(real_pids.data.cpu().numpy())
+                    for unique_neg_pid in unique_neg_pids:
+                        neg_pid_outputs = neg_outputs[real_pids == unique_neg_pid]
+                        attr_neg_sync_loss += set_kl_div(neg_pid_outputs)
+                    attr_neg_sync_loss /= float(max(1, len(unique_neg_pids)))
+                    attr_neg_sync_losses[attr_name].update(attr_neg_sync_loss.item(), len(unique_neg_pids))
+
+                    attr_total_loss = attr_pos_loss + attr_neg_loss + attr_neg_sync_loss
+                    attr_losses_list.append(attr_total_loss)
 
                 attr_loss_value = torch.stack(attr_losses_list).sum()
                 loss += attr_loss_value
@@ -266,19 +277,21 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                         writer.add_scalar('Loss/reg_ow', reg_ow_loss.avg, n_iter)
                     writer.add_scalar('Accuracy/train', accs.avg, n_iter)
                     writer.add_scalar('Learning rate', self.optimizer.param_groups[0]['lr'], n_iter)
-                    if self.extra_tasks is not None:
-                        for task_name in self.extra_tasks.keys():
-                            writer.add_scalar('Loss/pos_{}'.format(task_name),
-                                              attr_pos_losses[task_name].avg, n_iter)
-                            writer.add_scalar('Loss/neg_{}'.format(task_name),
-                                              attr_neg_losses[task_name].avg, n_iter)
+                    if self.attr_tasks is not None:
+                        for attr_name in self.attr_tasks.keys():
+                            writer.add_scalar('Loss/pos_{}'.format(attr_name),
+                                              attr_pos_losses[attr_name].avg, n_iter)
+                            writer.add_scalar('Loss/neg_{}'.format(attr_name),
+                                              attr_neg_losses[attr_name].avg, n_iter)
+                            writer.add_scalar('Loss/neg_sync_{}'.format(attr_name),
+                                              attr_neg_sync_losses[attr_name].avg, n_iter)
             start_time = time.time()
 
         if self.scheduler is not None:
             self.scheduler.step()
 
     @staticmethod
-    def _parse_extra_data_for_train(data, use_gpu=False):
+    def _parse_attr_data_for_train(data, use_gpu=False):
         return dict(attr_color=data[4].cuda() if use_gpu else data[4],
                     attr_type=data[5].cuda() if use_gpu else data[5])
 
