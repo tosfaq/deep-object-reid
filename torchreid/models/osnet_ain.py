@@ -446,7 +446,7 @@ class OSNet(nn.Module):
 
         out_channels = channels[3]
         self.conv5 = Conv1x1(channels[3], out_channels)
-        self.attr_conv5 = Conv1x1(channels[3], out_channels)
+        # self.attr_conv5 = Conv1x1(channels[3], out_channels)
 
         self.fc = self._construct_fc_layer(out_channels, self.feature_dim)
 
@@ -554,11 +554,11 @@ class OSNet(nn.Module):
 
         main_embeddings = self.fc(main_feature_vector)
 
-        _, attr_feature_vector = self._feature_vector(backbone_out, self.attr_conv5)
+        # _, attr_feature_vector = self._feature_vector(backbone_out, self.attr_conv5)
         attr_embeddings = dict()
         if self.attr_fc is not None:
             for attr_name, attr_fc in self.attr_fc.items():
-                attr_embeddings[attr_name] = attr_fc(attr_feature_vector)
+                attr_embeddings[attr_name] = attr_fc(main_feature_vector)
 
         if not self.training:
             all_embeddings = [e for e in attr_embeddings.values()] + [main_embeddings]
