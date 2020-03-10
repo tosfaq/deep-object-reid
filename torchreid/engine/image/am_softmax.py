@@ -90,19 +90,24 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 s=attr_losses_cfg.s
             )
             self.attr_neg_loss = MinEntropyLoss(scale=attr_losses_cfg.s)
+            self.attr_neg_scale = 32.0
+            self.attr_lr = 0.01
+            self.attr_factors = dict()
+            for task_name in self.attr_tasks:
+                self.attr_factors[task_name] = 0.5
         else:
             self.attr_pos_loss = None
             self.attr_tasks = None
 
     def train(self, epoch, max_epoch, writer, print_freq=10, fixbase_epoch=0, open_layers=None):
+        batch_time = AverageMeter()
+        data_time = AverageMeter()
+        accs = AverageMeter(enable_zeros=True)
         losses = AverageMeter()
         real_loss = AverageMeter()
         synthetic_loss = AverageMeter()
         reg_ow_loss = AverageMeter()
         metric_losses = AverageMeter()
-        accs = AverageMeter()
-        batch_time = AverageMeter()
-        data_time = AverageMeter()
         attr_loss = AverageMeter()
         if self.attr_tasks is not None:
             attr_pos_losses = dict()
@@ -207,12 +212,14 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     attr_neg_sync_loss /= float(max(1, len(unique_neg_pids)))
                     attr_neg_sync_losses[attr_name].update(attr_neg_sync_loss.item(), len(unique_neg_pids))
 
-                    # neg_avg_sum = attr_neg_losses[attr_name].avg + attr_neg_sync_losses[attr_name].avg
-                    # neg_weight = (attr_pos_losses[attr_name].avg if attr_pos_losses[attr_name].avg > 0.0 else 1.0) / \
-                    #              (neg_avg_sum if neg_avg_sum > 0.0 else 1.0)
-                    # attr_total_loss = 0.5 * (attr_pos_loss + neg_weight * (attr_neg_loss + attr_neg_sync_loss))
-                    attr_total_loss = attr_pos_loss + attr_neg_loss + attr_neg_sync_loss
+                    attr_pos_scalar = attr_pos_loss.item()
+                    att_neg_scalar = attr_neg_loss.item() + attr_neg_sync_loss.item()
+                    attr_diff_scalar = self.attr_neg_scale * att_neg_scalar - attr_pos_scalar
+                    attr_factor = np.clip(self.attr_factors[attr_name] + self.attr_lr * attr_diff_scalar, 0.0, 1.0)
+                    attr_total_loss = attr_factor * self.attr_neg_scale * (attr_neg_loss + attr_neg_sync_loss) + \
+                                      (1.0 - attr_factor) * attr_pos_loss
                     attr_losses_list.append(attr_total_loss)
+                    self.attr_factors[attr_name] = attr_factor
 
                 attr_loss_value = torch.stack(attr_losses_list).sum()
                 loss += attr_loss_value
@@ -289,6 +296,8 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                                               attr_neg_losses[attr_name].avg, n_iter)
                             writer.add_scalar('Loss/neg_sync_{}'.format(attr_name),
                                               attr_neg_sync_losses[attr_name].avg, n_iter)
+                            writer.add_scalar('Loss/factor_{}'.format(attr_name),
+                                              self.attr_factors[attr_name], n_iter)
             start_time = time.time()
 
         if self.scheduler is not None:
