@@ -104,6 +104,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         data_time = AverageMeter()
         accs = AverageMeter(enable_zeros=True)
         losses = AverageMeter()
+        trg_losses = AverageMeter()
         real_loss = AverageMeter()
         synthetic_loss = AverageMeter()
         reg_ow_loss = AverageMeter()
@@ -159,12 +160,12 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 if embeddings is not None:
                     real_embeddings = embeddings['real'][real_data_mask]
 
-                loss = torch.zeros([], dtype=real_outputs.dtype, device=real_outputs.device)
+                trg_loss = torch.zeros([], dtype=real_outputs.dtype, device=real_outputs.device)
                 num_losses = 0
                 if real_pids.numel() > 0:
                     real_data_loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
                     real_loss.update(real_data_loss.item(), real_pids.numel())
-                    loss += real_data_loss
+                    trg_loss += real_data_loss
                     num_losses += 1
                 if synthetic_pids.numel() > 0:
                     synthetic_data_loss = self._compute_loss(self.main_loss, synthetic_outputs, synthetic_pids)
@@ -172,16 +173,17 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
                     synthetic_loss_weight = (real_loss.avg if real_loss.avg > 0.0 else 1.0) / \
                                             (synthetic_loss.avg if synthetic_loss.avg > 0.0 else 1.0)
-                    loss += synthetic_loss_weight * synthetic_data_loss
+                    trg_loss += synthetic_loss_weight * synthetic_data_loss
                     num_losses += 1
-                loss /= num_losses
+                trg_loss /= num_losses
             else:
                 real_outputs = outputs
                 real_pids = pids
                 real_embeddings = embeddings
 
-                loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
-                real_loss.update(loss.item(), batch_size)
+                trg_loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
+                real_loss.update(trg_loss.item(), batch_size)
+            trg_losses.update(trg_loss.item(), batch_size)
 
             if self.attr_tasks is not None:
                 attr_labels_dict = self._parse_attr_data_for_train(data, self.use_gpu)
@@ -196,7 +198,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                         pos_outputs = attr_outputs[pos_mask]
                         attr_pos_loss = self.attr_pos_loss(pos_outputs, pos_labels)
                     else:
-                        attr_pos_loss = torch.zeros([], dtype=loss.dtype, device=loss.device)
+                        attr_pos_loss = torch.zeros([], dtype=trg_loss.dtype, device=trg_loss.device)
                     attr_pos_losses[attr_name].update(attr_pos_loss.item(), pos_mask.numel())
 
                     neg_mask = attr_labels < 0
@@ -204,7 +206,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     attr_neg_loss = self.attr_neg_loss(neg_outputs)
                     attr_neg_losses[attr_name].update(attr_neg_loss.item(), neg_mask.numel())
 
-                    attr_neg_sync_loss = torch.zeros([], dtype=loss.dtype, device=loss.device)
+                    attr_neg_sync_loss = torch.zeros([], dtype=trg_loss.dtype, device=trg_loss.device)
                     unique_neg_pids = np.unique(real_pids.data.cpu().numpy())
                     for unique_neg_pid in unique_neg_pids:
                         neg_pid_outputs = neg_outputs[real_pids == unique_neg_pid]
@@ -221,14 +223,19 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     attr_losses_list.append(attr_total_loss)
                     self.attr_factors[attr_name] = attr_factor
 
-                attr_loss_value = torch.stack(attr_losses_list).sum()
-                loss += attr_loss_value
+                attr_loss_value = torch.stack(attr_losses_list).mean()
                 attr_loss.update(attr_loss_value.item(), batch_size)
+
+                attr_loss_weight = (trg_losses.avg if trg_losses.avg > 0.0 else 1.0) / \
+                                   (attr_loss.avg if attr_loss.avg > 0.0 else 1.0)
+                total_loss = trg_loss + attr_loss_weight * attr_loss_value
+            else:
+                total_loss = trg_loss
 
             if (epoch + 1) > fixbase_epoch:
                 reg_loss = self.regularizer(self.model)
                 reg_ow_loss.update(reg_loss.item(), batch_size)
-                loss += reg_loss
+                total_loss += reg_loss
 
             if self.metric_losses is not None and real_embeddings is not None:
                 if real_pids.numel() > 0:
@@ -238,14 +245,14 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                                                      epoch, epoch * num_batches + batch_idx)
                     self.metric_losses.end_iteration()
                 else:
-                    metric_loss = torch.zeros([], dtype=loss.dtype, device=loss.device)
-                loss += metric_loss
+                    metric_loss = torch.zeros([], dtype=total_loss.dtype, device=total_loss.device)
+                total_loss += metric_loss
                 metric_losses.update(metric_loss.item(), batch_size)
 
-            loss.backward()
+            total_loss.backward()
             self.optimizer.step()
 
-            losses.update(loss.item(), batch_size)
+            losses.update(total_loss.item(), batch_size)
             accs.update(metrics.accuracy(real_outputs, real_pids)[0].item())
             batch_time.update(time.time() - start_time)
 
