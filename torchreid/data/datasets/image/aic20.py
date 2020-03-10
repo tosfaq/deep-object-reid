@@ -86,7 +86,7 @@ class AIC20(ImageDataset):
         assert len(root) == 1
         items = root[0]
 
-        data = []
+        data = list() if train_mode else dict()
         for item in items:
             image_name = item.attrib['imageName']
             full_image_path = osp.join(data_dir, image_name)
@@ -103,12 +103,22 @@ class AIC20(ImageDataset):
                 quantized_angle = self.quantize_angle(orientation, AIC20.angle_bins)
 
                 record = full_image_path, pid, cam_id, color, object_type, quantized_angle
+                data.append(record)
             else:
+                image_id = int(image_name.split('.')[0])
+                if image_id in data:
+                    assert ValueError('Image ID {} is duplicated'.format(image_id))
+
                 record = full_image_path, pid, cam_id
+                data[image_id] = record
 
-            data.append(record)
+        if train_mode:
+            out_data = data
+        else:
+            ordered_image_ids = sorted(data.keys())
+            out_data = [data[key] for key in ordered_image_ids]
 
-        return data
+        return out_data
 
     @staticmethod
     def compress_labels(data):
