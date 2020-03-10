@@ -444,9 +444,9 @@ class OSNet(nn.Module):
             channels[3], self.use_attentions[2]
         )
 
-        out_channels = channels[3] // 2
-        self.conv5 = Conv1x1(channels[3], out_channels, out_fn=HSwish)
-        self.attr_conv5 = Conv1x1(channels[3], out_channels, out_fn=HSwish)
+        out_channels = channels[3]
+        self.conv5 = Conv1x1(channels[3], out_channels)
+        self.attr_conv5 = Conv1x1(channels[3], out_channels)
 
         self.fc = self._construct_fc_layer(out_channels, self.feature_dim)
 
