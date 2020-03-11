@@ -68,7 +68,7 @@ def extract_probs(model, data_loader, use_gpu):
             if use_gpu:
                 images = images.cuda()
 
-            _, logits_dict = model(images)
+            _, logits_dict = model(images, return_logits=True)
             for name, logits in logits_dict.items():
                 out_probs[name].append(F.softmax(2.5 * logits, dim=-1).data.cpu())
 
@@ -126,7 +126,7 @@ def main():
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True
 
-    dataset = build_dataset(mode='train', **imagedata_kwargs(cfg))
+    dataset = build_dataset(mode='query', **imagedata_kwargs(cfg))
     data_loader = build_data_loader(dataset, use_gpu=cfg.use_gpu)
 
     print('Building model: {}'.format(cfg.model.name))

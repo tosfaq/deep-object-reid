@@ -546,7 +546,7 @@ class OSNet(nn.Module):
         feature_vector = F.adaptive_avg_pool2d(feature_maps, 1).view(feature_maps.size(0), -1)
         return feature_maps, feature_vector
 
-    def forward(self, x, return_featuremaps=False, get_embeddings=False):
+    def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
         backbone_out = self._backbone(x)
 
         main_feature_maps, main_feature_vector = self._feature_vector(backbone_out, self.conv5)
@@ -561,7 +561,7 @@ class OSNet(nn.Module):
             for attr_name, attr_fc in self.attr_fc.items():
                 attr_embeddings[attr_name] = attr_fc(attr_feature_vector)
 
-        if not self.training:
+        if not self.training and not return_logits:
             # all_embeddings = [e for e in attr_embeddings.values()] + [main_embeddings]
             all_embeddings = [main_embeddings]
             # return torch.cat([F.normalize(e, p=2, dim=-1) for e in all_embeddings], dim=-1)
