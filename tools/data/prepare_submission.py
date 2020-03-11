@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 
 import torchreid
-from torchreid.utils import check_isfile, load_pretrained_weights
+from torchreid.utils import check_isfile, load_pretrained_weights, re_ranking
 from torchreid.data.datasets import init_image_dataset
 from torchreid.data.transforms import build_transforms
 from scripts.default_config import imagedata_kwargs, get_default_config, model_kwargs
@@ -89,12 +89,12 @@ def extract_features(model, data_loader, use_gpu):
     return out_embeddings
 
 
-def calculate_similarity(a, b):
-    return np.matmul(a, np.transpose(b))
+def calculate_distances(a, b):
+    return 1.0 - np.matmul(a, np.transpose(b))
 
 
-def find_matches(similarity_matrix, top_k):
-    return np.argsort(-similarity_matrix, axis=-1)[:, :top_k]
+def find_matches(distance_matrix, top_k):
+    return np.argsort(distance_matrix, axis=-1)[:, :top_k]
 
 
 def dump_matches(matches, out_file):
@@ -142,10 +142,16 @@ def main():
     embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu)
     print('Extracted gallery: {}'.format(embeddings_gallery.shape))
 
-    similarity_matrix = calculate_similarity(embeddings_query, embeddings_gallery)
-    print('Similarity matrix: {}'.format(similarity_matrix.shape))
+    distance_matrix_qg = calculate_distances(embeddings_query, embeddings_gallery)
+    print('Distance matrix: {}'.format(distance_matrix_qg.shape))
 
-    matches = find_matches(similarity_matrix, top_k=100)
+    print('Applying re-ranking ...')
+    distance_matrix_qq = calculate_distances(embeddings_query, embeddings_query)
+    distance_matrix_gg = calculate_distances(embeddings_gallery, embeddings_gallery)
+    distance_matrix_qg = re_ranking(distance_matrix_qg, distance_matrix_qq, distance_matrix_gg)
+    print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
+
+    matches = find_matches(distance_matrix_qg, top_k=100)
     print('Matches: {}'.format(matches.shape))
 
     dump_matches(matches, args.out_file)
