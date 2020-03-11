@@ -144,23 +144,23 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 embeddings, outputs, extra_outputs = self.model(imgs, get_embeddings=True)
             else:
                 outputs, extra_outputs = self.model(imgs)
-                embeddings = None
+                embeddings = dict(real=[None], synthetic=[None])
 
             if isinstance(outputs, dict):
                 real_data_mask = self._get_real_mask(data, self.use_gpu)
                 synthetic_data_mask = ~real_data_mask
 
-                real_outputs = outputs['real'][real_data_mask]
-                synthetic_outputs = outputs['synthetic'][synthetic_data_mask]
+                real_outputs = [out[real_data_mask] for out in outputs['real']]
+                synthetic_outputs = [out[synthetic_data_mask] for out in outputs['synthetic']]
 
                 real_pids = pids[real_data_mask]
                 synthetic_pids = pids[synthetic_data_mask]
 
                 real_embeddings = None
-                if embeddings is not None:
-                    real_embeddings = embeddings['real'][real_data_mask]
+                if embeddings['real'][0] is not None:
+                    real_embeddings = embeddings['real'][0][real_data_mask]
 
-                trg_loss = torch.zeros([], dtype=real_outputs.dtype, device=real_outputs.device)
+                trg_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
                 num_losses = 0
                 if real_pids.numel() > 0:
                     real_data_loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
@@ -179,7 +179,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             else:
                 real_outputs = outputs
                 real_pids = pids
-                real_embeddings = embeddings
+                real_embeddings = embeddings['real'][0]
 
                 trg_loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
                 real_loss.update(trg_loss.item(), batch_size)
@@ -255,7 +255,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             self.optimizer.step()
 
             losses.update(total_loss.item(), batch_size)
-            accs.update(metrics.accuracy(real_outputs, real_pids)[0].item())
+            accs.update(metrics.accuracy(real_outputs[0], real_pids)[0].item())
             batch_time.update(time.time() - start_time)
 
             if print_freq > 0 and (batch_idx + 1) % print_freq == 0:

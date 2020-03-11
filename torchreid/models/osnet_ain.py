@@ -388,6 +388,7 @@ class OSNet(nn.Module):
         conv1_IN=False,
         attr_tasks=None,
         enable_attr_tasks=False,
+        num_parts=None,
         **kwargs
     ):
         super(OSNet, self).__init__()
@@ -450,13 +451,24 @@ class OSNet(nn.Module):
 
         self.fc = self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=True)
 
-        classifier = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
-        self.classifier = classifier(self.feature_dim, real_data_num_classes)
+        classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
+        self.classifier = classifier_block(self.feature_dim, real_data_num_classes)
+
+        self.num_parts = num_parts
+        if self.num_parts is not None and self.num_parts > 1:
+            self.parts_avgpool = nn.AdaptiveAvgPool2d((self.parts, 1))
+            self.parts_conv5 = Conv1x1(channels[3], out_channels, use_in=False)
+            self.parts_fc = nn.ModuleList(
+                [self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=True) for _ in range(self.parts)]
+            )
+            self.parts_classifiers = nn.ModuleList(
+                [classifier_block(self.feature_dim, real_data_num_classes) for _ in range(self.parts)]
+            )
 
         self.split_embeddings = synthetic_data_num_classes is not None
         if self.split_embeddings:
             self.aux_fc = self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=True)
-            self.aux_classifier = classifier(self.feature_dim, synthetic_data_num_classes)
+            self.aux_classifier = classifier_block(self.feature_dim, synthetic_data_num_classes)
         else:
             self.aux_fc = None
             self.aux_classifier = None
@@ -577,8 +589,8 @@ class OSNet(nn.Module):
             aux_embeddings = self.aux_fc(main_feature_vector)
             aux_logits = self.aux_classifier(aux_embeddings)
 
-            main_embeddings = dict(real=main_embeddings, synthetic=aux_embeddings)
-            main_logits = dict(real=main_logits, synthetic=aux_logits)
+            main_embeddings = dict(real=[main_embeddings], synthetic=[aux_embeddings])
+            main_logits = dict(real=[main_logits], synthetic=[aux_logits])
 
         if get_embeddings:
             return main_embeddings, main_logits, attr_logits
