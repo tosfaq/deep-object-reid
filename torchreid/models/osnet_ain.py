@@ -446,7 +446,7 @@ class OSNet(nn.Module):
 
         out_channels = channels[3] // 2
         self.conv5 = Conv1x1(channels[3], out_channels, use_in=False)
-        self.attr_conv5 = Conv1x1(channels[3], out_channels, use_in=True)
+        self.attr_conv5 = Conv1x1(channels[3], out_channels, use_in=False)
 
         self.fc = self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=True)
 
@@ -465,7 +465,7 @@ class OSNet(nn.Module):
             attr_fc = dict()
             attr_classifier = dict()
             for attr_name, attr_num_classes in attr_tasks.items():
-                attr_fc[attr_name] = self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=False)
+                attr_fc[attr_name] = self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=True)
                 attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim, attr_num_classes)
             self.attr_fc = nn.ModuleDict(attr_fc)
             self.attr_classifiers = nn.ModuleDict(attr_classifier)
