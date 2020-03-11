@@ -70,7 +70,7 @@ def extract_probs(model, data_loader, use_gpu):
 
             _, logits_dict = model(images)
             for name, logits in logits_dict.items():
-                out_probs[name].append(F.softmax(logits, dim=-1).data.cpu())
+                out_probs[name].append(F.softmax(2.5 * logits, dim=-1).data.cpu())
 
     for name, probs in out_probs.items():
         out_probs[name] = torch.cat(out_probs[name], 0).numpy()
@@ -126,7 +126,7 @@ def main():
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True
 
-    dataset = build_dataset(**imagedata_kwargs(cfg))
+    dataset = build_dataset(mode='train', **imagedata_kwargs(cfg))
     data_loader = build_data_loader(dataset, use_gpu=cfg.use_gpu)
 
     print('Building model: {}'.format(cfg.model.name))
@@ -142,7 +142,9 @@ def main():
     print('Extracted probs:')
     for name, probs in all_probs.items():
         print('   {}: {}'.format(name, probs.shape))
-        print(probs)
+        print('p0: [' + ', '.join(['{:.4f}'.format(p) for p in probs[0].tolist()]) + ']')
+        print('p1: [' + ', '.join(['{:.4f}'.format(p) for p in probs[1].tolist()]) + ']')
+        print('p2: [' + ', '.join(['{:.4f}'.format(p) for p in probs[2].tolist()]) + ']')
         dump(dataset, extract_labels(probs), osp.join(args.out_dir, name))
 
 

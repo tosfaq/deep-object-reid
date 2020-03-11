@@ -444,7 +444,7 @@ class OSNet(nn.Module):
             channels[3], self.use_attentions[2]
         )
 
-        out_channels = channels[3]
+        out_channels = channels[3] // 2
         self.conv5 = Conv1x1(channels[3], out_channels)
         self.attr_conv5 = Conv1x1(channels[3], out_channels)
 

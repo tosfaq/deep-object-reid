@@ -90,7 +90,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 s=attr_losses_cfg.s
             )
             self.attr_neg_loss = MinEntropyLoss(scale=attr_losses_cfg.s)
-            self.attr_neg_scale = 40.0
+            self.attr_neg_scale = 6.0
             self.attr_lr = 0.01
             self.attr_factors = dict()
             for task_name in self.attr_tasks:
@@ -226,9 +226,10 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 attr_loss_value = torch.stack(attr_losses_list).mean()
                 attr_loss.update(attr_loss_value.item(), batch_size)
 
-                attr_loss_weight = (trg_losses.avg if trg_losses.avg > 0.0 else 1.0) / \
-                                   (attr_loss.avg if attr_loss.avg > 0.0 else 1.0)
-                total_loss = trg_loss + attr_loss_weight * attr_loss_value
+                # attr_loss_weight = (trg_losses.avg if trg_losses.avg > 0.0 else 1.0) / \
+                #                    (attr_loss.avg if attr_loss.avg > 0.0 else 1.0)
+                # total_loss = 0.5 * (trg_loss + attr_loss_weight * attr_loss_value)
+                total_loss = trg_loss + attr_loss_value
             else:
                 total_loss = trg_loss
 

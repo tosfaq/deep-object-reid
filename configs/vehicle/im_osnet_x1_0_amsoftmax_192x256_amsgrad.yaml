@@ -69,7 +69,7 @@ loss:
     s: 15.0
 
 metric_losses:
-  enable: True
+  enable: False
   center_coeff: 1.0
   glob_push_plus_loss_coeff: 1.2
   balance_losses: True
@@ -77,7 +77,7 @@ metric_losses:
 attr_losses:
   enable: True
   m: 0.35
-  s: 10.0
+  s: 2.5
   conf_penalty: 0.0
   tasks:
     attr_color: 12
