@@ -218,8 +218,9 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     att_neg_scalar = attr_neg_loss.item() + attr_neg_sync_loss.item()
                     attr_diff_scalar = self.attr_neg_scale * att_neg_scalar - attr_pos_scalar
                     attr_factor = np.clip(self.attr_factors[attr_name] + self.attr_lr * attr_diff_scalar, 0.0, 1.0)
-                    attr_total_loss = attr_factor * self.attr_neg_scale * (attr_neg_loss + attr_neg_sync_loss) + \
-                                      (1.0 - attr_factor) * attr_pos_loss
+                    # attr_total_loss = attr_factor * self.attr_neg_scale * (attr_neg_loss + attr_neg_sync_loss) + \
+                    #                   (1.0 - attr_factor) * attr_pos_loss
+                    attr_total_loss = attr_pos_loss
                     attr_losses_list.append(attr_total_loss)
                     self.attr_factors[attr_name] = attr_factor
 
@@ -314,7 +315,8 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
     @staticmethod
     def _parse_attr_data_for_train(data, use_gpu=False):
         return dict(attr_color=data[4].cuda() if use_gpu else data[4],
-                    attr_type=data[5].cuda() if use_gpu else data[5])
+                    attr_type=data[5].cuda() if use_gpu else data[5],
+                    attr_orientation=data[6].cuda() if use_gpu else data[6])
 
     @staticmethod
     def _get_real_mask(data, use_gpu=False):

@@ -82,6 +82,7 @@ attr_losses:
   tasks:
     attr_color: 12
     attr_type: 11
+    attr_orientation: 10
 
 train:
   optim: 'sgd'

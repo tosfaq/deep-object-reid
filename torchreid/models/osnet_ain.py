@@ -561,7 +561,8 @@ class OSNet(nn.Module):
                 attr_embeddings[attr_name] = attr_fc(attr_feature_vector)
 
         if not self.training:
-            all_embeddings = [e for e in attr_embeddings.values()] + [main_embeddings]
+            # all_embeddings = [e for e in attr_embeddings.values()] + [main_embeddings]
+            all_embeddings = [main_embeddings]
             # return torch.cat([F.normalize(e, p=2, dim=-1) for e in all_embeddings], dim=-1)
             return torch.cat(all_embeddings, dim=-1)
 
