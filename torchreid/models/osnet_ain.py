@@ -57,7 +57,7 @@ class ConvLayer(nn.Module):
 class Conv1x1(nn.Module):
     """1x1 convolution + bn + relu."""
 
-    def __init__(self, in_channels, out_channels, stride=1, groups=1, out_fn=nn.ReLU):
+    def __init__(self, in_channels, out_channels, stride=1, groups=1, out_fn=nn.ReLU, use_in=False):
         super(Conv1x1, self).__init__()
 
         self.conv = nn.Conv2d(
@@ -69,7 +69,7 @@ class Conv1x1(nn.Module):
             bias=False,
             groups=groups
         )
-        self.bn = nn.BatchNorm2d(out_channels)
+        self.bn = nn.InstanceNorm2d(out_channels, affine=True) if use_in else nn.BatchNorm2d(out_channels)
         self.out_fn = out_fn() if out_fn is not None else None
 
     def forward(self, x):
@@ -445,17 +445,17 @@ class OSNet(nn.Module):
         )
 
         out_channels = channels[3] // 2
-        self.conv5 = Conv1x1(channels[3], out_channels)
-        self.attr_conv5 = Conv1x1(channels[3], out_channels)
+        self.conv5 = Conv1x1(channels[3], out_channels, use_in=False)
+        self.attr_conv5 = Conv1x1(channels[3], out_channels, use_in=True)
 
-        self.fc = self._construct_fc_layer(out_channels, self.feature_dim)
+        self.fc = self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=True)
 
         classifier = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
         self.classifier = classifier(self.feature_dim, real_data_num_classes)
 
         self.split_embeddings = synthetic_data_num_classes is not None
         if self.split_embeddings:
-            self.aux_fc = self._construct_fc_layer(out_channels, self.feature_dim)
+            self.aux_fc = self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=True)
             self.aux_classifier = classifier(self.feature_dim, synthetic_data_num_classes)
         else:
             self.aux_fc = None
@@ -465,7 +465,7 @@ class OSNet(nn.Module):
             attr_fc = dict()
             attr_classifier = dict()
             for attr_name, attr_num_classes in attr_tasks.items():
-                attr_fc[attr_name] = self._construct_fc_layer(out_channels, self.feature_dim)
+                attr_fc[attr_name] = self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=False)
                 attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim, attr_num_classes)
             self.attr_fc = nn.ModuleDict(attr_fc)
             self.attr_classifiers = nn.ModuleDict(attr_classifier)
@@ -493,11 +493,15 @@ class OSNet(nn.Module):
         return ResidualAttention(num_channels) if enable else None
 
     @staticmethod
-    def _construct_fc_layer(input_dim, out_dim):
-        return nn.Sequential(
-            nn.Linear(input_dim, out_dim),
-            nn.BatchNorm1d(out_dim)
-        )
+    def _construct_fc_layer(input_dim, out_dim, enable_bn=True):
+        layers = [
+            nn.Linear(input_dim, out_dim)
+        ]
+
+        if enable_bn:
+            layers.append(nn.BatchNorm1d(out_dim))
+
+        return nn.Sequential(*layers)
 
     def _init_params(self):
         for m in self.modules():
@@ -505,13 +509,10 @@ class OSNet(nn.Module):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
+            elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm1d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.InstanceNorm2d):
+            elif isinstance(m, (nn.InstanceNorm1d, nn.InstanceNorm2d)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
