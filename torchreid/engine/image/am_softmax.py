@@ -90,7 +90,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 s=attr_losses_cfg.s
             )
             self.attr_neg_loss = MinEntropyLoss(scale=attr_losses_cfg.s)
-            self.attr_neg_scale = 32.0
+            self.attr_neg_scale = 40.0
             self.attr_lr = 0.01
             self.attr_factors = dict()
             for task_name in self.attr_tasks:

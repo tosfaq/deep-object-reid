@@ -33,11 +33,9 @@ def build_dataset(mode='gallery', targets=None, height=256, width=128, transform
         norm_std=norm_std
     )
 
-    assert len(targets) == 1
-    name = targets[0]
-
+    main_dataset_name = targets[0]
     dataset = init_image_dataset(
-        name,
+        main_dataset_name,
         transform=transform_test,
         mode=mode,
         verbose=False,
