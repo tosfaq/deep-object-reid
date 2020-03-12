@@ -145,11 +145,11 @@ def main():
     distance_matrix_qg = calculate_distances(embeddings_query, embeddings_gallery)
     print('Distance matrix: {}'.format(distance_matrix_qg.shape))
 
-    print('Applying re-ranking ...')
-    distance_matrix_qq = calculate_distances(embeddings_query, embeddings_query)
-    distance_matrix_gg = calculate_distances(embeddings_gallery, embeddings_gallery)
-    distance_matrix_qg = re_ranking(distance_matrix_qg, distance_matrix_qq, distance_matrix_gg)
-    print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
+    # print('Applying re-ranking ...')
+    # distance_matrix_qq = calculate_distances(embeddings_query, embeddings_query)
+    # distance_matrix_gg = calculate_distances(embeddings_gallery, embeddings_gallery)
+    # distance_matrix_qg = re_ranking(distance_matrix_qg, distance_matrix_qq, distance_matrix_gg)
+    # print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
 
     matches = find_matches(distance_matrix_qg, top_k=100)
     print('Matches: {}'.format(matches.shape))

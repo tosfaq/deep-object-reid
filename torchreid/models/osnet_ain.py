@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, HSwish, gumbel_sigmoid
+from torchreid.ops import Dropout, HSwish, gumbel_sigmoid, NonLocalModule
 
 __all__ = ['osnet_ain_x1_0']
 
@@ -382,6 +382,7 @@ class OSNet(nn.Module):
         blocks,
         channels,
         attentions=None,
+        nonlocal_blocks=None,
         dropout_probs=None,
         feature_dim=512,
         loss='softmax',
@@ -410,6 +411,11 @@ class OSNet(nn.Module):
             self.use_attentions = [False] * num_blocks
         assert len(self.use_attentions) == num_blocks
 
+        self.use_nonlocal_blocks = nonlocal_blocks
+        if self.use_nonlocal_blocks is None:
+            self.use_nonlocal_blocks = [False] * num_blocks
+        assert len(self.use_nonlocal_blocks) == num_blocks + 1
+
         if isinstance(num_classes, (list, tuple)):
             assert len(num_classes) == 2
             real_data_num_classes, synthetic_data_num_classes = num_classes
@@ -422,16 +428,20 @@ class OSNet(nn.Module):
         self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=conv1_IN)
         self.maxpool = nn.MaxPool2d(3, stride=2, padding=1)
         self.conv2 = self._construct_layer(blocks[0], channels[0], channels[1])
+        self.nl2 = self._construct_nonlocal_layer(channels[1], self.use_nonlocal_blocks[0])
         self.att2 = self._construct_attention_layer(channels[1], self.use_attentions[0])
         self.pool2 = nn.Sequential(Conv1x1(channels[1], channels[1]), nn.AvgPool2d(2, stride=2))
         self.conv3 = self._construct_layer(blocks[1], channels[1], channels[2])
+        self.nl3 = self._construct_nonlocal_layer(channels[2], self.use_nonlocal_blocks[1])
         self.att3 = self._construct_attention_layer(channels[2], self.use_attentions[1])
         self.pool3 = nn.Sequential(Conv1x1(channels[2], channels[2]), nn.AvgPool2d(2, stride=2))
         self.conv4 = self._construct_layer(blocks[2], channels[2], channels[3])
+        self.nl4 = self._construct_nonlocal_layer(channels[3], self.use_nonlocal_blocks[2])
         self.att4 = self._construct_attention_layer(channels[3], self.use_attentions[2])
 
         out_num_channels = channels[3]
         self.conv5 = Conv1x1(channels[3], out_num_channels)
+        self.nl5 = self._construct_nonlocal_layer(out_num_channels, self.use_nonlocal_blocks[3])
 
         fc_layers, classifier_layers = [], []
         for _ in range(self.num_parts + 1):  # main branch + part-based branches
@@ -482,6 +492,10 @@ class OSNet(nn.Module):
         return ResidualAttention(num_channels) if enable else None
 
     @staticmethod
+    def _construct_nonlocal_layer(num_channels, enable):
+        return NonLocalModule(num_channels) if enable else None
+
+    @staticmethod
     def _construct_fc_layer(input_dim, out_dim):
         layers = [
             nn.Linear(input_dim, out_dim),
@@ -512,20 +526,28 @@ class OSNet(nn.Module):
         y = self.maxpool(y)
 
         y = self.conv2(y)
+        if self.nl2 is not None:
+            y = self.nl2(y)
         if self.att2 is not None:
             y = self.att2(y)
         y = self.pool2(y)
 
         y = self.conv3(y)
+        if self.nl3 is not None:
+            y = self.nl3(y)
         if self.att3 is not None:
             y = self.att3(y)
         y = self.pool3(y)
 
         y = self.conv4(y)
+        if self.nl4 is not None:
+            y = self.nl4(y)
         if self.att4 is not None:
             y = self.att4(y)
 
         y = self.conv5(y)
+        if self.nl5 is not None:
+            y = self.nl5(y)
 
         return y
 
@@ -670,6 +692,7 @@ def osnet_ain_x1_0(num_classes=1000, pretrained=True, **kwargs):
         ],
         channels=[64, 256, 384, 512],
         # attentions=[True, False, False],
+        nonlocal_blocks=[False, True, True, False],
         # dropout_probs=[
         #     [None, 0.1],
         #     [0.1, None],
