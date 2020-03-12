@@ -553,9 +553,9 @@ class OSNet(nn.Module):
         return y
 
     @staticmethod
-    def _feature_vector(x, conv_block):
+    def _feature_vector(x, conv_block, num_parts=1):
         feature_maps = conv_block(x)
-        feature_vector = F.adaptive_avg_pool2d(feature_maps, 1).view(feature_maps.size(0), -1)
+        feature_vector = F.adaptive_avg_pool2d(feature_maps, (num_parts, 1)).view(feature_maps.size(0), -1)
         return feature_maps, feature_vector
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
@@ -579,7 +579,7 @@ class OSNet(nn.Module):
             # return torch.cat([F.normalize(e, p=2, dim=-1) for e in all_embeddings], dim=-1)
             return torch.cat(all_embeddings, dim=-1)
 
-        main_logits = self.classifier(main_embeddings)
+        main_logits = [self.classifier(main_embeddings)]
         attr_logits = dict()
         if self.attr_classifiers is not None:
             for att_name, attr_classifier in self.attr_classifiers.items():
@@ -587,10 +587,10 @@ class OSNet(nn.Module):
 
         if self.split_embeddings:
             aux_embeddings = self.aux_fc(main_feature_vector)
-            aux_logits = self.aux_classifier(aux_embeddings)
+            aux_logits = [self.aux_classifier(aux_embeddings)]
 
             main_embeddings = dict(real=[main_embeddings], synthetic=[aux_embeddings])
-            main_logits = dict(real=[main_logits], synthetic=[aux_logits])
+            main_logits = dict(real=main_logits, synthetic=aux_logits)
 
         if get_embeddings:
             return main_embeddings, main_logits, attr_logits
