@@ -146,7 +146,8 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 outputs, extra_outputs = self.model(imgs)
                 embeddings = dict(real=[None], synthetic=[None])
 
-            if isinstance(outputs, dict):
+            enable_real_synthetic_split = outputs['synthetic'] is not None
+            if enable_real_synthetic_split:
                 real_data_mask = self._get_real_mask(data, self.use_gpu)
                 synthetic_data_mask = ~real_data_mask
 

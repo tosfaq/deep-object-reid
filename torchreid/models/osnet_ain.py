@@ -416,74 +416,56 @@ class OSNet(nn.Module):
         else:
             real_data_num_classes, synthetic_data_num_classes = num_classes, None
 
-        self.conv1 = ConvLayer(
-            3, channels[0], 7, stride=2, padding=3, IN=conv1_IN
-        )
-        self.maxpool = nn.MaxPool2d(3, stride=2, padding=1)
-        self.conv2 = self._construct_layer(
-            blocks[0], channels[0], channels[1]
-        )
-        self.att2 = self._construct_attention_layer(
-            channels[1], self.use_attentions[0]
-        )
-        self.pool2 = nn.Sequential(
-            Conv1x1(channels[1], channels[1]), nn.AvgPool2d(2, stride=2)
-        )
-        self.conv3 = self._construct_layer(
-            blocks[1], channels[1], channels[2]
-        )
-        self.att3 = self._construct_attention_layer(
-            channels[2], self.use_attentions[1]
-        )
-        self.pool3 = nn.Sequential(
-            Conv1x1(channels[2], channels[2]), nn.AvgPool2d(2, stride=2)
-        )
-        self.conv4 = self._construct_layer(
-            blocks[2], channels[2], channels[3]
-        )
-        self.att4 = self._construct_attention_layer(
-            channels[3], self.use_attentions[2]
-        )
-
-        out_channels = channels[3]
-        self.conv5 = Conv1x1(channels[3], out_channels)
-        # self.attr_conv5 = Conv1x1(channels[3], out_channels)
-
-        self.fc = self._construct_fc_layer(out_channels, self.feature_dim)
-
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
-        self.classifier = classifier_block(self.feature_dim, real_data_num_classes)
 
-        self.num_parts = num_parts
-        if self.num_parts is not None and self.num_parts > 1:
-            self.parts_avgpool = nn.AdaptiveAvgPool2d((self.parts, 1))
-            self.parts_conv5 = Conv1x1(channels[3], out_channels)
-            self.parts_fc = nn.ModuleList(
-                [self._construct_fc_layer(out_channels, self.feature_dim) for _ in range(self.parts)]
-            )
-            self.parts_classifiers = nn.ModuleList(
-                [classifier_block(self.feature_dim, real_data_num_classes) for _ in range(self.parts)]
-            )
+        self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=conv1_IN)
+        self.maxpool = nn.MaxPool2d(3, stride=2, padding=1)
+        self.conv2 = self._construct_layer(blocks[0], channels[0], channels[1])
+        self.att2 = self._construct_attention_layer(channels[1], self.use_attentions[0])
+        self.pool2 = nn.Sequential(Conv1x1(channels[1], channels[1]), nn.AvgPool2d(2, stride=2))
+        self.conv3 = self._construct_layer(blocks[1], channels[1], channels[2])
+        self.att3 = self._construct_attention_layer(channels[2], self.use_attentions[1])
+        self.pool3 = nn.Sequential(Conv1x1(channels[2], channels[2]), nn.AvgPool2d(2, stride=2))
+        self.conv4 = self._construct_layer(blocks[2], channels[2], channels[3])
+        self.att4 = self._construct_attention_layer(channels[3], self.use_attentions[2])
 
+        out_num_channels = channels[3]
+        self.conv5 = Conv1x1(channels[3], out_num_channels)
+
+        self.num_parts = 0
+        self.parts_conv5 = None
+        if num_parts is not None and num_parts > 1:
+            self.num_parts = num_parts
+            self.parts_conv5 = Conv1x1(channels[3], out_num_channels)
+
+        fc_layers, classifier_layers = [], []
+        for _ in range(self.num_parts + 1):  # main branch + part-based branches
+            fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim))
+            classifier_layers.append(classifier_block(self.feature_dim, real_data_num_classes))
+        self.fc = nn.ModuleList(fc_layers)
+        self.classifier = nn.ModuleList(classifier_layers)
+
+        self.aux_fc = None
+        self.aux_classifier = None
         self.split_embeddings = synthetic_data_num_classes is not None
         if self.split_embeddings:
-            self.aux_fc = self._construct_fc_layer(out_channels, self.feature_dim)
-            self.aux_classifier = classifier_block(self.feature_dim, synthetic_data_num_classes)
-        else:
-            self.aux_fc = None
-            self.aux_classifier = None
+            aux_fc_layers, aux_classifier_layers = [], []
+            for _ in range(self.num_parts + 1):  # main branch + part-based branches
+                aux_fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim))
+                aux_classifier_layers.append(classifier_block(self.feature_dim, synthetic_data_num_classes))
+            self.aux_fc = nn.ModuleList(aux_fc_layers)
+            self.aux_classifier = nn.ModuleList(aux_classifier_layers)
 
+        self.attr_fc = None
+        self.attr_classifiers = None
         if enable_attr_tasks and attr_tasks is not None and len(attr_tasks) > 0:
             attr_fc = dict()
             attr_classifier = dict()
             for attr_name, attr_num_classes in attr_tasks.items():
-                attr_fc[attr_name] = self._construct_fc_layer(out_channels, self.feature_dim // 4)
+                attr_fc[attr_name] = self._construct_fc_layer(out_num_channels, self.feature_dim // 4)
                 attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim // 4, attr_num_classes)
             self.attr_fc = nn.ModuleDict(attr_fc)
             self.attr_classifiers = nn.ModuleDict(attr_classifier)
-        else:
-            self.attr_fc = None
-            self.attr_classifiers = None
 
         self._init_params()
 
@@ -551,51 +533,63 @@ class OSNet(nn.Module):
         return y
 
     @staticmethod
-    def _feature_vector(x, conv_block, num_parts=1):
+    def _feature_vector(x, conv_block):
         feature_maps = conv_block(x)
-        feature_vector = F.adaptive_avg_pool2d(feature_maps, (num_parts, 1)).view(feature_maps.size(0), -1)
+        feature_vector = F.adaptive_avg_pool2d(feature_maps, 1).view(feature_maps.size(0), -1)
         return feature_maps, feature_vector
+
+    @staticmethod
+    def _part_feature_vector(x, conv_block, num_parts):
+        if num_parts == 0 or conv_block is None:
+            return []
+
+        feature_maps = conv_block(x)
+        feature_vectors = F.adaptive_avg_pool2d(feature_maps, (num_parts, 1)).squeeze(dim=-1)
+        return torch.split(feature_vectors, num_parts, dim=-1)
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
         backbone_out = self._backbone(x)
 
-        main_feature_maps, main_feature_vector = self._feature_vector(backbone_out, self.conv5)
+        glob_feature_maps, glob_feature = self._feature_vector(backbone_out, self.conv5)
         if return_featuremaps:
-            return main_feature_maps
+            return glob_feature_maps
 
-        main_embeddings = self.fc(main_feature_vector)
+        part_features = self._part_feature_vector(backbone_out, self.parts_conv5, self.num_parts)
+        features = [glob_feature] + part_features
 
-        # _, attr_feature_vector = self._feature_vector(backbone_out, self.attr_conv5)
+        main_embeddings = [fc(f) for f, fc in zip(features, self.fc)]
+        if not self.training and not return_logits:
+            return torch.cat(main_embeddings, dim=-1)
+
+        main_logits = [classifier(embd) for embd, classifier in zip(main_embeddings, self.classifier)]
+
+        if self.split_embeddings:
+            aux_embeddings = [fc(f) for f, fc in zip(features, self.aux_fc)]
+            aux_logits = [classifier(embd) for embd, classifier in zip(aux_embeddings, self.aux_classifier)]
+        else:
+            aux_embeddings = None
+            aux_logits = None
+
+        all_embeddings = dict(real=main_embeddings, synthetic=aux_embeddings)
+        all_logits = dict(real=main_logits, synthetic=aux_logits)
+
         attr_embeddings = dict()
         if self.attr_fc is not None:
             for attr_name, attr_fc in self.attr_fc.items():
-                attr_embeddings[attr_name] = attr_fc(main_feature_vector)
+                attr_embeddings[attr_name] = attr_fc(glob_feature)
 
-        if not self.training and not return_logits:
-            # all_embeddings = [e for e in attr_embeddings.values()] + [main_embeddings]
-            all_embeddings = [main_embeddings]
-            return torch.cat(all_embeddings, dim=-1)
-
-        main_logits = [self.classifier(main_embeddings)]
         attr_logits = dict()
         if self.attr_classifiers is not None:
             for att_name, attr_classifier in self.attr_classifiers.items():
                 attr_logits[att_name] = attr_classifier(attr_embeddings[att_name])
 
-        if self.split_embeddings:
-            aux_embeddings = self.aux_fc(main_feature_vector)
-            aux_logits = [self.aux_classifier(aux_embeddings)]
-
-            main_embeddings = dict(real=[main_embeddings], synthetic=[aux_embeddings])
-            main_logits = dict(real=main_logits, synthetic=aux_logits)
-
         if get_embeddings:
-            return main_embeddings, main_logits, attr_logits
+            return all_embeddings, all_logits, attr_logits
 
         if self.loss in ['softmax', 'am_softmax']:
-            return main_logits, attr_logits
+            return all_logits, attr_logits
         elif self.loss in ['triplet']:
-            return main_logits, attr_logits, main_embeddings
+            return all_logits, attr_logits, all_embeddings
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
