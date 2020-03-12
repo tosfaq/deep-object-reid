@@ -477,8 +477,8 @@ class OSNet(nn.Module):
             attr_fc = dict()
             attr_classifier = dict()
             for attr_name, attr_num_classes in attr_tasks.items():
-                attr_fc[attr_name] = self._construct_fc_layer(out_channels, self.feature_dim // 2)
-                attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim // 2, attr_num_classes)
+                attr_fc[attr_name] = self._construct_fc_layer(out_channels, self.feature_dim // 4)
+                attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim // 4, attr_num_classes)
             self.attr_fc = nn.ModuleDict(attr_fc)
             self.attr_classifiers = nn.ModuleDict(attr_classifier)
         else:
