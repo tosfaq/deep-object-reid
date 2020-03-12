@@ -26,6 +26,7 @@ import datetime
 import time
 
 import torch
+import torch.nn as nn
 import numpy as np
 
 from torchreid import metrics
@@ -71,11 +72,16 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             if isinstance(num_classes, (list, tuple)):
                 num_classes = num_classes[0]
 
-            self.metric_losses = MetricLosses(num_classes,
-                                              self.model.module.feature_dim, self.writer,
-                                              metric_cfg.balance_losses,
-                                              metric_cfg.center_coeff,
-                                              metric_cfg.glob_push_plus_loss_coeff)
+            self.metric_losses = []
+            for _ in range(self.model.module.num_parts + 1):
+                self.metric_losses.append(MetricLosses(
+                    num_classes,
+                    self.model.module.feature_dim,
+                    self.writer,
+                    metric_cfg.balance_losses,
+                    metric_cfg.center_coeff,
+                    metric_cfg.glob_push_plus_loss_coeff
+                ))
         else:
             self.metric_losses = None
 
@@ -159,7 +165,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
                 real_embeddings = None
                 if embeddings['real'][0] is not None:
-                    real_embeddings = embeddings['real'][0][real_data_mask]
+                    real_embeddings = [embd[real_data_mask] for embd in embeddings['real']]
 
                 trg_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
                 num_losses = 0
@@ -180,7 +186,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             else:
                 real_outputs = outputs
                 real_pids = pids
-                real_embeddings = embeddings['real'][0]
+                real_embeddings = embeddings['real']
 
                 trg_loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
                 real_loss.update(trg_loss.item(), batch_size)
@@ -241,16 +247,17 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 total_loss += reg_loss
 
             if self.metric_losses is not None and real_embeddings is not None:
+                metric_loss = torch.zeros([], dtype=total_loss.dtype, device=total_loss.device)
                 if real_pids.numel() > 0:
-                    self.metric_losses.writer = writer
-                    self.metric_losses.init_iteration()
-                    metric_loss = self.metric_losses(real_embeddings, real_pids,
-                                                     epoch, epoch * num_batches + batch_idx)
-                    self.metric_losses.end_iteration()
-                else:
-                    metric_loss = torch.zeros([], dtype=total_loss.dtype, device=total_loss.device)
-                total_loss += metric_loss
+                    for embd, ml_module in zip(real_embeddings, self.metric_losses):
+                        ml_module.writer = writer
+                        ml_module.init_iteration()
+                        metric_loss += ml_module(embd, real_pids, epoch, epoch * num_batches + batch_idx)
+                        ml_module.end_iteration()
+                metric_loss /= float(len(real_embeddings))
                 metric_losses.update(metric_loss.item(), batch_size)
+
+                total_loss += metric_loss
 
             total_loss.backward()
             self.optimizer.step()

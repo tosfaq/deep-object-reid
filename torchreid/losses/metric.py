@@ -140,6 +140,7 @@ class MetricLosses:
 
     def init_iteration(self):
         """Initializes a training iteration"""
+
         if self.center_coeff > 0.:
             self.optimizer_centloss.zero_grad()
 
@@ -148,6 +149,7 @@ class MetricLosses:
 
     def end_iteration(self):
         """Finalizes a training iteration"""
+
         if self.loss_balancing and self.total_losses_num > 1:
             self.last_loss_value.backward(retain_graph=True)
             self.balancing_optimizer.step()

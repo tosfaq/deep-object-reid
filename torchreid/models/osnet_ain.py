@@ -417,6 +417,7 @@ class OSNet(nn.Module):
             real_data_num_classes, synthetic_data_num_classes = num_classes, None
 
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
+        self.num_parts = num_parts if num_parts is not None and num_parts > 1 else 0
 
         self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=conv1_IN)
         self.maxpool = nn.MaxPool2d(3, stride=2, padding=1)
@@ -431,12 +432,6 @@ class OSNet(nn.Module):
 
         out_num_channels = channels[3]
         self.conv5 = Conv1x1(channels[3], out_num_channels)
-
-        self.num_parts = 0
-        self.parts_conv5 = None
-        if num_parts is not None and num_parts > 1:
-            self.num_parts = num_parts
-            self.parts_conv5 = Conv1x1(channels[3], out_num_channels)
 
         fc_layers, classifier_layers = [], []
         for _ in range(self.num_parts + 1):  # main branch + part-based branches
@@ -530,31 +525,29 @@ class OSNet(nn.Module):
         if self.att4 is not None:
             y = self.att4(y)
 
+        y = self.conv5(y)
+
         return y
 
     @staticmethod
-    def _feature_vector(x, conv_block):
-        feature_maps = conv_block(x)
-        feature_vector = F.adaptive_avg_pool2d(feature_maps, 1).view(feature_maps.size(0), -1)
-        return feature_maps, feature_vector
+    def _feature_vector(x):
+        return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
 
     @staticmethod
-    def _part_feature_vector(x, conv_block, num_parts):
-        if num_parts == 0 or conv_block is None:
+    def _part_feature_vector(x, num_parts):
+        if num_parts == 0:
             return []
 
-        feature_maps = conv_block(x)
-        feature_vectors = F.adaptive_avg_pool2d(feature_maps, (num_parts, 1)).squeeze(dim=-1)
+        feature_vectors = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
         return [f.squeeze(dim=-1) for f in torch.split(feature_vectors, 1, dim=-1)]
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
-        backbone_out = self._backbone(x)
-
-        glob_feature_maps, glob_feature = self._feature_vector(backbone_out, self.conv5)
+        feature_maps = self._backbone(x)
         if return_featuremaps:
-            return glob_feature_maps
+            return feature_maps
 
-        part_features = self._part_feature_vector(backbone_out, self.parts_conv5, self.num_parts)
+        glob_feature = self._feature_vector(feature_maps)
+        part_features = self._part_feature_vector(feature_maps, self.num_parts)
         features = [glob_feature] + list(part_features)
 
         main_embeddings = [fc(f) for f, fc in zip(features, self.fc)]
