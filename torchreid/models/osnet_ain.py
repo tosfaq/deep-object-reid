@@ -545,7 +545,7 @@ class OSNet(nn.Module):
 
         feature_maps = conv_block(x)
         feature_vectors = F.adaptive_avg_pool2d(feature_maps, (num_parts, 1)).squeeze(dim=-1)
-        return torch.split(feature_vectors, num_parts, dim=-1)
+        return [f.squeeze(dim=-1) for f in torch.split(feature_vectors, 1, dim=-1)]
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
         backbone_out = self._backbone(x)
@@ -555,7 +555,7 @@ class OSNet(nn.Module):
             return glob_feature_maps
 
         part_features = self._part_feature_vector(backbone_out, self.parts_conv5, self.num_parts)
-        features = [glob_feature] + part_features
+        features = [glob_feature] + list(part_features)
 
         main_embeddings = [fc(f) for f, fc in zip(features, self.fc)]
         if not self.training and not return_logits:

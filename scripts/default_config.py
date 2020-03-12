@@ -11,6 +11,7 @@ def get_default_config():
     cfg.model.load_weights = ''  # path to model weights
     cfg.model.resume = ''  # path to checkpoint for resume training
     cfg.model.feature_dim = 512  # embedding size
+    cfg.model.pcb_num_parts = 0
 
     # data
     cfg.data = CN()
@@ -313,7 +314,8 @@ def model_kwargs(cfg, num_classes):
         'use_gpu': cfg.use_gpu,
         'feature_dim': cfg.model.feature_dim,
         'attr_tasks': cfg.attr_losses.tasks,
-        'enable_attr_tasks': cfg.attr_losses.enable
+        'enable_attr_tasks': cfg.attr_losses.enable,
+        'num_parts': cfg.model.pcb_num_parts,
     }
 
 
