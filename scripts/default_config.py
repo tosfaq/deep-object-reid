@@ -89,7 +89,7 @@ def get_default_config():
     cfg.loss = CN()
     cfg.loss.name = 'softmax'
     cfg.loss.softmax = CN()
-    cfg.loss.softmax.label_smooth = True  # use label smoothing regularizer
+    cfg.loss.softmax.label_smooth = False  # use label smoothing regularizer
     cfg.loss.softmax.conf_penalty = 0.0
     cfg.loss.softmax.m = 0.35
     cfg.loss.softmax.s = 30.0
@@ -111,6 +111,7 @@ def get_default_config():
     cfg.attr_losses.m = 0.35
     cfg.attr_losses.s = 10.0
     cfg.attr_losses.conf_penalty = 0.0
+    cfg.attr_losses.label_smooth = False
     cfg.attr_losses.tasks = CN()
     cfg.attr_losses.tasks.attr_color = 12
     cfg.attr_losses.tasks.attr_type = 11

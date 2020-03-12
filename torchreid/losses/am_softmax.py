@@ -51,10 +51,12 @@ def focal_loss(input_values, gamma):
 class AMSoftmaxLoss(nn.Module):
     margin_types = ['cos', 'arc']
 
-    def __init__(self, use_gpu=True, conf_penalty=0.0, margin_type='cos', gamma=0.0, m=0.5, s=30, t=1.0):
+    def __init__(self, use_gpu=True, conf_penalty=0.0, margin_type='cos',
+                 gamma=0.0, m=0.5, s=30, t=1.0, label_smooth=False, epsilon=0.1):
         super(AMSoftmaxLoss, self).__init__()
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
+        self.epsilon = epsilon if label_smooth else 0
 
         assert margin_type in AMSoftmaxLoss.margin_types
         self.margin_type = margin_type
@@ -96,20 +98,27 @@ class AMSoftmaxLoss(nn.Module):
 
         if self.gamma == 0 and self.t == 1.:
             output *= self.s
-            losses = F.cross_entropy(output, target, reduction='none')
+            log_probs = F.log_softmax(output, dim=1)
+
+            targets = torch.zeros(log_probs.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
+            if self.use_gpu:
+                targets = targets.cuda()
+
+            num_classes = output.size(1)
+            targets = (1.0 - self.epsilon) * targets + self.epsilon / float(num_classes)
+            losses = (- targets * log_probs).sum(dim=1)
+            # losses = F.cross_entropy(output, target, reduction='none')
 
             if self.conf_penalty > 0.:
                 probs = F.softmax(output, dim=1)
-                log_probs = F.log_softmax(output, dim=1)
                 entropy = torch.sum(-probs * log_probs, dim=1)
 
                 losses = F.relu(losses - self.conf_penalty * entropy)
 
             with torch.no_grad():
-                nonzero_count = losses.nonzero().size(0)
-                # nonzero_fraction = nonzero_count / target.size(0)
+                nonzero_count = max(losses.nonzero().size(0), 1)
 
-            return losses.sum() / nonzero_count if nonzero_count > 0 else losses.sum()
+            return losses.sum() / nonzero_count
 
         if self.t > 1:
             h_theta = self.t - 1 + self.t*cos_theta

@@ -26,7 +26,6 @@ import datetime
 import time
 
 import torch
-import torch.nn as nn
 import numpy as np
 
 from torchreid import metrics
@@ -56,6 +55,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         elif softmax_type == 'am':
             self.main_loss = AMSoftmaxLoss(
                 use_gpu=self.use_gpu,
+                label_smooth=label_smooth,
                 conf_penalty=conf_penalty,
                 m=m,
                 s=s
@@ -104,8 +104,9 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             self.attr_pos_loss = AMSoftmaxLoss(
                 use_gpu=self.use_gpu,
                 conf_penalty=attr_losses_cfg.conf_penalty,
+                label_smooth=attr_losses_cfg.label_smooth,
                 m=attr_losses_cfg.m,
-                s=attr_losses_cfg.s
+                s=attr_losses_cfg.s,
             )
             self.attr_neg_loss = MinEntropyLoss(scale=attr_losses_cfg.s)
             self.attr_neg_scale = 6.0

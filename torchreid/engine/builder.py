@@ -27,6 +27,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
                 scheduler,
                 cfg.use_gpu,
                 conf_penalty=cfg.loss.softmax.conf_penalty,
+                label_smooth=cfg.loss.softmax.label_smooth,
                 softmax_type='am',
                 m=cfg.loss.softmax.m,
                 s=cfg.loss.softmax.s,
