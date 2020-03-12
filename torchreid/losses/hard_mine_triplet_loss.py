@@ -1,4 +1,5 @@
 from __future__ import division, absolute_import
+
 import torch
 import torch.nn as nn
 
@@ -26,13 +27,14 @@ class TripletLoss(nn.Module):
             inputs (torch.Tensor): feature matrix with shape (batch_size, feat_dim).
             targets (torch.LongTensor): ground truth labels with shape (num_classes).
         """
+
         n = inputs.size(0)
 
         # Compute pairwise distance, replace by the official when merged
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
         dist = dist + dist.t()
         dist.addmm_(1, -2, inputs, inputs.t())
-        dist = dist.clamp(min=1e-12).sqrt() # for numerical stability
+        dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
 
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
@@ -45,4 +47,6 @@ class TripletLoss(nn.Module):
 
         # Compute ranking hinge loss
         y = torch.ones_like(dist_an)
-        return self.ranking_loss(dist_an, dist_ap, y)
+        out_loss = self.ranking_loss(dist_an, dist_ap, y)
+
+        return out_loss
