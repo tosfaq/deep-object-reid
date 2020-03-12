@@ -77,9 +77,10 @@ class MetricLosses:
 
     def __init__(self, classes_num, embed_size, writer, loss_balancing=False,
                  center_coeff=0.0, glob_push_plus_loss_coeff=0.0,
-                 centers_lr=0.5, balancing_lr=0.01):
+                 centers_lr=0.5, balancing_lr=0.01, name='ml'):
         self.writer = writer
         self.total_losses_num = 0
+        self.name = name
 
         self.center_loss = CenterLoss(classes_num, embed_size, cos_dist=True)
         self.optimizer_centloss = torch.optim.SGD(self.center_loss.parameters(), lr=centers_lr)
@@ -116,14 +117,14 @@ class MetricLosses:
             all_loss_values.append(center_loss_val)
             self.last_center_val = center_loss_val
             if self.writer is not None:
-                self.writer.add_scalar('Loss/center_loss', center_loss_val, iteration)
+                self.writer.add_scalar('Loss/{}/center'.format(self.name), center_loss_val, iteration)
 
         glob_push_plus_loss_val = 0
         if self.glob_push_plus_loss_coeff > 0.0 and self.center_coeff > 0.0:
             glob_push_plus_loss_val = self.glob_push_plus_loss(features, self.center_loss.get_centers(), labels)
             all_loss_values.append(glob_push_plus_loss_val)
             if self.writer is not None:
-                self.writer.add_scalar('Loss/global_push_plus_loss', glob_push_plus_loss_val, iteration)
+                self.writer.add_scalar('Loss/{}/global_push'.format(self.name), glob_push_plus_loss_val, iteration)
 
         if self.loss_balancing and self.total_losses_num > 1:
             loss_value = self.center_coeff * self._balance_losses(all_loss_values)
@@ -134,7 +135,7 @@ class MetricLosses:
 
         if self.total_losses_num > 0:
             if self.writer is not None:
-                self.writer.add_scalar('Loss/AUX_losses', loss_value, iteration)
+                self.writer.add_scalar('Loss/{}/AUX_losses'.format(self.name), loss_value, iteration)
 
         return loss_value
 

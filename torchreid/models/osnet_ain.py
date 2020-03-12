@@ -560,8 +560,8 @@ class OSNet(nn.Module):
             aux_embeddings = [fc(f) for f, fc in zip(features, self.aux_fc)]
             aux_logits = [classifier(embd) for embd, classifier in zip(aux_embeddings, self.aux_classifier)]
         else:
-            aux_embeddings = None
-            aux_logits = None
+            aux_embeddings = [None] * len(features)
+            aux_logits = [None] * len(features)
 
         all_embeddings = dict(real=main_embeddings, synthetic=aux_embeddings)
         all_logits = dict(real=main_logits, synthetic=aux_logits)

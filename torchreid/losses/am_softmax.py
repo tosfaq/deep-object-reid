@@ -55,7 +55,6 @@ class AMSoftmaxLoss(nn.Module):
         super(AMSoftmaxLoss, self).__init__()
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
-        self.softmax = nn.Softmax(dim=1)
 
         assert margin_type in AMSoftmaxLoss.margin_types
         self.margin_type = margin_type
@@ -71,7 +70,8 @@ class AMSoftmaxLoss(nn.Module):
         assert t >= 1
         self.t = t
 
-    def get_last_info(self):
+    @staticmethod
+    def get_last_info():
         return {}
 
     def forward(self, cos_theta, target):
@@ -95,16 +95,19 @@ class AMSoftmaxLoss(nn.Module):
         output = torch.where(index, phi_theta, cos_theta)
 
         if self.gamma == 0 and self.t == 1.:
+            output *= self.s
+            losses = F.cross_entropy(output, target, reduction='none')
+
             if self.conf_penalty > 0.:
-                output *= self.s
-                probs = self.softmax(output)
-                ent = (-probs * torch.log(probs.clamp(min=1e-12))).sum(1)
-                losses = F.relu(F.cross_entropy(output, target, reduction='none') - self.conf_penalty * ent)
-            else:
-                losses = F.cross_entropy(self.s * output, target, reduction='none')
+                probs = F.softmax(output, dim=1)
+                log_probs = F.log_softmax(output, dim=1)
+                entropy = torch.sum(-probs * log_probs, dim=1)
+
+                losses = F.relu(losses - self.conf_penalty * entropy)
 
             with torch.no_grad():
                 nonzero_count = losses.nonzero().size(0)
+                # nonzero_fraction = nonzero_count / target.size(0)
 
             return losses.sum() / nonzero_count if nonzero_count > 0 else losses.sum()
 

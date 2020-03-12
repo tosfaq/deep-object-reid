@@ -65,7 +65,7 @@ loss:
   name: 'am_softmax'
   softmax:
     label_smooth: True
-    conf_penalty: 0.0
+    conf_penalty: 0.085
     m: 0.35
     s: 15.0
 
