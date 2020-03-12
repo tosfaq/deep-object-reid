@@ -445,11 +445,11 @@ class OSNet(nn.Module):
             channels[3], self.use_attentions[2]
         )
 
-        out_channels = channels[3] // 2
-        self.conv5 = Conv1x1(channels[3], out_channels, use_in=False)
-        self.attr_conv5 = Conv1x1(channels[3], out_channels, use_in=False)
+        out_channels = channels[3]
+        self.conv5 = Conv1x1(channels[3], out_channels)
+        # self.attr_conv5 = Conv1x1(channels[3], out_channels)
 
-        self.fc = self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=True)
+        self.fc = self._construct_fc_layer(out_channels, self.feature_dim)
 
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
         self.classifier = classifier_block(self.feature_dim, real_data_num_classes)
@@ -457,9 +457,9 @@ class OSNet(nn.Module):
         self.num_parts = num_parts
         if self.num_parts is not None and self.num_parts > 1:
             self.parts_avgpool = nn.AdaptiveAvgPool2d((self.parts, 1))
-            self.parts_conv5 = Conv1x1(channels[3], out_channels, use_in=False)
+            self.parts_conv5 = Conv1x1(channels[3], out_channels)
             self.parts_fc = nn.ModuleList(
-                [self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=True) for _ in range(self.parts)]
+                [self._construct_fc_layer(out_channels, self.feature_dim) for _ in range(self.parts)]
             )
             self.parts_classifiers = nn.ModuleList(
                 [classifier_block(self.feature_dim, real_data_num_classes) for _ in range(self.parts)]
@@ -467,7 +467,7 @@ class OSNet(nn.Module):
 
         self.split_embeddings = synthetic_data_num_classes is not None
         if self.split_embeddings:
-            self.aux_fc = self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=True)
+            self.aux_fc = self._construct_fc_layer(out_channels, self.feature_dim)
             self.aux_classifier = classifier_block(self.feature_dim, synthetic_data_num_classes)
         else:
             self.aux_fc = None
@@ -477,8 +477,8 @@ class OSNet(nn.Module):
             attr_fc = dict()
             attr_classifier = dict()
             for attr_name, attr_num_classes in attr_tasks.items():
-                attr_fc[attr_name] = self._construct_fc_layer(out_channels, self.feature_dim, enable_bn=True)
-                attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim, attr_num_classes)
+                attr_fc[attr_name] = self._construct_fc_layer(out_channels, self.feature_dim // 2)
+                attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim // 2, attr_num_classes)
             self.attr_fc = nn.ModuleDict(attr_fc)
             self.attr_classifiers = nn.ModuleDict(attr_classifier)
         else:
@@ -505,13 +505,11 @@ class OSNet(nn.Module):
         return ResidualAttention(num_channels) if enable else None
 
     @staticmethod
-    def _construct_fc_layer(input_dim, out_dim, enable_bn=True):
+    def _construct_fc_layer(input_dim, out_dim):
         layers = [
-            nn.Linear(input_dim, out_dim)
+            nn.Linear(input_dim, out_dim),
+            nn.BatchNorm1d(out_dim)
         ]
-
-        if enable_bn:
-            layers.append(nn.BatchNorm1d(out_dim))
 
         return nn.Sequential(*layers)
 
@@ -567,16 +565,15 @@ class OSNet(nn.Module):
 
         main_embeddings = self.fc(main_feature_vector)
 
-        _, attr_feature_vector = self._feature_vector(backbone_out, self.attr_conv5)
+        # _, attr_feature_vector = self._feature_vector(backbone_out, self.attr_conv5)
         attr_embeddings = dict()
         if self.attr_fc is not None:
             for attr_name, attr_fc in self.attr_fc.items():
-                attr_embeddings[attr_name] = attr_fc(attr_feature_vector)
+                attr_embeddings[attr_name] = attr_fc(main_feature_vector)
 
         if not self.training and not return_logits:
             # all_embeddings = [e for e in attr_embeddings.values()] + [main_embeddings]
             all_embeddings = [main_embeddings]
-            # return torch.cat([F.normalize(e, p=2, dim=-1) for e in all_embeddings], dim=-1)
             return torch.cat(all_embeddings, dim=-1)
 
         main_logits = [self.classifier(main_embeddings)]

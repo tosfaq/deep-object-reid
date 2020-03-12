@@ -113,7 +113,6 @@ def get_default_config():
     cfg.attr_losses.tasks = CN()
     cfg.attr_losses.tasks.attr_color = 12
     cfg.attr_losses.tasks.attr_type = 11
-    cfg.attr_losses.tasks.attr_orientation = 10
 
     # regularizers
     cfg.reg = CN()
