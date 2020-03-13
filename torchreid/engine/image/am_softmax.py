@@ -86,16 +86,16 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     name='real_{}'.format(i)
                 ))
 
-                if self.model.module.split_embeddings:
-                    self.synthetic_metric_losses.append(MetricLosses(
-                        self.datamanager.num_train_pids[1],
-                        self.model.module.feature_dim,
-                        self.writer,
-                        metric_cfg.balance_losses,
-                        metric_cfg.center_coeff,
-                        metric_cfg.glob_push_plus_loss_coeff,
-                        name='synthetic_{}'.format(i)
-                    ))
+                # if self.model.module.split_embeddings:
+                #     self.synthetic_metric_losses.append(MetricLosses(
+                #         self.datamanager.num_train_pids[1],
+                #         self.model.module.feature_dim,
+                #         self.writer,
+                #         metric_cfg.balance_losses,
+                #         metric_cfg.center_coeff,
+                #         metric_cfg.glob_push_plus_loss_coeff,
+                #         name='synthetic_{}'.format(i)
+                #     ))
 
         if attr_losses_cfg.enable:
             self.attr_tasks = attr_losses_cfg.tasks
@@ -273,20 +273,21 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                         ml_module.end_iteration()
                     real_metric_loss /= float(num_real_embeddings)
 
-                num_synthetic_embeddings = sum([True for e in synthetic_embeddings if e is not None])
-                synthetic_metric_loss = torch.zeros([], dtype=total_loss.dtype, device=total_loss.device)
-                if self.model.module.split_embeddings and num_synthetic_embeddings > 0 and synthetic_pids.numel() > 0:
-                    for embd, ml_module in zip(synthetic_embeddings, self.synthetic_metric_losses):
-                        if embd is None:
-                            continue
+                # num_synthetic_embeddings = sum([True for e in synthetic_embeddings if e is not None])
+                # synthetic_metric_loss = torch.zeros([], dtype=total_loss.dtype, device=total_loss.device)
+                # if self.model.module.split_embeddings and num_synthetic_embeddings > 0 and synthetic_pids.numel() > 0:
+                #     for embd, ml_module in zip(synthetic_embeddings, self.synthetic_metric_losses):
+                #         if embd is None:
+                #             continue
+                #
+                #         ml_module.writer = writer
+                #         ml_module.init_iteration()
+                #         synthetic_metric_loss += ml_module(embd, synthetic_pids, epoch, epoch * num_batches + batch_idx)
+                #         ml_module.end_iteration()
+                #     synthetic_metric_loss /= float(num_synthetic_embeddings)
 
-                        ml_module.writer = writer
-                        ml_module.init_iteration()
-                        synthetic_metric_loss += ml_module(embd, synthetic_pids, epoch, epoch * num_batches + batch_idx)
-                        ml_module.end_iteration()
-                    synthetic_metric_loss /= float(num_synthetic_embeddings)
-
-                metric_loss = 0.5 * (real_metric_loss + synthetic_metric_loss)
+                # metric_loss = 0.5 * (real_metric_loss + synthetic_metric_loss)
+                metric_loss = real_metric_loss
                 metric_losses.update(metric_loss.item(), batch_size)
 
                 total_loss += metric_loss

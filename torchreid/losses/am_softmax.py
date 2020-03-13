@@ -56,7 +56,8 @@ class AMSoftmaxLoss(nn.Module):
         super(AMSoftmaxLoss, self).__init__()
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
-        self.epsilon = epsilon if label_smooth else 0
+        self.label_smooth = label_smooth
+        self.epsilon = epsilon
 
         assert margin_type in AMSoftmaxLoss.margin_types
         self.margin_type = margin_type
@@ -98,19 +99,21 @@ class AMSoftmaxLoss(nn.Module):
 
         if self.gamma == 0 and self.t == 1.:
             output *= self.s
-            log_probs = F.log_softmax(output, dim=1)
 
-            targets = torch.zeros(log_probs.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
-            if self.use_gpu:
-                targets = targets.cuda()
+            if self.label_smooth:
+                targets = torch.zeros(output.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
+                if self.use_gpu:
+                    targets = targets.cuda()
 
-            num_classes = output.size(1)
-            targets = (1.0 - self.epsilon) * targets + self.epsilon / float(num_classes)
-            losses = (- targets * log_probs).sum(dim=1)
-            # losses = F.cross_entropy(output, target, reduction='none')
+                num_classes = output.size(1)
+                targets = (1.0 - self.epsilon) * targets + self.epsilon / float(num_classes)
+                losses = (- targets * F.log_softmax(output, dim=1)).sum(dim=1)
+            else:
+                losses = F.cross_entropy(output, target, reduction='none')
 
             if self.conf_penalty > 0.:
                 probs = F.softmax(output, dim=1)
+                log_probs = F.log_softmax(output, dim=1)
                 entropy = torch.sum(-probs * log_probs, dim=1)
 
                 losses = F.relu(losses - self.conf_penalty * entropy)

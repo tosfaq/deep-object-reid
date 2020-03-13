@@ -413,7 +413,7 @@ class OSNet(nn.Module):
 
         self.use_nonlocal_blocks = nonlocal_blocks
         if self.use_nonlocal_blocks is None:
-            self.use_nonlocal_blocks = [False] * num_blocks
+            self.use_nonlocal_blocks = [False] * (num_blocks + 1)
         assert len(self.use_nonlocal_blocks) == num_blocks + 1
 
         if isinstance(num_classes, (list, tuple)):
