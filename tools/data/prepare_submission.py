@@ -1,4 +1,5 @@
-import argparse
+from os.path import exists
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, REMAINDER
 
 import torch
 import torch.nn as nn
@@ -66,10 +67,10 @@ def build_gallery(cfg):
     dataset = build_dataset(mode='gallery', **data_config)
     data_loader = build_data_loader(dataset, use_gpu=cfg.use_gpu)
 
-    return data_loader
+    return data_loader, len(dataset)
 
 
-def extract_features(model, data_loader, use_gpu):
+def extract_features(model, data_loader, use_gpu, enable_flipping=True):
     model.eval()
 
     out_embeddings = []
@@ -80,6 +81,12 @@ def extract_features(model, data_loader, use_gpu):
                 images = images.cuda()
 
             embeddings = model(images)
+
+            if enable_flipping:
+                flipped_images = torch.flip(images, dims=[3])
+                flipped_embeddings = model(flipped_images)
+                embeddings = 0.5 * (embeddings + flipped_embeddings)
+
             norm_embeddings = F.normalize(embeddings, dim=-1)
 
             out_embeddings.append(norm_embeddings.data.cpu())
@@ -93,8 +100,53 @@ def calculate_distances(a, b):
     return 1.0 - np.matmul(a, np.transpose(b))
 
 
-def find_matches(distance_matrix, top_k):
-    return np.argsort(distance_matrix, axis=-1)[:, :top_k]
+def load_tracks(file_path, gallery_size):
+    tracks = []
+    for line in open(file_path):
+        str_values = [s for s in line.replace('\n', '').split(' ') if len(s) > 0]
+        ids = [int(s) - 1 for s in str_values]
+        assert len(ids) > 0
+
+        for sample_id in ids:
+            assert 0 <= sample_id < gallery_size
+
+        tracks.append(ids)
+
+    track_ids = [sample_id for track in tracks for sample_id in track]
+    assert len(track_ids) == len(set(track_ids))
+
+    rest_ids = set(range(gallery_size)) - set(track_ids)
+    print('Num gallery images without track info: {} / {}'.format(len(rest_ids), gallery_size))
+    for rest_id in rest_ids:
+        tracks.append([rest_id])
+
+    assert sum([len(track) for track in tracks]) == gallery_size
+
+    return tracks
+
+
+def find_matches(distance_matrix, tracks, top_k=100, enable_track_info=True):
+    if not enable_track_info:
+        return np.argsort(distance_matrix, axis=-1)[:, :top_k]
+
+    track_distances = []
+    for track_ids in tracks:
+        distances = distance_matrix[:, track_ids]
+        group_distance = np.percentile(distances, 10, axis=1)
+        track_distances.append(group_distance.reshape([-1, 1]))
+    track_distances = np.concatenate(tuple(track_distances), axis=1)
+
+    track_indices = np.argsort(track_distances, axis=1)
+
+    out_matches = []
+    for q_id in range(distance_matrix.shape[0]):
+        ids = []
+        for track_id in track_indices[q_id]:
+            ids.extend(tracks[int(track_id)])
+
+        out_matches.append(ids)
+
+    return np.array(out_matches)[:, :top_k]
 
 
 def dump_matches(matches, out_file):
@@ -107,12 +159,17 @@ def dump_matches(matches, out_file):
 
 
 def main():
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config-file', '-c', type=str, required=True)
     parser.add_argument('--root', '-r', type=str, required=True)
+    parser.add_argument('--tracks-file', '-t', type=str, required=True)
     parser.add_argument('--out-file', '-o', type=str, required=True)
-    parser.add_argument('opts', default=None, nargs=argparse.REMAINDER)
+    parser.add_argument('opts', default=None, nargs=REMAINDER)
     args = parser.parse_args()
+
+    assert exists(args.config_file)
+    assert exists(args.root)
+    assert exists(args.tracks_file)
 
     cfg = get_default_config()
     cfg.use_gpu = torch.cuda.is_available()
@@ -125,7 +182,10 @@ def main():
         torch.backends.cudnn.benchmark = True
 
     data_query, num_pids = build_query(cfg)
-    data_gallery = build_gallery(cfg)
+    data_gallery, gallery_size = build_gallery(cfg)
+
+    gallery_tracks = load_tracks(args.tracks_file, gallery_size)
+    print('Loaded tracks: {}'.format(len(gallery_tracks)))
 
     print('Building model: {}'.format(cfg.model.name))
     model = torchreid.models.build_model(**model_kwargs(cfg, num_pids))
@@ -136,22 +196,23 @@ def main():
     if cfg.use_gpu:
         model = nn.DataParallel(model).cuda()
 
-    embeddings_query = extract_features(model, data_query, cfg.use_gpu)
+    embeddings_query = extract_features(model, data_query, cfg.use_gpu, enable_flipping=True)
     print('Extracted query: {}'.format(embeddings_query.shape))
 
-    embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu)
+    embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu, enable_flipping=True)
     print('Extracted gallery: {}'.format(embeddings_gallery.shape))
 
     distance_matrix_qg = calculate_distances(embeddings_query, embeddings_gallery)
     print('Distance matrix: {}'.format(distance_matrix_qg.shape))
 
-    # print('Applying re-ranking ...')
-    # distance_matrix_qq = calculate_distances(embeddings_query, embeddings_query)
-    # distance_matrix_gg = calculate_distances(embeddings_gallery, embeddings_gallery)
-    # distance_matrix_qg = re_ranking(distance_matrix_qg, distance_matrix_qq, distance_matrix_gg)
-    # print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
+    print('Applying re-ranking ...')
+    distance_matrix_qq = calculate_distances(embeddings_query, embeddings_query)
+    distance_matrix_gg = calculate_distances(embeddings_gallery, embeddings_gallery)
+    distance_matrix_qg = re_ranking(distance_matrix_qg, distance_matrix_qq, distance_matrix_gg,
+                                    k1=50, k2=15, lambda_value=0.1)
+    print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
 
-    matches = find_matches(distance_matrix_qg, top_k=100)
+    matches = find_matches(distance_matrix_qg, gallery_tracks, top_k=100, enable_track_info=True)
     print('Matches: {}'.format(matches.shape))
 
     dump_matches(matches, args.out_file)
