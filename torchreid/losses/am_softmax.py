@@ -41,6 +41,9 @@ class AngleSimpleLinear(nn.Module):
         cos_theta = F.normalize(x, dim=1).mm(F.normalize(self.weight, dim=0))
         return cos_theta.clamp(-1, 1)
 
+    def get_centers(self):
+        return torch.t(self.weight)
+
 
 def focal_loss(input_values, gamma):
     """Computes the focal loss"""

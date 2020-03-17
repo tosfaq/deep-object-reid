@@ -75,8 +75,7 @@ loss:
 metric_losses:
   enable: True
   center_coeff: 1.0
-  glob_push_plus_loss_coeff: 1.2
-  balance_losses: True
+  glob_push_coeff: 12.0
 
 attr_losses:
   enable: True

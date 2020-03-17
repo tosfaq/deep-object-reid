@@ -577,16 +577,20 @@ class OSNet(nn.Module):
             return torch.cat(main_embeddings, dim=-1)
 
         main_logits = [classifier(embd) for embd, classifier in zip(main_embeddings, self.classifier)]
+        main_centers = [classifier.get_centers() for classifier in self.classifier]
 
         if self.split_embeddings:
             aux_embeddings = [fc(f) for f, fc in zip(features, self.aux_fc)]
             aux_logits = [classifier(embd) for embd, classifier in zip(aux_embeddings, self.aux_classifier)]
+            aux_centers = [classifier.get_centers() for classifier in self.aux_classifier]
         else:
             aux_embeddings = [None] * len(features)
             aux_logits = [None] * len(features)
+            aux_centers = [None] * len(features)
 
         all_embeddings = dict(real=main_embeddings, synthetic=aux_embeddings)
-        all_logits = dict(real=main_logits, synthetic=aux_logits)
+        all_outputs = dict(real=main_logits, synthetic=aux_logits,
+                           real_centers=main_centers, synthetic_centers=aux_centers)
 
         attr_embeddings = dict()
         if self.attr_fc is not None:
@@ -599,12 +603,12 @@ class OSNet(nn.Module):
                 attr_logits[att_name] = attr_classifier(attr_embeddings[att_name])
 
         if get_embeddings:
-            return all_embeddings, all_logits, attr_logits
+            return all_embeddings, all_outputs, attr_logits
 
         if self.loss in ['softmax', 'am_softmax']:
-            return all_logits, attr_logits
+            return all_outputs, attr_logits
         elif self.loss in ['triplet']:
-            return all_logits, attr_logits, all_embeddings
+            return all_outputs, attr_logits, all_embeddings
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
