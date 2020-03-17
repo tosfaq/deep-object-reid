@@ -64,7 +64,7 @@ sampler:
 loss:
   name: 'am_softmax'
   softmax:
-    conf_penalty: 0.0
+    conf_penalty: 0.02
     label_smooth: False
     m: 0.35
     s: 15.0
@@ -77,7 +77,7 @@ metric_losses:
 
 attr_losses:
   enable: True
-  conf_penalty: 0.0
+  conf_penalty: 0.02
   label_smooth: False
   m: 0.35
   s: 2.5
