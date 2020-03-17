@@ -21,6 +21,7 @@ import math
 
 import torch
 import torch.nn as nn
+import numpy as np
 
 import torch.nn.functional as F
 from torch.nn import Parameter
@@ -52,7 +53,8 @@ class AMSoftmaxLoss(nn.Module):
     margin_types = ['cos', 'arc']
 
     def __init__(self, use_gpu=True, conf_penalty=0.0, margin_type='cos',
-                 gamma=0.0, m=0.5, s=30, t=1.0, label_smooth=False, epsilon=0.1):
+                 gamma=0.0, m=0.5, s=30, t=1.0, label_smooth=False, epsilon=0.1,
+                 end_s=None, duration_s=None, skip_steps_s=None):
         super(AMSoftmaxLoss, self).__init__()
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
@@ -66,7 +68,12 @@ class AMSoftmaxLoss(nn.Module):
         assert m >= 0
         self.m = m
         assert s > 0
-        self.s = s
+        self.start_s = s
+        assert self.start_s > 0.0
+        self.end_s = end_s
+        self.duration_s = duration_s
+        self.skip_steps_s = skip_steps_s
+        self.last_scale = self.start_s
         self.cos_m = math.cos(m)
         self.sin_m = math.sin(m)
         self.th = math.cos(math.pi - m)
@@ -77,13 +84,40 @@ class AMSoftmaxLoss(nn.Module):
     def get_last_info():
         return {}
 
-    def forward(self, cos_theta, target):
+    def get_last_scale(self):
+        return self.last_scale
+
+    @staticmethod
+    def get_scale(start_scale, end_scale, duration, skip_steps, iteration, power=1.2):
+        def _invalid(_v):
+            return _v is None or _v <= 0
+
+        if not _invalid(skip_steps) and iteration < skip_steps:
+            return start_scale
+
+        if _invalid(iteration) or _invalid(end_scale) or _invalid(duration):
+            return start_scale
+
+        steps_to_end = duration - (skip_steps if not _invalid(skip_steps) else 0)
+        if iteration < duration:
+            factor = (end_scale - start_scale) / (1.0 - power)
+            var_a = factor / (steps_to_end ** power)
+            var_b = -factor * power / float(steps_to_end)
+
+            out_value = var_a * np.power(iteration, power) + var_b * iteration + start_scale
+        else:
+            out_value = end_scale
+
+        return out_value
+
+    def forward(self, cos_theta, target, iteration=None):
         """
         Args:
             cos_theta (torch.Tensor): prediction matrix (before softmax) with
                 shape (batch_size, num_classes).
             target (torch.LongTensor): ground truth labels with shape (batch_size).
                 Each position contains the label index.
+            iteration (int): current iteration
         """
 
         if self.margin_type == 'cos':
@@ -97,8 +131,10 @@ class AMSoftmaxLoss(nn.Module):
         index.scatter_(1, target.data.view(-1, 1), 1)
         output = torch.where(index, phi_theta, cos_theta)
 
-        if self.gamma == 0 and self.t == 1.:
-            output *= self.s
+        self.last_scale = self.get_scale(self.start_s, self.end_s, self.duration_s, self.skip_steps_s, iteration)
+
+        if self.gamma == 0.0 and self.t == 1.0:
+            output *= self.last_scale
 
             if self.label_smooth:
                 targets = torch.zeros(output.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
@@ -111,7 +147,7 @@ class AMSoftmaxLoss(nn.Module):
             else:
                 losses = F.cross_entropy(output, target, reduction='none')
 
-            if self.conf_penalty > 0.:
+            if self.conf_penalty > 0.0:
                 probs = F.softmax(output, dim=1)
                 log_probs = F.log_softmax(output, dim=1)
                 entropy = torch.sum(-probs * log_probs, dim=1)
@@ -129,6 +165,6 @@ class AMSoftmaxLoss(nn.Module):
                 torch.lt(torch.masked_select(phi_theta, index).view(-1, 1).repeat(1, h_theta.shape[1]) - cos_theta, 0)
             output = torch.where(support_vecs_mask, h_theta, output)
 
-            return F.cross_entropy(self.s * output, target)
+            return F.cross_entropy(self.last_scale * output, target)
 
-        return focal_loss(F.cross_entropy(self.s * output, target, reduction='none'), self.gamma)
+        return focal_loss(F.cross_entropy(self.last_scale * output, target, reduction='none'), self.gamma)

@@ -9,7 +9,7 @@ from .entropy import entropy, MaxEntropyLoss, MinEntropyLoss
 from .kullback_leibler_div import kl_div, symmetric_kl_div, set_kl_div
 
 
-def DeepSupervision(criterion, xs, y):
+def DeepSupervision(criterion, xs, y, **kwargs):
     """DeepSupervision
 
     Applies criterion to each element in a list.
@@ -21,6 +21,7 @@ def DeepSupervision(criterion, xs, y):
     """
     loss = 0.
     for x in xs:
-        loss += criterion(x, y)
+        loss += criterion(x, y, **kwargs)
     loss /= len(xs)
+
     return loss

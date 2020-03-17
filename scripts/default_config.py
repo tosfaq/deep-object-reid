@@ -93,6 +93,9 @@ def get_default_config():
     cfg.loss.softmax.conf_penalty = 0.0
     cfg.loss.softmax.m = 0.35
     cfg.loss.softmax.s = 30.0
+    cfg.loss.softmax.end_s = -1.0
+    cfg.loss.softmax.duration_s = -1
+    cfg.loss.softmax.skip_steps_s = -1
     cfg.loss.triplet = CN()
     cfg.loss.triplet.margin = 0.3  # distance margin
     cfg.loss.triplet.weight_t = 1.  # weight to balance hard triplet loss
@@ -110,6 +113,9 @@ def get_default_config():
     cfg.attr_losses.enable = False
     cfg.attr_losses.m = 0.35
     cfg.attr_losses.s = 10.0
+    cfg.attr_losses.end_s = -1.0
+    cfg.attr_losses.duration_s = -1
+    cfg.attr_losses.skip_steps_s = -1
     cfg.attr_losses.conf_penalty = 0.0
     cfg.attr_losses.label_smooth = False
     cfg.attr_losses.tasks = CN()

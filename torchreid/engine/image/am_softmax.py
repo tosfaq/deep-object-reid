@@ -39,8 +39,8 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
     """
 
     def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, attr_losses_cfg, batch_transform_cfg,
-                 scheduler=None, use_gpu=False, softmax_type='stock', label_smooth=True, conf_penalty=False,
-                 m=0.35, s=10, writer=None):
+                 scheduler=None, use_gpu=False, softmax_type='stock', label_smooth=False, conf_penalty=False,
+                 m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None, writer=None):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
 
         self.regularizer = get_regularizer(reg_cfg)
@@ -53,12 +53,16 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 conf_penalty=conf_penalty
             )
         elif softmax_type == 'am':
+            num_batches = len(self.train_loader)
             self.main_loss = AMSoftmaxLoss(
                 use_gpu=self.use_gpu,
                 label_smooth=label_smooth,
                 conf_penalty=conf_penalty,
                 m=m,
-                s=s
+                s=s,
+                end_s=end_s,
+                duration_s=duration_s * num_batches if self._valid(duration_s) else None,
+                skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None
             )
         else:
             raise ValueError('Unknown softmax type: {}'.format(softmax_type))
@@ -101,12 +105,16 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             self.attr_tasks = attr_losses_cfg.tasks
             assert len(self.attr_tasks) > 0
 
+            num_batches = len(self.train_loader)
             self.attr_pos_loss = AMSoftmaxLoss(
                 use_gpu=self.use_gpu,
                 conf_penalty=attr_losses_cfg.conf_penalty,
                 label_smooth=attr_losses_cfg.label_smooth,
                 m=attr_losses_cfg.m,
                 s=attr_losses_cfg.s,
+                end_s=attr_losses_cfg.end_s,
+                duration_s=attr_losses_cfg.duration_s * num_batches if self._valid(attr_losses_cfg.duration_s) else None,
+                skip_steps_s=attr_losses_cfg.skip_steps_s * num_batches if self._valid(attr_losses_cfg.skip_steps_s) else None
             )
             self.attr_neg_loss = MinEntropyLoss(scale=attr_losses_cfg.s)
             self.attr_neg_scale = 6.0
@@ -117,6 +125,10 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         else:
             self.attr_pos_loss = None
             self.attr_tasks = None
+
+    @staticmethod
+    def _valid(value):
+        return value is not None and value > 0
 
     def train(self, epoch, max_epoch, writer, print_freq=10, fixbase_epoch=0, open_layers=None):
         batch_time = AverageMeter()
@@ -148,6 +160,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         num_batches = len(self.train_loader)
         start_time = time.time()
         for batch_idx, data in enumerate(self.train_loader):
+            n_iter = epoch * num_batches + batch_idx
             data_time.update(time.time() - start_time)
 
             imgs, pids = self._parse_data_for_train(data)
@@ -182,12 +195,13 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 trg_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
                 num_losses = 0
                 if real_pids.numel() > 0:
-                    real_data_loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
+                    real_data_loss = self._compute_loss(self.main_loss, real_outputs, real_pids, iteration=n_iter)
                     real_loss.update(real_data_loss.item(), real_pids.numel())
                     trg_loss += real_data_loss
                     num_losses += 1
                 if synthetic_pids.numel() > 0:
-                    synthetic_data_loss = self._compute_loss(self.main_loss, synthetic_outputs, synthetic_pids)
+                    synthetic_data_loss =\
+                        self._compute_loss(self.main_loss, synthetic_outputs, synthetic_pids, iteration=n_iter)
                     synthetic_loss.update(synthetic_data_loss.item(), synthetic_pids.numel())
 
                     synthetic_loss_weight = (real_loss.avg if real_loss.avg > 0.0 else 1.0) / \
@@ -199,9 +213,9 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 real_outputs = outputs
                 real_pids = pids
                 real_embeddings = embeddings['real']
-                synthetic_embeddings = embeddings['synthetic']
+                # synthetic_embeddings = embeddings['synthetic']
 
-                trg_loss = self._compute_loss(self.main_loss, real_outputs, real_pids)
+                trg_loss = self._compute_loss(self.main_loss, real_outputs, real_pids, iteration=n_iter)
                 real_loss.update(trg_loss.item(), batch_size)
             trg_losses.update(trg_loss.item(), batch_size)
 
@@ -216,7 +230,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     pos_labels = attr_labels[pos_mask]
                     if pos_mask.numel() > 0:
                         pos_outputs = attr_outputs[pos_mask]
-                        attr_pos_loss = self.attr_pos_loss(pos_outputs, pos_labels)
+                        attr_pos_loss = self.attr_pos_loss(pos_outputs, pos_labels, iteration=n_iter)
                     else:
                         attr_pos_loss = torch.zeros([], dtype=trg_loss.dtype, device=trg_loss.device)
                     attr_pos_losses[attr_name].update(attr_pos_loss.item(), pos_mask.numel())
@@ -269,7 +283,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
                         ml_module.writer = writer
                         ml_module.init_iteration()
-                        real_metric_loss += ml_module(embd, real_pids, epoch, epoch * num_batches + batch_idx)
+                        real_metric_loss += ml_module(embd, real_pids, epoch, n_iter)
                         ml_module.end_iteration()
                     real_metric_loss /= float(num_real_embeddings)
 
@@ -282,7 +296,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 #
                 #         ml_module.writer = writer
                 #         ml_module.init_iteration()
-                #         synthetic_metric_loss += ml_module(embd, synthetic_pids, epoch, epoch * num_batches + batch_idx)
+                #         synthetic_metric_loss += ml_module(embd, synthetic_pids, epoch, n_iter)
                 #         ml_module.end_iteration()
                 #     synthetic_metric_loss /= float(num_synthetic_embeddings)
 
@@ -300,7 +314,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             batch_time.update(time.time() - start_time)
 
             if print_freq > 0 and (batch_idx + 1) % print_freq == 0:
-                eta_seconds = batch_time.avg * (num_batches-(batch_idx + 1) + (max_epoch - (epoch + 1)) * num_batches)
+                eta_seconds = batch_time.avg * (num_batches - (batch_idx + 1) + (max_epoch - (epoch + 1)) * num_batches)
                 eta_str = str(datetime.timedelta(seconds=int(eta_seconds)))
                 print('Epoch: [{0}/{1}][{2}/{3}] '
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f}) '
@@ -310,7 +324,8 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                       'Attr Loss {attr_loss.val:.4f} ({attr_loss.avg:.4f}) '
                       'Acc {acc.val:.2f} ({acc.avg:.2f}) '
                       'Lr {lr:.6f} '
-                      'eta {eta}'.
+                      'Scale {scale:.2f} '
+                      'ETA {eta}'.
                       format(
                           epoch + 1, max_epoch, batch_idx + 1, num_batches,
                           batch_time=batch_time,
@@ -320,12 +335,12 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                           loss=losses,
                           acc=accs,
                           lr=self.optimizer.param_groups[0]['lr'],
+                          scale=self.main_loss.get_last_scale(),
                           eta=eta_str,
                       )
                 )
 
                 if writer is not None:
-                    n_iter = epoch * num_batches + batch_idx
                     writer.add_scalar('Train/Time', batch_time.avg, n_iter)
                     writer.add_scalar('Train/Data', data_time.avg, n_iter)
                     info = self.main_loss.get_last_info()
@@ -337,7 +352,10 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     if (epoch + 1) > fixbase_epoch:
                         writer.add_scalar('Loss/reg_ow', reg_ow_loss.avg, n_iter)
                     writer.add_scalar('Accuracy/train', accs.avg, n_iter)
-                    writer.add_scalar('Learning rate', self.optimizer.param_groups[0]['lr'], n_iter)
+                    writer.add_scalar('Aux/Learning_rate', self.optimizer.param_groups[0]['lr'], n_iter)
+                    writer.add_scalar('Aux/Scale_main', self.main_loss.get_last_scale(), n_iter)
+                    if self.attr_pos_loss is not None:
+                        writer.add_scalar('Aux/Scale_attr', self.attr_pos_loss.get_last_scale(), n_iter)
                     if self.attr_tasks is not None:
                         for attr_name in self.attr_tasks.keys():
                             writer.add_scalar('Loss/pos_{}'.format(attr_name),

@@ -326,11 +326,11 @@ class Engine(object):
         return cmc[0]
 
     @staticmethod
-    def _compute_loss(criterion, outputs, targets):
+    def _compute_loss(criterion, outputs, targets, **kwargs):
         if isinstance(outputs, (tuple, list)):
-            loss = DeepSupervision(criterion, outputs, targets)
+            loss = DeepSupervision(criterion, outputs, targets, **kwargs)
         else:
-            loss = criterion(outputs, targets)
+            loss = criterion(outputs, targets, **kwargs)
         return loss
 
     def _extract_features(self, input):
