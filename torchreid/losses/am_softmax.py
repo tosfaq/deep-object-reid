@@ -98,12 +98,14 @@ class AMSoftmaxLoss(nn.Module):
         if _invalid(iteration) or _invalid(end_scale) or _invalid(duration):
             return start_scale
 
-        steps_to_end = duration - (skip_steps if not _invalid(skip_steps) else 0)
+        skip_steps = skip_steps if not _invalid(skip_steps) else 0
+        steps_to_end = duration - skip_steps
         if iteration < duration:
             factor = (end_scale - start_scale) / (1.0 - power)
             var_a = factor / (steps_to_end ** power)
             var_b = -factor * power / float(steps_to_end)
 
+            iteration -= skip_steps
             out_value = var_a * np.power(iteration, power) + var_b * iteration + start_scale
         else:
             out_value = end_scale
