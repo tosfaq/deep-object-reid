@@ -15,8 +15,10 @@ class EntropyLoss(nn.Module):
         self.scale = scale
         assert self.scale > 0.0
 
-    def forward(self, cos_theta):
-        probs = F.softmax(self.scale * cos_theta, dim=-1)
+    def forward(self, cos_theta, scale=None):
+        scale = scale if scale is not None and scale > 0.0 else self.scale
+
+        probs = F.softmax(scale * cos_theta, dim=-1)
         entropy_values = entropy(probs, dim=-1)
 
         losses = self._calc_losses(cos_theta, entropy_values)
