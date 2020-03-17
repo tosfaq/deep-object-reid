@@ -347,8 +347,8 @@ class Engine(object):
     def _parse_data_for_eval(data):
         imgs = data[0]
         pids = data[1]
-        camids = data[2]
-        return imgs, pids, camids
+        cam_ids = data[2]
+        return imgs, pids, cam_ids
 
     def _save_checkpoint(self, epoch, rank1, save_dir, is_best=False):
         save_checkpoint(

@@ -106,6 +106,8 @@ def get_default_config():
     cfg.metric_losses.enable = False
     cfg.metric_losses.center_coeff = 1.0
     cfg.metric_losses.glob_push_coeff = 1.0
+    cfg.metric_losses.local_push_coeff = 1.0
+    cfg.metric_losses.pull_coeff = 1.0
 
     # attr_losses
     cfg.attr_losses = CN()

@@ -74,11 +74,13 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         self.enable_metric_losses = metric_cfg.enable
         if self.enable_metric_losses:
             self.real_metric_loss = MetricLosses(
-                self.writer, metric_cfg.center_coeff, metric_cfg.glob_push_coeff)
+                self.writer, metric_cfg.center_coeff, metric_cfg.glob_push_coeff,
+                metric_cfg.local_push_coeff, metric_cfg.pull_coeff)
             self.synthetic_metric_loss = None
             if self.model.module.split_embeddings:
                 self.synthetic_metric_loss = MetricLosses(
-                    self.writer, metric_cfg.center_coeff, metric_cfg.glob_push_coeff)
+                    self.writer, metric_cfg.center_coeff, metric_cfg.glob_push_coeff,
+                    metric_cfg.local_push_coeff, metric_cfg.pull_coeff)
 
         if attr_losses_cfg.enable:
             self.attr_tasks = attr_losses_cfg.tasks
@@ -142,11 +144,12 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             n_iter = epoch * num_batches + batch_idx
             data_time.update(time.time() - start_time)
 
-            imgs, pids = self._parse_data_for_train(data)
+            imgs, pids, cam_ids = self._parse_data_for_train(data)
             imgs = self._apply_batch_transform(imgs)
             if self.use_gpu:
                 imgs = imgs.cuda()
                 pids = pids.cuda()
+                cam_ids = cam_ids.cuda()
 
             batch_size = pids.size(0)
 
@@ -159,7 +162,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 embeddings = dict(real=[None] * num_parts, synthetic=[None] * num_parts)
 
             real_centers = outputs['real_centers']
-            synthetic_centers = outputs['real_centers']
+            # synthetic_centers = outputs['real_centers']
 
             if self.model.module.split_embeddings:
                 real_mask = self._get_real_mask(data, self.use_gpu)
@@ -171,8 +174,11 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 real_pids = pids[real_mask]
                 synthetic_pids = pids[synthetic_mask]
 
+                real_cam_ids = cam_ids[real_mask]
+                synthetic_cam_ids = cam_ids[synthetic_mask]
+
                 real_embeddings = [e[real_mask] if e is not None else None for e in embeddings['real']]
-                synthetic_embeddings = [e[synthetic_mask] if e is not None else None for e in embeddings['synthetic']]
+                # synthetic_embeddings = [e[synthetic_mask] if e is not None else None for e in embeddings['synthetic']]
 
                 trg_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
                 num_losses = 0
@@ -194,6 +200,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             else:
                 real_outputs = outputs['real']
                 real_pids = pids
+                real_cam_ids = cam_ids
                 real_embeddings = embeddings['real']
                 # synthetic_embeddings = embeddings['synthetic']
 
@@ -265,8 +272,8 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
                         self.real_metric_loss.writer = writer
                         name = 'real_{}'.format(embd_id)
-                        real_metric_loss +=\
-                            self.real_metric_loss(embd, real_centers[embd_id], real_pids, n_iter, name)
+                        real_metric_loss += self.real_metric_loss(
+                            embd, real_centers[embd_id], real_pids, real_cam_ids, n_iter, name)
                     real_metric_loss /= float(num_real_embeddings)
 
                 # num_synthetic_embeddings = sum([True for e in synthetic_embeddings if e is not None])
@@ -278,8 +285,8 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 #
                 #         self.synthetic_metric_loss.writer = writer
                 #         name = 'synthetic_{}'.format(embd_id)
-                #         synthetic_metric_loss +=\
-                #             self.synthetic_metric_loss(embd, synthetic_centers[embd_id], synthetic_pids, n_iter, name)
+                #         synthetic_metric_loss += self.synthetic_metric_loss(
+                #             embd, synthetic_centers[embd_id], synthetic_pids, synthetic_cam_ids, n_iter, name)
                 #     synthetic_metric_loss /= float(num_synthetic_embeddings)
 
                 # metric_loss = 0.5 * (real_metric_loss + synthetic_metric_loss)
@@ -352,6 +359,13 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
         if self.scheduler is not None:
             self.scheduler.step()
+
+    @staticmethod
+    def _parse_data_for_train(data):
+        imgs = data[0]
+        pids = data[1]
+        cam_ids = data[2]
+        return imgs, pids, cam_ids
 
     @staticmethod
     def _parse_attr_data_for_train(data, use_gpu=False):
