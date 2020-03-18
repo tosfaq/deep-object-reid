@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
+from scipy.optimize import linear_sum_assignment
 
 import torchreid
 from torchreid.utils import check_isfile, load_pretrained_weights, re_ranking
@@ -137,9 +138,16 @@ def find_matches(distance_matrix, tracks, top_k=100, enable_track_info=True):
     track_distances = np.concatenate(tuple(track_distances), axis=1)
 
     track_indices = np.argsort(track_distances, axis=1)
+    track_values = np.sort(track_distances, axis=1)
+
+    candidates = set(range(track_distances.shape[1]))
 
     out_matches = []
     for q_id in range(distance_matrix.shape[0]):
+        # top_values = track_values[q_id, : 40]
+        # top_values_str = '[' + ' '.join(['{:.3f}'.format(v) for v in top_values]) + ']\n'
+        # print(top_values_str)
+
         ids = []
         for track_id in track_indices[q_id]:
             ids.extend(tracks[int(track_id)])

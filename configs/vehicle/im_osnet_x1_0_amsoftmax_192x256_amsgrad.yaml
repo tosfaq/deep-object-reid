@@ -67,10 +67,10 @@ loss:
     conf_penalty: 0.02
     label_smooth: False
     m: 0.35
-    s: 30.0
-    end_s: 2.5
-    duration_s: 30
-    skip_steps_s: 2
+    s: 15.0
+    end_s: -1.0
+    duration_s: -1
+    skip_steps_s: -1
 
 metric_losses:
   enable: True
@@ -84,10 +84,10 @@ attr_losses:
   conf_penalty: 0.02
   label_smooth: False
   m: 0.35
-  s: 15.0
-  end_s: 2.0
-  duration_s: 30
-  skip_steps_s: 2
+  s: 5.0
+  end_s: -1.0
+  duration_s: -1
+  skip_steps_s: -1
   tasks:
     attr_color: 12
     attr_type: 11
