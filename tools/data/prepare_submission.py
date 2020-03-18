@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from scipy.optimize import linear_sum_assignment
 
@@ -101,6 +103,110 @@ def calculate_distances(a, b):
     return 1.0 - np.matmul(a, np.transpose(b))
 
 
+def cluster_samples(distance_matrix, min_num_components, data_loader):
+    assert len(distance_matrix.shape) == 2
+    assert distance_matrix.shape[0] == distance_matrix.shape[1]
+
+    num_samples = distance_matrix.shape[0]
+
+    distances = [(distance_matrix[i, j], i, j) for i in range(num_samples) for j in range(i + 1, num_samples)]
+    distances = [tup for tup in distances if tup[0] < 0.1]
+    distances.sort(key=lambda tup: tup[0])
+
+    G = nx.Graph()
+    G.add_nodes_from(list(range(num_samples)))
+
+    for d, i, j in distances:
+        G.add_edge(i, j)
+
+        connected_components = find_connected_components(G)
+        print('d: {:.4f} num: {}'.format(d, len(connected_components)))
+        if len(connected_components) <= min_num_components:
+            break
+
+    connected_components = find_connected_components(G)
+    print_connected_components_stat(connected_components)
+    exit()
+
+    # large_components = [c for c in connected_components if len(c) > 1]
+    # print('Num large components: {}'.format(len(large_components)))
+    #
+    # import cv2
+    # from os import makedirs
+    # from shutil import rmtree
+    # from os.path import exists, join
+    # out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_queue_v70'
+    # if exists(out_dir):
+    #     rmtree(out_dir)
+    # makedirs(out_dir)
+    #
+    # image_ids_map = dict()
+    # for comp_id, comp in enumerate(connected_components):
+    #     if len(comp) <= 1:
+    #         continue
+    #
+    #     for i in comp:
+    #         image_ids_map[i] = comp_id
+    #
+    #     comp_dir = join(out_dir, str(comp_id))
+    #     makedirs(comp_dir)
+    #
+    # image_ids = set(image_ids_map.keys())
+    # print('Num images: {}'.format(len(image_ids)))
+    #
+    # std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 1, -1)
+    # mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 1, -1)
+    # with torch.no_grad():
+    #     last_data_id = 0
+    #     for data in tqdm(data_loader):
+    #         float_images = np.transpose(data[0].data.cpu().numpy(), (0, 2, 3, 1))
+    #         images = (255.0 * (float_images * std + mean)).astype(np.uint8)
+    #
+    #         for image_id, image in enumerate(images):
+    #             data_id = last_data_id + image_id
+    #             if data_id not in image_ids:
+    #                 continue
+    #
+    #             comp_id = image_ids_map[data_id]
+    #             comp_dir = join(out_dir, str(comp_id))
+    #
+    #             image_path = join(comp_dir, 'img_{:06}.jpg'.format(data_id))
+    #             cv2.imwrite(image_path, image[:, :, ::-1])
+    #
+    #         last_data_id += images.shape[0]
+    #
+    # exit()
+
+
+def get_connections_graph(distances, threshold):
+    similarities = 1.0 - distances
+    adjacency_matrix = np.triu(similarities > threshold, 1)
+    graph = nx.from_numpy_matrix(adjacency_matrix)
+
+    return graph
+
+
+def show_graph(graph):
+    nx.draw_networkx(graph, arrows=False, with_labels=True)
+    plt.show()
+
+
+def find_connected_components(graph):
+    return [list(c) for c in sorted(nx.connected_components(graph), key=len, reverse=True)]
+
+
+def print_connected_components_stat(components):
+    print('Connected components stat:')
+    print('   num components: {}'.format(len(components)))
+
+    lengths = [len(c) for c in components]
+    print('   sizes min: {}, max: {}'.format(np.min(lengths),
+                                             np.max(lengths)))
+    print('   sizes p@5: {}, p@50: {}, p@95: {}'.format(np.percentile(lengths, 5.0),
+                                                        np.percentile(lengths, 50.0),
+                                                        np.percentile(lengths, 95.0)))
+
+
 def load_tracks(file_path, gallery_size):
     tracks = []
     for line in open(file_path):
@@ -126,6 +232,17 @@ def load_tracks(file_path, gallery_size):
     return tracks
 
 
+def calculate_track_distances(distance_matrix, tracks):
+    track_distances = []
+    for track_ids in tracks:
+        distances = distance_matrix[:, track_ids]
+        group_distance = np.percentile(distances, 10, axis=1)
+        track_distances.append(group_distance.reshape([-1, 1]))
+    track_distances = np.concatenate(tuple(track_distances), axis=1)
+
+    return track_distances
+
+
 def find_matches(distance_matrix, tracks, top_k=100, enable_track_info=True):
     if not enable_track_info:
         return np.argsort(distance_matrix, axis=-1)[:, :top_k]
@@ -139,6 +256,15 @@ def find_matches(distance_matrix, tracks, top_k=100, enable_track_info=True):
 
     track_indices = np.argsort(track_distances, axis=1)
     track_values = np.sort(track_distances, axis=1)
+
+    # num_duplicates = []
+    # for g_id in range(track_indices.shape[1]):
+    #     indices = track_indices[:, g_id]
+    #     unique_values, unique_counts = np.unique(indices, return_counts=True)
+    #     print('{:<4}:'.format(g_id), [c for c in unique_counts if c > 1])
+    #     num_duplicates.append(track_indices.shape[0] - len(unique_values))
+    # print(num_duplicates)
+    # exit()
 
     candidates = set(range(track_distances.shape[1]))
 
@@ -210,15 +336,19 @@ def main():
     embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu, enable_flipping=True)
     print('Extracted gallery: {}'.format(embeddings_gallery.shape))
 
+    print('Calculating distance matrices ...')
     distance_matrix_qg = calculate_distances(embeddings_query, embeddings_gallery)
-    print('Distance matrix: {}'.format(distance_matrix_qg.shape))
-
-    print('Applying re-ranking ...')
     distance_matrix_qq = calculate_distances(embeddings_query, embeddings_query)
     distance_matrix_gg = calculate_distances(embeddings_gallery, embeddings_gallery)
+
+    # cluster_samples(distance_matrix_qq, 333, data_query)
+
+    print('Applying re-ranking ...')
     distance_matrix_qg = re_ranking(distance_matrix_qg, distance_matrix_qq, distance_matrix_gg,
                                     k1=50, k2=15, lambda_value=0.1)
     print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
+
+    # calculate_track_distances(distance_matrix_qg)
 
     matches = find_matches(distance_matrix_qg, gallery_tracks, top_k=100, enable_track_info=True)
     print('Matches: {}'.format(matches.shape))

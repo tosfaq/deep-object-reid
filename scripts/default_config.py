@@ -221,6 +221,13 @@ def get_default_config():
     cfg.data.transforms.random_grid.thickness = (1, 1)
     cfg.data.transforms.random_grid.angle = (0, 180)
 
+    cfg.data.transforms.mixup = CN()
+    cfg.data.transforms.mixup.enable = False
+    cfg.data.transforms.mixup.p = 0.33
+    cfg.data.transforms.mixup.alpha = 0.2
+    cfg.data.transforms.mixup.images_root_dir = ''
+    cfg.data.transforms.mixup.images_list_file = ''
+
     cfg.data.transforms.batch_transform = CN()
     cfg.data.transforms.batch_transform.enable = False
     cfg.data.transforms.batch_transform.type = 'Pairing'

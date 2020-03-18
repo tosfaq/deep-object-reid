@@ -2,6 +2,7 @@ from __future__ import division, print_function, absolute_import
 
 import math
 import random
+from os.path import exists, join
 from collections import deque
 
 import cv2
@@ -9,6 +10,7 @@ import numpy as np
 import torch
 from torchvision.transforms import *
 from torchvision.transforms import functional as F
+from torchreid.utils.tools import read_image
 from PIL import Image
 
 
@@ -370,6 +372,73 @@ class RandomFigures(object):
         return Image.fromarray(img)
 
 
+class MixUp(object):
+    """MixUp augmentation
+    """
+
+    def __init__(self, p=0.5, alpha=0.2, images_root_dir=None, images_list_file=None, **kwargs):
+        assert images_root_dir is not None and exists(images_root_dir)
+        assert images_list_file is not None and exists(images_list_file)
+
+        self.p = p
+        self.alpha = alpha
+
+        all_image_files = []
+        with open(images_list_file) as input_stream:
+            for line in input_stream:
+                image_name = line.replace('\n', '')
+                if len(image_name) > 0:
+                    image_path = join(images_root_dir, image_name)
+                    all_image_files.append(image_path)
+        self.surrogate_image_paths = all_image_files
+        assert len(self.surrogate_image_paths) > 0
+
+    def get_num_images(self):
+        return len(self.surrogate_image_paths)
+
+    def _load_surrogate_image(self, idx, trg_image_size):
+        image = read_image(self.surrogate_image_paths[idx])
+
+        src_image_width, src_image_height = image.size
+        trg_image_width, trg_image_height = trg_image_size
+
+        scale = max(float(trg_image_width) / float(src_image_width), float(trg_image_height) / float(src_image_height))
+        factor = 1.15 / scale
+
+        new_width, new_height = int(src_image_width * factor), int(src_image_height * factor)
+        image = image.resize((new_width, new_height), Image.BILINEAR)
+
+        x_max_range = new_width - trg_image_width
+        y_max_range = new_height - trg_image_height
+        x1 = int(round(random.uniform(0, x_max_range)))
+        y1 = int(round(random.uniform(0, y_max_range)))
+
+        image = image.crop((x1, y1, x1 + trg_image_width, y1 + trg_image_height))
+
+        if random.uniform(0, 1) > 0.5:
+            image = image.transpose(Image.FLIP_LEFT_RIGHT)
+
+        return image
+
+    def __call__(self, img, *args, **kwargs):
+        if random.uniform(0, 1) > self.p:
+            return img
+
+        alpha = np.random.beta(self.alpha, self.alpha)
+        alpha = alpha if alpha < 0.5 else 1.0 - alpha
+
+        surrogate_image_idx = random.randint(0, len(self.surrogate_image_paths) - 1)
+        surrogate_image = self._load_surrogate_image(surrogate_image_idx, img.size)
+
+        float_img = np.array(img).astype(np.float32)
+        float_surrogate_image = np.array(surrogate_image).astype(np.float32)
+        mixed_image = (1.0 - alpha) * float_img + alpha * float_surrogate_image
+
+        out_image = mixed_image.clip(0.0, 255.0).astype(np.uint8)
+
+        return Image.fromarray(out_image)
+
+
 def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.406),
                      norm_std=(0.229, 0.224, 0.225), **kwargs):
     """Builds train and test transform functions.
@@ -393,6 +462,10 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
 
     print('Building train transforms ...')
     transform_tr = []
+    if transforms.mixup.enable:
+        mixup_augmentor = MixUp(**transforms.mixup)
+        print('+ mixup (with {} extra images)'.format(mixup_augmentor.get_num_images()))
+        transform_tr += [mixup_augmentor]
     if transforms.random_grid.enable:
         print('+ random_grid')
         transform_tr += [RandomGrid(**transforms.random_grid)]
