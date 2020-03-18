@@ -1,5 +1,3 @@
-from abc import ABC
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,7 +12,7 @@ class CenterLoss(nn.Module):
     def forward(self, features, centers, labels):
         features = F.normalize(features, p=2, dim=1)
 
-        centers = F.normalize(centers, p=2, dim=1)
+        centers = F.normalize(centers.detach(), p=2, dim=1)
         centers_batch = centers[labels, :]
 
         center_distances = 1.0 - torch.sum(features * centers_batch, dim=1)
@@ -31,15 +29,20 @@ class NormalizedLoss(nn.Module):
         losses, pairs_valid_mask = self._calculate(features, centers, labels, cam_ids)
         losses = torch.where(pairs_valid_mask, losses, torch.zeros_like(losses))
 
-        num_valid_pairs = pairs_valid_mask.sum(dim=1)
-        num_valid_pairs = torch.where(num_valid_pairs > 0, num_valid_pairs, torch.ones_like(num_valid_pairs))
-        sample_losses = losses.sum(dim=1) / num_valid_pairs.float()
+        num_valid = pairs_valid_mask.sum().float()
+        loss = losses.sum()
+        if num_valid > 0.0:
+            loss /= num_valid
 
-        samples_valid_mask = sample_losses > 0.0
-        num_valid_samples = torch.sum(samples_valid_mask)
-        loss = sample_losses.sum()
-        if num_valid_samples > 0:
-            loss /= num_valid_samples
+        # num_valid_pairs = pairs_valid_mask.sum(dim=1)
+        # num_valid_pairs = torch.where(num_valid_pairs > 0, num_valid_pairs, torch.ones_like(num_valid_pairs))
+        # sample_losses = losses.sum(dim=1) / num_valid_pairs.float()
+        #
+        # samples_valid_mask = sample_losses > 0.0
+        # num_valid_samples = torch.sum(samples_valid_mask)
+        # loss = sample_losses.sum()
+        # if num_valid_samples > 0:
+        #     loss /= num_valid_samples
 
         return loss
 
@@ -56,7 +59,7 @@ class GlobalPushPlus(NormalizedLoss):
     def _calculate(self, features, centers, labels, cam_ids):
         features = F.normalize(features, p=2, dim=1)
 
-        centers = F.normalize(centers, p=2, dim=1)
+        centers = F.normalize(centers.detach(), p=2, dim=1)
         centers_batch = centers[labels, :]
 
         num_classes = centers.shape[0]
@@ -65,7 +68,7 @@ class GlobalPushPlus(NormalizedLoss):
 
         pos_distances = 1.0 - torch.sum(features * centers_batch, dim=1)
         neg_distances = 1.0 - torch.mm(features, torch.t(centers))
-        losses = pos_distances.view(-1, 1) - neg_distances
+        losses = F.softplus(pos_distances.view(-1, 1) - neg_distances)
 
         pairs_valid_mask = different_class_pairs * (losses > 0.0)
 
@@ -79,12 +82,12 @@ class SameCameraPushPlus(NormalizedLoss):
     def _calculate(self, features, centers, labels, cam_ids):
         features = F.normalize(features, p=2, dim=1)
 
-        centers = F.normalize(centers, p=2, dim=1)
+        centers = F.normalize(centers.detach(), p=2, dim=1)
         centers_batch = centers[labels, :]
 
         pos_distances = 1.0 - torch.sum(features * centers_batch, dim=1)
         neg_distances = 1.0 - torch.mm(features, torch.t(features))
-        losses = pos_distances.view(-1, 1) - neg_distances
+        losses = F.softplus(pos_distances.view(-1, 1) - neg_distances)
 
         different_class_pairs = labels.view(-1, 1) != labels.view(1, -1)
         same_camera_pairs = cam_ids.view(-1, 1) == cam_ids.view(1, -1)
@@ -147,5 +150,10 @@ class MetricLosses:
                      self.pull_coeff * pull_loss_val
         if self.writer is not None:
             self.writer.add_scalar('Loss/{}/AUX_losses'.format(name), total_loss, iteration)
+
+        # print('C: {:.3f} G: {:.3f} L: {:.3f} P: {:.3f}'.format(center_loss_val.item(),
+        #                                                        glob_push_loss_val.item(),
+        #                                                        local_push_loss_val.item(),
+        #                                                        pull_loss_val.item()))
 
         return total_loss
