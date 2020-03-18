@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 
 class CenterLoss(nn.Module):
@@ -115,7 +116,8 @@ class SameIDPull(NormalizedLoss):
 class MetricLosses:
     """Class-aggregator for metric-learning losses"""
 
-    def __init__(self, writer, center_coeff=1.0, glob_push_coeff=1.0, local_push_coeff=1.0, pull_coeff=1.0):
+    def __init__(self, writer, num_classes, embed_size, center_coeff=1.0, glob_push_coeff=1.0,
+                 local_push_coeff=1.0, pull_coeff=1.0, track_centers=False, centers_lr=0.5):
         self.writer = writer
         self.center_coeff = center_coeff
         self.glob_push_coeff = glob_push_coeff
@@ -127,7 +129,17 @@ class MetricLosses:
         self.local_push_loss = SameCameraPushPlus()
         self.pull_loss = SameIDPull()
 
-    def __call__(self, features, centers, labels, cam_ids, iteration, name='ml'):
+        self.centers_lr = centers_lr
+        self.track_centers = track_centers
+        if self.track_centers:
+            self.centers = np.random.normal(size=[num_classes, embed_size])
+
+    def __call__(self, features, glob_centers, labels, cam_ids, iteration, name='ml'):
+        if self.track_centers:
+            centers = torch.from_numpy(self.centers).cuda()
+        else:
+            centers = glob_centers
+
         center_loss_val = self.center_loss(features, centers, labels)
         if self.writer is not None:
             self.writer.add_scalar('Loss/{}/center'.format(name), center_loss_val, iteration)
@@ -155,5 +167,8 @@ class MetricLosses:
         #                                                        glob_push_loss_val.item(),
         #                                                        local_push_loss_val.item(),
         #                                                        pull_loss_val.item()))
+
+        if self.track_centers:
+            pass
 
         return total_loss
