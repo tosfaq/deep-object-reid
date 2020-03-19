@@ -98,7 +98,7 @@ attr_losses:
 
 train:
   optim: 'sgd'
-  lr: 0.00667
+  lr: 0.01
   max_epoch: 50
   batch_size: 64
   fixbase_epoch: 2
