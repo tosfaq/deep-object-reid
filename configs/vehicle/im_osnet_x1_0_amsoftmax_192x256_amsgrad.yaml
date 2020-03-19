@@ -85,10 +85,10 @@ metric_losses:
 
 attr_losses:
   enable: True
-  conf_penalty: 0.02
+  conf_penalty: 0.0
   label_smooth: False
   m: 0.35
-  s: 5.0
+  s: 2.5
   end_s: -1.0
   duration_s: -1
   skip_steps_s: -1
@@ -97,7 +97,7 @@ attr_losses:
     attr_type: 11
 
 reg:
-  ow: True
+  ow: False
   ow_beta: 1e-2
 
 train:
