@@ -23,24 +23,14 @@ class ConvRegularizer(nn.Module):
         super().__init__()
         self.reg_instance = reg_class(controller)
 
-    def get_all_conv_layers(self, module):
-        if isinstance(module, (nn.Sequential, list)):
-            for m in module:
-                yield from self.get_all_conv_layers(m)
-
-        if isinstance(module, nn.Conv2d):
-            yield module
-
-    def forward(self, net, ignore=False):
+    def forward(self, net):
 
         accumulator = torch.tensor(0.0).cuda()
+        for module in net.module.modules():
+            if not isinstance(module, nn.Conv2d):
+                continue
 
-        if ignore:
-            return accumulator
-
-        all_mods = [module for module in net.module.modules() if type(module) != nn.Sequential]
-        for conv in self.get_all_conv_layers(all_mods):
-            accumulator += self.reg_instance(conv.weight)
+            accumulator += self.reg_instance(module.weight)
 
         return accumulator
 
@@ -50,48 +40,42 @@ class SVMORegularizer(nn.Module):
         super().__init__()
         self.beta = beta
 
-    def dominant_eigenvalue(self, A):  # A: 'N x N'
-        N, _ = A.size()
-        x = torch.rand(N, 1, device='cuda')
+    @staticmethod
+    def dominant_eigenvalue(A):  # A: 'N x N'
+        x = torch.rand(A.size(0), 1, dtype=A.dtype, device=A.device)
+
         Ax = (A @ x)
         AAx = (A @ Ax)
-        return AAx.permute(1, 0) @ Ax / (Ax.permute(1, 0) @ Ax)
+        value = AAx.permute(1, 0) @ Ax / (Ax.permute(1, 0) @ Ax)
+
+        return value
 
     def get_singular_values(self, A):  # A: 'M x N, M >= N'
         ATA = A.permute(1, 0) @ A
         N, _ = ATA.size()
+
         largest = self.dominant_eigenvalue(ATA)
-        I = torch.eye(N, device='cuda')  # noqa
-        I = I * largest  # noqa
-        tmp = self.dominant_eigenvalue(ATA - I)
-        return tmp + largest, largest
+
+        I = largest * torch.eye(N, dtype=A.dtype, device=A.device)
+        smallest = self.dominant_eigenvalue(ATA - I)
+
+        return largest, smallest
 
     def forward(self, W):  # W: 'S x C x H x W'
-        # old_W = W
         old_size = W.size()
         if old_size[0] == 1:
             return 0
+
         W = W.view(old_size[0], -1).permute(1, 0)  # (C x H x W) x S
-        smallest, largest = self.get_singular_values(W)
-        return (
-            self.beta * 10 * (largest - smallest)**2
-        ).squeeze()
+        largest, smallest = self.get_singular_values(W)
 
+        loss = self.beta * (largest - smallest) ** 2
 
-class NoneRegularizer(nn.Module):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-
-    def forward(self, _):
-        return torch.tensor(0.0).cuda()
-
-
-mapping = {
-    False: NoneRegularizer,
-    True: SVMORegularizer,
-}
+        return loss.squeeze()
 
 
 def get_regularizer(cfg_reg):
-    name = cfg_reg.ow
-    return ConvRegularizer(mapping[name], cfg_reg.ow_beta)
+    if cfg_reg.ow:
+        return ConvRegularizer(SVMORegularizer, cfg_reg.ow_beta)
+    else:
+        return None

@@ -271,7 +271,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             else:
                 total_loss = trg_loss
 
-            if (epoch + 1) > fixbase_epoch:
+            if self.regularizer is not None and (epoch + 1) > fixbase_epoch:
                 reg_loss = self.regularizer(self.model)
                 reg_ow_loss.update(reg_loss.item(), batch_size)
                 total_loss += reg_loss
