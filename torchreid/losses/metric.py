@@ -117,7 +117,7 @@ class MetricLosses:
     """Class-aggregator for metric-learning losses"""
 
     def __init__(self, writer, num_classes, embed_size, center_coeff=1.0, glob_push_coeff=1.0,
-                 local_push_coeff=1.0, pull_coeff=1.0, track_centers=False, centers_lr=0.5):
+                 local_push_coeff=1.0, pull_coeff=1.0, track_centers=True, new_center_weight=0.5):
         self.writer = writer
         self.center_coeff = center_coeff
         self.glob_push_coeff = glob_push_coeff
@@ -129,10 +129,10 @@ class MetricLosses:
         self.local_push_loss = SameCameraPushPlus()
         self.pull_loss = SameIDPull()
 
-        self.centers_lr = centers_lr
         self.track_centers = track_centers
+        self.new_center_weight = new_center_weight
         if self.track_centers:
-            self.centers = np.random.normal(size=[num_classes, embed_size])
+            self.centers = np.random.normal(size=[num_classes, embed_size]).astype(np.float32)
 
     def __call__(self, features, glob_centers, labels, cam_ids, iteration, name='ml'):
         if self.track_centers:
@@ -163,12 +163,20 @@ class MetricLosses:
         if self.writer is not None:
             self.writer.add_scalar('Loss/{}/AUX_losses'.format(name), total_loss, iteration)
 
-        # print('C: {:.3f} G: {:.3f} L: {:.3f} P: {:.3f}'.format(center_loss_val.item(),
-        #                                                        glob_push_loss_val.item(),
-        #                                                        local_push_loss_val.item(),
-        #                                                        pull_loss_val.item()))
-
         if self.track_centers:
-            pass
+            with torch.no_grad():
+                for class_id in labels:
+                    class_mask = labels == class_id
+
+                    class_features = features[class_mask]
+                    class_embedding = F.normalize(class_features.mean(dim=0), p=2, dim=0)
+
+                    center = F.normalize(centers[class_id], p=2, dim=0)
+                    new_center = (1.0 - self.new_center_weight) * center + \
+                                 self.new_center_weight * class_embedding
+
+                    centers[class_id, :] = F.normalize(new_center, p=2, dim=0)
+
+                self.centers = centers.data.cpu().numpy()
 
         return total_loss
