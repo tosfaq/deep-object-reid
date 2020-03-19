@@ -162,7 +162,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 embeddings = dict(real=[None] * num_parts, synthetic=[None] * num_parts)
 
             real_centers = outputs['real_centers']
-            # synthetic_centers = outputs['real_centers']
+            synthetic_centers = outputs['synthetic_centers']
 
             if self.model.module.split_embeddings:
                 real_mask = self._get_real_mask(data, self.use_gpu)
@@ -178,7 +178,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 synthetic_cam_ids = cam_ids[synthetic_mask]
 
                 real_embeddings = [e[real_mask] if e is not None else None for e in embeddings['real']]
-                # synthetic_embeddings = [e[synthetic_mask] if e is not None else None for e in embeddings['synthetic']]
+                synthetic_embeddings = [e[synthetic_mask] if e is not None else None for e in embeddings['synthetic']]
 
                 trg_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
                 num_losses = 0
@@ -202,7 +202,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 real_pids = pids
                 real_cam_ids = cam_ids
                 real_embeddings = embeddings['real']
-                # synthetic_embeddings = embeddings['synthetic']
+                synthetic_embeddings = embeddings['synthetic']
 
                 trg_loss = self._compute_loss(self.main_loss, real_outputs, real_pids, iteration=n_iter)
                 real_loss.update(trg_loss.item(), batch_size)
@@ -276,21 +276,21 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                             embd, real_centers[embd_id], real_pids, real_cam_ids, n_iter, name)
                     real_metric_loss /= float(num_real_embeddings)
 
-                # num_synthetic_embeddings = sum([True for e in synthetic_embeddings if e is not None])
-                # synthetic_metric_loss = torch.zeros([], dtype=total_loss.dtype, device=total_loss.device)
-                # if self.model.module.split_embeddings and num_synthetic_embeddings > 0 and synthetic_pids.numel() > 0:
-                #     for embd_id, embd in enumerate(synthetic_embeddings):
-                #         if embd is None:
-                #             continue
-                #
-                #         self.synthetic_metric_loss.writer = writer
-                #         name = 'synthetic_{}'.format(embd_id)
-                #         synthetic_metric_loss += self.synthetic_metric_loss(
-                #             embd, synthetic_centers[embd_id], synthetic_pids, synthetic_cam_ids, n_iter, name)
-                #     synthetic_metric_loss /= float(num_synthetic_embeddings)
+                num_synthetic_embeddings = sum([True for e in synthetic_embeddings if e is not None])
+                synthetic_metric_loss = torch.zeros([], dtype=total_loss.dtype, device=total_loss.device)
+                if self.model.module.split_embeddings and num_synthetic_embeddings > 0 and synthetic_pids.numel() > 0:
+                    for embd_id, embd in enumerate(synthetic_embeddings):
+                        if embd is None:
+                            continue
 
-                # metric_loss = 0.5 * (real_metric_loss + synthetic_metric_loss)
-                metric_loss = real_metric_loss
+                        self.synthetic_metric_loss.writer = writer
+                        name = 'synthetic_{}'.format(embd_id)
+                        synthetic_metric_loss += self.synthetic_metric_loss(
+                            embd, synthetic_centers[embd_id], synthetic_pids, synthetic_cam_ids, n_iter, name)
+                    synthetic_metric_loss /= float(num_synthetic_embeddings)
+
+                metric_loss = 0.5 * (real_metric_loss + synthetic_metric_loss)
+                # metric_loss = real_metric_loss
                 metric_losses.update(metric_loss.item(), batch_size)
 
                 total_loss += metric_loss
