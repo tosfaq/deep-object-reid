@@ -73,14 +73,28 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
         self.enable_metric_losses = metric_cfg.enable
         if self.enable_metric_losses:
+            num_real_classes = self.datamanager.num_train_pids
+            if isinstance(num_real_classes, (list, tuple)):
+                num_real_classes = num_real_classes[0]
+
             self.real_metric_loss = MetricLosses(
-                self.writer, metric_cfg.center_coeff, metric_cfg.glob_push_coeff,
-                metric_cfg.local_push_coeff, metric_cfg.pull_coeff)
+                self.writer,
+                num_real_classes,
+                self.model.module.feature_dim,
+                metric_cfg.center_coeff,
+                metric_cfg.glob_push_coeff,
+                metric_cfg.local_push_coeff,
+                metric_cfg.pull_coeff)
             self.synthetic_metric_loss = None
             if self.model.module.split_embeddings:
                 self.synthetic_metric_loss = MetricLosses(
-                    self.writer, metric_cfg.center_coeff, metric_cfg.glob_push_coeff,
-                    metric_cfg.local_push_coeff, metric_cfg.pull_coeff)
+                    self.writer,
+                    self.datamanager.num_train_pids[1],
+                    self.model.module.feature_dim,
+                    metric_cfg.center_coeff,
+                    metric_cfg.glob_push_coeff,
+                    metric_cfg.local_push_coeff,
+                    metric_cfg.pull_coeff)
 
         if attr_losses_cfg.enable:
             self.attr_tasks = attr_losses_cfg.tasks
