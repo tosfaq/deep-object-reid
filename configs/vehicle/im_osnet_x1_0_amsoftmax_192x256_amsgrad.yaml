@@ -98,7 +98,7 @@ attr_losses:
 
 reg:
   ow: True
-  ow_beta: 1e-5
+  ow_beta: 1e-2
 
 train:
   optim: 'sgd'

@@ -24,15 +24,16 @@ class ConvRegularizer(nn.Module):
         self.reg_instance = reg_class(controller)
 
     def forward(self, net):
-
+        num_losses = 0
         accumulator = torch.tensor(0.0).cuda()
         for module in net.module.modules():
             if not isinstance(module, nn.Conv2d):
                 continue
 
             accumulator += self.reg_instance(module.weight)
+            num_losses += 1
 
-        return accumulator
+        return accumulator / float(max(1.0, num_losses))
 
 
 class SVMORegularizer(nn.Module):
