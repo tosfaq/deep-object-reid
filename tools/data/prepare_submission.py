@@ -255,7 +255,7 @@ def find_matches(distance_matrix, tracks, top_k=100, enable_track_info=True):
     track_distances = np.concatenate(tuple(track_distances), axis=1)
 
     track_indices = np.argsort(track_distances, axis=1)
-    track_values = np.sort(track_distances, axis=1)
+    # track_values = np.sort(track_distances, axis=1)
 
     # num_duplicates = []
     # for g_id in range(track_indices.shape[1]):

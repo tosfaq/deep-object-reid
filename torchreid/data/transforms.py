@@ -377,35 +377,33 @@ class MixUp(object):
     """
 
     def __init__(self, p=0.5, alpha=0.2, images_root_dir=None, images_list_file=None, **kwargs):
-        assert images_root_dir is not None and exists(images_root_dir)
-        assert images_list_file is not None and exists(images_list_file)
-
         self.p = p
         self.alpha = alpha
 
-        all_image_files = []
-        with open(images_list_file) as input_stream:
-            for line in input_stream:
-                image_name = line.replace('\n', '')
-                if len(image_name) > 0:
-                    image_path = join(images_root_dir, image_name)
-                    all_image_files.append(image_path)
-        self.surrogate_image_paths = all_image_files
-        assert len(self.surrogate_image_paths) > 0
+        self.enable = images_root_dir is not None and exists(images_root_dir) and \
+                      images_list_file is not None and exists(images_list_file)
+
+        if self.enable:
+            all_image_files = []
+            with open(images_list_file) as input_stream:
+                for line in input_stream:
+                    image_name = line.replace('\n', '')
+                    if len(image_name) > 0:
+                        image_path = join(images_root_dir, image_name)
+                        all_image_files.append(image_path)
+            self.surrogate_image_paths = all_image_files
+            assert len(self.surrogate_image_paths) > 0
 
     def get_num_images(self):
-        return len(self.surrogate_image_paths)
+        return len(self.surrogate_image_paths) if self.enable else 0
 
     def _load_surrogate_image(self, idx, trg_image_size):
-        image = read_image(self.surrogate_image_paths[idx])
-
-        src_image_width, src_image_height = image.size
         trg_image_width, trg_image_height = trg_image_size
 
-        scale = max(float(trg_image_width) / float(src_image_width), float(trg_image_height) / float(src_image_height))
-        factor = 1.15 / scale
+        image = read_image(self.surrogate_image_paths[idx])
 
-        new_width, new_height = int(src_image_width * factor), int(src_image_height * factor)
+        scale = 1.125
+        new_width, new_height = int(trg_image_width * scale), int(trg_image_height * scale)
         image = image.resize((new_width, new_height), Image.BILINEAR)
 
         x_max_range = new_width - trg_image_width
@@ -421,7 +419,7 @@ class MixUp(object):
         return image
 
     def __call__(self, img, *args, **kwargs):
-        if random.uniform(0, 1) > self.p:
+        if not self.enable or random.uniform(0, 1) > self.p:
             return img
 
         alpha = np.random.beta(self.alpha, self.alpha)
@@ -462,10 +460,6 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
 
     print('Building train transforms ...')
     transform_tr = []
-    if transforms.mixup.enable:
-        mixup_augmentor = MixUp(**transforms.mixup)
-        print('+ mixup (with {} extra images)'.format(mixup_augmentor.get_num_images()))
-        transform_tr += [mixup_augmentor]
     if transforms.random_grid.enable:
         print('+ random_grid')
         transform_tr += [RandomGrid(**transforms.random_grid)]
@@ -485,6 +479,10 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
               .format(int(round(height*1.125)), int(round(width*1.125)),
                       height, width, transforms.random_crop.p))
         transform_tr += [Random2DTranslation(height, width, **transforms.random_crop)]
+    if transforms.mixup.enable:
+        mixup_augmentor = MixUp(**transforms.mixup)
+        print('+ mixup (with {} extra images)'.format(mixup_augmentor.get_num_images()))
+        transform_tr += [mixup_augmentor]
     if transforms.random_patch.enable:
         print('+ random patch')
         transform_tr += [RandomPatch(**transforms.random_patch)]
