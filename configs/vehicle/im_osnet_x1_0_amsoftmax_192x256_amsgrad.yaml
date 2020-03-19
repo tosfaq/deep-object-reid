@@ -8,8 +8,8 @@ data:
   type: 'image'
   sources: ['aic20']
   targets: ['aic20', 'veri']
-  height: 192
-  width: 256
+  height: 240
+  width: 320
   combineall: False
   transforms:
     color_jitter:
@@ -50,7 +50,7 @@ data:
       enable: True
       p: 0.33
     mixup:
-      enable: True
+      enable: False
       p: 0.33
       alpha: 0.2
   save_dir: 'log/osnet_ain_x1_0_aic20_amsoftmax'
