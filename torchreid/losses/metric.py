@@ -35,16 +35,6 @@ class NormalizedLoss(nn.Module):
         if num_valid > 0.0:
             loss /= num_valid
 
-        # num_valid_pairs = pairs_valid_mask.sum(dim=1)
-        # num_valid_pairs = torch.where(num_valid_pairs > 0, num_valid_pairs, torch.ones_like(num_valid_pairs))
-        # sample_losses = losses.sum(dim=1) / num_valid_pairs.float()
-        #
-        # samples_valid_mask = sample_losses > 0.0
-        # num_valid_samples = torch.sum(samples_valid_mask)
-        # loss = sample_losses.sum()
-        # if num_valid_samples > 0:
-        #     loss /= num_valid_samples
-
         return loss
 
     def _calculate(self, features, centers, labels, cam_ids):

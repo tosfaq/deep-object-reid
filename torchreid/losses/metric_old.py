@@ -78,8 +78,8 @@ class MetricLosses:
     """Class-aggregator for metric-learning losses"""
 
     def __init__(self, writer, num_classes, embed_size, center_coeff=1.0, glob_push_coeff=1.0,
-                 local_push_coeff=1.0, pull_coeff=1.0,
-                 loss_balancing=True, centers_lr=0.5, balancing_lr=0.01, name='ml'):
+                 local_push_coeff=1.0, pull_coeff=1.0, loss_balancing=True, centers_lr=0.5,balancing_lr=0.01,
+                 name='ml'):
         self.writer = writer
         self.total_losses_num = 0
         self.name = name
@@ -91,10 +91,22 @@ class MetricLosses:
         if self.center_coeff > 0:
             self.total_losses_num += 1
 
-        self.glob_push_plus_loss = GlobalPushPlus()
+        self.glob_push_loss = GlobalPushPlus()
         assert glob_push_coeff >= 0
-        self.glob_push_plus_loss_coeff = glob_push_coeff
-        if self.glob_push_plus_loss_coeff > 0:
+        self.glob_push_coeff = glob_push_coeff
+        if self.glob_push_coeff > 0:
+            self.total_losses_num += 1
+
+        self.local_push_loss = SameCameraPushPlus()
+        assert local_push_coeff >= 0
+        self.local_push_coeff = local_push_coeff
+        if self.local_push_coeff > 0:
+            self.total_losses_num += 1
+
+        self.pull_loss = SameIDPull()
+        assert pull_coeff >= 0
+        self.pull_coeff = pull_coeff
+        if self.pull_coeff > 0:
             self.total_losses_num += 1
 
         self.loss_balancing = loss_balancing
@@ -106,13 +118,15 @@ class MetricLosses:
 
     def _balance_losses(self, losses):
         assert len(losses) == self.total_losses_num
+
         for i, loss_val in enumerate(losses):
-            losses[i] = torch.exp(-self.loss_weights[i]) * loss_val + \
-                            0.5 * self.loss_weights[i]
+            losses[i] = torch.exp(-self.loss_weights[i]) * loss_val + 0.5 * self.loss_weights[i]
+
         return sum(losses)
 
     def __call__(self, features, glob_centers, labels, cam_ids, iteration):
         all_loss_values = []
+
         center_loss_val = 0
         if self.center_coeff > 0.:
             center_loss_val = self.center_loss(features, labels)
@@ -122,18 +136,34 @@ class MetricLosses:
                 self.writer.add_scalar('Loss/{}/center'.format(self.name), center_loss_val, iteration)
 
         glob_push_plus_loss_val = 0
-        if self.glob_push_plus_loss_coeff > 0.0 and self.center_coeff > 0.0:
-            glob_push_plus_loss_val = self.glob_push_plus_loss(features, self.center_loss.get_centers(), labels)
+        if self.glob_push_coeff > 0.0 and self.center_coeff > 0.0:
+            glob_push_plus_loss_val = self.glob_push_loss(features, self.center_loss.get_centers(), labels)
             all_loss_values.append(glob_push_plus_loss_val)
             if self.writer is not None:
                 self.writer.add_scalar('Loss/{}/global_push'.format(self.name), glob_push_plus_loss_val, iteration)
+
+        local_push_loss_val = 0
+        if self.local_push_coeff > 0.0 and self.center_coeff > 0.0:
+            local_push_loss_val = self.local_push_loss(features, self.center_loss.get_centers(), labels, cam_ids)
+            all_loss_values.append(local_push_loss_val)
+            if self.writer is not None:
+                self.writer.add_scalar('Loss/{}/local_push'.format(self.name), local_push_loss_val, iteration)
+
+        pull_loss_val = 0
+        if self.pull_coeff > 0.0 and self.center_coeff > 0.0:
+            pull_loss_val = self.pull_loss(features, self.center_loss.get_centers(), labels, cam_ids)
+            all_loss_values.append(pull_loss_val)
+            if self.writer is not None:
+                self.writer.add_scalar('Loss/{}/pull'.format(self.name), pull_loss_val, iteration)
 
         if self.loss_balancing and self.total_losses_num > 1:
             loss_value = self.center_coeff * self._balance_losses(all_loss_values)
             self.last_loss_value = loss_value
         else:
             loss_value = self.center_coeff * center_loss_val + \
-                        + self.glob_push_plus_loss_coeff * glob_push_plus_loss_val
+                         self.glob_push_coeff * glob_push_plus_loss_val + \
+                         self.local_push_coeff * local_push_loss_val + \
+                         self.pull_coeff * pull_loss_val
 
         if self.total_losses_num > 0:
             if self.writer is not None:
