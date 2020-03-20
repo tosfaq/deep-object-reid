@@ -68,7 +68,7 @@ sampler:
 loss:
   name: 'am_softmax'
   softmax:
-    conf_penalty: 0.02
+    conf_penalty: 0.085
     label_smooth: False
     m: 0.35
     s: 15.0
@@ -78,10 +78,10 @@ loss:
 
 metric_losses:
   enable: True
-  center_coeff: 0.25
-  glob_push_coeff: 0.3
-  local_push_coeff: 0.25
-  pull_coeff: 0.25
+  center_coeff: 1.0
+  glob_push_coeff: 1.2
+  local_push_coeff: 0.0
+  pull_coeff: 0.0
 
 attr_losses:
   enable: True

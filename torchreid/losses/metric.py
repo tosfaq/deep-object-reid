@@ -117,12 +117,14 @@ class MetricLosses:
     """Class-aggregator for metric-learning losses"""
 
     def __init__(self, writer, num_classes, embed_size, center_coeff=1.0, glob_push_coeff=1.0,
-                 local_push_coeff=1.0, pull_coeff=1.0, track_centers=True, new_center_weight=0.5):
+                 local_push_coeff=1.0, pull_coeff=1.0, track_centers=True, new_center_weight=0.5,
+                 name='ml'):
         self.writer = writer
         self.center_coeff = center_coeff
         self.glob_push_coeff = glob_push_coeff
         self.local_push_coeff = local_push_coeff
         self.pull_coeff = pull_coeff
+        self.name = name
 
         self.center_loss = CenterLoss()
         self.glob_push_loss = GlobalPushPlus()
@@ -134,7 +136,7 @@ class MetricLosses:
         if self.track_centers:
             self.centers = np.random.normal(size=[num_classes, embed_size]).astype(np.float32)
 
-    def __call__(self, features, glob_centers, labels, cam_ids, iteration, name='ml'):
+    def __call__(self, features, glob_centers, labels, cam_ids, iteration):
         if self.track_centers:
             centers = torch.from_numpy(self.centers).cuda()
         else:
@@ -142,26 +144,26 @@ class MetricLosses:
 
         center_loss_val = self.center_loss(features, centers, labels)
         if self.writer is not None:
-            self.writer.add_scalar('Loss/{}/center'.format(name), center_loss_val, iteration)
+            self.writer.add_scalar('Loss/{}/center'.format(self.name), center_loss_val, iteration)
 
         glob_push_loss_val = self.glob_push_loss(features, centers, labels, cam_ids)
         if self.writer is not None:
-            self.writer.add_scalar('Loss/{}/global_push'.format(name), glob_push_loss_val, iteration)
+            self.writer.add_scalar('Loss/{}/global_push'.format(self.name), glob_push_loss_val, iteration)
 
         local_push_loss_val = self.local_push_loss(features, centers, labels, cam_ids)
         if self.writer is not None:
-            self.writer.add_scalar('Loss/{}/local_push'.format(name), local_push_loss_val, iteration)
+            self.writer.add_scalar('Loss/{}/local_push'.format(self.name), local_push_loss_val, iteration)
 
         pull_loss_val = self.pull_loss(features, centers, labels, cam_ids)
         if self.writer is not None:
-            self.writer.add_scalar('Loss/{}/pull'.format(name), pull_loss_val, iteration)
+            self.writer.add_scalar('Loss/{}/pull'.format(self.name), pull_loss_val, iteration)
 
         total_loss = self.center_coeff * center_loss_val +\
                      self.glob_push_coeff * glob_push_loss_val +\
                      self.local_push_coeff * local_push_loss_val +\
                      self.pull_coeff * pull_loss_val
         if self.writer is not None:
-            self.writer.add_scalar('Loss/{}/AUX_losses'.format(name), total_loss, iteration)
+            self.writer.add_scalar('Loss/{}/AUX_losses'.format(self.name), total_loss, iteration)
 
         if self.track_centers:
             with torch.no_grad():
@@ -180,3 +182,9 @@ class MetricLosses:
                 self.centers = centers.data.cpu().numpy()
 
         return total_loss
+
+    def init_iteration(self):
+        pass
+
+    def end_iteration(self):
+        pass
