@@ -97,7 +97,7 @@ attr_losses:
     attr_type: 11
 
 reg:
-  ow: False
+  ow: True
   ow_beta: 1e-2
 
 train:
