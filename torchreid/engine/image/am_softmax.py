@@ -252,8 +252,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     unique_neg_pids = np.unique(real_pids.data.cpu().numpy())
                     for unique_neg_pid in unique_neg_pids:
                         neg_pid_outputs = neg_outputs[real_pids == unique_neg_pid]
-                        # attr_neg_sync_loss += set_kl_div(neg_pid_outputs * self.attr_pos_loss.get_last_scale())
-                        attr_neg_sync_loss += set_kl_div(neg_pid_outputs)
+                        attr_neg_sync_loss += set_kl_div(neg_pid_outputs * self.attr_pos_loss.get_last_scale())
                     attr_neg_sync_loss /= float(max(1, len(unique_neg_pids)))
                     attr_neg_sync_losses[attr_name].update(attr_neg_sync_loss.item(), len(unique_neg_pids))
 
