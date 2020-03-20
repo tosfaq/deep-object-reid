@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+from torchreid.losses.metric import SameCameraPushPlus, SameIDPull
+
 
 class CenterLoss(nn.Module):
     """Implementation of the Center loss from https://ydwen.github.io/papers/WenECCV16.pdf"""

@@ -117,7 +117,7 @@ class MetricLosses:
     """Class-aggregator for metric-learning losses"""
 
     def __init__(self, writer, num_classes, embed_size, center_coeff=1.0, glob_push_coeff=1.0,
-                 local_push_coeff=1.0, pull_coeff=1.0, track_centers=True, new_center_weight=0.5,
+                 local_push_coeff=1.0, pull_coeff=1.0, track_centers=False, new_center_weight=0.5,
                  name='ml'):
         self.writer = writer
         self.center_coeff = center_coeff
@@ -150,18 +150,20 @@ class MetricLosses:
         if self.writer is not None:
             self.writer.add_scalar('Loss/{}/global_push'.format(self.name), glob_push_loss_val, iteration)
 
-        local_push_loss_val = self.local_push_loss(features, centers, labels, cam_ids)
-        if self.writer is not None:
-            self.writer.add_scalar('Loss/{}/local_push'.format(self.name), local_push_loss_val, iteration)
+        # local_push_loss_val = self.local_push_loss(features, centers, labels, cam_ids)
+        # if self.writer is not None:
+        #     self.writer.add_scalar('Loss/{}/local_push'.format(self.name), local_push_loss_val, iteration)
+        #
+        # pull_loss_val = self.pull_loss(features, centers, labels, cam_ids)
+        # if self.writer is not None:
+        #     self.writer.add_scalar('Loss/{}/pull'.format(self.name), pull_loss_val, iteration)
 
-        pull_loss_val = self.pull_loss(features, centers, labels, cam_ids)
-        if self.writer is not None:
-            self.writer.add_scalar('Loss/{}/pull'.format(self.name), pull_loss_val, iteration)
-
-        total_loss = self.center_coeff * center_loss_val +\
-                     self.glob_push_coeff * glob_push_loss_val +\
-                     self.local_push_coeff * local_push_loss_val +\
-                     self.pull_coeff * pull_loss_val
+        # total_loss = self.center_coeff * center_loss_val +\
+        #              self.glob_push_coeff * glob_push_loss_val +\
+        #              self.local_push_coeff * local_push_loss_val +\
+        #              self.pull_coeff * pull_loss_val
+        total_loss = self.center_coeff * center_loss_val + \
+                     self.glob_push_coeff * glob_push_loss_val
         if self.writer is not None:
             self.writer.add_scalar('Loss/{}/AUX_losses'.format(self.name), total_loss, iteration)
 
