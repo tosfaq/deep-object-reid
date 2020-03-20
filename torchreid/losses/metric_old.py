@@ -78,7 +78,7 @@ class MetricLosses:
     """Class-aggregator for metric-learning losses"""
 
     def __init__(self, writer, num_classes, embed_size, center_coeff=1.0, glob_push_coeff=1.0,
-                 local_push_coeff=1.0, pull_coeff=1.0, loss_balancing=True, centers_lr=0.5,balancing_lr=0.01,
+                 local_push_coeff=1.0, pull_coeff=1.0, loss_balancing=False, centers_lr=0.5,balancing_lr=0.01,
                  name='ml'):
         self.writer = writer
         self.total_losses_num = 0
