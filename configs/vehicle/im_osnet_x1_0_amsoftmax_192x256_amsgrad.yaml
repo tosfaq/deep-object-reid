@@ -2,7 +2,7 @@ model:
   name: 'osnet_ain_x1_0'
   pretrained: False
   feature_dim: 256
-  pcb_num_parts: 0
+  pcb_num_parts: 4
 
 data:
   type: 'image'
@@ -106,8 +106,10 @@ train:
   max_epoch: 50
   batch_size: 64
   fixbase_epoch: 2
-  open_layers: ['conv5', 'glob_max_fc', 'glob_cont_fc', 'glob_cat_fc', 'classifier', 'fc',
-                'attr_fc', 'attr_classifiers', 'aux_fc', 'aux_classifier']
+  open_layers: ['conv5',
+                'glob_max_fc', 'glob_cont_fc', 'glob_cat_fc',
+                'part_self_fc', 'part_rest_fc', 'part_cat_fc',
+                'classifier', 'fc', 'attr_fc', 'attr_classifiers', 'aux_fc', 'aux_classifier']
   lr_scheduler: 'multi_step_warmup'
   stepsize: [16, 30]
   warmup: 3

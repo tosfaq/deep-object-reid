@@ -447,6 +447,15 @@ class OSNet(nn.Module):
         self.glob_cont_fc = self._construct_fc_layer(out_num_channels, out_num_channels)
         self.glob_cat_fc = self._construct_fc_layer(2 * out_num_channels, out_num_channels)
 
+        if self.num_parts > 1:
+            self.part_self_fc = nn.ModuleList()
+            self.part_rest_fc = nn.ModuleList()
+            self.part_cat_fc = nn.ModuleList()
+            for _ in range(self.num_parts):
+                self.part_self_fc.append(self._construct_fc_layer(out_num_channels, out_num_channels))
+                self.part_rest_fc.append(self._construct_fc_layer(out_num_channels, out_num_channels))
+                self.part_cat_fc.append(self._construct_fc_layer(2 * out_num_channels, out_num_channels))
+
         fc_layers, classifier_layers = [], []
         for _ in range(self.num_parts + 1):  # main branch + part-based branches
             fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim))
@@ -558,7 +567,7 @@ class OSNet(nn.Module):
     def _glob_feature_vector(self, x, num_parts=4):
         # return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
 
-        row_parts = F.adaptive_max_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
+        row_parts = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
 
         p_max, _ = torch.max(row_parts, dim=2)
         p_avg = torch.mean(row_parts, dim=2)
@@ -572,24 +581,39 @@ class OSNet(nn.Module):
 
         return out
 
-    @staticmethod
-    def _part_feature_vector(x, num_parts):
-        if num_parts == 0:
+    def _part_feature_vector(self, x, num_parts):
+        if num_parts <= 1:
             return []
 
-        gap_branch = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
-        gmp_branch = F.adaptive_max_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
-        feature_vectors = gap_branch + gmp_branch
+        # gap_branch = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
+        # gmp_branch = F.adaptive_max_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
+        # feature_vectors = gap_branch + gmp_branch
+        #
+        # return [f.squeeze(dim=-1) for f in torch.split(feature_vectors, 1, dim=-1)]
 
-        return [f.squeeze(dim=-1) for f in torch.split(feature_vectors, 1, dim=-1)]
+        row_parts = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
+        row_parts = [f.squeeze(dim=-1) for f in torch.split(row_parts, 1, dim=-1)]
+
+        row_outs = []
+        for i in range(num_parts):
+            p = row_parts[i]
+            r = sum([row_parts[k] for k in range(num_parts) if k != i]) / float(num_parts - 1)
+
+            p_embd = self.part_self_fc[i](p)
+            r_embd = self.part_rest_fc[i](r)
+
+            p_cat = torch.cat((p_embd, r_embd), dim=1)
+            row_outs.append(p_embd + self.part_cat_fc[i](p_cat))
+
+        return row_outs
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
         feature_maps = self._backbone(x)
         if return_featuremaps:
             return feature_maps
 
-        glob_feature = self._glob_feature_vector(feature_maps)
-        part_features = self._part_feature_vector(feature_maps, self.num_parts)
+        glob_feature = self._glob_feature_vector(feature_maps, num_parts=self.num_parts)
+        part_features = self._part_feature_vector(feature_maps, num_parts=self.num_parts)
         features = [glob_feature] + list(part_features)
 
         main_embeddings = [fc(f) for f, fc in zip(features, self.fc)]
