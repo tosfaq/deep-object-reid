@@ -443,6 +443,10 @@ class OSNet(nn.Module):
         self.conv5 = Conv1x1(channels[3], out_num_channels)
         self.nl5 = self._construct_nonlocal_layer(out_num_channels, self.use_nonlocal_blocks[3])
 
+        self.glob_max_fc = self._construct_fc_layer(out_num_channels, out_num_channels)
+        self.glob_cont_fc = self._construct_fc_layer(out_num_channels, out_num_channels)
+        self.glob_cat_fc = self._construct_fc_layer(2 * out_num_channels, out_num_channels)
+
         fc_layers, classifier_layers = [], []
         for _ in range(self.num_parts + 1):  # main branch + part-based branches
             fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim))
@@ -551,11 +555,22 @@ class OSNet(nn.Module):
 
         return y
 
-    @staticmethod
-    def _feature_vector(x):
-        gap_branch = F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
-        gmp_branch = F.adaptive_max_pool2d(x, 1).view(x.size(0), -1)
-        return gap_branch + gmp_branch
+    def _glob_feature_vector(self, x, num_parts=4):
+        # return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
+
+        row_parts = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
+
+        p_max, _ = torch.max(row_parts, dim=2)
+        p_avg = torch.mean(row_parts, dim=2)
+        p_cont = p_avg - p_max
+
+        p_max_embd = self.glob_max_fc(p_max)
+        p_cont_embd = self.glob_cont_fc(p_cont)
+
+        p_cat = torch.cat((p_max_embd, p_cont_embd), dim=1)
+        out = p_max_embd + self.glob_cat_fc(p_cat)
+
+        return out
 
     @staticmethod
     def _part_feature_vector(x, num_parts):
@@ -573,7 +588,7 @@ class OSNet(nn.Module):
         if return_featuremaps:
             return feature_maps
 
-        glob_feature = self._feature_vector(feature_maps)
+        glob_feature = self._glob_feature_vector(feature_maps)
         part_features = self._part_feature_vector(feature_maps, self.num_parts)
         features = [glob_feature] + list(part_features)
 
