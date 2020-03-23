@@ -31,7 +31,7 @@ import numpy as np
 from torchreid import metrics
 from torchreid.engine.image.softmax import ImageSoftmaxEngine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
-from torchreid.losses import (get_regularizer, MetricLosses, MetricLossesOld,
+from torchreid.losses import (get_regularizer, MetricLosses,
                               AMSoftmaxLoss, CrossEntropyLoss, MinEntropyLoss, set_kl_div)
 
 
@@ -80,7 +80,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
 
             self.real_metric_losses = []
             for i in range(self.model.module.num_parts + 1):
-                self.real_metric_losses.append(MetricLossesOld(
+                self.real_metric_losses.append(MetricLosses(
                     self.writer,
                     num_real_classes,
                     self.model.module.feature_dim,
@@ -93,7 +93,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             self.synthetic_metric_losses = []
             # if self.model.module.split_embeddings:
             #     for i in range(self.model.module.num_parts + 1):
-            #         self.synthetic_metric_losses.append(MetricLossesOld(
+            #         self.synthetic_metric_losses.append(MetricLosses(
             #             self.writer,
             #             self.datamanager.num_train_pids[1],
             #             self.model.module.feature_dim,

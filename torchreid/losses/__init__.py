@@ -7,7 +7,6 @@ from .regularizers import ConvRegularizer, SVMORegularizer, get_regularizer
 from .hard_mine_triplet_loss import TripletLoss
 from .entropy import entropy, MaxEntropyLoss, MinEntropyLoss
 from .kullback_leibler_div import kl_div, symmetric_kl_div, set_kl_div
-from .metric_old import MetricLosses as MetricLossesOld
 
 
 def DeepSupervision(criterion, xs, y, **kwargs):

@@ -50,7 +50,7 @@ data:
       enable: True
       p: 0.33
     mixup:
-      enable: True
+      enable: False
       p: 0.33
       alpha: 0.2
   save_dir: 'log/osnet_ain_x1_0_aic20_amsoftmax'
@@ -97,7 +97,7 @@ attr_losses:
     attr_type: 11
 
 reg:
-  ow: True
+  ow: False
   ow_beta: 1e-2
 
 train:

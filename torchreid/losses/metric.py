@@ -1,25 +1,42 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 
 
 class CenterLoss(nn.Module):
     """Implementation of the Center loss from https://ydwen.github.io/papers/WenECCV16.pdf"""
 
-    def __init__(self):
+    def __init__(self, num_classes, embed_size, cos_dist=True):
         super().__init__()
+        self.cos_dist = cos_dist
+        self.num_classes = num_classes
+        self.centers = nn.Parameter(torch.randn(self.num_classes, embed_size).cuda())
+        self.embed_size = embed_size
+        self.mse = nn.MSELoss(reduction='elementwise_mean')
 
-    def forward(self, features, centers, labels):
-        features = F.normalize(features, p=2, dim=1)
+    def get_centers(self):
+        """Returns estimated centers"""
+        return self.centers
 
-        centers = F.normalize(centers.detach(), p=2, dim=1)
-        centers_batch = centers[labels, :]
+    def forward(self, features, labels):
+        features = F.normalize(features)
+        batch_size = labels.size(0)
+        features_dim = features.size(1)
+        assert features_dim == self.embed_size
 
-        center_distances = 1.0 - torch.sum(features * centers_batch, dim=1)
-        loss = center_distances.mean()
+        if self.cos_dist:
+            self.centers.data = F.normalize(self.centers.data, p=2, dim=1)
 
-        return loss
+        centers_batch = self.centers[labels, :]
+
+        if self.cos_dist:
+            cos_sim = nn.CosineSimilarity()
+            cos_diff = 1. - cos_sim(features, centers_batch)
+            center_loss = torch.sum(cos_diff) / batch_size
+        else:
+            center_loss = self.mse(centers_batch, features)
+
+        return center_loss
 
 
 class NormalizedLoss(nn.Module):
@@ -107,76 +124,119 @@ class MetricLosses:
     """Class-aggregator for metric-learning losses"""
 
     def __init__(self, writer, num_classes, embed_size, center_coeff=1.0, glob_push_coeff=1.0,
-                 local_push_coeff=1.0, pull_coeff=1.0, track_centers=False, new_center_weight=0.5,
-                 name='ml'):
+                 local_push_coeff=1.0, pull_coeff=1.0, loss_balancing=True, centers_lr=0.5,
+                 balancing_lr=0.01, name='ml'):
         self.writer = writer
-        self.center_coeff = center_coeff
-        self.glob_push_coeff = glob_push_coeff
-        self.local_push_coeff = local_push_coeff
-        self.pull_coeff = pull_coeff
+        self.total_losses_num = 0
         self.name = name
 
-        self.center_loss = CenterLoss()
-        self.glob_push_loss = GlobalPushPlus()
-        self.local_push_loss = SameCameraPushPlus()
-        self.pull_loss = SameIDPull()
+        self.center_loss = CenterLoss(num_classes, embed_size, cos_dist=True)
+        self.optimizer_centloss = torch.optim.SGD(self.center_loss.parameters(), lr=centers_lr)
+        assert center_coeff >= 0
+        self.center_coeff = center_coeff
+        if self.center_coeff > 0:
+            self.total_losses_num += 1
 
-        self.track_centers = track_centers
-        self.new_center_weight = new_center_weight
-        if self.track_centers:
-            self.centers = np.random.normal(size=[num_classes, embed_size]).astype(np.float32)
+        self.glob_push_loss = GlobalPushPlus()
+        assert glob_push_coeff >= 0
+        self.glob_push_coeff = glob_push_coeff
+        if self.glob_push_coeff > 0:
+            self.total_losses_num += 1
+
+        self.local_push_loss = SameCameraPushPlus()
+        assert local_push_coeff >= 0
+        self.local_push_coeff = local_push_coeff
+        if self.local_push_coeff > 0:
+            self.total_losses_num += 1
+
+        self.pull_loss = SameIDPull()
+        assert pull_coeff >= 0
+        self.pull_coeff = pull_coeff
+        if self.pull_coeff > 0:
+            self.total_losses_num += 1
+
+        self.loss_balancing = loss_balancing
+        if self.loss_balancing and self.total_losses_num > 1:
+            self.loss_weights = nn.Parameter(torch.FloatTensor(self.total_losses_num).cuda())
+            self.balancing_optimizer = torch.optim.SGD([self.loss_weights], lr=balancing_lr)
+            for i in range(self.total_losses_num):
+                self.loss_weights.data[i] = 0.
+
+    def _balance_losses(self, losses, scale=0.5):
+        assert len(losses) == self.total_losses_num
+
+        for i, loss_val in enumerate(losses):
+            weight = torch.exp(-self.loss_weights[i])
+            weighted_loss_val = weight * loss_val + scale * self.loss_weights[i]
+            losses[i] = weighted_loss_val.clamp_min(0.0)
+
+        return sum(losses)
 
     def __call__(self, features, glob_centers, labels, cam_ids, iteration):
-        if self.track_centers:
-            centers = torch.from_numpy(self.centers).cuda()
+        all_loss_values = []
+
+        center_loss_val = 0
+        if self.center_coeff > 0.:
+            center_loss_val = self.center_loss(features, labels)
+            all_loss_values.append(center_loss_val)
+            self.last_center_val = center_loss_val
+            if self.writer is not None:
+                self.writer.add_scalar('Loss/{}/center'.format(self.name), center_loss_val, iteration)
+
+        glob_push_plus_loss_val = 0
+        if self.glob_push_coeff > 0.0 and self.center_coeff > 0.0:
+            glob_push_plus_loss_val = self.glob_push_loss(features, self.center_loss.get_centers(), labels, cam_ids)
+            all_loss_values.append(glob_push_plus_loss_val)
+            if self.writer is not None:
+                self.writer.add_scalar('Loss/{}/global_push'.format(self.name), glob_push_plus_loss_val, iteration)
+
+        local_push_loss_val = 0
+        if self.local_push_coeff > 0.0 and self.center_coeff > 0.0:
+            local_push_loss_val = self.local_push_loss(features, self.center_loss.get_centers(), labels, cam_ids)
+            all_loss_values.append(local_push_loss_val)
+            if self.writer is not None:
+                self.writer.add_scalar('Loss/{}/local_push'.format(self.name), local_push_loss_val, iteration)
+
+        pull_loss_val = 0
+        if self.pull_coeff > 0.0 and self.center_coeff > 0.0:
+            pull_loss_val = self.pull_loss(features, self.center_loss.get_centers(), labels, cam_ids)
+            all_loss_values.append(pull_loss_val)
+            if self.writer is not None:
+                self.writer.add_scalar('Loss/{}/pull'.format(self.name), pull_loss_val, iteration)
+
+        if self.loss_balancing and self.total_losses_num > 1:
+            loss_value = self.center_coeff * self._balance_losses(all_loss_values)
+            self.last_loss_value = loss_value
         else:
-            centers = glob_centers
+            loss_value = self.center_coeff * center_loss_val + \
+                         self.glob_push_coeff * glob_push_plus_loss_val + \
+                         self.local_push_coeff * local_push_loss_val + \
+                         self.pull_coeff * pull_loss_val
 
-        center_loss_val = self.center_loss(features, centers, labels)
-        if self.writer is not None:
-            self.writer.add_scalar('Loss/{}/center'.format(self.name), center_loss_val, iteration)
+        if self.total_losses_num > 0:
+            if self.writer is not None:
+                self.writer.add_scalar('Loss/{}/AUX_losses'.format(self.name), loss_value, iteration)
 
-        glob_push_loss_val = self.glob_push_loss(features, centers, labels, cam_ids)
-        if self.writer is not None:
-            self.writer.add_scalar('Loss/{}/global_push'.format(self.name), glob_push_loss_val, iteration)
-
-        # local_push_loss_val = self.local_push_loss(features, centers, labels, cam_ids)
-        # if self.writer is not None:
-        #     self.writer.add_scalar('Loss/{}/local_push'.format(self.name), local_push_loss_val, iteration)
-        #
-        # pull_loss_val = self.pull_loss(features, centers, labels, cam_ids)
-        # if self.writer is not None:
-        #     self.writer.add_scalar('Loss/{}/pull'.format(self.name), pull_loss_val, iteration)
-
-        # total_loss = self.center_coeff * center_loss_val +\
-        #              self.glob_push_coeff * glob_push_loss_val +\
-        #              self.local_push_coeff * local_push_loss_val +\
-        #              self.pull_coeff * pull_loss_val
-        total_loss = self.center_coeff * center_loss_val + \
-                     self.glob_push_coeff * glob_push_loss_val
-        if self.writer is not None:
-            self.writer.add_scalar('Loss/{}/AUX_losses'.format(self.name), total_loss, iteration)
-
-        if self.track_centers:
-            with torch.no_grad():
-                for class_id in labels:
-                    class_mask = labels == class_id
-
-                    class_features = features[class_mask]
-                    class_embedding = F.normalize(class_features.mean(dim=0), p=2, dim=0)
-
-                    center = F.normalize(centers[class_id], p=2, dim=0)
-                    new_center = (1.0 - self.new_center_weight) * center + \
-                                 self.new_center_weight * class_embedding
-
-                    centers[class_id, :] = F.normalize(new_center, p=2, dim=0)
-
-                self.centers = centers.data.cpu().numpy()
-
-        return total_loss
+        return loss_value
 
     def init_iteration(self):
-        pass
+        """Initializes a training iteration"""
+
+        if self.center_coeff > 0.:
+            self.optimizer_centloss.zero_grad()
+
+        if self.loss_balancing:
+            self.balancing_optimizer.zero_grad()
 
     def end_iteration(self):
-        pass
+        """Finalizes a training iteration"""
+
+        if self.loss_balancing and self.total_losses_num > 1:
+            self.last_loss_value.backward(retain_graph=True)
+            self.balancing_optimizer.step()
+
+        if self.center_coeff > 0.:
+            self.last_center_val.backward(retain_graph=True)
+            for param in self.center_loss.parameters():
+                param.grad.data *= (1. / self.center_coeff)
+            self.optimizer_centloss.step()
