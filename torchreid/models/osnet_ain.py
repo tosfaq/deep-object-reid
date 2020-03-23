@@ -207,6 +207,24 @@ class ResidualAttention(nn.Module):
             return out
 
 
+class ChannelAttention(nn.Module):
+    def __init__(self, in_channels, gumbel=False):
+        super(ChannelAttention, self).__init__()
+
+    def forward(self, x, return_extra_data=False):
+        batch, channels, _, _ = x.size()
+        m = x.view(batch, channels, -1)
+        m_tr = m.permute(0, 2, 1)
+
+        scale = float(channels ** (-0.5))
+        attention = F.softmax(scale * torch.matmul(m, m_tr), dim=2)
+
+        y = torch.matmul(attention, m).view_as(x)
+        out = x + y
+
+        return out
+
+
 ##########
 # Building blocks for omni-scale feature learning
 ##########
@@ -408,8 +426,8 @@ class OSNet(nn.Module):
 
         self.use_attentions = attentions
         if self.use_attentions is None:
-            self.use_attentions = [False] * num_blocks
-        assert len(self.use_attentions) == num_blocks
+            self.use_attentions = [False] * (num_blocks + 1)
+        assert len(self.use_attentions) == num_blocks + 1
 
         self.use_nonlocal_blocks = nonlocal_blocks
         if self.use_nonlocal_blocks is None:
@@ -442,10 +460,11 @@ class OSNet(nn.Module):
         out_num_channels = channels[3]
         self.conv5 = Conv1x1(channels[3], out_num_channels)
         self.nl5 = self._construct_nonlocal_layer(out_num_channels, self.use_nonlocal_blocks[3])
+        self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[3])
 
-        self.glob_max_fc = self._construct_fc_layer(out_num_channels, out_num_channels)
-        self.glob_cont_fc = self._construct_fc_layer(out_num_channels, out_num_channels)
-        self.glob_cat_fc = self._construct_fc_layer(2 * out_num_channels, out_num_channels)
+        # self.glob_max_fc = self._construct_fc_layer(out_num_channels, out_num_channels)
+        # self.glob_cont_fc = self._construct_fc_layer(out_num_channels, out_num_channels)
+        # self.glob_cat_fc = self._construct_fc_layer(2 * out_num_channels, out_num_channels)
 
         if self.num_parts > 1:
             self.part_self_fc = nn.ModuleList()
@@ -502,7 +521,7 @@ class OSNet(nn.Module):
 
     @staticmethod
     def _construct_attention_layer(num_channels, enable):
-        return ResidualAttention(num_channels) if enable else None
+        return ChannelAttention(num_channels) if enable else None
 
     @staticmethod
     def _construct_nonlocal_layer(num_channels, enable):
@@ -561,25 +580,27 @@ class OSNet(nn.Module):
         y = self.conv5(y)
         if self.nl5 is not None:
             y = self.nl5(y)
+        if self.att5 is not None:
+            y = self.att5(y)
 
         return y
 
     def _glob_feature_vector(self, x, num_parts=4):
-        # return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
+        return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
 
-        row_parts = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
-
-        p_max, _ = torch.max(row_parts, dim=2)
-        p_avg = torch.mean(row_parts, dim=2)
-        p_cont = p_avg - p_max
-
-        p_max_embd = self.glob_max_fc(p_max)
-        p_cont_embd = self.glob_cont_fc(p_cont)
-
-        p_cat = torch.cat((p_max_embd, p_cont_embd), dim=1)
-        out = p_max_embd + self.glob_cat_fc(p_cat)
-
-        return out
+        # row_parts = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
+        #
+        # p_max, _ = torch.max(row_parts, dim=2)
+        # p_avg = torch.mean(row_parts, dim=2)
+        # p_cont = p_avg - p_max
+        #
+        # p_max_embd = self.glob_max_fc(p_max)
+        # p_cont_embd = self.glob_cont_fc(p_cont)
+        #
+        # p_cat = torch.cat((p_max_embd, p_cont_embd), dim=1)
+        # out = p_max_embd + self.glob_cat_fc(p_cat)
+        #
+        # return out
 
     def _part_feature_vector(self, x, num_parts):
         if num_parts <= 1:
@@ -739,7 +760,7 @@ def osnet_ain_x1_0(num_classes=1000, pretrained=True, **kwargs):
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        # attentions=[True, False, False],
+        attentions=[False, False, False, True],
         # nonlocal_blocks=[False, True, True, False],
         # dropout_probs=[
         #     [None, 0.1],
