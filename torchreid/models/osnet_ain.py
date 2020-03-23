@@ -553,14 +553,19 @@ class OSNet(nn.Module):
 
     @staticmethod
     def _feature_vector(x):
-        return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
+        gap_branch = F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
+        gmp_branch = F.adaptive_max_pool2d(x, 1).view(x.size(0), -1)
+        return gap_branch + gmp_branch
 
     @staticmethod
     def _part_feature_vector(x, num_parts):
         if num_parts == 0:
             return []
 
-        feature_vectors = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
+        gap_branch = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
+        gmp_branch = F.adaptive_max_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
+        feature_vectors = gap_branch + gmp_branch
+
         return [f.squeeze(dim=-1) for f in torch.split(feature_vectors, 1, dim=-1)]
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
