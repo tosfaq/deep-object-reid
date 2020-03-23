@@ -558,7 +558,7 @@ class OSNet(nn.Module):
     def _glob_feature_vector(self, x, num_parts=4):
         # return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
 
-        row_parts = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
+        row_parts = F.adaptive_max_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
 
         p_max, _ = torch.max(row_parts, dim=2)
         p_avg = torch.mean(row_parts, dim=2)
