@@ -312,36 +312,41 @@ class DenseNet(nn.Module):
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
+    def load_pretrained_weights(self, pretrained_dict):
+        # '.'s are no longer allowed in module names, but previous _DenseLayer
+        # has keys 'norm.1', 'relu.1', 'conv.1', 'norm.2', 'relu.2', 'conv.2'.
+        # They are also in the checkpoints in model_urls. This pattern is used
+        # to find such keys.
+        pattern = re.compile(
+            r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$'
+        )
+        for key in list(pretrained_dict.keys()):
+            res = pattern.match(key)
+            if res:
+                new_key = res.group(1) + res.group(2)
+                pretrained_dict[new_key] = pretrained_dict[key]
+                del pretrained_dict[key]
+
+        model_dict = self.state_dict()
+        pretrained_dict = {
+            k: v
+            for k, v in pretrained_dict.items()
+            if k in model_dict and model_dict[k].size() == v.size()
+        }
+
+        model_dict.update(pretrained_dict)
+        self.load_state_dict(model_dict, strict=True)
+        print('Successfully loaded pretrained weights')
+
 
 def init_pretrained_weights(model, model_url):
     """Initializes model with pretrained weights.
     
     Layers that don't match with pretrained layers in name or size are kept unchanged.
     """
-    pretrain_dict = model_zoo.load_url(model_url)
 
-    # '.'s are no longer allowed in module names, but pervious _DenseLayer
-    # has keys 'norm.1', 'relu.1', 'conv.1', 'norm.2', 'relu.2', 'conv.2'.
-    # They are also in the checkpoints in model_urls. This pattern is used
-    # to find such keys.
-    pattern = re.compile(
-        r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$'
-    )
-    for key in list(pretrain_dict.keys()):
-        res = pattern.match(key)
-        if res:
-            new_key = res.group(1) + res.group(2)
-            pretrain_dict[new_key] = pretrain_dict[key]
-            del pretrain_dict[key]
-
-    model_dict = model.state_dict()
-    pretrain_dict = {
-        k: v
-        for k, v in pretrain_dict.items()
-        if k in model_dict and model_dict[k].size() == v.size()
-    }
-    model_dict.update(pretrain_dict)
-    model.load_state_dict(model_dict)
+    pretrained_dict = model_zoo.load_url(model_url)
+    model.load_pretrained_weights(pretrained_dict)
 
 
 """
@@ -354,7 +359,7 @@ densenet161: num_init_features=96, growth_rate=48, block_config=(6, 12, 36, 24)
 """
 
 
-def densenet121(num_classes=1000, pretrained=True, **kwargs):
+def densenet121(num_classes=1000, pretrained=True, download_weights=False, **kwargs):
     model = DenseNet(
         num_classes,
         num_init_features=64,
@@ -362,13 +367,13 @@ def densenet121(num_classes=1000, pretrained=True, **kwargs):
         block_config=(6, 12, 24, 16),
         **kwargs
     )
-    if pretrained:
+    if pretrained and download_weights:
         init_pretrained_weights(model, model_urls['densenet121'])
 
     return model
 
 
-def densenet169(num_classes=1000, pretrained=True, **kwargs):
+def densenet169(num_classes=1000, pretrained=True, download_weights=False, **kwargs):
     model = DenseNet(
         num_classes,
         num_init_features=64,
@@ -376,13 +381,13 @@ def densenet169(num_classes=1000, pretrained=True, **kwargs):
         block_config=(6, 12, 32, 32),
         **kwargs
     )
-    if pretrained:
+    if pretrained and download_weights:
         init_pretrained_weights(model, model_urls['densenet169'])
 
     return model
 
 
-def densenet201(num_classes=1000, pretrained=True, **kwargs):
+def densenet201(num_classes=1000, pretrained=True, download_weights=False, **kwargs):
     model = DenseNet(
         num_classes,
         num_init_features=64,
@@ -390,13 +395,13 @@ def densenet201(num_classes=1000, pretrained=True, **kwargs):
         block_config=(6, 12, 48, 32),
         **kwargs
     )
-    if pretrained:
+    if pretrained and download_weights:
         init_pretrained_weights(model, model_urls['densenet201'])
 
     return model
 
 
-def densenet161(num_classes=1000, pretrained=True, **kwargs):
+def densenet161(num_classes=1000, pretrained=True, download_weights=False, **kwargs):
     model = DenseNet(
         num_classes,
         num_init_features=96,
@@ -404,7 +409,7 @@ def densenet161(num_classes=1000, pretrained=True, **kwargs):
         block_config=(6, 12, 36, 24),
         **kwargs
     )
-    if pretrained:
+    if pretrained and download_weights:
         init_pretrained_weights(model, model_urls['densenet161'])
 
     return model

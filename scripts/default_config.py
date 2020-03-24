@@ -7,7 +7,8 @@ def get_default_config():
     # model
     cfg.model = CN()
     cfg.model.name = 'resnet50'
-    cfg.model.pretrained = True  # automatically load pretrained model weights if available
+    cfg.model.pretrained = False  # automatically load pretrained model weights if available
+    cfg.model.download_weights = False
     cfg.model.load_weights = ''  # path to model weights
     cfg.model.resume = ''  # path to checkpoint for resume training
     cfg.model.feature_dim = 512  # embedding size
@@ -326,6 +327,7 @@ def model_kwargs(cfg, num_classes):
         'num_classes': num_classes,
         'loss': cfg.loss.name,
         'pretrained': cfg.model.pretrained,
+        'download_weights': cfg.model.download_weights,
         'use_gpu': cfg.use_gpu,
         'feature_dim': cfg.model.feature_dim,
         'attr_tasks': cfg.attr_losses.tasks,

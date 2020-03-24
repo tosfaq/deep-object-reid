@@ -1,11 +1,15 @@
 from __future__ import division, absolute_import
+
 import warnings
+from collections import OrderedDict
+
 import torch
 from torch import nn
 from torch.nn import functional as F
 
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, HSwish, gumbel_sigmoid, NonLocalModule
+
 
 __all__ = ['osnet_ain_x1_0']
 
@@ -584,7 +588,7 @@ class OSNet(nn.Module):
 
         return y
 
-    def _glob_feature_vector(self, x, num_parts=4):
+    def _glob_feature_vector(self, x, num_parts):
         return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
 
         # row_parts = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
@@ -676,6 +680,39 @@ class OSNet(nn.Module):
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
+    def load_pretrained_weights(self, pretrained_dict):
+        model_dict = self.state_dict()
+        new_state_dict = OrderedDict()
+        matched_layers, discarded_layers = [], []
+
+        for k, v in pretrained_dict.items():
+            if k.startswith('module.'):
+                k = k[7:]  # discard module.
+
+            if k in model_dict and model_dict[k].size() == v.size():
+                new_state_dict[k] = v
+                matched_layers.append(k)
+            else:
+                discarded_layers.append(k)
+
+        model_dict.update(new_state_dict)
+        self.load_state_dict(model_dict)
+
+        if len(matched_layers) == 0:
+            warnings.warn(
+                'The pretrained weights cannot be loaded, '
+                'please check the key names manually '
+                '(** ignored and continue **)'
+            )
+        else:
+            print('Successfully loaded pretrained weights')
+            if len(discarded_layers) > 0:
+                print(
+                    '** The following layers are discarded '
+                    'due to unmatched keys or layer size: {}'.
+                    format(discarded_layers)
+                )
+
 
 def init_pretrained_weights(model, key=''):
     """Initializes model with pretrained weights.
@@ -685,7 +722,6 @@ def init_pretrained_weights(model, key=''):
     import os
     import errno
     import gdown
-    from collections import OrderedDict
 
     def _get_torch_home():
         ENV_TORCH_HOME = 'TORCH_HOME'
@@ -707,10 +743,8 @@ def init_pretrained_weights(model, key=''):
         os.makedirs(model_dir)
     except OSError as e:
         if e.errno == errno.EEXIST:
-            # Directory already exists, ignore.
             pass
         else:
-            # Unexpected OSError, re-raise.
             raise
     filename = key + '_imagenet.pth'
     cached_file = os.path.join(model_dir, filename)
@@ -719,38 +753,14 @@ def init_pretrained_weights(model, key=''):
         gdown.download(pretrained_urls[key], cached_file, quiet=False)
 
     state_dict = torch.load(cached_file)
-    model_dict = model.state_dict()
-    new_state_dict = OrderedDict()
-    matched_layers, discarded_layers = [], []
-
-    for k, v in state_dict.items():
-        if k.startswith('module.'):
-            k = k[7:]  # discard module.
-
-        if k in model_dict and model_dict[k].size() == v.size():
-            new_state_dict[k] = v
-            matched_layers.append(k)
-        else:
-            discarded_layers.append(k)
-
-    model_dict.update(new_state_dict)
-    model.load_state_dict(model_dict)
-
-    if len(matched_layers) == 0:
-        warnings.warn('The pretrained weights from "{}" cannot be loaded, please check the key names manually '
-                      '(** ignored and continue **)'.format(cached_file))
-    else:
-        print('Successfully loaded imagenet pretrained weights from "{}"'.format(cached_file))
-        if len(discarded_layers) > 0:
-            print('** The following layers are discarded due to unmatched keys or layer size: {}'.
-                  format(discarded_layers))
+    model.load_pretrained_weights(state_dict)
 
 
 ##########
 # Instantiation
 ##########
 
-def osnet_ain_x1_0(num_classes, pretrained=True, **kwargs):
+def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwargs):
     model = OSNet(
         num_classes,
         blocks=[
@@ -770,7 +780,7 @@ def osnet_ain_x1_0(num_classes, pretrained=True, **kwargs):
         **kwargs
     )
 
-    if pretrained:
+    if pretrained and download_weights:
         init_pretrained_weights(model, key='osnet_ain_x1_0')
 
     return model

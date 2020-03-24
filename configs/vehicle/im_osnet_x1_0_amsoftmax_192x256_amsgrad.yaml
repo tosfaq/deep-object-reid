@@ -1,6 +1,7 @@
 model:
   name: 'osnet_ain_x1_0'
-  pretrained: False
+  pretrained: True
+  download_weights: False
   feature_dim: 256
   pcb_num_parts: 0
 
