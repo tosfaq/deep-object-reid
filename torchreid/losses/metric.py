@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,11 +9,15 @@ class CenterLoss(nn.Module):
 
     def __init__(self, num_classes, embed_size, cos_dist=True):
         super().__init__()
-        self.cos_dist = cos_dist
         self.num_classes = num_classes
         self.centers = nn.Parameter(torch.randn(self.num_classes, embed_size).cuda())
         self.embed_size = embed_size
-        self.mse = nn.MSELoss(reduction='elementwise_mean')
+
+        self.cos_dist = cos_dist
+        if self.cos_dist:
+            self.cos_sim = nn.CosineSimilarity()
+        else:
+            self.mse = nn.MSELoss(reduction='elementwise_mean')
 
     def get_centers(self):
         """Returns estimated centers"""
@@ -30,13 +35,67 @@ class CenterLoss(nn.Module):
         centers_batch = self.centers[labels, :]
 
         if self.cos_dist:
-            cos_sim = nn.CosineSimilarity()
-            cos_diff = 1. - cos_sim(features, centers_batch)
+            cos_diff = 1.0 - self.cos_sim(features, centers_batch)
             center_loss = torch.sum(cos_diff) / batch_size
         else:
             center_loss = self.mse(centers_batch, features)
 
         return center_loss
+
+
+class SampledCenterLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, features, centers, labels, cam_ids):
+        embeddings = F.normalize(features, p=2, dim=1)
+        centers = F.normalize(centers.detach(), p=2, dim=1)
+
+        num_samples = 0
+        loss = 0.0
+        for class_id in labels:
+            class_mask = labels == class_id
+
+            class_embeddings = embeddings[class_mask]
+            class_center = centers[class_id].detach().view(1, -1)
+
+            sampled_embeddings = self.sample_embeddings(class_embeddings)
+            dist = 1.0 - torch.sum(sampled_embeddings * class_center, dim=1)
+
+            loss += dist.sum()
+            num_samples += dist.numel()
+
+        out_loss = loss / num_samples if num_samples > 0 else 0.0
+
+        return out_loss
+
+    @staticmethod
+    def sample_embeddings(embeddings):
+        with torch.no_grad():
+            n = embeddings.size(0)
+            left_ids = torch.from_numpy(np.array([i for i in range(n) for j in range(i + 1, n)])).cuda()
+            right_ids = torch.from_numpy(np.array([j for i in range(n) for j in range(i + 1, n)])).cuda()
+
+        left_embeddings = torch.index_select(embeddings, 0, left_ids)
+        right_embeddings = torch.index_select(embeddings, 0, right_ids)
+
+        with torch.no_grad():
+            cos_gamma = torch.sum(left_embeddings * right_embeddings, dim=1)
+            sin_gamma = torch.sqrt(1.0 - cos_gamma ** 2)
+
+            ratio = torch.rand(left_embeddings.size(0), dtype=left_embeddings.dtype, device=left_embeddings.device)
+
+            alpha_angle = torch.acos((1.0 - ratio) / torch.sqrt(ratio * ratio - 2.0 * ratio * cos_gamma + 1.0)) + \
+                          torch.atan(ratio * sin_gamma / (ratio * cos_gamma - 1.0))
+            gamma_angle = torch.acos(cos_gamma)
+            betta_angle = gamma_angle - alpha_angle
+
+            left_scale = (torch.sin(betta_angle) / sin_gamma).view(-1, 1)
+            right_scale = (torch.sin(alpha_angle) / sin_gamma).view(-1, 1)
+
+        sampled_embeddings = left_scale * left_embeddings + right_scale * right_embeddings
+
+        return sampled_embeddings
 
 
 class NormalizedLoss(nn.Module):
@@ -155,6 +214,10 @@ class MetricLosses:
         if self.pull_coeff > 0:
             self.total_losses_num += 1
 
+        self.sampled_center_loss = SampledCenterLoss()
+        if self.center_coeff > 0:
+            self.total_losses_num += 1
+
         self.loss_balancing = loss_balancing
         if self.loss_balancing and self.total_losses_num > 1:
             self.loss_weights = nn.Parameter(torch.FloatTensor(self.total_losses_num).cuda())
@@ -176,12 +239,18 @@ class MetricLosses:
         all_loss_values = []
 
         center_loss_val = 0
+        sampled_center_loss_val = 0
         if self.center_coeff > 0.:
             center_loss_val = self.center_loss(features, labels)
             all_loss_values.append(center_loss_val)
             self.last_center_val = center_loss_val
             if self.writer is not None:
                 self.writer.add_scalar('Loss/{}/center'.format(self.name), center_loss_val, iteration)
+
+            sampled_center_loss_val = self.sampled_center_loss(features, self.center_loss.get_centers(), labels, cam_ids)
+            all_loss_values.append(sampled_center_loss_val)
+            if self.writer is not None:
+                self.writer.add_scalar('Loss/{}/sampled_center'.format(self.name), sampled_center_loss_val, iteration)
 
         glob_push_plus_loss_val = 0
         if self.glob_push_coeff > 0.0 and self.center_coeff > 0.0:
@@ -208,7 +277,7 @@ class MetricLosses:
             loss_value = self.center_coeff * self._balance_losses(all_loss_values)
             self.last_loss_value = loss_value
         else:
-            loss_value = self.center_coeff * center_loss_val + \
+            loss_value = self.center_coeff * (center_loss_val + sampled_center_loss_val) + \
                          self.glob_push_coeff * glob_push_plus_loss_val + \
                          self.local_push_coeff * local_push_loss_val + \
                          self.pull_coeff * pull_loss_val
