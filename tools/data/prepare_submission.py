@@ -328,7 +328,7 @@ def main():
         load_pretrained_weights(model, cfg.model.load_weights)
 
     if cfg.use_gpu:
-        model = nn.DataParallel(model).cuda()
+        model = model.cuda()
 
     embeddings_query = extract_features(model, data_query, cfg.use_gpu, enable_flipping=True)
     print('Extracted query: {}'.format(embeddings_query.shape))
