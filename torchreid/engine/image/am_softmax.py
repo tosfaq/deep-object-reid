@@ -199,23 +199,23 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 real_embeddings = [e[real_mask] if e is not None else None for e in embeddings['real']]
                 # synthetic_embeddings = [e[synthetic_mask] if e is not None else None for e in embeddings['synthetic']]
 
-                trg_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
-                num_losses = 0
+                real_data_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
                 if real_pids.numel() > 0:
                     real_data_loss = self._compute_loss(self.main_loss, real_outputs, real_pids, iteration=n_iter)
                     real_loss.update(real_data_loss.item(), real_pids.numel())
-                    trg_loss += real_data_loss
-                    num_losses += 1
+                synthetic_data_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
                 if synthetic_pids.numel() > 0:
                     synthetic_data_loss =\
                         self._compute_loss(self.main_loss, synthetic_outputs, synthetic_pids, iteration=n_iter)
                     synthetic_loss.update(synthetic_data_loss.item(), synthetic_pids.numel())
 
-                    synthetic_loss_weight = (real_loss.avg if real_loss.avg > 0.0 else 1.0) / \
-                                            (synthetic_loss.avg if synthetic_loss.avg > 0.0 else 1.0)
-                    trg_loss += synthetic_loss_weight * synthetic_data_loss
-                    num_losses += 1
-                trg_loss /= num_losses
+                    synthetic_loss_scale = (real_loss.avg if real_loss.avg > 0.0 else 1.0) / \
+                                           (synthetic_loss.avg if synthetic_loss.avg > 0.0 else 1.0)
+                    synthetic_data_loss *= synthetic_loss_scale
+
+                real_loss_weight = float(real_pids.numel()) / float(pids.numel())
+                synthetic_loss_weight = float(synthetic_pids.numel()) / float(pids.numel())
+                trg_loss = real_loss_weight * real_data_loss + synthetic_loss_weight * synthetic_data_loss
             else:
                 real_outputs = outputs['real']
                 real_pids = pids
