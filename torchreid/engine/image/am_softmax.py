@@ -269,10 +269,10 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 attr_loss_value = torch.stack(attr_losses_list).mean()
                 attr_loss.update(attr_loss_value.item(), batch_size)
 
-                # attr_loss_weight = (trg_losses.avg if trg_losses.avg > 0.0 else 1.0) / \
-                #                    (attr_loss.avg if attr_loss.avg > 0.0 else 1.0)
-                # total_loss = 0.5 * (trg_loss + attr_loss_weight * attr_loss_value)
-                total_loss = trg_loss + attr_loss_value
+                attr_loss_weight = (trg_losses.avg if trg_losses.avg > 0.0 else 1.0) / \
+                                   (attr_loss.avg if attr_loss.avg > 0.0 else 1.0)
+                total_loss = trg_loss + 0.1 * attr_loss_weight * attr_loss_value
+                # total_loss = trg_loss + attr_loss_value
             else:
                 total_loss = trg_loss
 
@@ -313,7 +313,9 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 metric_loss = real_metric_loss
                 metric_losses.update(metric_loss.item(), batch_size)
 
-                total_loss += metric_loss
+                metric_loss_weight = (trg_losses.avg if trg_losses.avg > 0.0 else 1.0) / \
+                                     (metric_losses.avg if metric_losses.avg > 0.0 else 1.0)
+                total_loss += 0.3 * metric_loss_weight * metric_loss
 
             total_loss.backward()
             self.optimizer.step()
