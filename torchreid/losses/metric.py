@@ -57,7 +57,7 @@ class SampledCenterLoss(nn.Module):
             class_mask = labels == class_id
 
             class_embeddings = embeddings[class_mask]
-            class_center = centers[class_id].detach().view(1, -1)
+            class_center = centers[class_id].view(1, -1)
 
             sampled_embeddings = self.sample_embeddings(class_embeddings)
             dist = 1.0 - torch.sum(sampled_embeddings * class_center, dim=1)
@@ -80,11 +80,13 @@ class SampledCenterLoss(nn.Module):
         right_embeddings = torch.index_select(embeddings, 0, right_ids)
 
         with torch.no_grad():
-            cos_gamma = torch.sum(left_embeddings * right_embeddings, dim=1)
-            sin_gamma = torch.sqrt(1.0 - cos_gamma ** 2)
+            cos_gamma = torch.sum(left_embeddings * right_embeddings, dim=1).clamp(-1.0, 1.0)
 
-            ratio = torch.rand(left_embeddings.size(0), dtype=left_embeddings.dtype, device=left_embeddings.device)
+            valid_mask = cos_gamma > 0.0
+            cos_gamma = cos_gamma[valid_mask]
+            sin_gamma = torch.sqrt(1.0 - cos_gamma ** 2).clamp(0.0, 1.0)
 
+            ratio = torch.rand_like(cos_gamma)
             alpha_angle = torch.acos((1.0 - ratio) / torch.sqrt(ratio * ratio - 2.0 * ratio * cos_gamma + 1.0)) + \
                           torch.atan(ratio * sin_gamma / (ratio * cos_gamma - 1.0))
             gamma_angle = torch.acos(cos_gamma)
@@ -93,7 +95,7 @@ class SampledCenterLoss(nn.Module):
             left_scale = (torch.sin(betta_angle) / sin_gamma).view(-1, 1)
             right_scale = (torch.sin(alpha_angle) / sin_gamma).view(-1, 1)
 
-        sampled_embeddings = left_scale * left_embeddings + right_scale * right_embeddings
+        sampled_embeddings = left_scale * left_embeddings[valid_mask] + right_scale * right_embeddings[valid_mask]
 
         return sampled_embeddings
 
