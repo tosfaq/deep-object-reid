@@ -330,7 +330,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             self.optimizer.step()
 
             losses.update(total_loss.item(), batch_size)
-            accs.update(metrics.accuracy(real_outputs[0], real_pids)[0].item())
+            accs.update(metrics.accuracy(real_outputs[0], real_pids)[0].item(), 1 if real_pids.numel() > 0 else 0)
             batch_time.update(time.time() - start_time)
 
             if print_freq > 0 and (batch_idx + 1) % print_freq == 0:

@@ -26,10 +26,10 @@ class AverageMeter(object):
 
     def update(self, val, n=1):
         self.val = val
-        if self.enable_zeros:
-            self._update(val, n)
-        else:
-            if val > 0.0 and n > 0:
+        if n > 0:
+            if self.enable_zeros:
+                self._update(val, n)
+            elif val > 0.0:
                 self._update(val, n)
 
     def _update(self, val, n):
