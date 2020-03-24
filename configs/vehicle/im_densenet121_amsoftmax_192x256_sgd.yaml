@@ -1,0 +1,122 @@
+model:
+  name: 'densenet121'
+  pretrained: True
+  feature_dim: 256
+  pcb_num_parts: 0
+
+data:
+  type: 'image'
+  sources: ['aic20']
+  targets: ['aic20', 'veri']
+  height: 192
+  width: 256
+  combineall: False
+  transforms:
+    color_jitter:
+      enable: False
+      p: 0.8
+      saturation: 0.1
+      hue: 0.1
+      brightness: 0.15
+      contrast: 0.15
+    random_flip:
+      enable: True
+      p: 0.5
+    random_erase:
+      enable: True
+      p: 0.5
+      sl: 0.2
+      sh: 0.4
+      rl: 0.3
+      rh: 3.3
+    random_padding:
+      enable: True
+      p: 0.25
+    random_crop:
+      enable: True
+      p: 0.25
+      scale: 1.2
+    random_rotate:
+      enable: True
+      p: 0.33
+    random_perspective:
+      enable: False
+      p: 0.33
+      distortion_scale: 0.3
+    random_grid:
+      enable: True
+      p: 0.15
+    random_figures:
+      enable: True
+      p: 0.33
+    mixup:
+      enable: False
+      p: 0.33
+      alpha: 0.2
+  save_dir: 'log/densenet121_aic20_amsoftmax'
+
+aic20:
+  use_simulation_data: True
+  simulation_data_only: False
+  split_real_synthetic: True
+  balance_real_synthetic_ids: False
+
+sampler:
+  train_sampler: 'RandomIdentitySamplerV3'
+  num_instances: 4
+
+loss:
+  name: 'am_softmax'
+  softmax:
+    conf_penalty: 0.085
+    label_smooth: False
+    m: 0.35
+    s: 15.0
+    end_s: -1.0
+    duration_s: -1
+    skip_steps_s: -1
+
+metric_losses:
+  enable: True
+  center_coeff: 1.0
+  glob_push_coeff: 1.2
+  local_push_coeff: 1.0
+  pull_coeff: 1.0
+
+attr_losses:
+  enable: True
+  conf_penalty: 0.085
+  label_smooth: False
+  m: 0.35
+  s: 5.0
+  end_s: -1.0
+  duration_s: -1
+  skip_steps_s: -1
+  tasks:
+    attr_color: 12
+    attr_type: 11
+
+reg:
+  ow: False
+  ow_beta: 1e-2
+
+train:
+  optim: 'sgd'
+  lr: 0.01
+  max_epoch: 50
+  batch_size: 64
+  fixbase_epoch: 2
+  open_layers: ['classifier', 'fc', 'attr_fc', 'attr_classifiers', 'aux_fc', 'aux_classifier']
+  lr_scheduler: 'multi_step_warmup'
+  stepsize: [16, 30]
+  warmup: 3
+  warmup_factor_base: 0.001
+
+test:
+  batch_size: 300
+  dist_metric: 'cosine'
+  normalize_feature: False
+  evaluate: False
+  eval_freq: 1
+  rerank: False
+  visactmap: False

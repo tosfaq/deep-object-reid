@@ -42,7 +42,6 @@ __model_factory = {
     'densenet169': densenet169,
     'densenet201': densenet201,
     'densenet161': densenet161,
-    'densenet121_fc512': densenet121_fc512,
     'inceptionresnetv2': inceptionresnetv2,
     'inceptionv4': inceptionv4,
     'xception': xception,

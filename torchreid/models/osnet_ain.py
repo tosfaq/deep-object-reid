@@ -10,8 +10,7 @@ from torchreid.ops import Dropout, HSwish, gumbel_sigmoid, NonLocalModule
 __all__ = ['osnet_ain_x1_0']
 
 pretrained_urls = {
-    'osnet_ain_x1_0':
-    'https://drive.google.com/uc?id=1-CaioD9NaqbHK_kzSMW8VE4_3KcsRjEo'
+    'osnet_ain_x1_0': 'https://drive.google.com/uc?id=1-CaioD9NaqbHK_kzSMW8VE4_3KcsRjEo'
 }
 
 
@@ -751,7 +750,7 @@ def init_pretrained_weights(model, key=''):
 # Instantiation
 ##########
 
-def osnet_ain_x1_0(num_classes=1000, pretrained=True, **kwargs):
+def osnet_ain_x1_0(num_classes, pretrained=True, **kwargs):
     model = OSNet(
         num_classes,
         blocks=[
