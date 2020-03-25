@@ -82,13 +82,14 @@ class SampledCenterLoss(nn.Module):
         with torch.no_grad():
             cos_gamma = torch.sum(left_embeddings * right_embeddings, dim=1).clamp(-1.0, 1.0)
 
-            valid_mask = cos_gamma > 0.0
+            valid_mask = cos_gamma > 0.1
             cos_gamma = cos_gamma[valid_mask]
-            sin_gamma = torch.sqrt(1.0 - cos_gamma ** 2).clamp(0.0, 1.0)
+            sin_gamma = torch.sqrt((1.0 - cos_gamma ** 2).clamp(0.0, 1.0)).clamp(0.0, 1.0)
 
             ratio = torch.rand_like(cos_gamma)
-            alpha_angle = torch.acos((1.0 - ratio) / torch.sqrt(ratio * ratio - 2.0 * ratio * cos_gamma + 1.0)) + \
-                          torch.atan(ratio * sin_gamma / (ratio * cos_gamma - 1.0))
+            alpha_angle =\
+                torch.acos((1.0 - ratio) / torch.sqrt((ratio * ratio - 2.0 * ratio * cos_gamma + 1.0).clamp(0.0, 1.0))) + \
+                torch.atan(ratio * sin_gamma / (ratio * cos_gamma - 1.0))
             gamma_angle = torch.acos(cos_gamma)
             betta_angle = gamma_angle - alpha_angle
 
@@ -216,9 +217,9 @@ class MetricLosses:
         if self.pull_coeff > 0:
             self.total_losses_num += 1
 
-        self.sampled_center_loss = SampledCenterLoss()
-        if self.center_coeff > 0:
-            self.total_losses_num += 1
+        # self.sampled_center_loss = SampledCenterLoss()
+        # if self.center_coeff > 0:
+        #     self.total_losses_num += 1
 
         self.loss_balancing = loss_balancing
         if self.loss_balancing and self.total_losses_num > 1:
@@ -249,10 +250,10 @@ class MetricLosses:
             if self.writer is not None:
                 self.writer.add_scalar('Loss/{}/center'.format(self.name), center_loss_val, iteration)
 
-            sampled_center_loss_val = self.sampled_center_loss(features, self.center_loss.get_centers(), labels, cam_ids)
-            all_loss_values.append(sampled_center_loss_val)
-            if self.writer is not None:
-                self.writer.add_scalar('Loss/{}/sampled_center'.format(self.name), sampled_center_loss_val, iteration)
+            # sampled_center_loss_val = self.sampled_center_loss(features, self.center_loss.get_centers(), labels, cam_ids)
+            # all_loss_values.append(sampled_center_loss_val)
+            # if self.writer is not None:
+            #     self.writer.add_scalar('Loss/{}/sampled_center'.format(self.name), sampled_center_loss_val, iteration)
 
         glob_push_plus_loss_val = 0
         if self.glob_push_coeff > 0.0 and self.center_coeff > 0.0:
