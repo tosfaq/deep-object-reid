@@ -85,7 +85,7 @@ metric_losses:
   pull_coeff: 1.0
 
 attr_losses:
-  enable: True
+  enable: False
   conf_penalty: 0.085
   label_smooth: False
   m: 0.35
