@@ -112,7 +112,7 @@ train:
                 # 'part_self_fc', 'part_rest_fc', 'part_cat_fc',
                 'classifier', 'fc', 'attr_fc', 'attr_classifiers', 'aux_fc', 'aux_classifier']
   lr_scheduler: 'multi_step_warmup'
-  stepsize: [16, 30]
+  stepsize: [20, 35]
   warmup: 3
   warmup_factor_base: 0.001
 
