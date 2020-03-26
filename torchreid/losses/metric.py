@@ -231,15 +231,18 @@ class MetricLosses:
             for i in range(self.total_losses_num):
                 self.loss_weights.data[i] = 0.
 
-    def _balance_losses(self, losses, scale=0.5):
+    def _balance_losses(self, losses, scale=0.1):
         assert len(losses) == self.total_losses_num
 
+        weighted_losses = []
         for i, loss_val in enumerate(losses):
             weight = torch.exp(-self.loss_weights[i])
             weighted_loss_val = weight * loss_val + scale * self.loss_weights[i]
-            losses[i] = weighted_loss_val.clamp_min(0.0)
 
-        return sum(losses)
+            losses[i] = weighted_loss_val.clamp_min(0.0)
+            weighted_losses.append(weighted_loss_val)
+
+        return sum(losses), weighted_losses
 
     def __call__(self, features, glob_centers, labels, cam_ids, iteration):
         all_loss_values = []
@@ -250,57 +253,74 @@ class MetricLosses:
             center_loss_val = self.center_loss(features, labels)
             all_loss_values.append(center_loss_val)
             self.last_center_val = center_loss_val
-            if self.writer is not None:
-                self.writer.add_scalar('Loss/{}/center'.format(self.name), center_loss_val, iteration)
-                if self.loss_balancing:
-                    self.writer.add_scalar('Aux/{}/center_w'.format(self.name), self.loss_weights[0], iteration)
 
             sampled_center_loss_val = self.sampled_center_loss(features, self.center_loss.get_centers(), labels, cam_ids)
             all_loss_values.append(sampled_center_loss_val)
-            if self.writer is not None:
-                self.writer.add_scalar('Loss/{}/sampled_center'.format(self.name), sampled_center_loss_val, iteration)
-                if self.loss_balancing:
-                    self.writer.add_scalar('Aux/{}/sampled_center_w'.format(self.name), self.loss_weights[1], iteration)
 
         glob_push_plus_loss_val = 0
         if self.glob_push_coeff > 0.0 and self.center_coeff > 0.0:
             glob_push_plus_loss_val = self.glob_push_loss(features, self.center_loss.get_centers(), labels, cam_ids)
             all_loss_values.append(glob_push_plus_loss_val)
-            if self.writer is not None:
-                self.writer.add_scalar('Loss/{}/global_push'.format(self.name), glob_push_plus_loss_val, iteration)
-                if self.loss_balancing:
-                    self.writer.add_scalar('Aux/{}/global_push_w'.format(self.name), self.loss_weights[2], iteration)
 
         local_push_loss_val = 0
         if self.local_push_coeff > 0.0 and self.center_coeff > 0.0:
             local_push_loss_val = self.local_push_loss(features, self.center_loss.get_centers(), labels, cam_ids)
             all_loss_values.append(local_push_loss_val)
-            if self.writer is not None:
-                self.writer.add_scalar('Loss/{}/local_push'.format(self.name), local_push_loss_val, iteration)
-                if self.loss_balancing:
-                    self.writer.add_scalar('Aux/{}/local_push_w'.format(self.name), self.loss_weights[3], iteration)
 
         pull_loss_val = 0
         if self.pull_coeff > 0.0 and self.center_coeff > 0.0:
             pull_loss_val = self.pull_loss(features, self.center_loss.get_centers(), labels, cam_ids)
             all_loss_values.append(pull_loss_val)
-            if self.writer is not None:
-                self.writer.add_scalar('Loss/{}/pull'.format(self.name), pull_loss_val, iteration)
-                if self.loss_balancing:
-                    self.writer.add_scalar('Aux/{}/pull_w'.format(self.name), self.loss_weights[4], iteration)
 
         if self.loss_balancing and self.total_losses_num > 1:
-            loss_value = self.center_coeff * self._balance_losses(all_loss_values)
+            loss_value, weighted_loss_values = self._balance_losses(all_loss_values)
+            loss_value *= self.center_coeff
             self.last_loss_value = loss_value
         else:
             loss_value = self.center_coeff * (center_loss_val + sampled_center_loss_val) + \
                          self.glob_push_coeff * glob_push_plus_loss_val + \
                          self.local_push_coeff * local_push_loss_val + \
                          self.pull_coeff * pull_loss_val
+            weighted_loss_values = [0.0] * self.total_losses_num
 
-        if self.total_losses_num > 0:
-            if self.writer is not None:
-                self.writer.add_scalar('Loss/{}/AUX_losses'.format(self.name), loss_value, iteration)
+        if self.writer is not None:
+            if self.center_coeff > 0.:
+                self.writer.add_scalar(
+                    'Loss/{}/center'.format(self.name), center_loss_val, iteration)
+                if self.loss_balancing:
+                    self.writer.add_scalar(
+                        'Aux/{}/center_w'.format(self.name), weighted_loss_values[0], iteration)
+
+                self.writer.add_scalar(
+                    'Loss/{}/sampled_center'.format(self.name), sampled_center_loss_val, iteration)
+                if self.loss_balancing:
+                    self.writer.add_scalar(
+                        'Aux/{}/sampled_center_w'.format(self.name), weighted_loss_values[1], iteration)
+
+                if self.glob_push_coeff > 0.0:
+                    self.writer.add_scalar(
+                        'Loss/{}/global_push'.format(self.name), glob_push_plus_loss_val, iteration)
+                    if self.loss_balancing:
+                        self.writer.add_scalar(
+                            'Aux/{}/global_push_w'.format(self.name), weighted_loss_values[2], iteration)
+
+                if self.local_push_coeff > 0.0:
+                    self.writer.add_scalar(
+                        'Loss/{}/local_push'.format(self.name), local_push_loss_val, iteration)
+                    if self.loss_balancing:
+                        self.writer.add_scalar(
+                            'Aux/{}/local_push_w'.format(self.name), weighted_loss_values[3], iteration)
+
+                if self.pull_coeff > 0.0:
+                    self.writer.add_scalar(
+                        'Loss/{}/pull'.format(self.name), pull_loss_val, iteration)
+                    if self.loss_balancing:
+                        self.writer.add_scalar(
+                            'Aux/{}/pull_w'.format(self.name), weighted_loss_values[4], iteration)
+
+            if self.total_losses_num > 0:
+                self.writer.add_scalar(
+                    'Loss/{}/AUX_losses'.format(self.name), loss_value, iteration)
 
         return loss_value
 
