@@ -70,7 +70,7 @@ class ImageSoftmaxEngine(Engine):
     ):
         super(ImageSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
 
-        self.main_loss = CrossEntropyLoss(
+        self.main_real_loss = CrossEntropyLoss(
             use_gpu=self.use_gpu,
             label_smooth=label_smooth,
             conf_penalty=conf_penalty
@@ -114,7 +114,7 @@ class ImageSoftmaxEngine(Engine):
             self.optimizer.zero_grad()
 
             outputs = self.model(imgs)
-            loss = self._compute_loss(self.main_loss, outputs, pids)
+            loss = self._compute_loss(self.main_real_loss, outputs, pids)
 
             loss.backward()
             self.optimizer.step()

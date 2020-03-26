@@ -48,14 +48,23 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         self.writer = writer
 
         if softmax_type == 'stock':
-            self.main_loss = CrossEntropyLoss(
+            self.main_real_loss = CrossEntropyLoss(
                 use_gpu=self.use_gpu,
                 label_smooth=label_smooth,
                 conf_penalty=conf_penalty
             )
+            if self.model.module.split_embeddings:
+                self.main_synth_loss = CrossEntropyLoss(
+                    use_gpu=self.use_gpu,
+                    label_smooth=label_smooth,
+                    conf_penalty=conf_penalty
+                )
         elif softmax_type == 'am':
+            assert m >= 0.0
+            assert s > 0.0
+
             num_batches = len(self.train_loader)
-            self.main_loss = AMSoftmaxLoss(
+            self.main_real_loss = AMSoftmaxLoss(
                 use_gpu=self.use_gpu,
                 label_smooth=label_smooth,
                 conf_penalty=conf_penalty,
@@ -65,6 +74,19 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 duration_s=duration_s * num_batches if self._valid(duration_s) else None,
                 skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None
             )
+            if self.model.module.split_embeddings:
+                synth_scale_factor =\
+                    np.log(self.datamanager.num_train_pids[1] - 1) / np.log(self.datamanager.num_train_pids[0] - 1)
+                self.main_synth_loss = AMSoftmaxLoss(
+                    use_gpu=self.use_gpu,
+                    label_smooth=label_smooth,
+                    conf_penalty=conf_penalty,
+                    m=m,
+                    s=synth_scale_factor * s,
+                    end_s=synth_scale_factor * end_s if self._valid(end_s) else None,
+                    duration_s=duration_s * num_batches if self._valid(duration_s) else None,
+                    skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None
+                )
         else:
             raise ValueError('Unknown softmax type: {}'.format(softmax_type))
 
@@ -104,6 +126,8 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                         name='synthetic_{}'.format(i)
                     ))
 
+        self.attr_pos_loss = None
+        self.attr_tasks = None
         if attr_losses_cfg.enable:
             self.attr_tasks = attr_losses_cfg.tasks
             assert len(self.attr_tasks) > 0
@@ -122,9 +146,6 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
             self.attr_neg_loss = MinEntropyLoss(scale=attr_losses_cfg.s)
             self.attr_neg_scale = 6.0
             self.attr_lr = 0.01
-        else:
-            self.attr_pos_loss = None
-            self.attr_tasks = None
 
     @staticmethod
     def _valid(value):
@@ -204,13 +225,13 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 num_trg_losses = 0
                 real_data_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
                 if real_pids.numel() > 0:
-                    real_data_loss = self._compute_loss(self.main_loss, real_outputs, real_pids, iteration=n_iter)
+                    real_data_loss = self._compute_loss(self.main_real_loss, real_outputs, real_pids, iteration=n_iter)
                     real_loss.update(real_data_loss.item(), real_pids.numel())
                     num_trg_losses += 1
                 synthetic_data_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
                 if synthetic_pids.numel() > 0:
                     synthetic_data_loss =\
-                        self._compute_loss(self.main_loss, synthetic_outputs, synthetic_pids, iteration=n_iter)
+                        self._compute_loss(self.main_synth_loss, synthetic_outputs, synthetic_pids, iteration=n_iter)
                     synthetic_loss.update(synthetic_data_loss.item(), synthetic_pids.numel())
 
                     synthetic_loss_scale = (real_loss.avg if real_loss.avg > 0.0 else 1.0) / \
@@ -229,7 +250,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 real_embeddings = embeddings['real']
                 synthetic_embeddings = embeddings['synthetic']
 
-                trg_loss = self._compute_loss(self.main_loss, real_outputs, real_pids, iteration=n_iter)
+                trg_loss = self._compute_loss(self.main_real_loss, real_outputs, real_pids, iteration=n_iter)
                 real_loss.update(trg_loss.item(), batch_size)
             trg_losses.update(trg_loss.item(), batch_size)
 
@@ -365,7 +386,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                           loss=losses,
                           acc=accs,
                           lr=self.optimizer.param_groups[0]['lr'],
-                          scale=self.main_loss.get_last_scale(),
+                          scale=self.main_real_loss.get_last_scale(),
                           eta=eta_str,
                       )
                 )
@@ -373,7 +394,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 if writer is not None:
                     writer.add_scalar('Train/Time', batch_time.avg, n_iter)
                     writer.add_scalar('Train/Data', data_time.avg, n_iter)
-                    info = self.main_loss.get_last_info()
+                    info = self.main_real_loss.get_last_info()
                     for k in info:
                         writer.add_scalar('AUX info/' + k, info[k], n_iter)
                     writer.add_scalar('Loss/train', losses.avg, n_iter)
@@ -383,7 +404,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                         writer.add_scalar('Loss/reg_ow', reg_ow_loss.avg, n_iter)
                     writer.add_scalar('Accuracy/train', accs.avg, n_iter)
                     writer.add_scalar('Aux/Learning_rate', self.optimizer.param_groups[0]['lr'], n_iter)
-                    writer.add_scalar('Aux/Scale_main', self.main_loss.get_last_scale(), n_iter)
+                    writer.add_scalar('Aux/Scale_main', self.main_real_loss.get_last_scale(), n_iter)
                     if self.attr_pos_loss is not None:
                         writer.add_scalar('Aux/Scale_attr', self.attr_pos_loss.get_last_scale(), n_iter)
                     if self.attr_tasks is not None:
