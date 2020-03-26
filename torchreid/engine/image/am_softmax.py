@@ -291,7 +291,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     attr_neg_sync_loss /= float(max(1, len(unique_neg_pids)))
                     attr_neg_sync_losses[attr_name].update(attr_neg_sync_loss.item(), len(unique_neg_pids))
 
-                    attr_total_loss = attr_pos_loss
+                    attr_total_loss = 0.5 * (attr_pos_loss + attr_neg_loss)
                     attr_losses_list.append(attr_total_loss)
 
                 attr_loss_value = torch.stack(attr_losses_list).mean()
