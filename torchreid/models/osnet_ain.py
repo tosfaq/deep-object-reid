@@ -4,8 +4,8 @@ import warnings
 from collections import OrderedDict
 
 import torch
-from torch import nn
-from torch.nn import functional as F
+import torch.nn as nn
+import torch.nn.functional as F
 
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, HSwish, gumbel_sigmoid, NonLocalModule

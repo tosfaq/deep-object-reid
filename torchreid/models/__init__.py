@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-import torch
 
 from .pcb import *
 from .mlfn import *
@@ -9,6 +8,7 @@ from .senet import *
 from .mudeep import *
 from .nasnet import *
 from .resnet import *
+from .res2net import *
 from .densenet import *
 from .xception import *
 from .osnet_ain import *
@@ -73,7 +73,9 @@ __model_factory = {
     'osnet_x0_5': osnet_x0_5,
     'osnet_x0_25': osnet_x0_25,
     'osnet_ibn_x1_0': osnet_ibn_x1_0,
-    'osnet_ain_x1_0': osnet_ain_x1_0
+    'osnet_ain_x1_0': osnet_ain_x1_0,
+    'res2net50_v1b': res2net50_v1b_26w_4s,
+    'res2net101_v1b': res2net101_v1b_26w_4s
 }
 
 
