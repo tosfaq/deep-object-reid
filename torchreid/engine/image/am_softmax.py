@@ -31,8 +31,9 @@ import numpy as np
 from torchreid import metrics
 from torchreid.engine.image.softmax import ImageSoftmaxEngine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
-from torchreid.losses import (get_regularizer, MetricLosses,
-                              AMSoftmaxLoss, CrossEntropyLoss, MinEntropyLoss, set_kl_div)
+from torchreid.losses import (get_regularizer, MetricLosses, AMSoftmaxLoss,
+                              CrossEntropyLoss, PseudoCrossEntropyLoss, MinEntropyLoss,
+                              set_kl_div)
 
 
 class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
@@ -48,16 +49,20 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
         self.writer = writer
 
         if softmax_type == 'stock':
+            assert s > 0.0
+
             self.main_real_loss = CrossEntropyLoss(
                 use_gpu=self.use_gpu,
                 label_smooth=label_smooth,
-                conf_penalty=conf_penalty
+                conf_penalty=conf_penalty,
+                scale=s
             )
             if self.model.module.split_embeddings:
                 self.main_synth_loss = CrossEntropyLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
-                    conf_penalty=conf_penalty
+                    conf_penalty=conf_penalty,
+                    scale=s
                 )
         elif softmax_type == 'am':
             assert m >= 0.0
@@ -143,7 +148,12 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 duration_s=attr_losses_cfg.duration_s * num_batches if self._valid(attr_losses_cfg.duration_s) else None,
                 skip_steps_s=attr_losses_cfg.skip_steps_s * num_batches if self._valid(attr_losses_cfg.skip_steps_s) else None
             )
-            self.attr_neg_loss = MinEntropyLoss(scale=attr_losses_cfg.s)
+            self.attr_neg_loss = PseudoCrossEntropyLoss(
+                use_gpu=self.use_gpu,
+                label_smooth=True,
+                conf_penalty=False,
+                scale=attr_losses_cfg.s
+            )
             self.attr_neg_scale = 6.0
             self.attr_lr = 0.01
 
@@ -239,9 +249,6 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     synthetic_data_loss *= synthetic_loss_scale
                     num_trg_losses += 1
 
-                # real_loss_weight = float(real_pids.numel()) / float(pids.numel())
-                # synthetic_loss_weight = float(synthetic_pids.numel()) / float(pids.numel())
-                # trg_loss = real_loss_weight * real_data_loss + synthetic_loss_weight * synthetic_data_loss
                 trg_loss = (real_data_loss + synthetic_data_loss) / float(num_trg_losses)
             else:
                 real_outputs = outputs['real']
@@ -254,6 +261,7 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                 real_loss.update(trg_loss.item(), batch_size)
             trg_losses.update(trg_loss.item(), batch_size)
 
+            total_loss = trg_loss
             if self.attr_tasks is not None:
                 attr_labels_dict = self._parse_attr_data_for_train(data, self.use_gpu)
                 attr_losses_list = []
@@ -283,30 +291,13 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                     attr_neg_sync_loss /= float(max(1, len(unique_neg_pids)))
                     attr_neg_sync_losses[attr_name].update(attr_neg_sync_loss.item(), len(unique_neg_pids))
 
-                    # attr_pos_scalar = attr_pos_loss.item()
-                    # att_neg_scalar = attr_neg_loss.item() + attr_neg_sync_loss.item()
-                    # attr_diff_scalar = self.attr_neg_scale * att_neg_scalar - attr_pos_scalar
-                    # attr_factor = np.clip(self.attr_factors[attr_name] + self.attr_lr * attr_diff_scalar, 0.0, 1.0)
-                    # # attr_total_loss = attr_factor * self.attr_neg_scale * (attr_neg_loss + attr_neg_sync_loss) + \
-                    # #                   (1.0 - attr_factor) * attr_pos_loss
-                    attr_total_loss = attr_pos_loss + attr_neg_sync_loss
+                    attr_total_loss = attr_pos_loss
                     attr_losses_list.append(attr_total_loss)
-                    # self.attr_factors[attr_name] = attr_factor
 
                 attr_loss_value = torch.stack(attr_losses_list).mean()
                 attr_loss.update(attr_loss_value.item(), batch_size)
 
-                # attr_loss_weight = (trg_losses.avg if trg_losses.avg > 0.0 else 1.0) / \
-                #                    (attr_loss.avg if attr_loss.avg > 0.0 else 1.0)
-                # total_loss = trg_loss + 0.1 * attr_loss_weight * attr_loss_value
-                total_loss = trg_loss + attr_loss_value
-            else:
-                total_loss = trg_loss
-
-            if self.regularizer is not None and (epoch + 1) > fixbase_epoch:
-                reg_loss = self.regularizer(self.model)
-                reg_ow_loss.update(reg_loss.item(), batch_size)
-                total_loss += reg_loss
+                total_loss += attr_loss_value
 
             if self.enable_metric_losses:
                 num_ml_losses = 0
@@ -346,16 +337,16 @@ class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
                                           (synthetic_ml_losses.avg if synthetic_ml_losses.avg > 0.0 else 1.0)
                 synthetic_metric_loss *= synthetic_ml_loss_scale
 
-                # real_ml_loss_weight = float(real_pids.numel()) / float(pids.numel())
-                # synthetic_ml_loss_weight = float(synthetic_pids.numel()) / float(pids.numel())
-                # metric_loss = real_ml_loss_weight * real_metric_loss + synthetic_ml_loss_weight * synthetic_metric_loss
                 metric_loss = (real_metric_loss + synthetic_metric_loss) / float(num_ml_losses)
                 metric_losses.update(metric_loss.item(), batch_size)
 
-                # metric_loss_weight = (trg_losses.avg if trg_losses.avg > 0.0 else 1.0) / \
-                #                      (metric_losses.avg if metric_losses.avg > 0.0 else 1.0)
-                # total_loss += 0.3 * metric_loss_weight * metric_loss
                 total_loss += metric_loss
+
+            if self.regularizer is not None and (epoch + 1) > fixbase_epoch:
+                reg_loss = self.regularizer(self.model)
+                reg_ow_loss.update(reg_loss.item(), batch_size)
+
+                total_loss += reg_loss
 
             total_loss.backward()
             self.optimizer.step()
