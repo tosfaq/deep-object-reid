@@ -465,10 +465,6 @@ class OSNet(nn.Module):
         self.nl5 = self._construct_nonlocal_layer(out_num_channels, self.use_nonlocal_blocks[3])
         self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[3])
 
-        # self.glob_max_fc = self._construct_fc_layer(out_num_channels, out_num_channels)
-        # self.glob_cont_fc = self._construct_fc_layer(out_num_channels, out_num_channels)
-        # self.glob_cat_fc = self._construct_fc_layer(2 * out_num_channels, out_num_channels)
-
         if self.num_parts > 1:
             self.part_self_fc = nn.ModuleList()
             self.part_rest_fc = nn.ModuleList()
@@ -480,7 +476,7 @@ class OSNet(nn.Module):
 
         fc_layers, classifier_layers = [], []
         for _ in range(self.num_parts + 1):  # main branch + part-based branches
-            fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim))
+            fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=True))
             classifier_layers.append(classifier_block(self.feature_dim, real_data_num_classes))
         self.fc = nn.ModuleList(fc_layers)
         self.classifier = nn.ModuleList(classifier_layers)
@@ -491,7 +487,7 @@ class OSNet(nn.Module):
         if self.split_embeddings:
             aux_fc_layers, aux_classifier_layers = [], []
             for _ in range(self.num_parts + 1):  # main branch + part-based branches
-                aux_fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim))
+                aux_fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=True))
                 aux_classifier_layers.append(classifier_block(self.feature_dim, synthetic_data_num_classes))
             self.aux_fc = nn.ModuleList(aux_fc_layers)
             self.aux_classifier = nn.ModuleList(aux_classifier_layers)
@@ -502,7 +498,7 @@ class OSNet(nn.Module):
             attr_fc = dict()
             attr_classifier = dict()
             for attr_name, attr_num_classes in attr_tasks.items():
-                attr_fc[attr_name] = self._construct_fc_layer(out_num_channels, self.feature_dim // 4)
+                attr_fc[attr_name] = self._construct_fc_layer(out_num_channels, self.feature_dim // 4, dropout=True)
                 attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim // 4, attr_num_classes)
             self.attr_fc = nn.ModuleDict(attr_fc)
             self.attr_classifiers = nn.ModuleDict(attr_classifier)
@@ -531,11 +527,16 @@ class OSNet(nn.Module):
         return NonLocalModule(num_channels) if enable else None
 
     @staticmethod
-    def _construct_fc_layer(input_dim, out_dim):
-        layers = [
+    def _construct_fc_layer(input_dim, out_dim, dropout=False):
+        layers = []
+
+        if dropout:
+            layers.append(Dropout(p=0.5, dist='gaussian'))
+
+        layers.extend([
             nn.Linear(input_dim, out_dim),
             nn.BatchNorm1d(out_dim)
-        ]
+        ])
 
         return nn.Sequential(*layers)
 
