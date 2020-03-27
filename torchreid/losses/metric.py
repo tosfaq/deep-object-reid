@@ -7,21 +7,20 @@ import torch.nn.functional as F
 class CenterLoss(nn.Module):
     """Implementation of the Center loss from https://ydwen.github.io/papers/WenECCV16.pdf"""
 
-    def __init__(self, num_classes, embed_size, cos_dist=True):
+    def __init__(self, num_classes, embed_size):
         super().__init__()
         self.num_classes = num_classes
         self.centers = nn.Parameter(torch.randn(self.num_classes, embed_size).cuda())
         self.embed_size = embed_size
 
-        self.cos_dist = cos_dist
-        if self.cos_dist:
-            self.cos_sim = nn.CosineSimilarity()
-        else:
-            self.mse = nn.MSELoss(reduction='elementwise_mean')
+        self.cos_sim = nn.CosineSimilarity()
 
     def get_centers(self):
         """Returns estimated centers"""
         return self.centers
+
+    def normalize_centers(self):
+        self.centers.data = F.normalize(self.centers.data, p=2, dim=1)
 
     def forward(self, features, labels):
         features = F.normalize(features)
@@ -29,16 +28,11 @@ class CenterLoss(nn.Module):
         features_dim = features.size(1)
         assert features_dim == self.embed_size
 
-        centers = self.centers
-        if self.cos_dist:
-            centers = F.normalize(centers, p=2, dim=1)
+        centers = F.normalize(self.centers, p=2, dim=1)
         centers_batch = centers[labels, :]
 
-        if self.cos_dist:
-            cos_diff = 1.0 - self.cos_sim(features, centers_batch)
-            center_loss = torch.sum(cos_diff) / batch_size
-        else:
-            center_loss = self.mse(centers_batch, features)
+        cos_diff = 1.0 - self.cos_sim(features, centers_batch)
+        center_loss = torch.sum(cos_diff) / batch_size
 
         return center_loss
 
@@ -113,7 +107,7 @@ class GlobalPushPlus(NormalizedLoss):
     def _calculate(self, features, centers, labels, cam_ids):
         features = F.normalize(features, p=2, dim=1)
 
-        centers = F.normalize(centers, p=2, dim=1)
+        centers = F.normalize(centers.detach(), p=2, dim=1)
         centers_batch = centers[labels, :]
 
         num_classes = centers.shape[0]
@@ -136,7 +130,7 @@ class SameCameraPushPlus(NormalizedLoss):
     def _calculate(self, features, centers, labels, cam_ids):
         features = F.normalize(features, p=2, dim=1)
 
-        centers = F.normalize(centers, p=2, dim=1)
+        centers = F.normalize(centers.detach(), p=2, dim=1)
         centers_batch = centers[labels, :]
 
         pos_distances = 1.0 - torch.sum(features * centers_batch, dim=1)
@@ -197,7 +191,7 @@ class MetricLosses:
         self.total_losses_num = 0
         self.losses_map = dict()
 
-        self.center_loss = CenterLoss(num_classes, embed_size, cos_dist=True)
+        self.center_loss = CenterLoss(num_classes, embed_size)
         self.center_optimizer = torch.optim.SGD(self.center_loss.parameters(), lr=centers_lr)
         assert center_coeff >= 0
         self.center_coeff = center_coeff
@@ -373,8 +367,9 @@ class MetricLosses:
 
         self.last_loss_value.backward(retain_graph=True)
 
-        if self.loss_balancing and self.total_losses_num > 1:
-            self.balancing_optimizer.step()
-
         if self.center_coeff > 0.:
             self.center_optimizer.step()
+            self.center_loss.normalize_centers()
+
+        if self.loss_balancing:
+            self.balancing_optimizer.step()
