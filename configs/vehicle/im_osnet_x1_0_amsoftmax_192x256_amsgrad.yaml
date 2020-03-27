@@ -102,8 +102,8 @@ reg:
   ow_beta: 1e-2
 
 train:
-  optim: 'sgd'
-  lr: 0.01
+  optim: 'amsgrad'
+  lr: 0.0015
   max_epoch: 50
   batch_size: 64
   fixbase_epoch: 2
