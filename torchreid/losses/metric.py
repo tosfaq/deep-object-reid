@@ -40,8 +40,8 @@ class SampledCenterLoss(nn.Module):
         super().__init__()
 
     def forward(self, features, centers, labels, cam_ids):
+        centers = F.normalize(centers.detach(), p=2, dim=1)
         embeddings = F.normalize(features, p=2, dim=1)
-        centers = F.normalize(centers, p=2, dim=1)
 
         num_samples = 0
         loss = 0.0
@@ -71,7 +71,15 @@ class SampledCenterLoss(nn.Module):
         left_embeddings = torch.index_select(embeddings, 0, left_ids)
         right_embeddings = torch.index_select(embeddings, 0, right_ids)
 
-        ratio = torch.rand(left_ids.size(0), 1, dtype=embeddings.dtype, device=embeddings.device)
+        with torch.no_grad():
+            pair_dist = 1.0 - torch.sum(left_embeddings * right_embeddings, dim=1).clamp(-1, 1)
+            threshold_dist = torch.median(pair_dist)
+            pair_mask = pair_dist > threshold_dist
+
+        left_embeddings = left_embeddings[pair_mask]
+        right_embeddings = right_embeddings[pair_mask]
+
+        ratio = torch.rand(left_embeddings.size(0), 1, dtype=embeddings.dtype, device=embeddings.device)
         sampled_embeddings = F.normalize(ratio * left_embeddings + (1.0 - ratio) * right_embeddings, p=2, dim=1)
 
         return sampled_embeddings
@@ -150,12 +158,14 @@ class CentersPush(NormalizedLoss):
 
     def _calculate(self, features, centers, labels, cam_ids):
         centers = F.normalize(centers, p=2, dim=1)
-        centers_batch = centers[labels, :]
 
-        distances = 1.0 - torch.mm(centers_batch, torch.t(centers_batch)).clamp(-1, 1)
+        unique_labels = torch.unique(labels)
+        unique_centers = centers[unique_labels, :]
+
+        distances = 1.0 - torch.mm(unique_centers, torch.t(unique_centers)).clamp(-1, 1)
         losses = F.softplus(self.margin - distances)
 
-        different_class_pairs = labels.view(-1, 1) != labels.view(1, -1)
+        different_class_pairs = unique_labels.view(-1, 1) != unique_labels.view(1, -1)
         pairs_valid_mask = different_class_pairs & (losses > 0.0)
 
         return losses, pairs_valid_mask
