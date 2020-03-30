@@ -5,6 +5,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import division, absolute_import
 
 import re
+import warnings
 from collections import OrderedDict
 
 import torch
@@ -327,16 +328,34 @@ class DenseNet(nn.Module):
                 pretrained_dict[new_key] = pretrained_dict[key]
                 del pretrained_dict[key]
 
+        new_state_dict = OrderedDict()
         model_dict = self.state_dict()
-        pretrained_dict = {
-            k: v
-            for k, v in pretrained_dict.items()
-            if k in model_dict and model_dict[k].size() == v.size()
-        }
 
-        model_dict.update(pretrained_dict)
-        self.load_state_dict(model_dict, strict=True)
-        print('Successfully loaded pretrained weights')
+        matched_layers, discarded_layers = [], []
+        for k, v in pretrained_dict.items():
+            if k in model_dict and model_dict[k].size() == v.size():
+                new_state_dict[k] = v
+                matched_layers.append(k)
+            else:
+                discarded_layers.append(k)
+
+        model_dict.update(new_state_dict)
+        self.load_state_dict(model_dict)
+
+        if len(matched_layers) == 0:
+            warnings.warn(
+                'The pretrained weights cannot be loaded, '
+                'please check the key names manually '
+                '(** ignored and continue **)'
+            )
+        else:
+            print('Successfully loaded pretrained weights')
+            if len(discarded_layers) > 0:
+                print(
+                    '** The following layers are discarded '
+                    'due to unmatched keys or layer size: {}'.
+                    format(discarded_layers)
+                )
 
 
 def init_pretrained_weights(model, model_url):
