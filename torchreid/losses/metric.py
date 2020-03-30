@@ -13,8 +13,6 @@ class CenterLoss(nn.Module):
         self.centers = nn.Parameter(torch.randn(self.num_classes, embed_size).cuda())
         self.embed_size = embed_size
 
-        self.cos_sim = nn.CosineSimilarity()
-
     def get_centers(self):
         """Returns estimated centers"""
         return self.centers
@@ -31,7 +29,7 @@ class CenterLoss(nn.Module):
         centers = F.normalize(self.centers, p=2, dim=1)
         centers_batch = centers[labels, :]
 
-        cos_diff = 1.0 - self.cos_sim(features, centers_batch)
+        cos_diff = 1.0 - torch.sum(features * centers_batch, dim=1).clamp(-1, 1)
         center_loss = torch.sum(cos_diff) / batch_size
 
         return center_loss
@@ -54,7 +52,7 @@ class SampledCenterLoss(nn.Module):
             class_center = centers[class_id].view(1, -1)
 
             sampled_embeddings = self.sample_embeddings(class_embeddings)
-            dist = 1.0 - torch.sum(sampled_embeddings * class_center, dim=1)
+            dist = 1.0 - torch.sum(sampled_embeddings * class_center, dim=1).clamp(-1, 1)
 
             loss += dist.sum()
             num_samples += dist.numel()
@@ -114,8 +112,8 @@ class GlobalPushPlus(NormalizedLoss):
         center_ids = torch.arange(num_classes, dtype=labels.dtype, device=labels.device)
         different_class_pairs = labels.view(-1, 1) != center_ids.view(1, -1)
 
-        pos_distances = 1.0 - torch.sum(features * centers_batch, dim=1)
-        neg_distances = 1.0 - torch.mm(features, torch.t(centers))
+        pos_distances = 1.0 - torch.sum(features * centers_batch, dim=1).clamp(-1, 1)
+        neg_distances = 1.0 - torch.mm(features, torch.t(centers)).clamp(-1, 1)
         losses = F.softplus(pos_distances.view(-1, 1) - neg_distances)
 
         pairs_valid_mask = different_class_pairs & (losses > 0.0)
@@ -133,8 +131,8 @@ class SameCameraPushPlus(NormalizedLoss):
         centers = F.normalize(centers.detach(), p=2, dim=1)
         centers_batch = centers[labels, :]
 
-        pos_distances = 1.0 - torch.sum(features * centers_batch, dim=1)
-        neg_distances = 1.0 - torch.mm(features, torch.t(features))
+        pos_distances = 1.0 - torch.sum(features * centers_batch, dim=1).clamp(-1, 1)
+        neg_distances = 1.0 - torch.mm(features, torch.t(features)).clamp(-1, 1)
         losses = F.softplus(pos_distances.view(-1, 1) - neg_distances)
 
         different_class_pairs = labels.view(-1, 1) != labels.view(1, -1)
@@ -145,7 +143,7 @@ class SameCameraPushPlus(NormalizedLoss):
 
 
 class CentersPush(NormalizedLoss):
-    def __init__(self, margin=0.5):
+    def __init__(self, margin=0.3):
         super().__init__()
 
         self.margin = margin
@@ -154,7 +152,7 @@ class CentersPush(NormalizedLoss):
         centers = F.normalize(centers, p=2, dim=1)
         centers_batch = centers[labels, :]
 
-        distances = 1.0 - torch.mm(centers_batch, torch.t(centers_batch))
+        distances = 1.0 - torch.mm(centers_batch, torch.t(centers_batch)).clamp(-1, 1)
         losses = F.softplus(self.margin - distances)
 
         different_class_pairs = labels.view(-1, 1) != labels.view(1, -1)
@@ -170,7 +168,7 @@ class SameIDPull(NormalizedLoss):
     def _calculate(self, features, centers, labels, cam_ids):
         features = F.normalize(features, p=2, dim=1)
 
-        losses = 1.0 - torch.mm(features, torch.t(features))
+        losses = 1.0 - torch.mm(features, torch.t(features)).clamp(-1, 1)
 
         same_class_pairs = labels.view(-1, 1) == labels.view(1, -1)
         different_camera_pairs = cam_ids.view(-1, 1) != cam_ids.view(1, -1)
