@@ -4,6 +4,42 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class CircleLoss(nn.Module):
+    def __init__(self, margin=0.2, scale=15.0):
+        super().__init__()
+        self.margin = margin
+        self.scale = scale
+
+    def forward(self, features, centers, labels, cam_ids):
+        embeddings = F.normalize(features, p=2, dim=1)
+
+        similarities = torch.mm(embeddings, torch.t(embeddings)).clamp(-1, 1)
+
+        pos_weights = F.relu((1.0 + self.margin) - similarities)
+        neg_weights = F.relu(similarities + self.margin)
+
+        pos_terms = self.scale * pos_weights * (similarities + (self.margin - 1.0))
+        neg_terms = self.scale * neg_weights * (similarities - self.margin)
+
+        with torch.no_grad():
+            same_class_pairs = labels.view(-1, 1) == labels.view(1, -1)
+            different_class_pairs = ~same_class_pairs
+
+            ids_range = torch.arange(labels.size(0), device=labels.device)
+            top_diagonal_pairs = ids_range.view(-1, 1) < ids_range.view(1, -1)
+
+            pos_pairs = same_class_pairs & top_diagonal_pairs
+            neg_pairs = different_class_pairs & top_diagonal_pairs
+
+        pos_values = pos_terms[pos_pairs]
+        neg_values = neg_terms[neg_pairs]
+        all_pairs = neg_values.view(1, -1) - pos_values.view(-1, 1)
+
+        loss = torch.log(1.0 + torch.exp(all_pairs).sum())
+
+        return loss
+
+
 class CenterLoss(nn.Module):
     """Implementation of the Center loss from https://ydwen.github.io/papers/WenECCV16.pdf"""
 
@@ -21,7 +57,7 @@ class CenterLoss(nn.Module):
         self.centers.data = F.normalize(self.centers.data, p=2, dim=1)
 
     def forward(self, features, labels):
-        features = F.normalize(features)
+        features = F.normalize(features, p=2, dim=1)
         batch_size = labels.size(0)
         features_dim = features.size(1)
         assert features_dim == self.embed_size
@@ -217,7 +253,7 @@ class MetricLosses:
             self.losses_map['push_center'] = self.total_losses_num
             self.total_losses_num += 1
 
-        self.glob_push_loss = GlobalPushPlus()
+        self.glob_push_loss = CircleLoss()
         assert glob_push_coeff >= 0
         self.glob_push_coeff = glob_push_coeff
         if self.glob_push_coeff > 0:
