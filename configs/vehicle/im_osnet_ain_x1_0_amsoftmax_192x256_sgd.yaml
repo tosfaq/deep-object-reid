@@ -106,11 +106,11 @@ train:
   lr: 0.1
   max_epoch: 40
   batch_size: 64
-  fixbase_epoch: 2
+  fixbase_epoch: 3
   open_layers: ['conv5', 'classifier', 'fc', 'aux_fc', 'aux_classifier']
   lr_scheduler: 'multi_step_warmup'
-  stepsize: [16, 30]
-  warmup: 3
+  stepsize: [20, 30]
+  warmup: 7
   warmup_factor_base: 0.001
   frozen_factor_base: 0.1
 
