@@ -29,14 +29,14 @@ import torch
 import numpy as np
 
 from torchreid import metrics
-from torchreid.engine.image.softmax import ImageSoftmaxEngine
+from torchreid.engine import Engine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
 from torchreid.losses import (get_regularizer, MetricLosses, AMSoftmaxLoss,
-                              CrossEntropyLoss, PseudoCrossEntropyLoss, MinEntropyLoss,
+                              CrossEntropyLoss, PseudoCrossEntropyLoss,
                               set_kl_div)
 
 
-class ImageAMSoftmaxEngine(ImageSoftmaxEngine):
+class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
 

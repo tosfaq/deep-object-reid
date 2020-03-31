@@ -74,6 +74,7 @@ def get_default_config():
     cfg.train.seed = 1  # random seed
     cfg.train.warmup = 1  # After fixbase_epoch
     cfg.train.warmup_factor_base = 0.1
+    cfg.train.frozen_factor_base = 1.0
 
     # optimizer
     cfg.sgd = CN()
@@ -317,7 +318,8 @@ def lr_scheduler_kwargs(cfg):
         'max_epoch': cfg.train.max_epoch,
         'warmup': cfg.train.warmup,
         'frozen': cfg.train.fixbase_epoch,
-        'warmup_factor_base': cfg.train.warmup_factor_base
+        'warmup_factor_base': cfg.train.warmup_factor_base,
+        'frozen_factor_base': cfg.train.frozen_factor_base
     }
 
 

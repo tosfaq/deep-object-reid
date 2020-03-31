@@ -14,7 +14,7 @@ from torchreid.utils import (
 from torchreid.losses import DeepSupervision
 
 
-class Engine(object):
+class Engine:
     r"""A generic base Engine class for both image- and video-reid.
 
     Args:

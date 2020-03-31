@@ -40,6 +40,39 @@ class CircleLoss(nn.Module):
         return loss
 
 
+class HardTripletLoss(nn.Module):
+    def __init__(self, margin=0.35):
+        super().__init__()
+        self.margin = margin
+
+    def forward(self, features, centers, labels, cam_ids):
+        embeddings = F.normalize(features, p=2, dim=1)
+
+        similarities = torch.mm(embeddings, torch.t(embeddings)).clamp(-1.0, 1.0)
+
+        with torch.no_grad():
+            same_class_pairs = labels.view(-1, 1) == labels.view(1, -1)
+            different_class_pairs = ~same_class_pairs
+
+            ids_range = torch.arange(labels.size(0), device=labels.device)
+            non_diagonal_pairs = ids_range.view(-1, 1) != ids_range.view(1, -1)
+
+            pos_pairs = same_class_pairs & non_diagonal_pairs
+            neg_pairs = different_class_pairs
+
+        hard_positives = torch.where(pos_pairs, similarities, torch.full_like(similarities, 1.0)).min(dim=1)
+        hard_negatives = torch.where(neg_pairs, similarities, torch.full_like(similarities, -1.0)).max(dim=1)
+
+        losses = F.relu(self.margin + hard_negatives - hard_positives)
+        loss = losses.sum()
+
+        num_valid = (losses > 0.0).sum().float()
+        if num_valid > 0.0:
+            loss /= num_valid
+
+        return loss
+
+
 class CenterLoss(nn.Module):
     """Implementation of the Center loss from https://ydwen.github.io/papers/WenECCV16.pdf"""
 

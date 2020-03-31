@@ -103,7 +103,7 @@ reg:
 
 train:
   optim: 'sgd'
-  lr: 0.01
+  lr: 0.1
   max_epoch: 40
   batch_size: 64
   fixbase_epoch: 2
@@ -111,7 +111,8 @@ train:
   lr_scheduler: 'multi_step_warmup'
   stepsize: [16, 30]
   warmup: 3
-  warmup_factor_base: 0.005
+  warmup_factor_base: 0.001
+  frozen_factor_base: 0.1
 
 test:
   batch_size: 300
