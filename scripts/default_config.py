@@ -70,6 +70,7 @@ def get_default_config():
     cfg.train.lr_scheduler = 'single_step'
     cfg.train.stepsize = [20]  # stepsize to decay learning rate
     cfg.train.gamma = 0.1  # learning rate decay multiplier
+    cfg.train.lr_scales = []
     cfg.train.print_freq = 20  # print frequency
     cfg.train.seed = 1  # random seed
     cfg.train.warmup = 1  # After fixbase_epoch
@@ -315,6 +316,7 @@ def lr_scheduler_kwargs(cfg):
         'lr_scheduler': cfg.train.lr_scheduler,
         'stepsize': cfg.train.stepsize,
         'gamma': cfg.train.gamma,
+        'lr_scales': cfg.train.lr_scales,
         'max_epoch': cfg.train.max_epoch,
         'warmup': cfg.train.warmup,
         'frozen': cfg.train.fixbase_epoch,

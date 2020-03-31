@@ -11,6 +11,7 @@ def build_lr_scheduler(optimizer,
                        lr_scheduler='single_step',
                        stepsize=1,
                        gamma=0.1,
+                       lr_scales=None,
                        max_epoch=1,
                        frozen=20,
                        warmup=10,
@@ -81,8 +82,8 @@ def build_lr_scheduler(optimizer,
             )
 
         scheduler = MultiStepLRWithWarmUp(
-            optimizer, milestones=stepsize, warmup_iters=warmup, frozen_iters=frozen, gamma=gamma,
-            warmup_factor_base=warmup_factor_base, frozen_factor_base=frozen_factor_base
+            optimizer, milestones=stepsize, frozen_iters=frozen, gamma=gamma, lr_scales=lr_scales,
+            warmup_factor_base=warmup_factor_base, frozen_factor_base=frozen_factor_base, warmup_iters=warmup
         )
     else:
         raise ValueError('Unknown scheduler: {}'.format(lr_scheduler))
@@ -96,6 +97,7 @@ class MultiStepLRWithWarmUp(_LRScheduler):
                  milestones,
                  warmup_iters,
                  frozen_iters,
+                 lr_scales=None,
                  warmup_method='linear',
                  warmup_factor_base=0.1,
                  frozen_factor_base=0.1,
@@ -106,11 +108,15 @@ class MultiStepLRWithWarmUp(_LRScheduler):
 
         self.milestones = sorted(milestones)
         self.gamma = gamma
+        self.lr_scales = lr_scales
         self.warmup_iters = warmup_iters
         self.frozen_iters = frozen_iters
         self.warmup_method = warmup_method
         self.warmup_factor_base = warmup_factor_base
         self.frozen_factor_base = frozen_factor_base
+
+        if self.lr_scales is not None and len(self.lr_scales) > 0:
+            assert len(self.lr_scales) == len(self.milestones) + 1
 
         # Base class calls method `step` which increases `last_epoch` by 1 and then calls
         # method `get_lr` with this value. If `last_epoch` is not equal to -1, we drop
@@ -138,8 +144,12 @@ class MultiStepLRWithWarmUp(_LRScheduler):
             return [base_lr for base_lr in self.base_lrs]
         # After warm up increase LR according to defined in `milestones` values of steps
         else:
-            return [base_lr * self.gamma ** bisect_right(self.milestones, self.last_epoch)
-                    for base_lr in self.base_lrs]
+            if self.lr_scales is not None:
+                lr_scale = self.lr_scales[bisect_right(self.milestones, self.last_epoch)]
+            else:
+                lr_scale = self.gamma ** bisect_right(self.milestones, self.last_epoch)
+
+            return [base_lr * lr_scale for base_lr in self.base_lrs]
 
     def __repr__(self):
         format_string = self.__class__.__name__ + \
