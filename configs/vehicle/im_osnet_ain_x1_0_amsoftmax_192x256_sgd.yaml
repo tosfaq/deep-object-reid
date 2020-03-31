@@ -80,7 +80,7 @@ loss:
 metric_losses:
   enable: True
   center_coeff: 1.0
-  glob_push_coeff: 1.2
+  glob_push_coeff: 1.0
   local_push_coeff: 1.0
   pull_coeff: 1.0
 
