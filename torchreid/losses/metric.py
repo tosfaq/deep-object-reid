@@ -74,7 +74,8 @@ class HardTripletLoss(nn.Module):
         # losses = F.softplus(term_neg - term_pos)
         # loss = losses.sum()
 
-        losses = F.relu(self.margin + s_neg - s_pos)
+        losses = F.softplus(self.margin + s_neg - s_pos)
+        # losses = F.relu(self.margin + s_neg - s_pos)
         loss = losses.sum()
 
         num_valid = (losses > 0.0).sum().float()
