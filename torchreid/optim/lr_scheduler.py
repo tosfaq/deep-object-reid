@@ -115,7 +115,8 @@ class MultiStepLRWithWarmUp(_LRScheduler):
         self.warmup_factor_base = warmup_factor_base
         self.frozen_factor_base = frozen_factor_base
 
-        if self.lr_scales is not None and len(self.lr_scales) > 0:
+        self.uses_lr_scales = self.lr_scales is not None and len(self.lr_scales) > 0
+        if self.uses_lr_scales:
             assert len(self.lr_scales) == len(self.milestones) + 1
 
         # Base class calls method `step` which increases `last_epoch` by 1 and then calls
@@ -144,7 +145,7 @@ class MultiStepLRWithWarmUp(_LRScheduler):
             return [base_lr for base_lr in self.base_lrs]
         # After warm up increase LR according to defined in `milestones` values of steps
         else:
-            if self.lr_scales is not None:
+            if self.uses_lr_scales:
                 lr_scale = self.lr_scales[bisect_right(self.milestones, self.last_epoch)]
             else:
                 lr_scale = self.gamma ** bisect_right(self.milestones, self.last_epoch)

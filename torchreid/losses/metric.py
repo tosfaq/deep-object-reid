@@ -281,12 +281,12 @@ class MetricLosses:
         #     self.losses_map['sampled_center'] = self.total_losses_num
         #     self.total_losses_num += 1
 
-        self.push_center_loss = CentersPush(margin=0.1)
-        if self.center_coeff > 0:
-            self.losses_map['push_center'] = self.total_losses_num
-            self.total_losses_num += 1
+        # self.push_center_loss = CentersPush(margin=0.1)
+        # if self.center_coeff > 0:
+        #     self.losses_map['push_center'] = self.total_losses_num
+        #     self.total_losses_num += 1
 
-        self.glob_push_loss = HardTripletLoss(margin=0.35)
+        self.glob_push_loss = HardTripletLoss(margin=0.5)
         assert glob_push_coeff >= 0
         self.glob_push_coeff = glob_push_coeff
         if self.glob_push_coeff > 0:
@@ -342,7 +342,7 @@ class MetricLosses:
 
         center_loss_val = 0
         # sampled_center_loss_val = 0
-        push_center_loss_val = 0
+        # push_center_loss_val = 0
         if self.center_coeff > 0.:
             center_loss_val = self.center_loss(features, labels)
             all_loss_values.append(center_loss_val)
@@ -350,8 +350,8 @@ class MetricLosses:
             # sampled_center_loss_val = self.sampled_center_loss(features, self.center_loss.get_centers(), labels, cam_ids)
             # all_loss_values.append(sampled_center_loss_val)
 
-            push_center_loss_val = self.push_center_loss(features, self.center_loss.get_centers(), labels, cam_ids)
-            all_loss_values.append(push_center_loss_val)
+            # push_center_loss_val = self.push_center_loss(features, self.center_loss.get_centers(), labels, cam_ids)
+            # all_loss_values.append(push_center_loss_val)
 
         glob_push_plus_loss_val = 0
         if self.glob_push_coeff > 0.0 and self.center_coeff > 0.0:
@@ -371,7 +371,7 @@ class MetricLosses:
         if self.loss_balancing and self.total_losses_num > 1:
             loss_value, weighted_loss_values = self._balance_losses(all_loss_values)
         else:
-            loss_value = self.center_coeff * (center_loss_val + push_center_loss_val) + \
+            loss_value = self.center_coeff * center_loss_val + \
                          self.glob_push_coeff * glob_push_plus_loss_val
             weighted_loss_values = [0.0] * self.total_losses_num
         self.last_loss_value = loss_value
@@ -394,14 +394,14 @@ class MetricLosses:
                 #         weighted_loss_values[self.losses_map['sampled_center']],
                 #         iteration)
 
-                self.writer.add_scalar(
-                    'Loss/{}/push_center'.format(self.name), push_center_loss_val,
-                    iteration)
-                if self.loss_balancing:
-                    self.writer.add_scalar(
-                        'Aux/{}/push_center_w'.format(self.name),
-                        weighted_loss_values[self.losses_map['push_center']],
-                        iteration)
+                # self.writer.add_scalar(
+                #     'Loss/{}/push_center'.format(self.name), push_center_loss_val,
+                #     iteration)
+                # if self.loss_balancing:
+                #     self.writer.add_scalar(
+                #         'Aux/{}/push_center_w'.format(self.name),
+                #         weighted_loss_values[self.losses_map['push_center']],
+                #         iteration)
 
                 if self.glob_push_coeff > 0.0:
                     self.writer.add_scalar(
