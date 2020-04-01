@@ -8,7 +8,6 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from scipy.optimize import linear_sum_assignment
 
 import torchreid
 from torchreid.utils import check_isfile, load_pretrained_weights, re_ranking
@@ -232,48 +231,63 @@ def load_tracks(file_path, gallery_size):
     return tracks
 
 
-def calculate_track_distances(distance_matrix, tracks):
+def gg_add_track_info(dist_matrix, tracks):
+    g_track_dist = []
+    for track_ids in tracks:
+        distances = dist_matrix[:, track_ids]
+        group_distance = np.percentile(distances, 10, axis=1)
+        g_track_dist.append(group_distance.reshape([-1, 1]))
+    g_track_dist = np.concatenate(tuple(g_track_dist), axis=1)
+
+    track_track_dist = []
+    for track_ids in tracks:
+        distances = g_track_dist[track_ids, :]
+        group_distance = np.percentile(distances, 20, axis=0)
+        track_track_dist.append(group_distance.reshape([1, -1]))
+    track_track_dist = np.concatenate(tuple(track_track_dist), axis=0)
+
+    np.fill_diagonal(track_track_dist, 0.0)
+
+    return track_track_dist
+
+
+def qg_add_track_info(dist_matrix, tracks):
     track_distances = []
     for track_ids in tracks:
-        distances = distance_matrix[:, track_ids]
+        distances = dist_matrix[:, track_ids]
         group_distance = np.percentile(distances, 10, axis=1)
         track_distances.append(group_distance.reshape([-1, 1]))
-    track_distances = np.concatenate(tuple(track_distances), axis=1)
+    qg_dist_matrix = np.concatenate(tuple(track_distances), axis=1)
 
-    return track_distances
+    return qg_dist_matrix
 
 
-def find_matches(distance_matrix, tracks, top_k=100, enable_track_info=True):
-    if not enable_track_info:
-        return np.argsort(distance_matrix, axis=-1)[:, :top_k]
-
+def find_matches(dist_matrix, tracks, top_k=100):
     track_distances = []
     for track_ids in tracks:
-        distances = distance_matrix[:, track_ids]
+        distances = dist_matrix[:, track_ids]
         group_distance = np.percentile(distances, 10, axis=1)
         track_distances.append(group_distance.reshape([-1, 1]))
     track_distances = np.concatenate(tuple(track_distances), axis=1)
 
     track_indices = np.argsort(track_distances, axis=1)
-    # track_values = np.sort(track_distances, axis=1)
-
-    # num_duplicates = []
-    # for g_id in range(track_indices.shape[1]):
-    #     indices = track_indices[:, g_id]
-    #     unique_values, unique_counts = np.unique(indices, return_counts=True)
-    #     print('{:<4}:'.format(g_id), [c for c in unique_counts if c > 1])
-    #     num_duplicates.append(track_indices.shape[0] - len(unique_values))
-    # print(num_duplicates)
-    # exit()
-
-    candidates = set(range(track_distances.shape[1]))
 
     out_matches = []
-    for q_id in range(distance_matrix.shape[0]):
-        # top_values = track_values[q_id, : 40]
-        # top_values_str = '[' + ' '.join(['{:.3f}'.format(v) for v in top_values]) + ']\n'
-        # print(top_values_str)
+    for q_id in range(track_distances.shape[0]):
+        ids = []
+        for track_id in track_indices[q_id]:
+            ids.extend(tracks[int(track_id)])
 
+        out_matches.append(ids)
+
+    return np.array(out_matches)[:, :top_k]
+
+
+def find_matches2(dist_matrix, tracks, top_k=100):
+    track_indices = np.argsort(dist_matrix, axis=1)
+
+    out_matches = []
+    for q_id in range(dist_matrix.shape[0]):
         ids = []
         for track_id in track_indices[q_id]:
             ids.extend(tracks[int(track_id)])
@@ -341,17 +355,29 @@ def main():
     distance_matrix_qq = calculate_distances(embeddings_query, embeddings_query)
     distance_matrix_gg = calculate_distances(embeddings_gallery, embeddings_gallery)
 
-    # cluster_samples(distance_matrix_qq, 333, data_query)
+    enable_track2track = False
+    if enable_track2track:
+        print('Calculating query to track distance matrix ...')
+        distance_matrix_q_track_g = qg_add_track_info(distance_matrix_qg, gallery_tracks)
 
-    print('Applying re-ranking ...')
-    distance_matrix_qg = re_ranking(distance_matrix_qg, distance_matrix_qq, distance_matrix_gg,
-                                    k1=50, k2=15, lambda_value=0.1)
-    print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
+        print('Calculating track to track distance matrix ...')
+        distance_matrix_track_gg = gg_add_track_info(distance_matrix_gg, gallery_tracks)
 
-    # calculate_track_distances(distance_matrix_qg)
+        print('Applying re-ranking ...')
+        distance_matrix_qg = re_ranking(distance_matrix_q_track_g, distance_matrix_qq, distance_matrix_track_gg,
+                                        k1=50, k2=15, lambda_value=0.1)
+        print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
 
-    matches = find_matches(distance_matrix_qg, gallery_tracks, top_k=100, enable_track_info=True)
-    print('Matches: {}'.format(matches.shape))
+        matches = find_matches2(distance_matrix_qg, gallery_tracks, top_k=100)
+        print('Matches: {}'.format(matches.shape))
+    else:
+        print('Applying re-ranking ...')
+        distance_matrix_qg = re_ranking(distance_matrix_qg, distance_matrix_qq, distance_matrix_gg,
+                                        k1=50, k2=15, lambda_value=0.1)
+        print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
+
+        matches = find_matches(distance_matrix_qg, gallery_tracks, top_k=100)
+        print('Matches: {}'.format(matches.shape))
 
     dump_matches(matches, args.out_file)
     print('Submission file has been stored at: {}'.format(args.out_file))
