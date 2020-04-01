@@ -42,7 +42,7 @@ class CircleLoss(nn.Module):
 
 
 class HardTripletLoss(nn.Module):
-    def __init__(self, margin=0.5):
+    def __init__(self, margin=0.35):
         super().__init__()
         self.margin = margin
 
@@ -297,7 +297,7 @@ class MetricLosses:
         #     self.losses_map['push_center'] = self.total_losses_num
         #     self.total_losses_num += 1
 
-        self.glob_push_loss = HardTripletLoss(margin=0.5)
+        self.glob_push_loss = HardTripletLoss(margin=0.35)
         assert glob_push_coeff >= 0
         self.glob_push_coeff = glob_push_coeff
         if self.glob_push_coeff > 0:
