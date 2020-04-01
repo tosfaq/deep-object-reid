@@ -273,9 +273,10 @@ def find_matches(dist_matrix, tracks, top_k=100):
     track_indices = np.argsort(track_distances, axis=1)
 
     out_matches = []
-    for q_id in range(track_distances.shape[0]):
+    for q_id in range(dist_matrix.shape[0]):
         ids = []
         for track_id in track_indices[q_id]:
+            # ids.append(tracks[int(track_id)][0] + 1)
             ids.extend(tracks[int(track_id)])
 
         out_matches.append(ids)
@@ -298,6 +299,11 @@ def find_matches2(dist_matrix, tracks, top_k=100):
 
 
 def dump_matches(matches, out_file):
+    # with open(out_file, 'w') as out_stream:
+    #     for row in matches:
+    #         line = ' '.join(map(str, row))
+    #         out_stream.write(line + '\n')
+
     shifted_matches = matches + 1
 
     with open(out_file, 'w') as out_stream:
@@ -377,7 +383,7 @@ def main():
         print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
 
         matches = find_matches(distance_matrix_qg, gallery_tracks, top_k=100)
-        print('Matches: {}'.format(matches.shape))
+        # print('Matches: {}'.format(matches.shape))
 
     dump_matches(matches, args.out_file)
     print('Submission file has been stored at: {}'.format(args.out_file))
