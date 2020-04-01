@@ -15,8 +15,9 @@ class CircleLoss(nn.Module):
 
         similarities = torch.mm(embeddings, torch.t(embeddings)).clamp(-1, 1)
 
-        pos_weights = F.relu((1.0 + self.margin) - similarities)
-        neg_weights = F.relu(similarities + self.margin)
+        with torch.no_grad():
+            pos_weights = F.relu((1.0 + self.margin) - similarities)
+            neg_weights = F.relu(similarities + self.margin)
 
         pos_terms = self.scale * pos_weights * (similarities + (self.margin - 1.0))
         neg_terms = self.scale * neg_weights * (similarities - self.margin)
@@ -41,7 +42,7 @@ class CircleLoss(nn.Module):
 
 
 class HardTripletLoss(nn.Module):
-    def __init__(self, margin=0.35):
+    def __init__(self, margin=0.5):
         super().__init__()
         self.margin = margin
 
@@ -60,10 +61,20 @@ class HardTripletLoss(nn.Module):
             pos_pairs = same_class_pairs & non_diagonal_pairs
             neg_pairs = different_class_pairs
 
-        hard_positives, _ = torch.where(pos_pairs, similarities, torch.full_like(similarities, 1.0)).min(dim=1)
-        hard_negatives, _ = torch.where(neg_pairs, similarities, torch.full_like(similarities, -1.0)).max(dim=1)
+        s_pos, _ = torch.where(pos_pairs, similarities, torch.full_like(similarities, 1.0)).min(dim=1)
+        s_neg, _ = torch.where(neg_pairs, similarities, torch.full_like(similarities, -1.0)).max(dim=1)
 
-        losses = F.relu(self.margin + hard_negatives - hard_positives)
+        # with torch.no_grad():
+        #     w_pos = F.relu((1.0 + self.margin) - s_pos)
+        #     w_neg = F.relu(s_neg + self.margin)
+        #
+        # term_pos = w_pos * (s_pos + (self.margin - 1.0))
+        # term_neg = w_neg * (s_neg - self.margin)
+        #
+        # losses = F.softplus(term_neg - term_pos)
+        # loss = losses.sum()
+
+        losses = F.relu(self.margin + s_neg - s_pos)
         loss = losses.sum()
 
         num_valid = (losses > 0.0).sum().float()
