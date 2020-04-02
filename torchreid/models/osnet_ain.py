@@ -232,6 +232,27 @@ class ChannelAttention(nn.Module):
 # Building blocks for omni-scale feature learning
 ##########
 
+class LCTGate(nn.Module):
+    def __init__(self, channels, groups=16):
+        super(LCTGate, self).__init__()
+        assert channels > 0
+        assert groups > 0
+        self.gn = nn.GroupNorm(groups, channels, affine=True)
+        nn.init.ones_(self.gn.bias)
+        nn.init.zeros_(self.gn.weight)
+
+        self.global_avgpool = nn.AdaptiveAvgPool2d(1)
+        self.gate_activation = nn.Sigmoid()
+
+    def forward(self, x):
+        y = self.global_avgpool(x)
+        y = self.gn(y)
+        y = self.gate_activation(y)
+        out = y * x
+
+        return out
+
+
 class ChannelGate(nn.Module):
     """A mini-network that generates channel-wise gates conditioned on input tensor."""
 
@@ -304,7 +325,7 @@ class OSBlock(nn.Module):
         self.conv2 = nn.ModuleList()
         for t in range(1, T + 1):
             self.conv2 += [LightConvStream(mid_channels, mid_channels, t)]
-        self.gate = ChannelGate(mid_channels)
+        self.gate = LCTGate(mid_channels)
         self.conv3 = Conv1x1Linear(mid_channels, out_channels)
 
         self.downsample = None
@@ -349,7 +370,7 @@ class OSBlockINin(nn.Module):
         self.conv2 = nn.ModuleList()
         for t in range(1, T + 1):
             self.conv2 += [LightConvStream(mid_channels, mid_channels, t)]
-        self.gate = ChannelGate(mid_channels)
+        self.gate = LCTGate(mid_channels)
         self.conv3 = Conv1x1Linear(mid_channels, out_channels, bn=False)
 
         self.downsample = None
