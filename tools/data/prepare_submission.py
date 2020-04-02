@@ -2,7 +2,6 @@ from os.path import exists
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, REMAINDER
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import networkx as nx
@@ -41,7 +40,7 @@ def build_dataset(mode='gallery', targets=None, height=192, width=256, norm_mean
     return dataset
 
 
-def build_data_loader(dataset, use_gpu=True, batch_size=50):
+def build_data_loader(dataset, use_gpu=True, batch_size=10):
     data_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
@@ -81,7 +80,6 @@ def extract_features(model, data_loader, use_gpu):
 
             b, n, c, h, w = images.size()
             images = images.view(b * n, c, h, w)
-
             if use_gpu:
                 images = images.cuda()
 

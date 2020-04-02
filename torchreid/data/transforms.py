@@ -542,7 +542,23 @@ class SubmissionTransform:
 
     @staticmethod
     def _make_crops(input_image, scale):
-        return []
+        src_width, src_height = input_image.size
+        crop_width, crop_height = int(scale * float(src_width)), int(scale * float(src_height))
+
+        x_shift = src_width - crop_width
+        y_shift = src_height - crop_height
+        x_half_shift = int(x_shift / 2)
+        y_half_shift = int(y_shift / 2)
+
+        tl_crop = input_image.crop((0, 0, crop_width, crop_height))
+        tr_crop = input_image.crop((x_shift, 0, x_shift + crop_width, crop_height))
+        bl_crop = input_image.crop((0, y_shift, crop_width, y_shift + crop_height))
+        br_crop = input_image.crop((x_shift, y_shift, x_shift + crop_width, y_shift + crop_height))
+        c_crop = input_image.crop((x_half_shift, y_half_shift, x_half_shift + crop_width, y_half_shift + crop_height))
+
+        out_crops = [tl_crop, tr_crop, bl_crop, br_crop, c_crop]
+
+        return out_crops
 
 
 def build_submission_transforms(height, width, norm_mean=(0.485, 0.456, 0.406), norm_std=(0.229, 0.224, 0.225)):
