@@ -5,7 +5,7 @@ model:
   feature_dim: 256
   pcb_num_parts: 0
   bn_eval: True
-  bn_frozen: False
+  bn_frozen: True
 
 data:
   type: 'image'
