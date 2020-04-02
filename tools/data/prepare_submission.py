@@ -40,7 +40,7 @@ def build_dataset(mode='gallery', targets=None, height=192, width=256, norm_mean
     return dataset
 
 
-def build_data_loader(dataset, use_gpu=True, batch_size=10):
+def build_data_loader(dataset, use_gpu=True, batch_size=20):
     data_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
@@ -84,8 +84,13 @@ def extract_features(model, data_loader, use_gpu):
                 images = images.cuda()
 
             all_embeddings = model(images).view(b, n, -1)
-            mean_embeddings = torch.mean(all_embeddings, dim=1)
-            norm_embeddings = F.normalize(mean_embeddings, dim=1)
+
+            left_embeddings = all_embeddings[:, :int(n / 2)]
+            right_embeddings = all_embeddings[:, int(n / 2):]
+            mean_embeddings = 0.5 * (left_embeddings + right_embeddings)
+
+            final_embeddings = mean_embeddings.view(b, -1)
+            norm_embeddings = F.normalize(final_embeddings, dim=1)
 
             out_embeddings.append(norm_embeddings.data.cpu())
 

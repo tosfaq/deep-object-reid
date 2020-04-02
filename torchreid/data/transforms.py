@@ -522,14 +522,14 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
 
 
 class SubmissionTransform:
-    def __init__(self, out_transform, scale=0.86):
+    def __init__(self, out_transform, scales=None):
         self.out_transform = out_transform
-        self.scale = scale
+        self.scales = scales
 
     def __call__(self, input_image):
         out_images = [input_image]
 
-        cropped_images = self._make_crops(input_image, self.scale)
+        cropped_images = self._make_crops(input_image, self.scales)
         out_images += cropped_images
 
         flipped_images = [im.transpose(Image.FLIP_LEFT_RIGHT) for im in out_images]
@@ -541,22 +541,26 @@ class SubmissionTransform:
         return out_tensor
 
     @staticmethod
-    def _make_crops(input_image, scale):
+    def _make_crops(input_image, scales):
+        if scales is None or len(scales) == 0:
+            return []
+
         src_width, src_height = input_image.size
-        crop_width, crop_height = int(scale * float(src_width)), int(scale * float(src_height))
 
-        x_shift = src_width - crop_width
-        y_shift = src_height - crop_height
-        x_half_shift = int(x_shift / 2)
-        y_half_shift = int(y_shift / 2)
+        out_crops = []
+        for scale in scales:
+            crop_width, crop_height = int(scale * float(src_width)), int(scale * float(src_height))
 
-        tl_crop = input_image.crop((0, 0, crop_width, crop_height))
-        tr_crop = input_image.crop((x_shift, 0, x_shift + crop_width, crop_height))
-        bl_crop = input_image.crop((0, y_shift, crop_width, y_shift + crop_height))
-        br_crop = input_image.crop((x_shift, y_shift, x_shift + crop_width, y_shift + crop_height))
-        c_crop = input_image.crop((x_half_shift, y_half_shift, x_half_shift + crop_width, y_half_shift + crop_height))
+            x_shift = src_width - crop_width
+            y_shift = src_height - crop_height
+            x_half_shift = int(x_shift / 2)
+            y_half_shift = int(y_shift / 2)
 
-        out_crops = [tl_crop, tr_crop, bl_crop, br_crop, c_crop]
+            crop = input_image.crop((x_half_shift,
+                                     y_half_shift,
+                                     x_half_shift + crop_width,
+                                     y_half_shift + crop_height))
+            out_crops.append(crop)
 
         return out_crops
 
