@@ -8,7 +8,8 @@ model:
 data:
   type: 'image'
   sources: ['aic20']
-  targets: ['aic20', 'veri']
+  # targets: ['aic20', 'veri']
+  targets: ['veri']
   height: 192
   width: 256
   combineall: False
