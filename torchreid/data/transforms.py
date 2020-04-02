@@ -519,3 +519,42 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     ])
 
     return transform_tr, transform_te
+
+
+class SubmissionTransform:
+    def __init__(self, out_transform, scale=0.86):
+        self.out_transform = out_transform
+        self.scale = scale
+
+    def __call__(self, input_image):
+        out_images = [input_image]
+
+        cropped_images = self._make_crops(input_image, self.scale)
+        out_images += cropped_images
+
+        flipped_images = [im.transpose(Image.FLIP_LEFT_RIGHT) for im in out_images]
+        out_images += flipped_images
+
+        out_images = [self.out_transform(im) for im in out_images]
+        out_tensor = torch.stack(out_images, dim=0)
+
+        return out_tensor
+
+    @staticmethod
+    def _make_crops(input_image, scale):
+        return []
+
+
+def build_submission_transforms(height, width, norm_mean=(0.485, 0.456, 0.406), norm_std=(0.229, 0.224, 0.225)):
+    if norm_mean is None or norm_std is None:
+        norm_mean = [0.485, 0.456, 0.406]  # imagenet mean
+        norm_std = [0.229, 0.224, 0.225]  # imagenet std
+    normalize = Normalize(mean=norm_mean, std=norm_std)
+
+    out_transform = Compose([
+        Resize((height, width)),
+        ToTensor(),
+        normalize,
+    ])
+
+    return SubmissionTransform(out_transform)

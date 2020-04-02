@@ -12,7 +12,7 @@ from tqdm import tqdm
 import torchreid
 from torchreid.utils import check_isfile, load_pretrained_weights, re_ranking
 from torchreid.data.datasets import init_image_dataset
-from torchreid.data.transforms import build_transforms
+from torchreid.data.transforms import build_submission_transforms
 from scripts.default_config import imagedata_kwargs, get_default_config, model_kwargs
 
 
@@ -21,12 +21,10 @@ def reset_config(cfg, args):
         cfg.data.root = args.root
 
 
-def build_dataset(mode='gallery', targets=None, height=192, width=256,
-                  transforms=None, norm_mean=None, norm_std=None, **kwargs):
-    _, transform_test = build_transforms(
+def build_dataset(mode='gallery', targets=None, height=192, width=256, norm_mean=None, norm_std=None, **kwargs):
+    transform = build_submission_transforms(
         height,
         width,
-        transforms=transforms,
         norm_mean=norm_mean,
         norm_std=norm_std
     )
@@ -34,7 +32,7 @@ def build_dataset(mode='gallery', targets=None, height=192, width=256,
     main_target_name = targets[0]
     dataset = init_image_dataset(
         main_target_name,
-        transform=transform_test,
+        transform=transform,
         mode=mode,
         verbose=False,
         **kwargs
@@ -43,7 +41,7 @@ def build_dataset(mode='gallery', targets=None, height=192, width=256,
     return dataset
 
 
-def build_data_loader(dataset, use_gpu=True, batch_size=300):
+def build_data_loader(dataset, use_gpu=True, batch_size=50):
     data_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
@@ -72,24 +70,24 @@ def build_gallery(cfg):
     return data_loader, len(dataset)
 
 
-def extract_features(model, data_loader, use_gpu, enable_flipping=True):
+def extract_features(model, data_loader, use_gpu):
     model.eval()
 
     out_embeddings = []
     with torch.no_grad():
+
         for data in tqdm(data_loader):
             images = data[0]
+
+            b, n, c, h, w = images.size()
+            images = images.view(b * n, c, h, w)
+
             if use_gpu:
                 images = images.cuda()
 
-            embeddings = model(images)
-
-            if enable_flipping:
-                flipped_images = torch.flip(images, dims=[3])
-                flipped_embeddings = model(flipped_images)
-                embeddings = 0.5 * (embeddings + flipped_embeddings)
-
-            norm_embeddings = F.normalize(embeddings, dim=-1)
+            all_embeddings = model(images).view(b, n, -1)
+            mean_embeddings = torch.mean(all_embeddings, dim=1)
+            norm_embeddings = F.normalize(mean_embeddings, dim=1)
 
             out_embeddings.append(norm_embeddings.data.cpu())
 
@@ -344,10 +342,10 @@ def main():
     if cfg.use_gpu:
         model = model.cuda()
 
-    embeddings_query = extract_features(model, data_query, cfg.use_gpu, enable_flipping=True)
+    embeddings_query = extract_features(model, data_query, cfg.use_gpu)
     print('Extracted query: {}'.format(embeddings_query.shape))
 
-    embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu, enable_flipping=True)
+    embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu)
     print('Extracted gallery: {}'.format(embeddings_gallery.shape))
 
     print('Calculating distance matrices ...')
@@ -377,7 +375,7 @@ def main():
         print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
 
         matches = find_matches(distance_matrix_qg, gallery_tracks, top_k=100)
-        # print('Matches: {}'.format(matches.shape))
+        print('Matches: {}'.format(matches.shape))
 
     dump_matches(matches, args.out_file)
     print('Submission file has been stored at: {}'.format(args.out_file))
