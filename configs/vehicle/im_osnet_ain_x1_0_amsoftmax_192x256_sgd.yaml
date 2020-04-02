@@ -12,8 +12,8 @@ data:
   sources: ['aic20']
   targets: ['aic20', 'veri']
   # targets: ['veri']
-  height: 240
-  width: 320
+  height: 192
+  width: 256
   combineall: False
   transforms:
     color_jitter:
