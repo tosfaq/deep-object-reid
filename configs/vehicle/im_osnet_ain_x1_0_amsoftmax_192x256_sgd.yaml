@@ -4,7 +4,7 @@ model:
   download_weights: False
   feature_dim: 256
   pcb_num_parts: 0
-  bn_eval: False
+  bn_eval: True
   bn_frozen: False
 
 data:
