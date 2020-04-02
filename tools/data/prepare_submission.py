@@ -276,7 +276,6 @@ def find_matches(dist_matrix, tracks, top_k=100):
     for q_id in range(dist_matrix.shape[0]):
         ids = []
         for track_id in track_indices[q_id]:
-            # ids.append(tracks[int(track_id)][0] + 1)
             ids.extend(tracks[int(track_id)])
 
         out_matches.append(ids)
@@ -299,11 +298,6 @@ def find_matches2(dist_matrix, tracks, top_k=100):
 
 
 def dump_matches(matches, out_file):
-    # with open(out_file, 'w') as out_stream:
-    #     for row in matches:
-    #         line = ' '.join(map(str, row))
-    #         out_stream.write(line + '\n')
-
     shifted_matches = matches + 1
 
     with open(out_file, 'w') as out_stream:

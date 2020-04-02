@@ -272,13 +272,6 @@ class ImageDataset(Dataset):
 
         output_record = tuple([img, pid, cam_id, img_path] + list(input_record[3:]))
 
-        # import matplotlib.pyplot as plt
-        # std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, -1)
-        # mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, -1)
-        # real_image = 255.0 * (np.transpose(img.data.cpu().numpy(), (1, 2, 0)) * std + mean)
-        # plt.imshow(real_image.astype(np.uint8))
-        # plt.show()
-
         return output_record
 
     def show_summary(self):
