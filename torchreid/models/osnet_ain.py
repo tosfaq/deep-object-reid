@@ -325,7 +325,7 @@ class OSBlock(nn.Module):
         self.conv2 = nn.ModuleList()
         for t in range(1, T + 1):
             self.conv2 += [LightConvStream(mid_channels, mid_channels, t)]
-        self.gate = LCTGate(mid_channels)
+        self.gate = ChannelGate(mid_channels)
         self.conv3 = Conv1x1Linear(mid_channels, out_channels)
 
         self.downsample = None
@@ -370,7 +370,7 @@ class OSBlockINin(nn.Module):
         self.conv2 = nn.ModuleList()
         for t in range(1, T + 1):
             self.conv2 += [LightConvStream(mid_channels, mid_channels, t)]
-        self.gate = LCTGate(mid_channels)
+        self.gate = ChannelGate(mid_channels)
         self.conv3 = Conv1x1Linear(mid_channels, out_channels, bn=False)
 
         self.downsample = None
@@ -432,9 +432,14 @@ class OSNet(nn.Module):
         attr_tasks=None,
         enable_attr_tasks=False,
         num_parts=None,
+        bn_eval=False,
+        bn_frozen=False,
         **kwargs
     ):
         super(OSNet, self).__init__()
+
+        self.bn_eval = bn_eval
+        self.bn_frozen = bn_frozen
 
         num_blocks = len(blocks)
         assert num_blocks == len(channels) - 1
@@ -680,6 +685,20 @@ class OSNet(nn.Module):
             return all_outputs, attr_logits, all_embeddings
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
+
+    def train(self, train_mode=True):
+        super(OSNet, self).train(train_mode)
+
+        if self.bn_eval:
+            for m in self.modules():
+                if isinstance(m, nn.BatchNorm2d):
+                    m.eval()
+
+                    if self.bn_frozen:
+                        for params in m.parameters():
+                            params.requires_grad = False
+
+        return self
 
     def load_pretrained_weights(self, pretrained_dict):
         model_dict = self.state_dict()

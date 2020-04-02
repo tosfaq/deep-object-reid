@@ -13,6 +13,8 @@ def get_default_config():
     cfg.model.resume = ''  # path to checkpoint for resume training
     cfg.model.feature_dim = 512  # embedding size
     cfg.model.pcb_num_parts = 0
+    cfg.model.bn_eval = False
+    cfg.model.bn_frozen = False
 
     # data
     cfg.data = CN()
@@ -337,6 +339,8 @@ def model_kwargs(cfg, num_classes):
         'attr_tasks': cfg.attr_losses.tasks,
         'enable_attr_tasks': cfg.attr_losses.enable,
         'num_parts': cfg.model.pcb_num_parts,
+        'bn_eval': cfg.model.bn_eval,
+        'bn_frozen': cfg.model.bn_frozen,
     }
 
 
