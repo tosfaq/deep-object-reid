@@ -3,7 +3,7 @@ model:
   pretrained: True
   download_weights: False
   feature_dim: 256
-  pcb_num_parts: 6
+  pcb_num_parts: [2, 3]
   bn_eval: False
   bn_frozen: False
 

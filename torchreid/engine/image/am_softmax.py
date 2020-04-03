@@ -106,7 +106,7 @@ class ImageAMSoftmaxEngine(Engine):
                 num_real_classes = num_real_classes[0]
 
             self.real_metric_losses = []
-            for i in range(self.model.module.num_parts + 1):
+            for i in range(self.model.module.total_num_parts + 1):
                 self.real_metric_losses.append(MetricLosses(
                     self.writer,
                     num_real_classes,
@@ -119,7 +119,7 @@ class ImageAMSoftmaxEngine(Engine):
                 ))
             self.synthetic_metric_losses = []
             if self.model.module.split_embeddings:
-                for i in range(self.model.module.num_parts + 1):
+                for i in range(self.model.module.total_num_parts + 1):
                     self.synthetic_metric_losses.append(MetricLosses(
                         self.writer,
                         self.datamanager.num_train_pids[1],
@@ -210,7 +210,7 @@ class ImageAMSoftmaxEngine(Engine):
                 embeddings, outputs, extra_outputs = self.model(imgs, get_embeddings=True)
             else:
                 outputs, extra_outputs = self.model(imgs)
-                num_parts = self.model.module.num_parts + 1
+                num_parts = self.model.module.total_num_parts + 1
                 embeddings = dict(real=[None] * num_parts, synthetic=[None] * num_parts)
 
             real_centers = outputs['real_centers']

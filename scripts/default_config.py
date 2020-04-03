@@ -12,7 +12,7 @@ def get_default_config():
     cfg.model.load_weights = ''  # path to model weights
     cfg.model.resume = ''  # path to checkpoint for resume training
     cfg.model.feature_dim = 512  # embedding size
-    cfg.model.pcb_num_parts = 0
+    cfg.model.pcb_num_parts = [0]
     cfg.model.bn_eval = False
     cfg.model.bn_frozen = False
 

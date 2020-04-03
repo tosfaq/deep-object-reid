@@ -470,7 +470,8 @@ class OSNet(nn.Module):
             real_data_num_classes, synthetic_data_num_classes = num_classes, None
 
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
-        self.num_parts = num_parts if num_parts is not None and num_parts > 1 else 0
+        self.num_parts = num_parts if num_parts is not None and len(num_parts) > 0 else [0]
+        self.total_num_parts = sum(self.num_parts)
 
         self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=conv1_IN)
         self.maxpool = nn.MaxPool2d(3, stride=2, padding=1)
@@ -492,7 +493,7 @@ class OSNet(nn.Module):
         self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[3])
 
         fc_layers, classifier_layers = [], []
-        for _ in range(1 + self.num_parts):  # main branch + part-based branches
+        for _ in range(1 + self.total_num_parts):  # main branch + part-based branches
             fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
             classifier_layers.append(classifier_block(self.feature_dim, real_data_num_classes))
         self.fc = nn.ModuleList(fc_layers)
@@ -503,7 +504,7 @@ class OSNet(nn.Module):
         self.split_embeddings = synthetic_data_num_classes is not None
         if self.split_embeddings:
             aux_fc_layers, aux_classifier_layers = [], []
-            for _ in range(1 + self.num_parts):  # main branch + part-based branches
+            for _ in range(1 + self.total_num_parts):  # main branch + part-based branches
                 aux_fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
                 aux_classifier_layers.append(classifier_block(self.feature_dim, synthetic_data_num_classes))
             self.aux_fc = nn.ModuleList(aux_fc_layers)
@@ -628,22 +629,26 @@ class OSNet(nn.Module):
 
     @staticmethod
     def _part_feature_vector(x, num_parts):
-        if num_parts <= 1:
-            return []
-
         scale = (x.size(1)) ** (-0.5)
 
-        # v_stripes = F.adaptive_avg_pool2d(x, (1, num_parts)).squeeze(dim=2)
-        # v_weights = F.softmax(scale * torch.matmul(v_stripes.permute(0, 2, 1), v_stripes), dim=1)
-        # v_stripes = torch.matmul(v_stripes, v_weights)
-        # v_parts = [f.squeeze(dim=-1) for f in torch.split(v_stripes, 1, dim=-1)]
+        all_parts = []
+        for part_size in num_parts:
+            if part_size <= 1:
+                continue
 
-        h_stripes = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=3)
-        h_weights = F.softmax(scale * torch.matmul(h_stripes.permute(0, 2, 1), h_stripes), dim=1)
-        h_stripes = torch.matmul(h_stripes, h_weights)
-        h_parts = [f.squeeze(dim=-1) for f in torch.split(h_stripes, 1, dim=-1)]
+            # v_stripes = F.adaptive_avg_pool2d(x, (1, part_size)).squeeze(dim=2)
+            # v_weights = F.softmax(scale * torch.matmul(v_stripes.permute(0, 2, 1), v_stripes), dim=1)
+            # v_stripes = torch.matmul(v_stripes, v_weights)
+            # v_parts = [f.squeeze(dim=-1) for f in torch.split(v_stripes, 1, dim=-1)]
+            # all_parts.extend(v_parts)
 
-        return h_parts
+            h_stripes = F.adaptive_avg_pool2d(x, (part_size, 1)).squeeze(dim=3)
+            h_weights = F.softmax(scale * torch.matmul(h_stripes.permute(0, 2, 1), h_stripes), dim=1)
+            h_stripes = torch.matmul(h_stripes, h_weights)
+            h_parts = [f.squeeze(dim=-1) for f in torch.split(h_stripes, 1, dim=-1)]
+            all_parts.extend(h_parts)
+
+        return all_parts
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
         feature_maps = self._backbone(x)
