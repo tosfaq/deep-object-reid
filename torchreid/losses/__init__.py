@@ -19,9 +19,13 @@ def DeepSupervision(criterion, xs, y, **kwargs):
         xs: tuple of inputs
         y: ground truth
     """
-    loss = 0.
+    total_loss = 0.0
+    num_losses = 0
     for x in xs:
-        loss += criterion(x, y, **kwargs)
-    loss /= len(xs)
+        loss_val = criterion(x, y, **kwargs)
+        if loss_val > 0.0:
+            total_loss += loss_val
+            num_losses += 1
+    total_loss /= float(num_losses if num_losses > 0 else 1)
 
-    return loss
+    return total_loss
