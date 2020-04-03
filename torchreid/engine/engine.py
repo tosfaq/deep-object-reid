@@ -242,7 +242,7 @@ class Engine:
         visrank_topk=10,
         save_dir='',
         use_metric_cuhk03=False,
-        ranks=[1, 5, 10, 20, 50, 100],
+        ranks=[1, 5, 10, 20],
         rerank=False
     ):
         batch_time = AverageMeter()

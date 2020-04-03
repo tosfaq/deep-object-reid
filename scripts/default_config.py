@@ -141,7 +141,7 @@ def get_default_config():
     cfg.test.batch_size = 100
     cfg.test.dist_metric = 'euclidean'  # distance metric, ['euclidean', 'cosine']
     cfg.test.normalize_feature = False  # normalize feature vectors before computing distance
-    cfg.test.ranks = [1, 5, 10, 20, 50, 100]  # cmc ranks
+    cfg.test.ranks = [1, 5, 10, 20]  # cmc ranks
     cfg.test.evaluate = False  # test only
     cfg.test.eval_freq = -1  # evaluation frequency (-1 means to only test after training)
     cfg.test.start_eval = 0  # start to evaluate after a specific epoch
