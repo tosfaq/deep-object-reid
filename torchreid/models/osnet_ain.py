@@ -633,11 +633,17 @@ class OSNet(nn.Module):
 
         scale = (x.size(1)) ** (-0.5)
 
-        v_stripes = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
+        v_stripes = F.adaptive_avg_pool2d(x, (1, num_parts)).squeeze(dim=2)
         weights = F.softmax(scale * torch.matmul(v_stripes.permute(0, 2, 1), v_stripes), dim=1)
         v_stripes = torch.matmul(v_stripes, weights)
+        v_parts = [f.squeeze(dim=-1) for f in torch.split(v_stripes, 1, dim=-1)]
 
-        return [f.squeeze(dim=-1) for f in torch.split(v_stripes, 1, dim=-1)]
+        # h_stripes = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=3)
+        # weights = F.softmax(scale * torch.matmul(h_stripes.permute(0, 2, 1), h_stripes), dim=1)
+        # h_stripes = torch.matmul(h_stripes, weights)
+        # h_parts = [f.squeeze(dim=-1) for f in torch.split(h_stripes, 1, dim=-1)]
+
+        return v_parts
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
         feature_maps = self._backbone(x)
