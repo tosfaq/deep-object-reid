@@ -1,4 +1,6 @@
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 def gumbel(x, eps=1e-20):
@@ -34,3 +36,15 @@ class GumbelSigmoid(torch.autograd.Function):
 
 
 gumbel_sigmoid = GumbelSigmoid.apply
+
+
+class GumbelSoftmax(nn.Module):
+    def __init__(self, t=1.0, dim=1):
+        super(GumbelSoftmax, self).__init__()
+
+        self.t = t
+        self.dim = dim
+
+    def forward(self, logits):
+        y = logits + gumbel(logits) if self.training else logits
+        return F.softmax(y / self.t, dim=self.dim)

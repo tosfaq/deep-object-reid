@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, HSwish, gumbel_sigmoid, NonLocalModule
+from torchreid.ops import Dropout, HSwish, gumbel_sigmoid, GumbelSoftmax, NonLocalModule
 
 
 __all__ = ['osnet_ain_x1_0']
@@ -552,7 +552,7 @@ class OSNet(nn.Module):
             return None
 
         layers = [Conv1x1(input_dim, output_dim, out_fn=None),
-                  nn.Softmax(dim=1)]
+                  GumbelSoftmax(t=1.0, dim=1)]
 
         return nn.Sequential(*layers)
 
@@ -648,6 +648,15 @@ class OSNet(nn.Module):
 
             if att_module is not None:
                 att = att_module(x)
+
+                # att_cpu = att.data.cpu().numpy()
+                # import matplotlib.pyplot as plt
+                # fig, axs = plt.subplots(5, 3)
+                # for i in range(5):
+                #     for j in range(3):
+                #         axs[i, j].imshow(att_cpu[i, j])
+                # plt.show()
+
                 vectors = (att.unsqueeze(dim=2) * x.unsqueeze(dim=1)).mean(dim=(3, 4))
                 parts = [f.squeeze(dim=1) for f in torch.split(vectors, 1, dim=1)]
             else:

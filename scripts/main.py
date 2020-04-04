@@ -71,7 +71,7 @@ def main():
     print('Model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
     if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
-        if cfg.model.pretrained:
+        if cfg.model.pretrained and not cfg.test.evaluate:
             state_dict = torch.load(cfg.model.load_weights)
             model.load_pretrained_weights(state_dict)
         else:
