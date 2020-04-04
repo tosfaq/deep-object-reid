@@ -126,7 +126,7 @@ def main():
     print('** Results **')
     print('mAP: {:.1%}'.format(mAP))
     print('CMC curve')
-    for r in [1, 5, 10, 20]:
+    for r in [1, 5, 10, 20, 50, 100]:
         print('Rank-{:<3}: {:.1%}'.format(r, cmc[r - 1]))
 
 

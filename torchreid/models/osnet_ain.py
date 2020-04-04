@@ -492,6 +492,8 @@ class OSNet(nn.Module):
         self.nl5 = self._construct_nonlocal_layer(out_num_channels, self.use_nonlocal_blocks[3])
         self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[3])
 
+        self.part_att = nn.ModuleList([self._construct_part_attention(out_num_channels, n) for n in self.num_parts])
+
         fc_layers, classifier_layers = [], []
         for _ in range(1 + self.total_num_parts):  # main branch + part-based branches
             fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
@@ -543,6 +545,16 @@ class OSNet(nn.Module):
     @staticmethod
     def _construct_nonlocal_layer(num_channels, enable):
         return NonLocalModule(num_channels) if enable else None
+
+    @staticmethod
+    def _construct_part_attention(input_dim, output_dim):
+        if output_dim is None or output_dim <= 1:
+            return None
+
+        layers = [Conv1x1(input_dim, output_dim, out_fn=None),
+                  nn.Softmax(dim=1)]
+
+        return nn.Sequential(*layers)
 
     @staticmethod
     def _construct_fc_layer(input_dim, output_dim, dropout=False):
@@ -628,25 +640,21 @@ class OSNet(nn.Module):
         return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
 
     @staticmethod
-    def _part_feature_vector(x, num_parts):
-        scale = (x.size(1)) ** (-0.5)
-
+    def _part_feature_vector(x, num_parts, att_modules):
         all_parts = []
-        for part_size in num_parts:
+        for part_size, att_module in zip(num_parts, att_modules):
             if part_size <= 1:
                 continue
 
-            # v_stripes = F.adaptive_avg_pool2d(x, (1, part_size)).squeeze(dim=2)
-            # v_weights = F.softmax(scale * torch.matmul(v_stripes.permute(0, 2, 1), v_stripes), dim=1)
-            # v_stripes = torch.matmul(v_stripes, v_weights)
-            # v_parts = [f.squeeze(dim=-1) for f in torch.split(v_stripes, 1, dim=-1)]
-            # all_parts.extend(v_parts)
+            if att_module is not None:
+                att = att_module(x)
+                vectors = (att.unsqueeze(dim=2) * x.unsqueeze(dim=1)).mean(dim=(3, 4))
+                parts = [f.squeeze(dim=1) for f in torch.split(vectors, 1, dim=1)]
+            else:
+                h_stripes = F.adaptive_avg_pool2d(x, (part_size, 1)).squeeze(dim=3)
+                parts = [f.squeeze(dim=-1) for f in torch.split(h_stripes, 1, dim=-1)]
 
-            h_stripes = F.adaptive_avg_pool2d(x, (part_size, 1)).squeeze(dim=3)
-            h_weights = F.softmax(scale * torch.matmul(h_stripes.permute(0, 2, 1), h_stripes), dim=1)
-            h_stripes = torch.matmul(h_stripes, h_weights)
-            h_parts = [f.squeeze(dim=-1) for f in torch.split(h_stripes, 1, dim=-1)]
-            all_parts.extend(h_parts)
+            all_parts.extend(parts)
 
         return all_parts
 
@@ -656,7 +664,7 @@ class OSNet(nn.Module):
             return feature_maps
 
         glob_feature = self._glob_feature_vector(feature_maps)
-        part_features = self._part_feature_vector(feature_maps, num_parts=self.num_parts)
+        part_features = self._part_feature_vector(feature_maps, self.num_parts, self.part_att)
         features = [glob_feature] + list(part_features)
 
         main_embeddings = [fc(f) for f, fc in zip(features, self.fc)]

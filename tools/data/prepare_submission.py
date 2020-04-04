@@ -264,24 +264,26 @@ def qg_add_track_info(dist_matrix, tracks):
 
 
 def find_matches(dist_matrix, tracks, top_k=100):
-    track_distances = []
-    for track_ids in tracks:
-        distances = dist_matrix[:, track_ids]
-        group_distance = np.percentile(distances, 10, axis=1)
-        track_distances.append(group_distance.reshape([-1, 1]))
-    track_distances = np.concatenate(tuple(track_distances), axis=1)
+    # track_distances = []
+    # for track_ids in tracks:
+    #     distances = dist_matrix[:, track_ids]
+    #     group_distance = np.percentile(distances, 10, axis=1)
+    #     track_distances.append(group_distance.reshape([-1, 1]))
+    # track_distances = np.concatenate(tuple(track_distances), axis=1)
+    #
+    # track_indices = np.argsort(track_distances, axis=1)
+    #
+    # out_matches = []
+    # for q_id in range(dist_matrix.shape[0]):
+    #     ids = []
+    #     for track_id in track_indices[q_id]:
+    #         ids.extend(tracks[int(track_id)])
+    #
+    #     out_matches.append(ids)
+    #
+    # return np.array(out_matches)[:, :top_k]
 
-    track_indices = np.argsort(track_distances, axis=1)
-
-    out_matches = []
-    for q_id in range(dist_matrix.shape[0]):
-        ids = []
-        for track_id in track_indices[q_id]:
-            ids.extend(tracks[int(track_id)])
-
-        out_matches.append(ids)
-
-    return np.array(out_matches)[:, :top_k]
+    return np.argsort(dist_matrix, axis=1)[:, :top_k]
 
 
 def find_matches2(dist_matrix, tracks, top_k=100):
