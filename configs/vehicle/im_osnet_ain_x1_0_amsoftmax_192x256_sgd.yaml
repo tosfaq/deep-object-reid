@@ -3,7 +3,7 @@ model:
   pretrained: True
   download_weights: False
   feature_dim: 256
-  pcb_num_parts: [3]
+  pcb_num_parts: [0]
   bn_eval: False
   bn_frozen: False
 
@@ -111,7 +111,7 @@ train:
   batch_size: 64
   fixbase_epoch: 2
   open_layers: ['conv5',
-                'part_att',
+                # 'part_att',
                 'classifier', 'fc', 'aux_fc', 'aux_classifier']
   lr_scheduler: 'multi_step_warmup'
   stepsize: [16, 30]

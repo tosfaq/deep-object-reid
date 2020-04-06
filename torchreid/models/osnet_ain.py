@@ -652,9 +652,9 @@ class OSNet(nn.Module):
 
                 # att_cpu = att.data.cpu().numpy()
                 # import matplotlib.pyplot as plt
-                # fig, axs = plt.subplots(5, 3)
+                # fig, axs = plt.subplots(5, 4)
                 # for i in range(5):
-                #     for j in range(3):
+                #     for j in range(4):
                 #         axs[i, j].imshow(att_cpu[i, j])
                 # plt.show()
 

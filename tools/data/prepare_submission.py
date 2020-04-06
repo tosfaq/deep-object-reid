@@ -1,5 +1,6 @@
 from os.path import exists
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, REMAINDER
+from collections import defaultdict
 
 import torch
 import torch.nn.functional as F
@@ -103,100 +104,195 @@ def calculate_distances(a, b):
     return 1.0 - np.matmul(a, np.transpose(b))
 
 
-def cluster_samples(distance_matrix, min_num_components, data_loader):
+def merge_query_samples(distance_matrix, max_distance, data_loader=None):
     assert len(distance_matrix.shape) == 2
     assert distance_matrix.shape[0] == distance_matrix.shape[1]
 
     num_samples = distance_matrix.shape[0]
 
     distances = [(distance_matrix[i, j], i, j) for i in range(num_samples) for j in range(i + 1, num_samples)]
-    distances = [tup for tup in distances if tup[0] < 0.1]
+    distances = [tup for tup in distances if tup[0] < max_distance]
     distances.sort(key=lambda tup: tup[0])
 
     G = nx.Graph()
     G.add_nodes_from(list(range(num_samples)))
 
-    for d, i, j in distances:
+    for _, i, j in distances:
         G.add_edge(i, j)
-
-        connected_components = find_connected_components(G)
-        print('d: {:.4f} num: {}'.format(d, len(connected_components)))
-        if len(connected_components) <= min_num_components:
-            break
+    print('Added {} edges'.format(len(distances)))
 
     connected_components = find_connected_components(G)
-    print_connected_components_stat(connected_components)
-    exit()
+    print_connected_components_stat(connected_components, 'Query')
 
-    # large_components = [c for c in connected_components if len(c) > 1]
-    # print('Num large components: {}'.format(len(large_components)))
-    #
-    # import cv2
-    # from os import makedirs
-    # from shutil import rmtree
-    # from os.path import exists, join
-    # out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_queue_v70'
-    # if exists(out_dir):
-    #     rmtree(out_dir)
-    # makedirs(out_dir)
-    #
-    # image_ids_map = dict()
-    # for comp_id, comp in enumerate(connected_components):
-    #     if len(comp) <= 1:
-    #         continue
-    #
-    #     for i in comp:
-    #         image_ids_map[i] = comp_id
-    #
-    #     comp_dir = join(out_dir, str(comp_id))
-    #     makedirs(comp_dir)
-    #
-    # image_ids = set(image_ids_map.keys())
-    # print('Num images: {}'.format(len(image_ids)))
-    #
-    # std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 1, -1)
-    # mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 1, -1)
-    # with torch.no_grad():
-    #     last_data_id = 0
-    #     for data in tqdm(data_loader):
-    #         float_images = np.transpose(data[0].data.cpu().numpy(), (0, 2, 3, 1))
-    #         images = (255.0 * (float_images * std + mean)).astype(np.uint8)
-    #
-    #         for image_id, image in enumerate(images):
-    #             data_id = last_data_id + image_id
-    #             if data_id not in image_ids:
-    #                 continue
-    #
-    #             comp_id = image_ids_map[data_id]
-    #             comp_dir = join(out_dir, str(comp_id))
-    #
-    #             image_path = join(comp_dir, 'img_{:06}.jpg'.format(data_id))
-    #             cv2.imwrite(image_path, image[:, :, ::-1])
-    #
-    #         last_data_id += images.shape[0]
-    #
-    # exit()
+    large_components = [c for c in connected_components if len(c) > 1]
+    print('Num large components: {}'.format(len(large_components)))
 
+    image_ids = set(i for comp in large_components for i in comp)
+    print('Num clustered images: {} / {}'.format(len(image_ids), num_samples))
 
-def get_connections_graph(distances, threshold):
-    similarities = 1.0 - distances
-    adjacency_matrix = np.triu(similarities > threshold, 1)
-    graph = nx.from_numpy_matrix(adjacency_matrix)
+    if data_loader is None:
+        return connected_components
 
-    return graph
+    import cv2
+    from os import makedirs
+    from shutil import rmtree
+    from os.path import exists, join
+    out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142/query'
+    if exists(out_dir):
+        rmtree(out_dir)
+    makedirs(out_dir)
+
+    image_ids_map = dict()
+    for comp_id, comp in enumerate(connected_components):
+        if len(comp) <= 1:
+            continue
+
+        for i in comp:
+            image_ids_map[i] = comp_id
+
+        comp_dir = join(out_dir, str(comp_id))
+        makedirs(comp_dir)
+
+    image_ids = set(image_ids_map.keys())
+
+    std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 1, -1)
+    mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 1, -1)
+    with torch.no_grad():
+        last_data_id = 0
+        for data in tqdm(data_loader):
+            float_images = np.transpose(data[0].data[:, 0].cpu().numpy(), (0, 2, 3, 1))
+            images = (255.0 * (float_images * std + mean)).astype(np.uint8)
+
+            for image_id, image in enumerate(images):
+                data_id = last_data_id + image_id
+                if data_id not in image_ids:
+                    continue
+
+                comp_id = image_ids_map[data_id]
+                comp_dir = join(out_dir, str(comp_id))
+
+                image_path = join(comp_dir, 'img_{:06}.jpg'.format(data_id))
+                cv2.imwrite(image_path, image[:, :, ::-1])
+
+            last_data_id += images.shape[0]
+
+    return connected_components
 
 
-def show_graph(graph):
-    nx.draw_networkx(graph, arrows=False, with_labels=True)
-    plt.show()
+def merge_gallery_tracklets(distance_matrix, max_distance, src_tracklets, data_loader=None):
+    assert len(distance_matrix.shape) == 2
+    assert distance_matrix.shape[0] == distance_matrix.shape[1]
+
+    num_samples = distance_matrix.shape[0]
+
+    G = nx.Graph()
+    G.add_nodes_from(list(range(num_samples)))
+
+    free_pairs = np.ones([num_samples, num_samples], dtype=np.bool)
+    for tracklet in src_tracklets:
+        tracklet_ids = list(sorted(tracklet))
+        tracklet_size = len(tracklet_ids)
+        for i in range(tracklet_size):
+            anchor_id = tracklet_ids[i]
+            for j in range(i + 1, tracklet_size):
+                ref_id = tracklet_ids[j]
+
+                G.add_edge(anchor_id, ref_id)
+                free_pairs[anchor_id, ref_id] = False
+
+    init_connected_components = find_connected_components(G)
+    print_connected_components_stat(init_connected_components, 'Gallery (before)')
+
+    distances = [(distance_matrix[i, j], i, j)
+                 for i in range(num_samples)
+                 for j in range(i + 1, num_samples)
+                 if free_pairs[i, j]]
+    distances = [tup for tup in distances if tup[0] < max_distance]
+    distances.sort(key=lambda tup: tup[0])
+
+    for _, i, j in distances:
+        G.add_edge(i, j)
+    print('Added {} edges'.format(len(distances)))
+
+    connected_components = find_connected_components(G)
+    print_connected_components_stat(connected_components, 'Gallery (after)')
+
+    large_components = [c for c in connected_components if len(c) > 1]
+    print('Num large components: {}'.format(len(large_components)))
+
+    image_ids = set(i for comp in large_components for i in comp)
+    print('Num clustered images: {} / {}'.format(len(image_ids), num_samples))
+
+    if data_loader is None:
+        return connected_components
+
+    import cv2
+    from os import makedirs
+    from shutil import rmtree
+    from os.path import exists, join
+    out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142/gallery'
+    if exists(out_dir):
+        rmtree(out_dir)
+    makedirs(out_dir)
+
+    comp_map = defaultdict(list)
+    for comp in init_connected_components:
+        comp_map[len(comp)].append(set(comp))
+
+    image_ids_map = dict()
+    for comp_id, comp in enumerate(connected_components):
+        if len(comp) <= 1:
+            continue
+
+        new_comp = True
+        if len(comp) in comp_map:
+            candidates = comp_map[len(comp)]
+            for candidate in candidates:
+                if set(comp) == candidate:
+                    new_comp = False
+                    break
+
+        if not new_comp:
+            continue
+
+        for i in comp:
+            image_ids_map[i] = comp_id
+
+        comp_dir = join(out_dir, str(comp_id))
+        makedirs(comp_dir)
+
+    image_ids = set(image_ids_map.keys())
+
+    std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 1, -1)
+    mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 1, -1)
+    with torch.no_grad():
+        last_data_id = 0
+        for data in tqdm(data_loader):
+            float_images = np.transpose(data[0].data[:, 0].cpu().numpy(), (0, 2, 3, 1))
+            images = (255.0 * (float_images * std + mean)).astype(np.uint8)
+
+            for image_id, image in enumerate(images):
+                data_id = last_data_id + image_id
+                if data_id not in image_ids:
+                    continue
+
+                comp_id = image_ids_map[data_id]
+                comp_dir = join(out_dir, str(comp_id))
+
+                image_path = join(comp_dir, 'img_{:06}.jpg'.format(data_id))
+                cv2.imwrite(image_path, image[:, :, ::-1])
+
+            last_data_id += images.shape[0]
+
+    return connected_components
 
 
 def find_connected_components(graph):
     return [list(c) for c in sorted(nx.connected_components(graph), key=len, reverse=True)]
 
 
-def print_connected_components_stat(components):
-    print('Connected components stat:')
+def print_connected_components_stat(components, header=''):
+    print('{} connected components stat:'.format(header))
     print('   num components: {}'.format(len(components)))
 
     lengths = [len(c) for c in components]
@@ -207,8 +303,8 @@ def print_connected_components_stat(components):
                                                         np.percentile(lengths, 95.0)))
 
 
-def load_tracks(file_path, gallery_size):
-    tracks = []
+def load_tracklets(file_path, gallery_size):
+    tracklets = []
     for line in open(file_path):
         str_values = [s for s in line.replace('\n', '').split(' ') if len(s) > 0]
         ids = [int(s) - 1 for s in str_values]
@@ -217,19 +313,19 @@ def load_tracks(file_path, gallery_size):
         for sample_id in ids:
             assert 0 <= sample_id < gallery_size
 
-        tracks.append(ids)
+        tracklets.append(ids)
 
-    track_ids = [sample_id for track in tracks for sample_id in track]
+    track_ids = [sample_id for track in tracklets for sample_id in track]
     assert len(track_ids) == len(set(track_ids))
 
     rest_ids = set(range(gallery_size)) - set(track_ids)
     print('Num gallery images without track info: {} / {}'.format(len(rest_ids), gallery_size))
     for rest_id in rest_ids:
-        tracks.append([rest_id])
+        tracklets.append([rest_id])
 
-    assert sum([len(track) for track in tracks]) == gallery_size
+    assert sum([len(track) for track in tracklets]) == gallery_size
 
-    return tracks
+    return tracklets
 
 
 def gg_add_track_info(dist_matrix, tracks):
@@ -263,10 +359,10 @@ def qg_add_track_info(dist_matrix, tracks):
     return qg_dist_matrix
 
 
-def find_matches(dist_matrix, tracks, top_k=100):
+def find_matches_image_to_track(dist_matrix, query_tracklets, gallery_tracklets, top_k=100):
     track_distances = []
-    for track_ids in tracks:
-        distances = dist_matrix[:, track_ids]
+    for gallery_tracklet_ids in gallery_tracklets:
+        distances = dist_matrix[:, gallery_tracklet_ids]
         group_distance = np.percentile(distances, 10, axis=1)
         track_distances.append(group_distance.reshape([-1, 1]))
     track_distances = np.concatenate(tuple(track_distances), axis=1)
@@ -276,14 +372,39 @@ def find_matches(dist_matrix, tracks, top_k=100):
     for q_id in range(dist_matrix.shape[0]):
         ids = []
         for track_id in track_indices[q_id]:
-            ids.extend(tracks[int(track_id)])
+            ids.extend(gallery_tracklets[int(track_id)])
 
         out_matches.append(ids)
 
     return np.array(out_matches)[:, :top_k]
 
 
-def find_matches2(dist_matrix, tracks, top_k=100):
+def find_matches_track_to_track(dist_matrix, query_tracklets, gallery_tracklets, top_k=100):
+    track_distances = []
+    for query_tracklet_ids in query_tracklets:
+        row_distances = dist_matrix[query_tracklet_ids]
+
+        for gallery_tracklet_ids in gallery_tracklets:
+            set_distances = row_distances[:, gallery_tracklet_ids]
+            dist = np.percentile(set_distances, 10)
+            track_distances.append(dist)
+    track_distances = np.array(track_distances, dtype=np.float32)
+    track_distances = track_distances.reshape([len(query_tracklets), len(gallery_tracklets)])
+
+    track_indices = np.argsort(track_distances, axis=1)
+
+    out_matches = np.empty([dist_matrix.shape[0], top_k], dtype=np.int32)
+    for q_tracklet_id in range(len(query_tracklets)):
+        ids = []
+        for track_id in track_indices[q_tracklet_id]:
+            ids.extend(gallery_tracklets[int(track_id)])
+
+        out_matches[query_tracklets[q_tracklet_id]] = ids[:top_k]
+
+    return out_matches
+
+
+def find_matches_image_to_track2(dist_matrix, tracks, top_k=100):
     track_indices = np.argsort(dist_matrix, axis=1)
 
     out_matches = []
@@ -332,8 +453,8 @@ def main():
     data_query, num_pids = build_query(cfg)
     data_gallery, gallery_size = build_gallery(cfg)
 
-    gallery_tracks = load_tracks(args.tracks_file, gallery_size)
-    print('Loaded tracks: {}'.format(len(gallery_tracks)))
+    gallery_tracklets = load_tracklets(args.tracks_file, gallery_size)
+    print('Loaded tracklets: {}'.format(len(gallery_tracklets)))
 
     print('Building model: {}'.format(cfg.model.name))
     model = torchreid.models.build_model(**model_kwargs(cfg, num_pids))
@@ -355,20 +476,27 @@ def main():
     distance_matrix_qq = calculate_distances(embeddings_query, embeddings_query)
     distance_matrix_gg = calculate_distances(embeddings_gallery, embeddings_gallery)
 
+    print('Merging query samples')
+    query_tracklets = merge_query_samples(distance_matrix_qq, max_distance=0.15,
+                                          data_loader=data_query)
+    print('Merging gallery samples')
+    gallery_tracklets = merge_gallery_tracklets(distance_matrix_gg, max_distance=0.05, src_tracklets=gallery_tracklets,
+                                                data_loader=data_gallery)
+
     enable_track2track = False
     if enable_track2track:
         print('Calculating query to track distance matrix ...')
-        distance_matrix_q_track_g = qg_add_track_info(distance_matrix_qg, gallery_tracks)
+        distance_matrix_q_track_g = qg_add_track_info(distance_matrix_qg, gallery_tracklets)
 
         print('Calculating track to track distance matrix ...')
-        distance_matrix_track_gg = gg_add_track_info(distance_matrix_gg, gallery_tracks)
+        distance_matrix_track_gg = gg_add_track_info(distance_matrix_gg, gallery_tracklets)
 
         print('Applying re-ranking ...')
         distance_matrix_qg = re_ranking(distance_matrix_q_track_g, distance_matrix_qq, distance_matrix_track_gg,
                                         k1=50, k2=15, lambda_value=0.1)
         print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
 
-        matches = find_matches2(distance_matrix_qg, gallery_tracks, top_k=100)
+        matches = find_matches_image_to_track2(distance_matrix_qg, gallery_tracklets, top_k=100)
         print('Matches: {}'.format(matches.shape))
     else:
         print('Applying re-ranking ...')
@@ -376,7 +504,7 @@ def main():
                                         k1=50, k2=15, lambda_value=0.1)
         print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
 
-        matches = find_matches(distance_matrix_qg, gallery_tracks, top_k=100)
+        matches = find_matches_track_to_track(distance_matrix_qg, query_tracklets, gallery_tracklets, top_k=100)
         print('Matches: {}'.format(matches.shape))
 
     dump_matches(matches, args.out_file)
