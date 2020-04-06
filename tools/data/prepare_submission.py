@@ -130,51 +130,51 @@ def merge_query_samples(distance_matrix, max_distance, data_loader=None):
     image_ids = set(i for comp in large_components for i in comp)
     print('Num clustered images: {} / {}'.format(len(image_ids), num_samples))
 
-    if data_loader is None:
-        return connected_components
-
-    import cv2
-    from os import makedirs
-    from shutil import rmtree
-    from os.path import exists, join
-    out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142/query'
-    if exists(out_dir):
-        rmtree(out_dir)
-    makedirs(out_dir)
-
-    image_ids_map = dict()
-    for comp_id, comp in enumerate(connected_components):
-        if len(comp) <= 1:
-            continue
-
-        for i in comp:
-            image_ids_map[i] = comp_id
-
-        comp_dir = join(out_dir, str(comp_id))
-        makedirs(comp_dir)
-
-    image_ids = set(image_ids_map.keys())
-
-    std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 1, -1)
-    mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 1, -1)
-    with torch.no_grad():
-        last_data_id = 0
-        for data in tqdm(data_loader):
-            float_images = np.transpose(data[0].data[:, 0].cpu().numpy(), (0, 2, 3, 1))
-            images = (255.0 * (float_images * std + mean)).astype(np.uint8)
-
-            for image_id, image in enumerate(images):
-                data_id = last_data_id + image_id
-                if data_id not in image_ids:
-                    continue
-
-                comp_id = image_ids_map[data_id]
-                comp_dir = join(out_dir, str(comp_id))
-
-                image_path = join(comp_dir, 'img_{:06}.jpg'.format(data_id))
-                cv2.imwrite(image_path, image[:, :, ::-1])
-
-            last_data_id += images.shape[0]
+    # if data_loader is None:
+    #     return connected_components
+    #
+    # import cv2
+    # from os import makedirs
+    # from shutil import rmtree
+    # from os.path import exists, join
+    # out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142/query'
+    # if exists(out_dir):
+    #     rmtree(out_dir)
+    # makedirs(out_dir)
+    #
+    # image_ids_map = dict()
+    # for comp_id, comp in enumerate(connected_components):
+    #     if len(comp) <= 1:
+    #         continue
+    #
+    #     for i in comp:
+    #         image_ids_map[i] = comp_id
+    #
+    #     comp_dir = join(out_dir, str(comp_id))
+    #     makedirs(comp_dir)
+    #
+    # image_ids = set(image_ids_map.keys())
+    #
+    # std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 1, -1)
+    # mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 1, -1)
+    # with torch.no_grad():
+    #     last_data_id = 0
+    #     for data in tqdm(data_loader):
+    #         float_images = np.transpose(data[0].data[:, 0].cpu().numpy(), (0, 2, 3, 1))
+    #         images = (255.0 * (float_images * std + mean)).astype(np.uint8)
+    #
+    #         for image_id, image in enumerate(images):
+    #             data_id = last_data_id + image_id
+    #             if data_id not in image_ids:
+    #                 continue
+    #
+    #             comp_id = image_ids_map[data_id]
+    #             comp_dir = join(out_dir, str(comp_id))
+    #
+    #             image_path = join(comp_dir, 'img_{:06}.jpg'.format(data_id))
+    #             cv2.imwrite(image_path, image[:, :, ::-1])
+    #
+    #         last_data_id += images.shape[0]
 
     return connected_components
 
@@ -223,66 +223,66 @@ def merge_gallery_tracklets(distance_matrix, max_distance, src_tracklets, data_l
     image_ids = set(i for comp in large_components for i in comp)
     print('Num clustered images: {} / {}'.format(len(image_ids), num_samples))
 
-    if data_loader is None:
-        return connected_components
-
-    import cv2
-    from os import makedirs
-    from shutil import rmtree
-    from os.path import exists, join
-    out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142/gallery'
-    if exists(out_dir):
-        rmtree(out_dir)
-    makedirs(out_dir)
-
-    comp_map = defaultdict(list)
-    for comp in init_connected_components:
-        comp_map[len(comp)].append(set(comp))
-
-    image_ids_map = dict()
-    for comp_id, comp in enumerate(connected_components):
-        if len(comp) <= 1:
-            continue
-
-        new_comp = True
-        if len(comp) in comp_map:
-            candidates = comp_map[len(comp)]
-            for candidate in candidates:
-                if set(comp) == candidate:
-                    new_comp = False
-                    break
-
-        if not new_comp:
-            continue
-
-        for i in comp:
-            image_ids_map[i] = comp_id
-
-        comp_dir = join(out_dir, str(comp_id))
-        makedirs(comp_dir)
-
-    image_ids = set(image_ids_map.keys())
-
-    std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 1, -1)
-    mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 1, -1)
-    with torch.no_grad():
-        last_data_id = 0
-        for data in tqdm(data_loader):
-            float_images = np.transpose(data[0].data[:, 0].cpu().numpy(), (0, 2, 3, 1))
-            images = (255.0 * (float_images * std + mean)).astype(np.uint8)
-
-            for image_id, image in enumerate(images):
-                data_id = last_data_id + image_id
-                if data_id not in image_ids:
-                    continue
-
-                comp_id = image_ids_map[data_id]
-                comp_dir = join(out_dir, str(comp_id))
-
-                image_path = join(comp_dir, 'img_{:06}.jpg'.format(data_id))
-                cv2.imwrite(image_path, image[:, :, ::-1])
-
-            last_data_id += images.shape[0]
+    # if data_loader is None:
+    #     return connected_components
+    #
+    # import cv2
+    # from os import makedirs
+    # from shutil import rmtree
+    # from os.path import exists, join
+    # out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142/gallery'
+    # if exists(out_dir):
+    #     rmtree(out_dir)
+    # makedirs(out_dir)
+    #
+    # comp_map = defaultdict(list)
+    # for comp in init_connected_components:
+    #     comp_map[len(comp)].append(set(comp))
+    #
+    # image_ids_map = dict()
+    # for comp_id, comp in enumerate(connected_components):
+    #     if len(comp) <= 1:
+    #         continue
+    #
+    #     new_comp = True
+    #     if len(comp) in comp_map:
+    #         candidates = comp_map[len(comp)]
+    #         for candidate in candidates:
+    #             if set(comp) == candidate:
+    #                 new_comp = False
+    #                 break
+    #
+    #     if not new_comp:
+    #         continue
+    #
+    #     for i in comp:
+    #         image_ids_map[i] = comp_id
+    #
+    #     comp_dir = join(out_dir, str(comp_id))
+    #     makedirs(comp_dir)
+    #
+    # image_ids = set(image_ids_map.keys())
+    #
+    # std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 1, -1)
+    # mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 1, -1)
+    # with torch.no_grad():
+    #     last_data_id = 0
+    #     for data in tqdm(data_loader):
+    #         float_images = np.transpose(data[0].data[:, 0].cpu().numpy(), (0, 2, 3, 1))
+    #         images = (255.0 * (float_images * std + mean)).astype(np.uint8)
+    #
+    #         for image_id, image in enumerate(images):
+    #             data_id = last_data_id + image_id
+    #             if data_id not in image_ids:
+    #                 continue
+    #
+    #             comp_id = image_ids_map[data_id]
+    #             comp_dir = join(out_dir, str(comp_id))
+    #
+    #             image_path = join(comp_dir, 'img_{:06}.jpg'.format(data_id))
+    #             cv2.imwrite(image_path, image[:, :, ::-1])
+    #
+    #         last_data_id += images.shape[0]
 
     return connected_components
 
