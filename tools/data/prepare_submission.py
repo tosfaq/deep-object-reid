@@ -328,55 +328,28 @@ def load_tracklets(file_path, gallery_size):
     return tracklets
 
 
-def gg_add_track_info(dist_matrix, tracks):
-    g_track_dist = []
-    for track_ids in tracks:
-        distances = dist_matrix[:, track_ids]
-        group_distance = np.percentile(distances, 10, axis=1)
-        g_track_dist.append(group_distance.reshape([-1, 1]))
-    g_track_dist = np.concatenate(tuple(g_track_dist), axis=1)
+def add_track_info(dist_matrix, tracklets, alpha=0.3):
+    num_tracklets = len(tracklets)
+    assert num_tracklets > 0
 
-    track_track_dist = []
-    for track_ids in tracks:
-        distances = g_track_dist[track_ids, :]
-        group_distance = np.percentile(distances, 20, axis=0)
-        track_track_dist.append(group_distance.reshape([1, -1]))
-    track_track_dist = np.concatenate(tuple(track_track_dist), axis=0)
+    tracklet_dist_matrix = np.zeros_like(dist_matrix)
+    for i in range(num_tracklets):
+        anchor_ids = tracklets[i]
+        anchor_distances = dist_matrix[anchor_ids]
 
-    np.fill_diagonal(track_track_dist, 0.0)
+        for j in range(i + 1, num_tracklets):
+            ref_ids = tracklets[j]
+            ref_distances = anchor_distances[:, ref_ids]
 
-    return track_track_dist
+            dist = np.percentile(ref_distances, 10)
 
+            row_indices = (ii for ii in anchor_ids for _ in ref_ids)
+            col_indices = (jj for _ in anchor_ids for jj in ref_ids)
+            np.add.at(tracklet_dist_matrix, [row_indices, col_indices], dist)
 
-def qg_add_track_info(dist_matrix, tracks):
-    track_distances = []
-    for track_ids in tracks:
-        distances = dist_matrix[:, track_ids]
-        group_distance = np.percentile(distances, 10, axis=1)
-        track_distances.append(group_distance.reshape([-1, 1]))
-    qg_dist_matrix = np.concatenate(tuple(track_distances), axis=1)
+    update_dist_matrix = (1.0 - alpha) * dist_matrix + alpha * tracklet_dist_matrix
 
-    return qg_dist_matrix
-
-
-def find_matches_image_to_track(dist_matrix, query_tracklets, gallery_tracklets, top_k=100):
-    track_distances = []
-    for gallery_tracklet_ids in gallery_tracklets:
-        distances = dist_matrix[:, gallery_tracklet_ids]
-        group_distance = np.percentile(distances, 10, axis=1)
-        track_distances.append(group_distance.reshape([-1, 1]))
-    track_distances = np.concatenate(tuple(track_distances), axis=1)
-    track_indices = np.argsort(track_distances, axis=1)
-
-    out_matches = []
-    for q_id in range(dist_matrix.shape[0]):
-        ids = []
-        for track_id in track_indices[q_id]:
-            ids.extend(gallery_tracklets[int(track_id)])
-
-        out_matches.append(ids)
-
-    return np.array(out_matches)[:, :top_k]
+    return update_dist_matrix
 
 
 def find_matches_track_to_track(dist_matrix, query_tracklets, gallery_tracklets, top_k=100):
@@ -402,20 +375,6 @@ def find_matches_track_to_track(dist_matrix, query_tracklets, gallery_tracklets,
         out_matches[query_tracklets[q_tracklet_id]] = ids[:top_k]
 
     return out_matches
-
-
-def find_matches_image_to_track2(dist_matrix, tracks, top_k=100):
-    track_indices = np.argsort(dist_matrix, axis=1)
-
-    out_matches = []
-    for q_id in range(dist_matrix.shape[0]):
-        ids = []
-        for track_id in track_indices[q_id]:
-            ids.extend(tracks[int(track_id)])
-
-        out_matches.append(ids)
-
-    return np.array(out_matches)[:, :top_k]
 
 
 def dump_matches(matches, out_file):
@@ -477,35 +436,28 @@ def main():
     distance_matrix_gg = calculate_distances(embeddings_gallery, embeddings_gallery)
 
     print('Merging query samples')
-    query_tracklets = merge_query_samples(distance_matrix_qq, max_distance=0.15,
+    query_tracklets = merge_query_samples(distance_matrix_qq,
+                                          max_distance=0.15,
                                           data_loader=data_query)
     print('Merging gallery samples')
-    gallery_tracklets = merge_gallery_tracklets(distance_matrix_gg, max_distance=0.05, src_tracklets=gallery_tracklets,
+    gallery_tracklets = merge_gallery_tracklets(distance_matrix_gg,
+                                                max_distance=0.05,
+                                                src_tracklets=gallery_tracklets,
                                                 data_loader=data_gallery)
 
-    enable_track2track = False
-    if enable_track2track:
-        print('Calculating query to track distance matrix ...')
-        distance_matrix_q_track_g = qg_add_track_info(distance_matrix_qg, gallery_tracklets)
+    print('Updating query distance matrix ...')
+    distance_matrix_qq = add_track_info(distance_matrix_qq, query_tracklets, alpha=0.1)
 
-        print('Calculating track to track distance matrix ...')
-        distance_matrix_track_gg = gg_add_track_info(distance_matrix_gg, gallery_tracklets)
+    print('Updating gallery distance matrix ...')
+    distance_matrix_gg = add_track_info(distance_matrix_gg, gallery_tracklets, alpha=0.1)
 
-        print('Applying re-ranking ...')
-        distance_matrix_qg = re_ranking(distance_matrix_q_track_g, distance_matrix_qq, distance_matrix_track_gg,
-                                        k1=50, k2=15, lambda_value=0.1)
-        print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
+    print('Applying re-ranking ...')
+    distance_matrix_qg = re_ranking(distance_matrix_qg, distance_matrix_qq, distance_matrix_gg,
+                                    k1=50, k2=15, lambda_value=0.1)
+    print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
 
-        matches = find_matches_image_to_track2(distance_matrix_qg, gallery_tracklets, top_k=100)
-        print('Matches: {}'.format(matches.shape))
-    else:
-        print('Applying re-ranking ...')
-        distance_matrix_qg = re_ranking(distance_matrix_qg, distance_matrix_qq, distance_matrix_gg,
-                                        k1=50, k2=15, lambda_value=0.1)
-        print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
-
-        matches = find_matches_track_to_track(distance_matrix_qg, query_tracklets, gallery_tracklets, top_k=100)
-        print('Matches: {}'.format(matches.shape))
+    matches = find_matches_track_to_track(distance_matrix_qg, query_tracklets, gallery_tracklets, top_k=100)
+    print('Matches: {}'.format(matches.shape))
 
     dump_matches(matches, args.out_file)
     print('Submission file has been stored at: {}'.format(args.out_file))
