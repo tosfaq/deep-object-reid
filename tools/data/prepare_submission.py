@@ -270,7 +270,6 @@ def find_matches(dist_matrix, tracks, top_k=100):
         group_distance = np.percentile(distances, 10, axis=1)
         track_distances.append(group_distance.reshape([-1, 1]))
     track_distances = np.concatenate(tuple(track_distances), axis=1)
-
     track_indices = np.argsort(track_distances, axis=1)
 
     out_matches = []
@@ -282,8 +281,6 @@ def find_matches(dist_matrix, tracks, top_k=100):
         out_matches.append(ids)
 
     return np.array(out_matches)[:, :top_k]
-
-    # return np.argsort(dist_matrix, axis=1)[:, :top_k]
 
 
 def find_matches2(dist_matrix, tracks, top_k=100):

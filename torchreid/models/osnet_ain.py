@@ -551,7 +551,7 @@ class OSNet(nn.Module):
         if output_dim is None or output_dim <= 1:
             return None
 
-        layers = [Conv1x1(input_dim, output_dim, out_fn=None),
+        layers = [Conv1x1(input_dim, output_dim + 1, out_fn=None),
                   GumbelSoftmax(t=1.0, dim=1)]
 
         return nn.Sequential(*layers)
@@ -648,6 +648,7 @@ class OSNet(nn.Module):
 
             if att_module is not None:
                 att = att_module(x)
+                pos_att = att[:, :-1]
 
                 # att_cpu = att.data.cpu().numpy()
                 # import matplotlib.pyplot as plt
@@ -657,7 +658,7 @@ class OSNet(nn.Module):
                 #         axs[i, j].imshow(att_cpu[i, j])
                 # plt.show()
 
-                vectors = (att.unsqueeze(dim=2) * x.unsqueeze(dim=1)).mean(dim=(3, 4))
+                vectors = (pos_att.unsqueeze(dim=2) * x.unsqueeze(dim=1)).mean(dim=(3, 4))
                 parts = [f.squeeze(dim=1) for f in torch.split(vectors, 1, dim=1)]
             else:
                 h_stripes = F.adaptive_avg_pool2d(x, (part_size, 1)).squeeze(dim=3)
@@ -678,6 +679,7 @@ class OSNet(nn.Module):
 
         main_embeddings = [fc(f) for f, fc in zip(features, self.fc)]
         if not self.training and not return_logits:
+            # norm_main_embeddings = [F.normalize(e, p=2, dim=1) for e in main_embeddings]
             return torch.cat(main_embeddings, dim=-1)
 
         main_logits = [classifier(embd) for embd, classifier in zip(main_embeddings, self.classifier)]
