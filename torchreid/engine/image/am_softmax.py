@@ -33,7 +33,8 @@ from torchreid.engine import Engine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
 from torchreid.losses import (get_regularizer, MetricLosses, AMSoftmaxLoss,
                               CrossEntropyLoss, PseudoCrossEntropyLoss,
-                              set_kl_div)
+                              set_kl_div,
+                              TotalVarianceLoss)
 
 
 class ImageAMSoftmaxEngine(Engine):
@@ -98,6 +99,10 @@ class ImageAMSoftmaxEngine(Engine):
         self.batch_transform_cfg = batch_transform_cfg
         self.lambd_distr = torch.distributions.beta.Beta(self.batch_transform_cfg.alpha,
                                                          self.batch_transform_cfg.alpha)
+
+        self.att_loss = None
+        if self.model.module.total_num_parts > 0:
+            self.att_loss = TotalVarianceLoss(5, self.model.module.total_num_parts)
 
         self.enable_metric_losses = metric_cfg.enable
         if self.enable_metric_losses:
@@ -174,6 +179,7 @@ class ImageAMSoftmaxEngine(Engine):
         real_ml_losses = AverageMeter()
         synthetic_ml_losses = AverageMeter()
         attr_loss = AverageMeter()
+        att_loss = AverageMeter()
         if self.attr_tasks is not None:
             attr_pos_losses = dict()
             attr_neg_losses = dict()
@@ -342,6 +348,14 @@ class ImageAMSoftmaxEngine(Engine):
 
                 total_loss += metric_loss
 
+            if self.att_loss is not None:
+                part_attentions = torch.cat(outputs['part_att'], dim=1)
+
+                att_loss_val = self.att_loss(part_attentions)
+                att_loss.update(att_loss_val.item(), batch_size)
+
+                total_loss += att_loss_val
+
             if self.regularizer is not None and (epoch + 1) > fixbase_epoch:
                 reg_loss = self.regularizer(self.model)
                 reg_ow_loss.update(reg_loss.item(), batch_size)
@@ -361,9 +375,10 @@ class ImageAMSoftmaxEngine(Engine):
                 print('Epoch: [{0}/{1}][{2}/{3}] '
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f}) '
                       'Data {data_time.val:.3f} ({data_time.avg:.3f}) '
-                      'Loss {loss.val:.4f} ({loss.avg:.4f}) '
-                      'ML Loss {ml_loss.val:.4f} ({ml_loss.avg:.4f}) '
-                      'Attr Loss {attr_loss.val:.4f} ({attr_loss.avg:.4f}) '
+                      'Loss {loss.val:.3f} ({loss.avg:.3f}) '
+                      'ML Loss {ml_loss.val:.3f} ({ml_loss.avg:.3f}) '
+                      'Attr Loss {attr_loss.val:.3f} ({attr_loss.avg:.3f}) '
+                      'Att Loss {att_loss.val:.3f} ({att_loss.avg:.3f}) '
                       'Acc {acc.val:.2f} ({acc.avg:.2f}) '
                       'Lr {lr:.6f} '
                       'Scale {scale:.2f} '
@@ -374,6 +389,7 @@ class ImageAMSoftmaxEngine(Engine):
                           data_time=data_time,
                           ml_loss=metric_losses,
                           attr_loss=attr_loss,
+                          att_loss=att_loss,
                           loss=losses,
                           acc=accs,
                           lr=self.optimizer.param_groups[0]['lr'],

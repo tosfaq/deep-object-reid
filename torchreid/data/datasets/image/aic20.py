@@ -16,7 +16,7 @@ class AIC20(ImageDataset):
         - identities: 666.
         - images: 36935 (train) + 1052 (query) + 18290 (gallery).
     """
-    dataset_dir = 'aic20'
+    dataset_dir = 'aic20_reduced'
     angle_bins = np.array([0, 30, 60, 90, 120, 210, 240, 270, 300, 330, 360], dtype=np.float32)
 
     def __init__(self, root='', aic20_simulation_data=False, aic20_simulation_only=False,

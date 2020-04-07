@@ -642,6 +642,7 @@ class OSNet(nn.Module):
     @staticmethod
     def _part_feature_vector(x, num_parts, att_modules):
         all_parts = []
+        all_att = []
         for part_size, att_module in zip(num_parts, att_modules):
             if part_size <= 1:
                 continue
@@ -649,6 +650,7 @@ class OSNet(nn.Module):
             if att_module is not None:
                 att = att_module(x)
                 pos_att = att[:, :-1]
+                all_att.append(pos_att)
 
                 # att_cpu = att.data.cpu().numpy()
                 # import matplotlib.pyplot as plt
@@ -666,7 +668,7 @@ class OSNet(nn.Module):
 
             all_parts.extend(parts)
 
-        return all_parts
+        return all_parts, all_att
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
         feature_maps = self._backbone(x)
@@ -674,7 +676,7 @@ class OSNet(nn.Module):
             return feature_maps
 
         glob_feature = self._glob_feature_vector(feature_maps)
-        part_features = self._part_feature_vector(feature_maps, self.num_parts, self.part_att)
+        part_features, part_att = self._part_feature_vector(feature_maps, self.num_parts, self.part_att)
         features = [glob_feature] + list(part_features)
 
         main_embeddings = [fc(f) for f, fc in zip(features, self.fc)]
@@ -696,7 +698,8 @@ class OSNet(nn.Module):
 
         all_embeddings = dict(real=main_embeddings, synthetic=aux_embeddings)
         all_outputs = dict(real=main_logits, synthetic=aux_logits,
-                           real_centers=main_centers, synthetic_centers=aux_centers)
+                           real_centers=main_centers, synthetic_centers=aux_centers,
+                           part_att=part_att)
 
         attr_embeddings = dict()
         if self.attr_fc is not None:
