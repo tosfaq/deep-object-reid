@@ -450,10 +450,10 @@ def add_track_info(dist_matrix, tracklets, alpha=0.3):
 
 def find_matches(dist_matrix, query_tracklets, gallery_tracklets, top_k=100, threshold=10):
     track_to_track_dist = []
-    track_to_sample_dist = []
+    # track_to_sample_dist = []
     for query_tracklet_ids in query_tracklets:
         row_distances = dist_matrix[query_tracklet_ids]
-        track_to_sample_dist.append(np.percentile(row_distances, threshold, axis=0).reshape([1, -1]))
+        # track_to_sample_dist.append(np.percentile(row_distances, threshold, axis=0).reshape([1, -1]))
 
         for gallery_tracklet_ids in gallery_tracklets:
             set_distances = row_distances[:, gallery_tracklet_ids]
@@ -461,21 +461,23 @@ def find_matches(dist_matrix, query_tracklets, gallery_tracklets, top_k=100, thr
             track_to_track_dist.append(dist)
     track_to_track_dist = np.array(track_to_track_dist, dtype=np.float32)
     track_to_track_dist = track_to_track_dist.reshape([len(query_tracklets), len(gallery_tracklets)])
-    track_to_sample_dist = np.concatenate(tuple(track_to_sample_dist), axis=0)
+    # track_to_sample_dist = np.concatenate(tuple(track_to_sample_dist), axis=0)
 
     track_to_track_indices = np.argsort(track_to_track_dist, axis=1)
 
     out_matches = np.empty([dist_matrix.shape[0], top_k], dtype=np.int32)
     for q_tracklet_id in range(len(query_tracklets)):
-        q_dist = track_to_sample_dist[q_tracklet_id]
+        # q_dist = track_to_sample_dist[q_tracklet_id]
 
         ids = []
         for track_id in track_to_track_indices[q_tracklet_id]:
-            local_ids = np.array(gallery_tracklets[int(track_id)], dtype=np.int32)
-            local_dist_values = q_dist[local_ids]
+            # local_ids = np.array(gallery_tracklets[int(track_id)], dtype=np.int32)
+            # local_dist_values = q_dist[local_ids]
+            #
+            # ordered_local_ids = local_ids[np.argsort(local_dist_values)]
+            # ids.extend(ordered_local_ids.tolist())
 
-            ordered_local_ids = local_ids[np.argsort(local_dist_values)]
-            ids.extend(ordered_local_ids.tolist())
+            ids.extend(gallery_tracklets[int(track_id)])
 
             if len(ids) >= top_k:
                 break
