@@ -117,9 +117,19 @@ def merge_query_samples(distance_matrix, max_distance, data_loader=None):
     G = nx.Graph()
     G.add_nodes_from(list(range(num_samples)))
 
-    for _, i, j in distances:
+    num_comp_last = len(find_connected_components(G))
+    num_added_bridges = 0
+    for d, i, j in distances:
         G.add_edge(i, j)
-    print('Added {} edges'.format(len(distances)))
+
+        num_comp_new = len(find_connected_components(G))
+        if num_comp_new == num_comp_last:
+            G.remove_edge(i, j)
+        else:
+            num_comp_last = num_comp_new
+            num_added_bridges += 1
+            # print('   edge ({}, {}): {}'.format(i, j, d))
+    print('Added {} bridge edges'.format(num_added_bridges))
 
     connected_components = find_connected_components(G)
     print_connected_components_stat(connected_components, 'Query')
@@ -137,7 +147,7 @@ def merge_query_samples(distance_matrix, max_distance, data_loader=None):
     # from os import makedirs
     # from shutil import rmtree
     # from os.path import exists, join
-    # out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142/query'
+    # out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/query'
     # if exists(out_dir):
     #     rmtree(out_dir)
     # makedirs(out_dir)
@@ -210,9 +220,19 @@ def merge_gallery_tracklets(distance_matrix, max_distance, src_tracklets, data_l
     distances = [tup for tup in distances if tup[0] < max_distance]
     distances.sort(key=lambda tup: tup[0])
 
-    for _, i, j in distances:
+    num_comp_last = len(find_connected_components(G))
+    num_added_bridges = 0
+    for d, i, j in distances:
         G.add_edge(i, j)
-    print('Added {} edges'.format(len(distances)))
+
+        num_comp_new = len(find_connected_components(G))
+        if num_comp_new == num_comp_last:
+            G.remove_edge(i, j)
+        else:
+            num_comp_last = num_comp_new
+            num_added_bridges += 1
+            # print('   edge ({}, {}): {}'.format(i, j, d))
+    print('Added {} bridge edges'.format(num_added_bridges))
 
     connected_components = find_connected_components(G)
     print_connected_components_stat(connected_components, 'Gallery (after)')
@@ -230,7 +250,7 @@ def merge_gallery_tracklets(distance_matrix, max_distance, src_tracklets, data_l
     # from os import makedirs
     # from shutil import rmtree
     # from os.path import exists, join
-    # out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142/gallery'
+    # out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/gallery'
     # if exists(out_dir):
     #     rmtree(out_dir)
     # makedirs(out_dir)
@@ -303,6 +323,18 @@ def print_connected_components_stat(components, header=''):
                                                         np.percentile(lengths, 95.0)))
 
 
+def merge_dist_matrices(dist_matrices):
+    assert len(dist_matrices) > 0
+
+    if len(dist_matrices) == 1:
+        return dist_matrices[0]
+
+    dist_matrices = np.stack(tuple(dist_matrices), axis=0)
+    dist_matrix = np.median(dist_matrices, axis=0)
+
+    return dist_matrix
+
+
 def load_tracklets(file_path, gallery_size):
     tracklets = []
     for line in open(file_path):
@@ -329,6 +361,9 @@ def load_tracklets(file_path, gallery_size):
 
 
 def add_track_info(dist_matrix, tracklets, alpha=0.3):
+    if alpha <= 0.0:
+        return dist_matrix
+
     num_tracklets = len(tracklets)
     assert num_tracklets > 0
 
@@ -343,9 +378,9 @@ def add_track_info(dist_matrix, tracklets, alpha=0.3):
 
             dist = np.percentile(ref_distances, 10)
 
-            row_indices = (ii for ii in anchor_ids for _ in ref_ids)
-            col_indices = (jj for _ in anchor_ids for jj in ref_ids)
-            np.add.at(tracklet_dist_matrix, [row_indices, col_indices], dist)
+            row_indices = [ii for ii in anchor_ids for _ in ref_ids]
+            col_indices = [jj for _ in anchor_ids for jj in ref_ids]
+            np.add.at(tracklet_dist_matrix, (row_indices, col_indices), dist)
 
     update_dist_matrix = (1.0 - alpha) * dist_matrix + alpha * tracklet_dist_matrix
 
@@ -392,6 +427,7 @@ def main():
     parser.add_argument('--root', '-r', type=str, required=True)
     parser.add_argument('--tracks-file', '-t', type=str, required=True)
     parser.add_argument('--out-file', '-o', type=str, required=True)
+    parser.add_argument('--weights', '-w', type=str, nargs='+', required=True)
     parser.add_argument('opts', default=None, nargs=REMAINDER)
     args = parser.parse_args()
 
@@ -416,48 +452,58 @@ def main():
     print('Loaded tracklets: {}'.format(len(gallery_tracklets)))
 
     print('Building model: {}'.format(cfg.model.name))
-    model = torchreid.models.build_model(**model_kwargs(cfg, num_pids))
+    mock_model = torchreid.models.build_model(**model_kwargs(cfg, num_pids))
 
-    if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
-        load_pretrained_weights(model, cfg.model.load_weights)
+    print('Processing models...')
+    qq, qg, gg = [], [], []
+    for weights_path in args.weights:
+        cfg.model.load_weights = weights_path
+        assert check_isfile(cfg.model.load_weights)
 
-    if cfg.use_gpu:
-        model = model.cuda()
+        print('Loading model: {}'.format(cfg.model.load_weights))
+        load_pretrained_weights(mock_model, cfg.model.load_weights)
+        model = mock_model.cuda() if cfg.use_gpu else mock_model
 
-    embeddings_query = extract_features(model, data_query, cfg.use_gpu)
-    print('Extracted query: {}'.format(embeddings_query.shape))
+        print('Extracting query embeddings ...')
+        embeddings_query = extract_features(model, data_query, cfg.use_gpu)
+        print('Extracted query (NxE): {}x{}'.format(*embeddings_query.shape))
 
-    embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu)
-    print('Extracted gallery: {}'.format(embeddings_gallery.shape))
+        print('Extracting gallery embeddings ...')
+        embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu)
+        print('Extracted gallery (NxE): {}x{}'.format(*embeddings_gallery.shape))
 
-    print('Calculating distance matrices ...')
-    distance_matrix_qg = calculate_distances(embeddings_query, embeddings_gallery)
-    distance_matrix_qq = calculate_distances(embeddings_query, embeddings_query)
-    distance_matrix_gg = calculate_distances(embeddings_gallery, embeddings_gallery)
+        print('Calculating distance matrices ...')
+        qq.append(calculate_distances(embeddings_query, embeddings_query))
+        qg.append(calculate_distances(embeddings_query, embeddings_gallery))
+        gg.append(calculate_distances(embeddings_gallery, embeddings_gallery))
 
-    print('Merging query samples')
+    print('Merging distance matrices ...')
+    distance_matrix_qq = merge_dist_matrices(qq)
+    distance_matrix_qg = merge_dist_matrices(qg)
+    distance_matrix_gg = merge_dist_matrices(gg)
+
+    print('Merging query samples ...')
     query_tracklets = merge_query_samples(distance_matrix_qq,
                                           max_distance=0.15,
                                           data_loader=data_query)
-    print('Merging gallery samples')
+    print('Merging gallery samples ...')
     gallery_tracklets = merge_gallery_tracklets(distance_matrix_gg,
                                                 max_distance=0.05,
                                                 src_tracklets=gallery_tracklets,
                                                 data_loader=data_gallery)
 
     print('Updating query distance matrix ...')
-    distance_matrix_qq = add_track_info(distance_matrix_qq, query_tracklets, alpha=0.1)
+    distance_matrix_qq = add_track_info(distance_matrix_qq, query_tracklets, alpha=0.0)
 
     print('Updating gallery distance matrix ...')
-    distance_matrix_gg = add_track_info(distance_matrix_gg, gallery_tracklets, alpha=0.1)
+    distance_matrix_gg = add_track_info(distance_matrix_gg, gallery_tracklets, alpha=0.0)
 
     print('Applying re-ranking ...')
     distance_matrix_qg = re_ranking(distance_matrix_qg, distance_matrix_qq, distance_matrix_gg,
                                     k1=50, k2=15, lambda_value=0.1)
-    print('Distance matrix after re-ranking: {}'.format(distance_matrix_qg.shape))
 
+    print('Finding matches ...')
     matches = find_matches_track_to_track(distance_matrix_qg, query_tracklets, gallery_tracklets, top_k=100)
-    print('Matches: {}'.format(matches.shape))
 
     dump_matches(matches, args.out_file)
     print('Submission file has been stored at: {}'.format(args.out_file))
