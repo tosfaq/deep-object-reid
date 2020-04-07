@@ -109,17 +109,17 @@ def merge_query_samples(distance_matrix, max_distance, data_loader=None):
     assert distance_matrix.shape[0] == distance_matrix.shape[1]
 
     num_samples = distance_matrix.shape[0]
-
     distances = [(distance_matrix[i, j], i, j) for i in range(num_samples) for j in range(i + 1, num_samples)]
-    distances = [tup for tup in distances if tup[0] < max_distance]
-    distances.sort(key=lambda tup: tup[0])
+
+    distances_queue = [tup for tup in distances if tup[0] < max_distance]
+    distances_queue.sort(key=lambda tup: tup[0])
 
     G = nx.Graph()
     G.add_nodes_from(list(range(num_samples)))
 
     num_comp_last = len(find_connected_components(G))
     num_added_bridges = 0
-    for d, i, j in distances:
+    for d, i, j in distances_queue:
         G.add_edge(i, j)
 
         num_comp_new = len(find_connected_components(G))
@@ -128,11 +128,61 @@ def merge_query_samples(distance_matrix, max_distance, data_loader=None):
         else:
             num_comp_last = num_comp_new
             num_added_bridges += 1
-            # print('   edge ({}, {}): {}'.format(i, j, d))
     print('Added {} bridge edges'.format(num_added_bridges))
 
+    # distances_queue = [tup for tup in distances if max_distance <= tup[0] < 0.26]
+    # distances_queue.sort(key=lambda tup: tup[0])
+    #
+    # comp_last = find_connected_components(G)
+    # num_added_bridges = 0
+    # for d, i, j in distances_queue:
+    #     i_neighbors = list(G.neighbors(i))
+    #     j_neighbors = list(G.neighbors(j))
+    #
+    #     if len(i_neighbors) > 0 or len(j_neighbors) > 0:
+    #         continue
+    #
+    #     G.add_edge(i, j)
+    #
+    #     comp_new = find_connected_components(G)
+    #     if len(comp_new) == len(comp_last):
+    #         G.remove_edge(i, j)
+    #     else:
+    #         comp_last = comp_new
+    #         num_added_bridges += 1
+    # print('Added {} bridge edges'.format(num_added_bridges))
+    #
+    # init_connected_components = find_connected_components(G)
+    # print_connected_components_stat(init_connected_components, 'Query (init)')
+    #
+    # comp_map = defaultdict(list)
+    # for comp in init_connected_components:
+    #     comp_map[len(comp)].append(set(comp))
+    #
+    # distances_queue = [tup for tup in distances if max_distance <= tup[0] < 0.2]
+    # distances_queue.sort(key=lambda tup: tup[0])
+    #
+    # comp_last = find_connected_components(G)
+    # num_added_bridges = 0
+    # for d, i, j in distances_queue:
+    #     i_size = [len(c) for c in comp_last if i in set(c)][0]
+    #     j_size = [len(c) for c in comp_last if j in set(c)][0]
+    #
+    #     if i_size + j_size <= 2 or i_size + j_size >= 6:
+    #         continue
+    #
+    #     G.add_edge(i, j)
+    #
+    #     comp_new = find_connected_components(G)
+    #     if len(comp_new) == len(comp_last):
+    #         G.remove_edge(i, j)
+    #     else:
+    #         comp_last = comp_new
+    #         num_added_bridges += 1
+    # print('Added {} bridge edges'.format(num_added_bridges))
+
     connected_components = find_connected_components(G)
-    print_connected_components_stat(connected_components, 'Query')
+    print_connected_components_stat(connected_components, 'Query (last)')
 
     large_components = [c for c in connected_components if len(c) > 1]
     print('Num large components: {}'.format(len(large_components)))
@@ -155,6 +205,17 @@ def merge_query_samples(distance_matrix, max_distance, data_loader=None):
     # image_ids_map = dict()
     # for comp_id, comp in enumerate(connected_components):
     #     if len(comp) <= 1:
+    #         continue
+    #
+    #     new_comp = True
+    #     if len(comp) in comp_map:
+    #         candidates = comp_map[len(comp)]
+    #         for candidate in candidates:
+    #             if set(comp) == candidate:
+    #                 new_comp = False
+    #                 break
+    #
+    #     if not new_comp:
     #         continue
     #
     #     for i in comp:
@@ -210,19 +271,20 @@ def merge_gallery_tracklets(distance_matrix, max_distance, src_tracklets, data_l
                 G.add_edge(anchor_id, ref_id)
                 free_pairs[anchor_id, ref_id] = False
 
-    init_connected_components = find_connected_components(G)
-    print_connected_components_stat(init_connected_components, 'Gallery (before)')
-
     distances = [(distance_matrix[i, j], i, j)
                  for i in range(num_samples)
                  for j in range(i + 1, num_samples)
                  if free_pairs[i, j]]
-    distances = [tup for tup in distances if tup[0] < max_distance]
-    distances.sort(key=lambda tup: tup[0])
+
+    distances_queue = [tup for tup in distances if tup[0] < max_distance]
+    distances_queue.sort(key=lambda tup: tup[0])
+
+    init_connected_components = find_connected_components(G)
+    print_connected_components_stat(init_connected_components, 'Gallery (before)')
 
     num_comp_last = len(find_connected_components(G))
     num_added_bridges = 0
-    for d, i, j in distances:
+    for d, i, j in distances_queue:
         G.add_edge(i, j)
 
         num_comp_new = len(find_connected_components(G))
@@ -231,7 +293,6 @@ def merge_gallery_tracklets(distance_matrix, max_distance, src_tracklets, data_l
         else:
             num_comp_last = num_comp_new
             num_added_bridges += 1
-            # print('   edge ({}, {}): {}'.format(i, j, d))
     print('Added {} bridge edges'.format(num_added_bridges))
 
     connected_components = find_connected_components(G)
@@ -243,9 +304,9 @@ def merge_gallery_tracklets(distance_matrix, max_distance, src_tracklets, data_l
     image_ids = set(i for comp in large_components for i in comp)
     print('Num clustered images: {} / {}'.format(len(image_ids), num_samples))
 
-    # if data_loader is None:
-    #     return connected_components
-    #
+    if data_loader is None:
+        return connected_components
+
     # import cv2
     # from os import makedirs
     # from shutil import rmtree
@@ -493,6 +554,14 @@ def main():
     distance_matrix_qq = merge_dist_matrices(qq)
     distance_matrix_qg = merge_dist_matrices(qg)
     distance_matrix_gg = merge_dist_matrices(gg)
+
+    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/qq', distance_matrix_qq)
+    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/qg', distance_matrix_qg)
+    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/gg', distance_matrix_gg)
+
+    # distance_matrix_qq = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/qq.npy')
+    # distance_matrix_qg = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/qg.npy')
+    # distance_matrix_gg = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/gg.npy')
 
     print('Merging query samples ...')
     query_tracklets = merge_query_samples(distance_matrix_qq,
