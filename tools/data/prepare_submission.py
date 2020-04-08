@@ -130,28 +130,6 @@ def merge_query_samples(distance_matrix, max_distance, data_loader=None):
             num_added_bridges += 1
     print('Added {} bridge edges'.format(num_added_bridges))
 
-    # distances_queue = [tup for tup in distances if max_distance <= tup[0] < 0.26]
-    # distances_queue.sort(key=lambda tup: tup[0])
-    #
-    # comp_last = find_connected_components(G)
-    # num_added_bridges = 0
-    # for d, i, j in distances_queue:
-    #     i_neighbors = list(G.neighbors(i))
-    #     j_neighbors = list(G.neighbors(j))
-    #
-    #     if len(i_neighbors) > 0 or len(j_neighbors) > 0:
-    #         continue
-    #
-    #     G.add_edge(i, j)
-    #
-    #     comp_new = find_connected_components(G)
-    #     if len(comp_new) == len(comp_last):
-    #         G.remove_edge(i, j)
-    #     else:
-    #         comp_last = comp_new
-    #         num_added_bridges += 1
-    # print('Added {} bridge edges'.format(num_added_bridges))
-    #
     # init_connected_components = find_connected_components(G)
     # print_connected_components_stat(init_connected_components, 'Query (init)')
     #
@@ -159,7 +137,7 @@ def merge_query_samples(distance_matrix, max_distance, data_loader=None):
     # for comp in init_connected_components:
     #     comp_map[len(comp)].append(set(comp))
     #
-    # distances_queue = [tup for tup in distances if max_distance <= tup[0] < 0.2]
+    # distances_queue = [tup for tup in distances if max_distance <= tup[0] < 0.19]
     # distances_queue.sort(key=lambda tup: tup[0])
     #
     # comp_last = find_connected_components(G)
@@ -168,7 +146,7 @@ def merge_query_samples(distance_matrix, max_distance, data_loader=None):
     #     i_size = [len(c) for c in comp_last if i in set(c)][0]
     #     j_size = [len(c) for c in comp_last if j in set(c)][0]
     #
-    #     if i_size + j_size <= 2 or i_size + j_size >= 6:
+    #     if i_size + j_size >= 6:
     #         continue
     #
     #     G.add_edge(i, j)
@@ -197,7 +175,7 @@ def merge_query_samples(distance_matrix, max_distance, data_loader=None):
     # from os import makedirs
     # from shutil import rmtree
     # from os.path import exists, join
-    # out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/query'
+    # out_dir = '/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/query'
     # if exists(out_dir):
     #     rmtree(out_dir)
     # makedirs(out_dir)
@@ -207,16 +185,16 @@ def merge_query_samples(distance_matrix, max_distance, data_loader=None):
     #     if len(comp) <= 1:
     #         continue
     #
-    #     new_comp = True
-    #     if len(comp) in comp_map:
-    #         candidates = comp_map[len(comp)]
-    #         for candidate in candidates:
-    #             if set(comp) == candidate:
-    #                 new_comp = False
-    #                 break
-    #
-    #     if not new_comp:
-    #         continue
+    #     # new_comp = True
+    #     # if len(comp) in comp_map:
+    #     #     candidates = comp_map[len(comp)]
+    #     #     for candidate in candidates:
+    #     #         if set(comp) == candidate:
+    #     #             new_comp = False
+    #     #             break
+    #     #
+    #     # if not new_comp:
+    #     #     continue
     #
     #     for i in comp:
     #         image_ids_map[i] = comp_id
@@ -526,44 +504,44 @@ def main():
     gallery_tracklets = load_tracklets(args.tracks_file, gallery_size)
     print('Loaded tracklets: {}'.format(len(gallery_tracklets)))
 
-    print('Building model: {}'.format(cfg.model.name))
-    mock_model = torchreid.models.build_model(**model_kwargs(cfg, num_pids))
+    # print('Building model: {}'.format(cfg.model.name))
+    # mock_model = torchreid.models.build_model(**model_kwargs(cfg, num_pids))
+    #
+    # print('Processing models...')
+    # qq, qg, gg = [], [], []
+    # for weights_path in args.weights:
+    #     cfg.model.load_weights = weights_path
+    #     assert check_isfile(cfg.model.load_weights)
+    #
+    #     print('Loading model: {}'.format(cfg.model.load_weights))
+    #     load_pretrained_weights(mock_model, cfg.model.load_weights)
+    #     model = mock_model.cuda() if cfg.use_gpu else mock_model
+    #
+    #     print('Extracting query embeddings ...')
+    #     embeddings_query = extract_features(model, data_query, cfg.use_gpu)
+    #     print('Extracted query (NxE): {}x{}'.format(*embeddings_query.shape))
+    #
+    #     print('Extracting gallery embeddings ...')
+    #     embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu)
+    #     print('Extracted gallery (NxE): {}x{}'.format(*embeddings_gallery.shape))
+    #
+    #     print('Calculating distance matrices ...')
+    #     qq.append(calculate_distances(embeddings_query, embeddings_query))
+    #     qg.append(calculate_distances(embeddings_query, embeddings_gallery))
+    #     gg.append(calculate_distances(embeddings_gallery, embeddings_gallery))
+    #
+    # print('Merging distance matrices ...')
+    # distance_matrix_qq = merge_dist_matrices(qq)
+    # distance_matrix_qg = merge_dist_matrices(qg)
+    # distance_matrix_gg = merge_dist_matrices(gg)
+    #
+    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/qq', distance_matrix_qq)
+    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/qg', distance_matrix_qg)
+    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/gg', distance_matrix_gg)
 
-    print('Processing models...')
-    qq, qg, gg = [], [], []
-    for weights_path in args.weights:
-        cfg.model.load_weights = weights_path
-        assert check_isfile(cfg.model.load_weights)
-
-        print('Loading model: {}'.format(cfg.model.load_weights))
-        load_pretrained_weights(mock_model, cfg.model.load_weights)
-        model = mock_model.cuda() if cfg.use_gpu else mock_model
-
-        print('Extracting query embeddings ...')
-        embeddings_query = extract_features(model, data_query, cfg.use_gpu)
-        print('Extracted query (NxE): {}x{}'.format(*embeddings_query.shape))
-
-        print('Extracting gallery embeddings ...')
-        embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu)
-        print('Extracted gallery (NxE): {}x{}'.format(*embeddings_gallery.shape))
-
-        print('Calculating distance matrices ...')
-        qq.append(calculate_distances(embeddings_query, embeddings_query))
-        qg.append(calculate_distances(embeddings_query, embeddings_gallery))
-        gg.append(calculate_distances(embeddings_gallery, embeddings_gallery))
-
-    print('Merging distance matrices ...')
-    distance_matrix_qq = merge_dist_matrices(qq)
-    distance_matrix_qg = merge_dist_matrices(qg)
-    distance_matrix_gg = merge_dist_matrices(gg)
-
-    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/qq', distance_matrix_qq)
-    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/qg', distance_matrix_qg)
-    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/gg', distance_matrix_gg)
-
-    # distance_matrix_qq = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/qq.npy')
-    # distance_matrix_qg = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/qg.npy')
-    # distance_matrix_gg = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_v142-156-157/gg.npy')
+    distance_matrix_qq = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/qq.npy')
+    distance_matrix_qg = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/qg.npy')
+    distance_matrix_gg = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/gg.npy')
 
     print('Merging query samples ...')
     query_tracklets = merge_query_samples(distance_matrix_qq,
