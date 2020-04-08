@@ -504,44 +504,44 @@ def main():
     gallery_tracklets = load_tracklets(args.tracks_file, gallery_size)
     print('Loaded tracklets: {}'.format(len(gallery_tracklets)))
 
-    # print('Building model: {}'.format(cfg.model.name))
-    # mock_model = torchreid.models.build_model(**model_kwargs(cfg, num_pids))
-    #
-    # print('Processing models...')
-    # qq, qg, gg = [], [], []
-    # for weights_path in args.weights:
-    #     cfg.model.load_weights = weights_path
-    #     assert check_isfile(cfg.model.load_weights)
-    #
-    #     print('Loading model: {}'.format(cfg.model.load_weights))
-    #     load_pretrained_weights(mock_model, cfg.model.load_weights)
-    #     model = mock_model.cuda() if cfg.use_gpu else mock_model
-    #
-    #     print('Extracting query embeddings ...')
-    #     embeddings_query = extract_features(model, data_query, cfg.use_gpu)
-    #     print('Extracted query (NxE): {}x{}'.format(*embeddings_query.shape))
-    #
-    #     print('Extracting gallery embeddings ...')
-    #     embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu)
-    #     print('Extracted gallery (NxE): {}x{}'.format(*embeddings_gallery.shape))
-    #
-    #     print('Calculating distance matrices ...')
-    #     qq.append(calculate_distances(embeddings_query, embeddings_query))
-    #     qg.append(calculate_distances(embeddings_query, embeddings_gallery))
-    #     gg.append(calculate_distances(embeddings_gallery, embeddings_gallery))
-    #
-    # print('Merging distance matrices ...')
-    # distance_matrix_qq = merge_dist_matrices(qq)
-    # distance_matrix_qg = merge_dist_matrices(qg)
-    # distance_matrix_gg = merge_dist_matrices(gg)
-    #
-    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/qq', distance_matrix_qq)
-    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/qg', distance_matrix_qg)
-    # np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/gg', distance_matrix_gg)
+    print('Building model: {}'.format(cfg.model.name))
+    mock_model = torchreid.models.build_model(**model_kwargs(cfg, num_pids))
 
-    distance_matrix_qq = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/qq.npy')
-    distance_matrix_qg = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/qg.npy')
-    distance_matrix_gg = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all_m/gg.npy')
+    print('Processing models...')
+    qq, qg, gg = [], [], []
+    for weights_path in args.weights:
+        cfg.model.load_weights = weights_path
+        assert check_isfile(cfg.model.load_weights)
+
+        print('Loading model: {}'.format(cfg.model.load_weights))
+        load_pretrained_weights(mock_model, cfg.model.load_weights)
+        model = mock_model.cuda() if cfg.use_gpu else mock_model
+
+        print('Extracting query embeddings ...')
+        embeddings_query = extract_features(model, data_query, cfg.use_gpu)
+        print('Extracted query (NxE): {}x{}'.format(*embeddings_query.shape))
+
+        print('Extracting gallery embeddings ...')
+        embeddings_gallery = extract_features(model, data_gallery, cfg.use_gpu)
+        print('Extracted gallery (NxE): {}x{}'.format(*embeddings_gallery.shape))
+
+        print('Calculating distance matrices ...')
+        qq.append(calculate_distances(embeddings_query, embeddings_query))
+        qg.append(calculate_distances(embeddings_query, embeddings_gallery))
+        gg.append(calculate_distances(embeddings_gallery, embeddings_gallery))
+
+    print('Merging distance matrices ...')
+    distance_matrix_qq = merge_dist_matrices(qq)
+    distance_matrix_qg = merge_dist_matrices(qg)
+    distance_matrix_gg = merge_dist_matrices(gg)
+
+    np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all2_m/qq', distance_matrix_qq)
+    np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all2_m/qg', distance_matrix_qg)
+    np.save('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all2_m/gg', distance_matrix_gg)
+
+    # distance_matrix_qq = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all2_m/qq.npy')
+    # distance_matrix_qg = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all2_m/qg.npy')
+    # distance_matrix_gg = np.load('/home/eizutov/data/ReID/Vehicle/aic20/samples_clustered_all2_m/gg.npy')
 
     print('Merging query samples ...')
     query_tracklets = merge_query_samples(distance_matrix_qq,
