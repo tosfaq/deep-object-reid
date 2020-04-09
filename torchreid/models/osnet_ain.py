@@ -652,14 +652,6 @@ class OSNet(nn.Module):
                 pos_att = att[:, :-1]
                 all_att.append(pos_att)
 
-                # att_cpu = att.data.cpu().numpy()
-                # import matplotlib.pyplot as plt
-                # fig, axs = plt.subplots(5, 4)
-                # for i in range(5):
-                #     for j in range(4):
-                #         axs[i, j].imshow(att_cpu[i, j])
-                # plt.show()
-
                 vectors = (pos_att.unsqueeze(dim=2) * x.unsqueeze(dim=1)).mean(dim=(3, 4))
                 parts = [f.squeeze(dim=1) for f in torch.split(vectors, 1, dim=1)]
             else:
