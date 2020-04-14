@@ -12,7 +12,6 @@ def get_default_config():
     cfg.model.load_weights = ''  # path to model weights
     cfg.model.resume = ''  # path to checkpoint for resume training
     cfg.model.feature_dim = 512  # embedding size
-    cfg.model.pcb_num_parts = [0]
     cfg.model.bn_eval = False
     cfg.model.bn_frozen = False
 
@@ -110,23 +109,7 @@ def get_default_config():
     cfg.metric_losses = CN()
     cfg.metric_losses.enable = False
     cfg.metric_losses.center_coeff = 1.0
-    cfg.metric_losses.glob_push_coeff = 1.0
-    cfg.metric_losses.local_push_coeff = 1.0
-    cfg.metric_losses.pull_coeff = 1.0
-
-    # attr_losses
-    cfg.attr_losses = CN()
-    cfg.attr_losses.enable = False
-    cfg.attr_losses.m = 0.35
-    cfg.attr_losses.s = 10.0
-    cfg.attr_losses.end_s = -1.0
-    cfg.attr_losses.duration_s = -1
-    cfg.attr_losses.skip_steps_s = -1
-    cfg.attr_losses.conf_penalty = 0.0
-    cfg.attr_losses.label_smooth = False
-    cfg.attr_losses.tasks = CN()
-    cfg.attr_losses.tasks.attr_color = 12
-    cfg.attr_losses.tasks.attr_type = 11
+    cfg.metric_losses.triplet_coeff = 1.0
 
     # regularizers
     cfg.reg = CN()
@@ -336,9 +319,6 @@ def model_kwargs(cfg, num_classes):
         'download_weights': cfg.model.download_weights,
         'use_gpu': cfg.use_gpu,
         'feature_dim': cfg.model.feature_dim,
-        'attr_tasks': cfg.attr_losses.tasks,
-        'enable_attr_tasks': cfg.attr_losses.enable,
-        'num_parts': cfg.model.pcb_num_parts,
         'bn_eval': cfg.model.bn_eval,
         'bn_frozen': cfg.model.bn_frozen,
     }

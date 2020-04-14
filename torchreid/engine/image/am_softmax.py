@@ -26,141 +26,68 @@ import datetime
 import time
 
 import torch
-import numpy as np
+import torch.nn as nn
 
-from torchreid import metrics
 from torchreid.engine import Engine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
-from torchreid.losses import (get_regularizer, MetricLosses, AMSoftmaxLoss,
-                              CrossEntropyLoss, PseudoCrossEntropyLoss,
-                              set_kl_div,
-                              TotalVarianceLoss)
+from torchreid.losses import get_regularizer, MetricLosses, AMSoftmaxLoss, CrossEntropyLoss
 
 
 class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
 
-    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, attr_losses_cfg, batch_transform_cfg,
-                 scheduler=None, use_gpu=False, softmax_type='stock', label_smooth=False, conf_penalty=False,
+    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, scheduler=None,
+                 use_gpu=False, softmax_type='stock', label_smooth=False, conf_penalty=False,
                  m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None, writer=None):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
 
+        assert softmax_type in ['stock', 'am']
+        assert s > 0.0
+        if softmax_type == 'am':
+            assert m >= 0.0
+
         self.regularizer = get_regularizer(reg_cfg)
         self.writer = writer
+        self.enable_metric_losses = metric_cfg.enable
 
-        if softmax_type == 'stock':
-            assert s > 0.0
+        num_batches = len(self.train_loader)
+        num_classes = self.datamanager.num_train_pids
+        if not isinstance(num_classes, (list, tuple)):
+            num_classes = [num_classes]
+        self.num_targets = len(num_classes)
 
-            self.main_real_loss = CrossEntropyLoss(
-                use_gpu=self.use_gpu,
-                label_smooth=label_smooth,
-                conf_penalty=conf_penalty,
-                scale=s
-            )
-            if self.model.module.split_embeddings:
-                self.main_synth_loss = CrossEntropyLoss(
+        self.main_losses = nn.ModuleList()
+        self.ml_losses = []
+        for trg_id, trg_num_classes in enumerate(num_classes):
+            if softmax_type == 'stock':
+                self.main_losses.append(CrossEntropyLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
                     conf_penalty=conf_penalty,
                     scale=s
-                )
-        elif softmax_type == 'am':
-            assert m >= 0.0
-            assert s > 0.0
-
-            num_batches = len(self.train_loader)
-            self.main_real_loss = AMSoftmaxLoss(
-                use_gpu=self.use_gpu,
-                label_smooth=label_smooth,
-                conf_penalty=conf_penalty,
-                m=m,
-                s=s,
-                end_s=end_s,
-                duration_s=duration_s * num_batches if self._valid(duration_s) else None,
-                skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None
-            )
-            if self.model.module.split_embeddings:
-                synth_scale_factor =\
-                    np.log(self.datamanager.num_train_pids[1] - 1) / np.log(self.datamanager.num_train_pids[0] - 1)
-                self.main_synth_loss = AMSoftmaxLoss(
+                ))
+            elif softmax_type == 'am':
+                self.main_losses.append(AMSoftmaxLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
                     conf_penalty=conf_penalty,
                     m=m,
-                    s=synth_scale_factor * s,
-                    end_s=synth_scale_factor * end_s if self._valid(end_s) else None,
+                    s=s,
+                    end_s=end_s,
                     duration_s=duration_s * num_batches if self._valid(duration_s) else None,
                     skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None
-                )
-        else:
-            raise ValueError('Unknown softmax type: {}'.format(softmax_type))
+                ))
 
-        self.batch_transform_cfg = batch_transform_cfg
-        self.lambd_distr = torch.distributions.beta.Beta(self.batch_transform_cfg.alpha,
-                                                         self.batch_transform_cfg.alpha)
-
-        self.att_loss = None
-        if self.model.module.total_num_parts > 0:
-            self.att_loss = TotalVarianceLoss(5, self.model.module.total_num_parts)
-
-        self.enable_metric_losses = metric_cfg.enable
-        if self.enable_metric_losses:
-            num_real_classes = self.datamanager.num_train_pids
-            if isinstance(num_real_classes, (list, tuple)):
-                num_real_classes = num_real_classes[0]
-
-            self.real_metric_losses = []
-            for i in range(self.model.module.total_num_parts + 1):
-                self.real_metric_losses.append(MetricLosses(
+            if self.enable_metric_losses:
+                self.ml_losses.append(MetricLosses(
                     self.writer,
-                    num_real_classes,
+                    trg_num_classes,
                     self.model.module.feature_dim,
                     metric_cfg.center_coeff,
-                    metric_cfg.glob_push_coeff,
-                    metric_cfg.local_push_coeff,
-                    metric_cfg.pull_coeff,
-                    name='real_{}'.format(i)
+                    metric_cfg.triplet_coeff,
+                    name='trg_{}'.format(trg_id)
                 ))
-            self.synthetic_metric_losses = []
-            if self.model.module.split_embeddings:
-                for i in range(self.model.module.total_num_parts + 1):
-                    self.synthetic_metric_losses.append(MetricLosses(
-                        self.writer,
-                        self.datamanager.num_train_pids[1],
-                        self.model.module.feature_dim,
-                        metric_cfg.center_coeff,
-                        metric_cfg.glob_push_coeff,
-                        metric_cfg.local_push_coeff,
-                        metric_cfg.pull_coeff,
-                        name='synthetic_{}'.format(i)
-                    ))
-
-        self.attr_pos_loss = None
-        self.attr_tasks = None
-        if attr_losses_cfg.enable:
-            self.attr_tasks = attr_losses_cfg.tasks
-            assert len(self.attr_tasks) > 0
-
-            num_batches = len(self.train_loader)
-            self.attr_pos_loss = AMSoftmaxLoss(
-                use_gpu=self.use_gpu,
-                conf_penalty=attr_losses_cfg.conf_penalty,
-                label_smooth=attr_losses_cfg.label_smooth,
-                m=attr_losses_cfg.m,
-                s=attr_losses_cfg.s,
-                end_s=attr_losses_cfg.end_s,
-                duration_s=attr_losses_cfg.duration_s * num_batches if self._valid(attr_losses_cfg.duration_s) else None,
-                skip_steps_s=attr_losses_cfg.skip_steps_s * num_batches if self._valid(attr_losses_cfg.skip_steps_s) else None
-            )
-            self.attr_neg_loss = PseudoCrossEntropyLoss(
-                use_gpu=self.use_gpu,
-                label_smooth=True,
-                conf_penalty=False,
-                scale=attr_losses_cfg.s
-            )
-            self.attr_neg_scale = 6.0
-            self.attr_lr = 0.01
 
     @staticmethod
     def _valid(value):
@@ -169,25 +96,10 @@ class ImageAMSoftmaxEngine(Engine):
     def train(self, epoch, max_epoch, writer, print_freq=10, fixbase_epoch=0, open_layers=None):
         batch_time = AverageMeter()
         data_time = AverageMeter()
-        accs = AverageMeter(enable_zeros=True)
-        losses = AverageMeter()
-        trg_losses = AverageMeter()
-        real_loss = AverageMeter()
-        synthetic_loss = AverageMeter()
-        reg_ow_loss = AverageMeter()
-        metric_losses = AverageMeter()
-        real_ml_losses = AverageMeter()
-        synthetic_ml_losses = AverageMeter()
-        attr_loss = AverageMeter()
-        att_loss = AverageMeter()
-        if self.attr_tasks is not None:
-            attr_pos_losses = dict()
-            attr_neg_losses = dict()
-            attr_neg_sync_losses = dict()
-            for attr_loss_name in self.attr_tasks.keys():
-                attr_pos_losses[attr_loss_name] = AverageMeter()
-                attr_neg_losses[attr_loss_name] = AverageMeter()
-                attr_neg_sync_losses[attr_loss_name] = AverageMeter()
+        reg_losses = AverageMeter()
+        total_losses = AverageMeter()
+        main_losses = [AverageMeter() for _ in range(self.num_targets)]
+        ml_losses = [AverageMeter() for _ in range(self.num_targets)]
 
         self.model.train()
         if (epoch + 1) <= fixbase_epoch and open_layers is not None:
@@ -202,171 +114,53 @@ class ImageAMSoftmaxEngine(Engine):
             n_iter = epoch * num_batches + batch_idx
             data_time.update(time.time() - start_time)
 
-            imgs, pids, cam_ids = self._parse_data_for_train(data)
-            imgs = self._apply_batch_transform(imgs)
-            if self.use_gpu:
-                imgs = imgs.cuda()
-                pids = pids.cuda()
-                cam_ids = cam_ids.cuda()
-
-            batch_size = pids.size(0)
+            imgs, pids, trg_ids = self._parse_data_for_train(data, self.use_gpu)
 
             self.optimizer.zero_grad()
-            if self.enable_metric_losses:
-                embeddings, outputs, extra_outputs = self.model(imgs, get_embeddings=True)
-            else:
-                outputs, extra_outputs = self.model(imgs)
-                num_parts = self.model.module.total_num_parts + 1
-                embeddings = dict(real=[None] * num_parts, synthetic=[None] * num_parts)
+            all_logits, all_embeddings = self.model(imgs, get_embeddings=True)
 
-            real_centers = outputs['real_centers']
-            synthetic_centers = outputs['synthetic_centers']
+            total_loss = 0
+            num_trg_losses = 0
+            for trg_id in range(self.num_targets):
+                trg_mask = trg_ids == trg_id
 
-            if self.model.module.split_embeddings:
-                real_mask = self._get_real_mask(data, self.use_gpu)
-                synthetic_mask = ~real_mask
+                trg_pids = pids[trg_mask]
+                if trg_pids.numel() == 0:
+                    continue
 
-                real_outputs = [out[real_mask] for out in outputs['real']]
-                synthetic_outputs = [out[synthetic_mask] for out in outputs['synthetic']]
+                trg_logits = all_logits[trg_id][trg_mask]
+                main_loss = self.main_losses[trg_id](trg_logits, trg_pids, iteration=n_iter)
+                main_losses[trg_id].update(main_loss.item(), trg_pids.size(0))
 
-                real_pids = pids[real_mask]
-                synthetic_pids = pids[synthetic_mask]
+                trg_loss = main_loss
+                if self.enable_metric_losses:
+                    embd = all_embeddings[trg_id][trg_mask]
+                    ml_module = self.ml_losses[trg_id]
 
-                real_cam_ids = cam_ids[real_mask]
-                synthetic_cam_ids = cam_ids[synthetic_mask]
+                    ml_module.writer = writer
+                    ml_module.init_iteration()
+                    ml_loss = ml_module(embd, trg_pids, n_iter)
+                    ml_module.end_iteration()
 
-                real_embeddings = [e[real_mask] if e is not None else None for e in embeddings['real']]
-                synthetic_embeddings = [e[synthetic_mask] if e is not None else None for e in embeddings['synthetic']]
+                    ml_losses[trg_id].update(ml_loss.item(), trg_pids.numel())
+                    trg_loss += ml_loss
 
-                num_trg_losses = 0
-                real_data_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
-                if real_pids.numel() > 0:
-                    real_data_loss = self._compute_loss(self.main_real_loss, real_outputs, real_pids, iteration=n_iter)
-                    real_loss.update(real_data_loss.item(), real_pids.numel())
-                    num_trg_losses += 1
-                synthetic_data_loss = torch.zeros([], dtype=real_outputs[0].dtype, device=real_outputs[0].device)
-                if synthetic_pids.numel() > 0:
-                    synthetic_data_loss =\
-                        self._compute_loss(self.main_synth_loss, synthetic_outputs, synthetic_pids, iteration=n_iter)
-                    synthetic_loss.update(synthetic_data_loss.item(), synthetic_pids.numel())
+                trg_loss /= float(1 + self.enable_metric_losses)
+                total_loss += trg_loss
+                num_trg_losses += 1
 
-                    synthetic_loss_scale = (real_loss.avg if real_loss.avg > 0.0 else 1.0) / \
-                                           (synthetic_loss.avg if synthetic_loss.avg > 0.0 else 1.0)
-                    synthetic_data_loss *= synthetic_loss_scale
-                    num_trg_losses += 1
-
-                trg_loss = (real_data_loss + synthetic_data_loss) / float(num_trg_losses)
-            else:
-                real_outputs = outputs['real']
-                real_pids = pids
-                real_cam_ids = cam_ids
-                real_embeddings = embeddings['real']
-                synthetic_embeddings = embeddings['synthetic']
-
-                trg_loss = self._compute_loss(self.main_real_loss, real_outputs, real_pids, iteration=n_iter)
-                real_loss.update(trg_loss.item(), batch_size)
-            trg_losses.update(trg_loss.item(), batch_size)
-
-            total_loss = trg_loss
-            if self.attr_tasks is not None:
-                attr_labels_dict = self._parse_attr_data_for_train(data, self.use_gpu)
-                attr_losses_list = []
-                for attr_name in self.attr_tasks.keys():
-                    attr_labels = attr_labels_dict[attr_name]
-                    attr_outputs = extra_outputs[attr_name]
-
-                    pos_mask = attr_labels >= 0
-                    pos_labels = attr_labels[pos_mask]
-                    if pos_mask.numel() > 0:
-                        pos_outputs = attr_outputs[pos_mask]
-                        attr_pos_loss = self.attr_pos_loss(pos_outputs, pos_labels, iteration=n_iter)
-                    else:
-                        attr_pos_loss = torch.zeros([], dtype=trg_loss.dtype, device=trg_loss.device)
-                    attr_pos_losses[attr_name].update(attr_pos_loss.item(), pos_mask.numel())
-
-                    neg_mask = attr_labels < 0
-                    neg_outputs = attr_outputs[neg_mask]
-                    attr_neg_loss = self.attr_neg_loss(neg_outputs, scale=self.attr_pos_loss.get_last_scale())
-                    attr_neg_losses[attr_name].update(attr_neg_loss.item(), neg_mask.numel())
-
-                    attr_neg_sync_loss = torch.zeros([], dtype=trg_loss.dtype, device=trg_loss.device)
-                    unique_neg_pids = np.unique(real_pids.data.cpu().numpy())
-                    for unique_neg_pid in unique_neg_pids:
-                        neg_pid_outputs = neg_outputs[real_pids == unique_neg_pid]
-                        attr_neg_sync_loss += set_kl_div(neg_pid_outputs * self.attr_pos_loss.get_last_scale())
-                    attr_neg_sync_loss /= float(max(1, len(unique_neg_pids)))
-                    attr_neg_sync_losses[attr_name].update(attr_neg_sync_loss.item(), len(unique_neg_pids))
-
-                    attr_total_loss = 0.5 * (attr_pos_loss + attr_neg_loss)
-                    attr_losses_list.append(attr_total_loss)
-
-                attr_loss_value = torch.stack(attr_losses_list).mean()
-                attr_loss.update(attr_loss_value.item(), batch_size)
-
-                total_loss += attr_loss_value
-
-            if self.enable_metric_losses:
-                num_ml_losses = 0
-
-                num_real_embeddings = sum([True for e in real_embeddings if e is not None])
-                real_metric_loss = torch.zeros([], dtype=total_loss.dtype, device=total_loss.device)
-                if num_real_embeddings > 0 and real_pids.numel() > 0:
-                    for embd_id, (embd, ml_module) in enumerate(zip(real_embeddings, self.real_metric_losses)):
-                        if embd is None:
-                            continue
-
-                        ml_module.writer = writer
-                        ml_module.init_iteration()
-                        real_metric_loss += ml_module(embd, real_centers[embd_id], real_pids, real_cam_ids, n_iter)
-                        ml_module.end_iteration()
-                    real_metric_loss /= float(num_real_embeddings)
-                    num_ml_losses += 1
-                real_ml_losses.update(real_metric_loss.item(), real_pids.numel())
-
-                num_synthetic_embeddings = sum([True for e in synthetic_embeddings if e is not None])
-                synthetic_metric_loss = torch.zeros([], dtype=total_loss.dtype, device=total_loss.device)
-                if self.model.module.split_embeddings and num_synthetic_embeddings > 0 and synthetic_pids.numel() > 0:
-                    for embd_id, (embd, ml_module) in enumerate(zip(synthetic_embeddings, self.synthetic_metric_losses)):
-                        if embd is None:
-                            continue
-
-                        ml_module.writer = writer
-                        ml_module.init_iteration()
-                        synthetic_metric_loss += ml_module(
-                            embd, synthetic_centers[embd_id], synthetic_pids, synthetic_cam_ids, n_iter)
-                        ml_module.end_iteration()
-                    synthetic_metric_loss /= float(num_synthetic_embeddings)
-                    num_ml_losses += 1
-                synthetic_ml_losses.update(synthetic_metric_loss.item(), synthetic_pids.numel())
-
-                synthetic_ml_loss_scale = (real_ml_losses.avg if real_ml_losses.avg > 0.0 else 1.0) / \
-                                          (synthetic_ml_losses.avg if synthetic_ml_losses.avg > 0.0 else 1.0)
-                synthetic_metric_loss *= synthetic_ml_loss_scale
-
-                metric_loss = (real_metric_loss + synthetic_metric_loss) / float(num_ml_losses)
-                metric_losses.update(metric_loss.item(), batch_size)
-
-                total_loss += metric_loss
-
-            if self.att_loss is not None:
-                part_attentions = torch.cat(outputs['part_att'], dim=1)
-
-                att_loss_val = self.att_loss(part_attentions)
-                att_loss.update(att_loss_val.item(), batch_size)
-
-                total_loss += att_loss_val
+            total_loss /= float(num_trg_losses)
 
             if self.regularizer is not None and (epoch + 1) > fixbase_epoch:
                 reg_loss = self.regularizer(self.model)
-                reg_ow_loss.update(reg_loss.item(), batch_size)
+                reg_losses.update(reg_loss.item(), pids.size(0))
 
                 total_loss += reg_loss
 
             total_loss.backward()
             self.optimizer.step()
 
-            losses.update(total_loss.item(), batch_size)
-            accs.update(metrics.accuracy(real_outputs[0], real_pids)[0].item(), 1 if real_pids.numel() > 0 else 0)
+            total_losses.update(total_loss.item(), pids.size(0))
             batch_time.update(time.time() - start_time)
 
             if print_freq > 0 and (batch_idx + 1) % print_freq == 0:
@@ -376,24 +170,14 @@ class ImageAMSoftmaxEngine(Engine):
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f}) '
                       'Data {data_time.val:.3f} ({data_time.avg:.3f}) '
                       'Loss {loss.val:.3f} ({loss.avg:.3f}) '
-                      'ML Loss {ml_loss.val:.3f} ({ml_loss.avg:.3f}) '
-                      'Attr Loss {attr_loss.val:.3f} ({attr_loss.avg:.3f}) '
-                      'Att Loss {att_loss.val:.3f} ({att_loss.avg:.3f}) '
-                      'Acc {acc.val:.2f} ({acc.avg:.2f}) '
                       'Lr {lr:.6f} '
-                      'Scale {scale:.2f} '
                       'ETA {eta}'.
                       format(
                           epoch + 1, max_epoch, batch_idx + 1, num_batches,
                           batch_time=batch_time,
                           data_time=data_time,
-                          ml_loss=metric_losses,
-                          attr_loss=attr_loss,
-                          att_loss=att_loss,
-                          loss=losses,
-                          acc=accs,
+                          loss=total_losses,
                           lr=self.optimizer.param_groups[0]['lr'],
-                          scale=self.main_real_loss.get_last_scale(),
                           eta=eta_str,
                       )
                 )
@@ -401,61 +185,31 @@ class ImageAMSoftmaxEngine(Engine):
                 if writer is not None:
                     writer.add_scalar('Train/Time', batch_time.avg, n_iter)
                     writer.add_scalar('Train/Data', data_time.avg, n_iter)
-                    info = self.main_real_loss.get_last_info()
+                    info = self.main_losses[0].get_last_info()
                     for k in info:
                         writer.add_scalar('AUX info/' + k, info[k], n_iter)
-                    writer.add_scalar('Loss/train', losses.avg, n_iter)
-                    writer.add_scalar('Loss/train_real', real_loss.avg, n_iter)
-                    writer.add_scalar('Loss/train_synth', synthetic_loss.avg, n_iter)
+                    writer.add_scalar('Loss/train', total_losses.avg, n_iter)
                     if (epoch + 1) > fixbase_epoch:
-                        writer.add_scalar('Loss/reg_ow', reg_ow_loss.avg, n_iter)
-                    writer.add_scalar('Accuracy/train', accs.avg, n_iter)
+                        writer.add_scalar('Loss/reg_ow', reg_losses.avg, n_iter)
                     writer.add_scalar('Aux/Learning_rate', self.optimizer.param_groups[0]['lr'], n_iter)
-                    writer.add_scalar('Aux/Scale_main', self.main_real_loss.get_last_scale(), n_iter)
-                    if self.attr_pos_loss is not None:
-                        writer.add_scalar('Aux/Scale_attr', self.attr_pos_loss.get_last_scale(), n_iter)
-                    if self.attr_tasks is not None:
-                        for attr_name in self.attr_tasks.keys():
-                            writer.add_scalar('Loss/pos_{}'.format(attr_name),
-                                              attr_pos_losses[attr_name].avg, n_iter)
-                            writer.add_scalar('Loss/neg_{}'.format(attr_name),
-                                              attr_neg_losses[attr_name].avg, n_iter)
-                            writer.add_scalar('Loss/neg_sync_{}'.format(attr_name),
-                                              attr_neg_sync_losses[attr_name].avg, n_iter)
-                            # writer.add_scalar('Loss/factor_{}'.format(attr_name),
-                            #                   self.attr_factors[attr_name], n_iter)
+                    writer.add_scalar('Aux/Scale_main', self.main_losses[0].get_last_scale(), n_iter)
+                    for trg_id in range(self.num_targets):
+                        writer.add_scalar('Loss/main_{}'.format(trg_id), main_losses[trg_id].avg, n_iter)
+                        writer.add_scalar('Loss/ml_{}'.format(trg_id), ml_losses[trg_id].avg, n_iter)
             start_time = time.time()
 
         if self.scheduler is not None:
             self.scheduler.step()
 
     @staticmethod
-    def _parse_data_for_train(data):
+    def _parse_data_for_train(data, use_gpu):
         imgs = data[0]
         pids = data[1]
-        cam_ids = data[2]
-        return imgs, pids, cam_ids
 
-    @staticmethod
-    def _parse_attr_data_for_train(data, use_gpu=False):
-        return dict(attr_color=data[4].cuda() if use_gpu else data[4],
-                    attr_type=data[5].cuda() if use_gpu else data[5],
-                    attr_orientation=data[6].cuda() if use_gpu else data[6])
-
-    @staticmethod
-    def _get_real_mask(data, use_gpu=False):
-        mask = data[4] < 0
         if use_gpu:
-            mask = mask.cuda()
+            imgs = imgs.cuda()
+            pids = pids.cuda()
 
-        return mask
+        trg_ids = torch.zeros_like(pids)
 
-    def _apply_batch_transform(self, imgs):
-        if self.batch_transform_cfg.enable:
-            permuted_idx = torch.randperm(imgs.shape[0])
-            lambd = self.batch_transform_cfg.anchor_bias \
-                    + (1 - self.batch_transform_cfg.anchor_bias) \
-                    * self.lambd_distr.sample((imgs.shape[0],))
-            imgs = lambd * imgs + (1 - lambd) * imgs[permuted_idx]
-
-        return imgs
+        return imgs, pids, trg_ids
