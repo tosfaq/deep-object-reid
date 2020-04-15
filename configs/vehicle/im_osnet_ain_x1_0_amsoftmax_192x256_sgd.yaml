@@ -8,7 +8,7 @@ model:
 
 data:
   type: 'image'
-  sources: [['veri'], ['vric']]
+  sources: [['veri', 'vric']]
   targets: ['veri', 'vric']
   height: 192
   width: 256
