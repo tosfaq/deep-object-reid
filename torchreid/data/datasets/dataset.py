@@ -1,7 +1,10 @@
 from __future__ import division, print_function, absolute_import
+
 import copy
-import numpy as np
 import os.path as osp
+from collections import defaultdict
+
+import numpy as np
 import tarfile
 import zipfile
 import torch
@@ -9,7 +12,7 @@ import torch
 from torchreid.utils import read_image, download_url, mkdir_if_missing
 
 
-class Dataset(object):
+class Dataset:
     """An abstract class representing a Dataset.
 
     This is the base class for ``ImageDataset`` and ``VideoDataset``.
@@ -20,8 +23,7 @@ class Dataset(object):
         gallery (list): contains tuples of (img_path(s), pid, camid).
         transform: transform function.
         mode (str): 'train', 'query' or 'gallery'.
-        combineall (bool): combines train, query and gallery in a
-            dataset for training.
+        combineall (bool): combines train, query and gallery in a dataset for training.
         verbose (bool): show information.
     """
     _junk_pids = []  # contains useless person IDs, e.g. background, false detections
@@ -49,7 +51,8 @@ class Dataset(object):
         self.num_train_cams = self.get_num_cams(self.train)
 
         if self.combineall:
-            self.combine_all()
+            raise NotImplementedError
+            # self.combine_all()
 
         if self.mode == 'train':
             self.data = self.train
@@ -72,13 +75,15 @@ class Dataset(object):
 
     def __add__(self, other):
         """Adds two datasets together (only the train set)."""
-        train = copy.deepcopy(self.train)
+        updated_train = copy.deepcopy(self.train)
 
         for record in other.train:
-            pid = record[1] + self.num_train_pids
-            cam_id = record[2] + self.num_train_cams
-            updated_record = tuple([record[0], pid, cam_id] + list(record[3:]))
-            train.append(updated_record)
+            dataset_id = record[3]
+            new_pid = record[1] + self.num_train_pids[dataset_id]
+            new_cam_id = record[2] + self.num_train_cams[dataset_id]
+
+            updated_record = tuple([record[0], new_pid, new_cam_id] + list(record[3:]))
+            updated_train.append(updated_record)
 
         ###################################
         # Things to do beforehand:
@@ -87,9 +92,10 @@ class Dataset(object):
         #    if it was True for a specific dataset, setting it to True will
         #    create new IDs that should have been included
         ###################################
-        if isinstance(train[0][0], str):
+
+        if isinstance(updated_train[0][0], str):
             return ImageDataset(
-                train,
+                updated_train,
                 self.query,
                 self.gallery,
                 transform=self.transform,
@@ -99,7 +105,7 @@ class Dataset(object):
             )
         else:
             return VideoDataset(
-                train,
+                updated_train,
                 self.query,
                 self.gallery,
                 transform=self.transform,
@@ -125,12 +131,17 @@ class Dataset(object):
         Args:
             data (list): contains tuples of (img_path(s), pid, camid)
         """
-        pids = set()
-        cams = set()
+
+        pids, cams = defaultdict(set), defaultdict(set)
         for record in data:
-            pids.add(record[1])
-            cams.add(record[2])
-        return len(pids), len(cams)
+            dataset_id = record[3]
+            pids[dataset_id].add(record[1])
+            cams[dataset_id].add(record[2])
+
+        num_pids = {dataset_id: len(dataset_pids) for dataset_id, dataset_pids in pids.items()}
+        num_cams = {dataset_id: len(dataset_cams) for dataset_id, dataset_cams in cams.items()}
+
+        return num_pids, num_cams
 
     def get_num_pids(self, data):
         """Returns the number of training person identities."""
@@ -238,9 +249,9 @@ class Dataset(object):
               '  gallery  | {:5d} | {:7d} | {:9d}\n' \
               '  ----------------------------------------\n' \
               '  items: images/tracklets for image/video dataset\n'.format(
-              num_train_pids, len(self.train), num_train_cams,
-              num_query_pids, len(self.query), num_query_cams,
-              num_gallery_pids, len(self.gallery), num_gallery_cams
+                  sum(num_train_pids.values()), len(self.train), sum(num_train_cams.values()),
+                  sum(num_query_pids.values()), len(self.query), sum(num_query_cams.values()),
+                  sum(num_gallery_pids.values()), len(self.gallery), sum(num_gallery_cams.values())
               )
 
         return msg
@@ -270,7 +281,7 @@ class ImageDataset(Dataset):
         if self.transform is not None:
             img = self.transform(img)
 
-        output_record = tuple([img, pid, cam_id, img_path, 0] + list(input_record[3:]))
+        output_record = tuple([img, pid, cam_id, img_path] + list(input_record[3:]))
 
         return output_record
 
@@ -283,21 +294,12 @@ class ImageDataset(Dataset):
         print('  ----------------------------------------')
         print('  subset   | # ids | # images | # cameras')
         print('  ----------------------------------------')
-        print(
-            '  train    | {:5d} | {:8d} | {:9d}'.format(
-                num_train_pids, len(self.train), num_train_cams
-            )
-        )
-        print(
-            '  query    | {:5d} | {:8d} | {:9d}'.format(
-                num_query_pids, len(self.query), num_query_cams
-            )
-        )
-        print(
-            '  gallery  | {:5d} | {:8d} | {:9d}'.format(
-                num_gallery_pids, len(self.gallery), num_gallery_cams
-            )
-        )
+        print('  train    | {:5d} | {:8d} | {:9d}'.format(
+            sum(num_train_pids.values()), len(self.train), sum(num_train_cams.values())))
+        print('  query    | {:5d} | {:8d} | {:9d}'.format(
+            sum(num_query_pids.values()), len(self.query), sum(num_query_cams.values())))
+        print('  gallery  | {:5d} | {:8d} | {:9d}'.format(
+            sum(num_gallery_pids.values()), len(self.gallery), sum(num_gallery_cams.values())))
         print('  ----------------------------------------')
 
 

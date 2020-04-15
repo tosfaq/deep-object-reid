@@ -33,23 +33,21 @@ class DataManager(object):
         norm_std=None,
         use_gpu=False
     ):
-        self.sources = sources
-        self.targets = targets
-        self.height = height
-        self.width = width
-
-        if self.sources is None:
+        self.source_groups = sources
+        if self.source_groups is None:
             raise ValueError('sources must not be None')
+        if isinstance(self.source_groups, str):
+            self.source_groups = [[self.source_groups]]
+        self.sources = [s for group in self.source_groups for s in group]
 
-        if isinstance(self.sources, str):
-            self.sources = [self.sources]
-
+        self.targets = targets
         if self.targets is None:
             self.targets = self.sources
-
         if isinstance(self.targets, str):
             self.targets = [self.targets]
 
+        self.height = height
+        self.width = width
         self.transform_tr, self.transform_te = build_transforms(
             self.height,
             self.width,
@@ -84,6 +82,22 @@ class DataManager(object):
         """Transforms a PIL image to torch tensor for testing."""
         return self.transform_te(img)
 
+    @staticmethod
+    def build_dataset_map(groups):
+        out_data = dict()
+        for group_id, group in enumerate(groups):
+            for name in group:
+                out_data[name] = group_id
+
+        return out_data
+
+    @staticmethod
+    def to_ordered_list(dict_data):
+        keys = sorted(dict_data.keys())
+        out_data = [dict_data[key] for key in keys]
+
+        return out_data
+
 
 class ImageDataManager(DataManager):
     r"""Image data manager.
@@ -102,8 +116,6 @@ class ImageDataManager(DataManager):
         use_gpu (bool, optional): use gpu. Default is True.
         combineall (bool, optional): combine train, query and gallery in a dataset for
             training. Default is False.
-        load_train_targets (bool, optional): construct train-loader for target datasets.
-            Default is False. This is useful for domain adaptation research.
         batch_size_train (int, optional): number of images in a training batch. Default is 32.
         batch_size_test (int, optional): number of images in a test batch. Default is 32.
         workers (int, optional): number of workers. Default is 4.
@@ -133,9 +145,6 @@ class ImageDataManager(DataManager):
 
         # return test loader of target data
         test_loader = datamanager.test_loader
-
-        # return train loader of target data
-        train_loader_t = datamanager.train_loader_t
     """
     data_type = 'image'
 
@@ -151,7 +160,6 @@ class ImageDataManager(DataManager):
         norm_std=None,
         use_gpu=True,
         combineall=False,
-        load_train_targets=False,
         batch_size_train=32,
         batch_size_test=32,
         workers=4,
@@ -174,28 +182,33 @@ class ImageDataManager(DataManager):
         )
 
         print('=> Loading train (source) dataset')
-        trainset = []
+        train_dataset_ids_map = self.build_dataset_map(self.source_groups)
+
+        train_dataset = []
         for name in self.sources:
-            trainset_ = init_image_dataset(
+            train_dataset.append(init_image_dataset(
                 name,
                 transform=self.transform_tr,
                 mode='train',
                 combineall=combineall,
                 root=root,
+                dataset_id=train_dataset_ids_map[name],
                 cuhk03_labeled=cuhk03_labeled,
                 cuhk03_classic_split=cuhk03_classic_split,
                 market1501_500k=market1501_500k,
-            )
-            trainset.append(trainset_)
-        trainset = sum(trainset)
+            ))
+        train_dataset = sum(train_dataset)
 
-        self._num_train_pids = trainset.num_train_pids
-        self._num_train_cams = trainset.num_train_cams
+        self._num_train_pids = self.to_ordered_list(train_dataset.num_train_pids)
+        self._num_train_cams = self.to_ordered_list(train_dataset.num_train_cams)
+        assert isinstance(self._num_train_pids, list)
+        assert isinstance(self._num_train_cams, list)
+        assert len(self._num_train_pids) == len(self._num_train_cams)
 
         self.train_loader = torch.utils.data.DataLoader(
-            trainset,
+            train_dataset,
             sampler=build_train_sampler(
-                trainset.train,
+                train_dataset.train,
                 train_sampler,
                 batch_size=batch_size_train,
                 num_instances=num_instances,
@@ -213,7 +226,7 @@ class ImageDataManager(DataManager):
 
         for name in self.targets:
             # build query loader
-            queryset = init_image_dataset(
+            query_dataset = init_image_dataset(
                 name,
                 transform=self.transform_te,
                 mode='query',
@@ -224,7 +237,7 @@ class ImageDataManager(DataManager):
                 market1501_500k=market1501_500k
             )
             self.test_loader[name]['query'] = torch.utils.data.DataLoader(
-                queryset,
+                query_dataset,
                 batch_size=batch_size_test,
                 shuffle=False,
                 num_workers=workers,
@@ -233,7 +246,7 @@ class ImageDataManager(DataManager):
             )
 
             # build gallery loader
-            galleryset = init_image_dataset(
+            gallery_dataset = init_image_dataset(
                 name,
                 transform=self.transform_te,
                 mode='gallery',
@@ -245,7 +258,7 @@ class ImageDataManager(DataManager):
                 market1501_500k=market1501_500k
             )
             self.test_loader[name]['gallery'] = torch.utils.data.DataLoader(
-                galleryset,
+                gallery_dataset,
                 batch_size=batch_size_test,
                 shuffle=False,
                 num_workers=workers,
@@ -253,16 +266,16 @@ class ImageDataManager(DataManager):
                 drop_last=False
             )
 
-            self.test_dataset[name]['query'] = queryset.query
-            self.test_dataset[name]['gallery'] = galleryset.gallery
+            self.test_dataset[name]['query'] = query_dataset.query
+            self.test_dataset[name]['gallery'] = gallery_dataset.gallery
 
         print('\n')
         print('  **************** Summary ****************')
         print('  source            : {}'.format(self.sources))
         print('  # source datasets : {}'.format(len(self.sources)))
-        print('  # source ids      : {}'.format(self.num_train_pids))
-        print('  # source images   : {}'.format(len(trainset)))
-        print('  # source cameras  : {}'.format(self.num_train_cams))
+        print('  # source ids      : {}'.format(sum(self.num_train_pids)))
+        print('  # source images   : {}'.format(len(train_dataset)))
+        print('  # source cameras  : {}'.format(sum(self.num_train_cams)))
         print('  target            : {}'.format(self.targets))
         print('  *****************************************')
         print('\n')

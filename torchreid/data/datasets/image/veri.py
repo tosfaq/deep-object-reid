@@ -18,7 +18,7 @@ class VeRi(ImageDataset):
     """
     dataset_dir = 'veri'
 
-    def __init__(self, root='', **kwargs):
+    def __init__(self, root='', dataset_id=0, **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
@@ -33,9 +33,13 @@ class VeRi(ImageDataset):
         ]
         self.check_before_run(required_files)
 
-        train = self.process_dir(self.train_dir, self.load_annotation(self.train_annot))
-        query = self.process_dir(self.query_dir)
-        gallery = self.process_dir(self.gallery_dir)
+        train = self.build_annotation(self.train_dir,
+                                      annot=self.load_annotation(self.train_annot),
+                                      dataset_id=dataset_id)
+        query = self.build_annotation(self.query_dir,
+                                      dataset_id=dataset_id)
+        gallery = self.build_annotation(self.gallery_dir,
+                                        dataset_id=dataset_id)
 
         train = self.compress_labels(train)
 
@@ -72,7 +76,7 @@ class VeRi(ImageDataset):
         return out_data
 
     @staticmethod
-    def process_dir(data_dir, annot=None):
+    def build_annotation(data_dir, annot=None, dataset_id=0):
         image_files = [f for f in listdir(data_dir) if osp.isfile(osp.join(data_dir, f)) and f.endswith('.jpg')]
 
         data = []
@@ -88,7 +92,7 @@ class VeRi(ImageDataset):
             assert pid >= 0 and cam_id >= 0
 
             if annot is None:
-                data.append((full_image_path, pid, cam_id))
+                data.append((full_image_path, pid, cam_id, dataset_id))
             else:
                 if image_file not in annot:
                     color_id, type_id = -1, -1
@@ -98,7 +102,7 @@ class VeRi(ImageDataset):
                     type_id = record['type_id']
                     assert color_id >= 0 and type_id >= 0
 
-                data.append((full_image_path, pid, cam_id, color_id, type_id))
+                data.append((full_image_path, pid, cam_id, dataset_id, color_id, type_id))
 
         return data
 
