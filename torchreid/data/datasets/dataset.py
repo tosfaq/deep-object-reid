@@ -270,7 +270,7 @@ class ImageDataset(Dataset):
         if self.transform is not None:
             img = self.transform(img)
 
-        output_record = tuple([img, pid, cam_id, img_path] + list(input_record[3:]))
+        output_record = tuple([img, pid, cam_id, img_path, 0] + list(input_record[3:]))
 
         return output_record
 

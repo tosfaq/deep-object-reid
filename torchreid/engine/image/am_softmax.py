@@ -205,11 +205,11 @@ class ImageAMSoftmaxEngine(Engine):
     def _parse_data_for_train(data, use_gpu):
         imgs = data[0]
         pids = data[1]
+        dataset_id = data[4]
 
         if use_gpu:
             imgs = imgs.cuda()
             pids = pids.cuda()
+            dataset_id = dataset_id.cuda()
 
-        trg_ids = torch.zeros_like(pids)
-
-        return imgs, pids, trg_ids
+        return imgs, pids, dataset_id
