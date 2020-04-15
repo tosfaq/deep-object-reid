@@ -100,7 +100,6 @@ class ImageDataManager(DataManager):
         norm_mean (list or None, optional): data mean. Default is None (use imagenet mean).
         norm_std (list or None, optional): data std. Default is None (use imagenet std).
         use_gpu (bool, optional): use gpu. Default is True.
-        split_id (int, optional): split id (*0-based*). Default is 0.
         combineall (bool, optional): combine train, query and gallery in a dataset for
             training. Default is False.
         load_train_targets (bool, optional): construct train-loader for target datasets.
@@ -151,7 +150,6 @@ class ImageDataManager(DataManager):
         norm_mean=None,
         norm_std=None,
         use_gpu=True,
-        split_id=0,
         combineall=False,
         load_train_targets=False,
         batch_size_train=32,
@@ -161,11 +159,7 @@ class ImageDataManager(DataManager):
         train_sampler='RandomSampler',
         cuhk03_labeled=False,
         cuhk03_classic_split=False,
-        market1501_500k=False,
-        aic20_simulation_data=False,
-        aic20_simulation_only=False,
-        aic20_split=False,
-        aic20_balance_ids=False
+        market1501_500k=False
     ):
 
         super(ImageDataManager, self).__init__(
@@ -188,13 +182,9 @@ class ImageDataManager(DataManager):
                 mode='train',
                 combineall=combineall,
                 root=root,
-                split_id=split_id,
                 cuhk03_labeled=cuhk03_labeled,
                 cuhk03_classic_split=cuhk03_classic_split,
                 market1501_500k=market1501_500k,
-                aic20_simulation_data=aic20_simulation_data,
-                aic20_simulation_only=aic20_simulation_only,
-                aic20_split=aic20_split
             )
             trainset.append(trainset_)
         trainset = sum(trainset)
@@ -209,8 +199,6 @@ class ImageDataManager(DataManager):
                 train_sampler,
                 batch_size=batch_size_train,
                 num_instances=num_instances,
-                split_ids=aic20_split,
-                balance_ids=aic20_balance_ids
             ),
             batch_size=batch_size_train,
             shuffle=False,
@@ -234,7 +222,6 @@ class ImageDataManager(DataManager):
                     mode='train',
                     combineall=False, # only use the training data
                     root=root,
-                    split_id=split_id,
                     cuhk03_labeled=cuhk03_labeled,
                     cuhk03_classic_split=cuhk03_classic_split,
                     market1501_500k=market1501_500k
@@ -249,8 +236,6 @@ class ImageDataManager(DataManager):
                     train_sampler,
                     batch_size=batch_size_train,
                     num_instances=num_instances,
-                    split_ids=aic20_split,
-                    balance_ids=aic20_balance_ids
                 ),
                 batch_size=batch_size_train,
                 shuffle=False,
@@ -283,7 +268,6 @@ class ImageDataManager(DataManager):
                 mode='query',
                 combineall=combineall,
                 root=root,
-                split_id=split_id,
                 cuhk03_labeled=cuhk03_labeled,
                 cuhk03_classic_split=cuhk03_classic_split,
                 market1501_500k=market1501_500k
@@ -305,7 +289,6 @@ class ImageDataManager(DataManager):
                 combineall=combineall,
                 verbose=False,
                 root=root,
-                split_id=split_id,
                 cuhk03_labeled=cuhk03_labeled,
                 cuhk03_classic_split=cuhk03_classic_split,
                 market1501_500k=market1501_500k
@@ -351,7 +334,6 @@ class VideoDataManager(DataManager):
         norm_mean (list or None, optional): data mean. Default is None (use imagenet mean).
         norm_std (list or None, optional): data std. Default is None (use imagenet std).
         use_gpu (bool, optional): use gpu. Default is True.
-        split_id (int, optional): split id (*0-based*). Default is 0.
         combineall (bool, optional): combine train, query and gallery in a dataset for
             training. Default is False.
         batch_size_train (int, optional): number of tracklets in a training batch. Default is 3.
@@ -404,7 +386,6 @@ class VideoDataManager(DataManager):
         norm_mean=None,
         norm_std=None,
         use_gpu=True,
-        split_id=0,
         combineall=False,
         batch_size_train=3,
         batch_size_test=3,
@@ -435,7 +416,6 @@ class VideoDataManager(DataManager):
                 mode='train',
                 combineall=combineall,
                 root=root,
-                split_id=split_id,
                 seq_len=seq_len,
                 sample_method=sample_method
             )
@@ -486,7 +466,6 @@ class VideoDataManager(DataManager):
                 mode='query',
                 combineall=combineall,
                 root=root,
-                split_id=split_id,
                 seq_len=seq_len,
                 sample_method=sample_method
             )
@@ -507,7 +486,6 @@ class VideoDataManager(DataManager):
                 combineall=combineall,
                 verbose=False,
                 root=root,
-                split_id=split_id,
                 seq_len=seq_len,
                 sample_method=sample_method
             )

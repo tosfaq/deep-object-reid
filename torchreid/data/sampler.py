@@ -9,8 +9,7 @@ AVAI_SAMPLERS = ['RandomIdentitySampler', 'RandomIdentitySamplerV2', 'RandomIden
                  'SequentialSampler', 'RandomSampler']
 
 
-def build_train_sampler(data_source, train_sampler, batch_size=32, num_instances=4,
-                        split_ids=False, balance_ids=False, **kwargs):
+def build_train_sampler(data_source, train_sampler, batch_size=32, num_instances=4, **kwargs):
     """Builds a training sampler.
 
     Args:
@@ -28,7 +27,7 @@ def build_train_sampler(data_source, train_sampler, batch_size=32, num_instances
     elif train_sampler == 'RandomIdentitySamplerV2':
         sampler = RandomIdentitySamplerV2(data_source, batch_size, num_instances)
     elif train_sampler == 'RandomIdentitySamplerV3':
-        sampler = RandomIdentitySamplerV3(data_source, batch_size, num_instances, split_ids, balance_ids)
+        sampler = RandomIdentitySamplerV3(data_source, batch_size, num_instances)
     elif train_sampler == 'SequentialSampler':
         sampler = SequentialSampler(data_source)
     elif train_sampler == 'RandomSampler':
@@ -131,7 +130,7 @@ class RandomIdentitySamplerV2(RandomIdentitySampler):
 
 
 class RandomIdentitySamplerV3(Sampler):
-    def __init__(self, data_source, batch_size, num_instances, split_ids=False, balance_ids=False):
+    def __init__(self, data_source, batch_size, num_instances):
         super().__init__(data_source)
 
         if batch_size < num_instances:
@@ -140,54 +139,30 @@ class RandomIdentitySamplerV3(Sampler):
 
         self.num_instances = num_instances
 
-        self.index_dic = dict(
-            real=defaultdict(list),
-            synthetic=defaultdict(list)
-        )
+        self.index_dict = dict()
         for index, record in enumerate(data_source):
-            if split_ids:
-                trg_name = 'real' if record[3] < 0 else 'synthetic'
-                self.index_dic[trg_name][record[1]].append(index)
-            else:
-                self.index_dic['real'][record[1]].append(index)
+            trg_name = record[3]
+            if trg_name not in self.index_dict:
+                self.index_dict[trg_name] = defaultdict(list)
 
-        self.pids = dict(
-            real=list(self.index_dic['real'].keys()),
-            synthetic=list(self.index_dic['synthetic'].keys())
-        )
+            self.index_dict[trg_name][record[1]].append(index)
 
-        average_num_instances = np.median([len(indices) for indices in self.index_dic['real'].values()])
+        self.pids = {trg_name: list(trg_dict.keys()) for trg_name, trg_dict in self.index_dict.items()}
+
+        num_indices = [len(indices) for trg_dict in self.index_dict.values() for indices in trg_dict.values()]
+        average_num_instances = np.median(num_indices)
+
         self.num_packages = int(average_num_instances) // self.num_instances
         self.instances_per_pid = self.num_packages * self.num_instances
-
-        self.balance_ids = split_ids and balance_ids
-        if self.balance_ids:
-            min_size = min(len(pids) for pids in self.pids.values())
-            assert min_size > 0
-            self.length = len(self.pids) * min_size * self.instances_per_pid
-        else:
-            self.length = sum([len(ids) for ids in self.pids.values()]) * self.instances_per_pid
+        self.length = sum([len(ids) for ids in self.pids.values()]) * self.instances_per_pid
 
     def __iter__(self):
-        if self.balance_ids:
-            trg_size = min(len(pids) for pids in self.pids.values())
-
-            final_pids = []
-            for trg_name, trg_pids in self.pids.items():
-                if len(trg_pids) > trg_size:
-                    sampled_trg_pids = copy.deepcopy(trg_pids)
-                    random.shuffle(sampled_trg_pids)
-                    sampled_trg_pids = sampled_trg_pids[:trg_size]
-                else:
-                    sampled_trg_pids = trg_pids
-                final_pids += [(trg_name, trg_pid) for trg_pid in sampled_trg_pids]
-        else:
-            final_pids = [(trg_name, trg_pid) for trg_name, trg_pids in self.pids.items() for trg_pid in trg_pids]
+        final_pids = [(trg_name, trg_pid) for trg_name, trg_pids in self.pids.items() for trg_pid in trg_pids]
         random.shuffle(final_pids)
 
         final_data_indices = []
         for trg_name, trg_pid in final_pids:
-            sampled_indices = copy.deepcopy(self.index_dic[trg_name][trg_pid])
+            sampled_indices = copy.deepcopy(self.index_dict[trg_name][trg_pid])
             random.shuffle(sampled_indices)
 
             if len(sampled_indices) < self.instances_per_pid:

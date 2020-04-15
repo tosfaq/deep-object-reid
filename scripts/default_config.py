@@ -22,7 +22,6 @@ def get_default_config():
     cfg.data.sources = ['market1501']
     cfg.data.targets = ['market1501']
     cfg.data.workers = 4  # number of data loading workers
-    cfg.data.split_id = 0  # split index
     cfg.data.height = 256  # image height
     cfg.data.width = 128  # image width
     cfg.data.combineall = False  # combine train, query and gallery for training
@@ -38,11 +37,6 @@ def get_default_config():
     cfg.cuhk03.labeled_images = False  # use labeled images, if False, use detected images
     cfg.cuhk03.classic_split = False  # use classic split by Li et al. CVPR14
     cfg.cuhk03.use_metric_cuhk03 = False  # use cuhk03's metric for evaluation
-    cfg.aic20 = CN()
-    cfg.aic20.use_simulation_data = False
-    cfg.aic20.simulation_data_only = False
-    cfg.aic20.split_real_synthetic = False
-    cfg.aic20.balance_real_synthetic_ids = False
 
     # sampler
     cfg.sampler = CN()
@@ -236,7 +230,6 @@ def imagedata_kwargs(cfg):
         'norm_mean': cfg.data.norm_mean,
         'norm_std': cfg.data.norm_std,
         'use_gpu': cfg.use_gpu,
-        'split_id': cfg.data.split_id,
         'combineall': cfg.data.combineall,
         'load_train_targets': cfg.data.load_train_targets,
         'batch_size_train': cfg.train.batch_size,
@@ -248,10 +241,6 @@ def imagedata_kwargs(cfg):
         'cuhk03_labeled': cfg.cuhk03.labeled_images,
         'cuhk03_classic_split': cfg.cuhk03.classic_split,
         'market1501_500k': cfg.market1501.use_500k_distractors,
-        'aic20_simulation_data': cfg.aic20.use_simulation_data,
-        'aic20_simulation_only': cfg.aic20.simulation_data_only,
-        'aic20_split': cfg.aic20.split_real_synthetic,
-        'aic20_balance_ids': cfg.aic20.balance_real_synthetic_ids,
     }
 
 
@@ -266,7 +255,6 @@ def videodata_kwargs(cfg):
         'norm_mean': cfg.data.norm_mean,
         'norm_std': cfg.data.norm_std,
         'use_gpu': cfg.use_gpu,
-        'split_id': cfg.data.split_id,
         'combineall': cfg.data.combineall,
         'batch_size_train': cfg.train.batch_size,
         'batch_size_test': cfg.test.batch_size,
