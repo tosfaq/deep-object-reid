@@ -8,7 +8,8 @@ model:
 
 data:
   type: 'image'
-  sources: [['veri'], ['compcars']]
+  sources: [['veri']]
+  # sources: [['veri'], ['compcars']]
   targets: ['veri']
   height: 192
   width: 256
@@ -73,7 +74,7 @@ loss:
     skip_steps_s: -1
 
 metric_losses:
-  enable: True
+  enable: False
   center_coeff: 1.0
   triplet_coeff: 1.0
 
