@@ -79,8 +79,16 @@ class Dataset:
 
         for record in other.train:
             dataset_id = record[3]
-            new_pid = record[1] + self.num_train_pids[dataset_id]
-            new_cam_id = record[2] + self.num_train_cams[dataset_id]
+
+            num_train_pids = 0
+            if dataset_id in self.num_train_pids:
+                num_train_pids = self.num_train_pids[dataset_id]
+            new_pid = record[1] + num_train_pids
+
+            num_train_cams = 0
+            if dataset_id in self.num_train_cams:
+                num_train_cams = self.num_train_cams[dataset_id]
+            new_cam_id = record[2] + num_train_cams
 
             updated_record = tuple([record[0], new_pid, new_cam_id] + list(record[3:]))
             updated_train.append(updated_record)

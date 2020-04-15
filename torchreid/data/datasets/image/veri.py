@@ -92,7 +92,7 @@ class VeRi(ImageDataset):
             assert pid >= 0 and cam_id >= 0
 
             if annot is None:
-                data.append((full_image_path, pid, cam_id, dataset_id))
+                data.append((full_image_path, pid, cam_id, dataset_id, -1, -1))
             else:
                 if image_file not in annot:
                     color_id, type_id = -1, -1

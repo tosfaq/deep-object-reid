@@ -15,7 +15,7 @@ class VRIC(ImageDataset):
     """
     dataset_dir = 'vric'
 
-    def __init__(self, root='', **kwargs):
+    def __init__(self, root='', dataset_id=0, **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
@@ -34,7 +34,7 @@ class VRIC(ImageDataset):
         ]
         self.check_before_run(required_files)
 
-        train = self.load_annotation(self.train_annot, self.train_dir)
+        train = self.load_annotation(self.train_annot, self.train_dir, dataset_id=dataset_id)
         query = self.load_annotation(self.query_annot, self.query_dir)
         gallery = self.load_annotation(self.gallery_annot, self.gallery_dir)
 
@@ -43,7 +43,7 @@ class VRIC(ImageDataset):
         super(VRIC, self).__init__(train, query, gallery, **kwargs)
 
     @staticmethod
-    def load_annotation(annot_path, data_dir):
+    def load_annotation(annot_path, data_dir, dataset_id=0):
         data = []
         for line in open(annot_path):
             parts = line.replace('\n', '').split(' ')
@@ -57,15 +57,15 @@ class VRIC(ImageDataset):
             pid = int(pid_str)
             cam_id = int(cam_id_str)
 
-            data.append((full_image_path, pid, cam_id))
+            data.append((full_image_path, pid, cam_id, dataset_id, -1, -1))
 
         return data
 
     @staticmethod
     def compress_labels(data):
-        pid_container = set(pid for _, pid, _ in data)
+        pid_container = set(record[1] for record in data)
         pid2label = {pid: label for label, pid in enumerate(pid_container)}
 
-        out_data = [(image_name, pid2label[pid], cam_id) for image_name, pid, cam_id in data]
+        out_data = [record[:1] + (pid2label[record[1]],) + record[2:] for record in data]
 
         return out_data
