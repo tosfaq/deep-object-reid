@@ -60,12 +60,3 @@ class VRIC(ImageDataset):
             data.append((full_image_path, pid, cam_id, dataset_id, -1, -1))
 
         return data
-
-    @staticmethod
-    def compress_labels(data):
-        pid_container = set(record[1] for record in data)
-        pid2label = {pid: label for label, pid in enumerate(pid_container)}
-
-        out_data = [record[:1] + (pid2label[record[1]],) + record[2:] for record in data]
-
-        return out_data

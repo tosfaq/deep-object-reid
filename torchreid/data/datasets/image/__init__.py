@@ -13,3 +13,4 @@ from .market1501 import Market1501
 from .dukemtmcreid import DukeMTMCreID
 from .vric import VRIC
 from .veri import VeRi
+from .compcars import CompCars, CompCarsSV

@@ -244,6 +244,15 @@ class Dataset:
             if not osp.exists(fpath):
                 raise RuntimeError('"{}" is not found'.format(fpath))
 
+    @staticmethod
+    def compress_labels(data):
+        pid_container = set(record[1] for record in data)
+        pid2label = {pid: label for label, pid in enumerate(pid_container)}
+
+        out_data = [record[:1] + (pid2label[record[1]],) + record[2:] for record in data]
+
+        return out_data
+
     def __repr__(self):
         num_train_pids, num_train_cams = self.parse_data(self.train)
         num_query_pids, num_query_cams = self.parse_data(self.query)
