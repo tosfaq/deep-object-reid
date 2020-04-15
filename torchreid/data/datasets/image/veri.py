@@ -90,10 +90,13 @@ class VeRi(ImageDataset):
             if annot is None:
                 data.append((full_image_path, pid, cam_id))
             else:
-                record = annot[image_file]
-                color_id = record['color_id']
-                type_id = record['type_id']
-                assert color_id >= 0 and type_id >= 0
+                if image_file not in annot:
+                    color_id, type_id = -1, -1
+                else:
+                    record = annot[image_file]
+                    color_id = record['color_id']
+                    type_id = record['type_id']
+                    assert color_id >= 0 and type_id >= 0
 
                 data.append((full_image_path, pid, cam_id, color_id, type_id))
 
