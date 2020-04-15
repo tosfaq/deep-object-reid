@@ -55,39 +55,37 @@ class ImageAMSoftmaxEngine(Engine):
         num_classes = self.datamanager.num_train_pids
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
-        self.num_targets = len(num_classes)
+        self.num_classes = num_classes
+        self.num_targets = len(self.num_classes)
 
-        self.main_losses = nn.ModuleList()
-        self.ml_losses = []
-        for trg_id, trg_num_classes in enumerate(num_classes):
-            if softmax_type == 'stock':
-                self.main_losses.append(CrossEntropyLoss(
-                    use_gpu=self.use_gpu,
-                    label_smooth=label_smooth,
-                    conf_penalty=conf_penalty,
-                    scale=s
-                ))
-            elif softmax_type == 'am':
-                self.main_losses.append(AMSoftmaxLoss(
-                    use_gpu=self.use_gpu,
-                    label_smooth=label_smooth,
-                    conf_penalty=conf_penalty,
-                    m=m,
-                    s=s,
-                    end_s=end_s,
-                    duration_s=duration_s * num_batches if self._valid(duration_s) else None,
-                    skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None
-                ))
+        if softmax_type == 'stock':
+            self.main_loss = CrossEntropyLoss(
+                use_gpu=self.use_gpu,
+                label_smooth=label_smooth,
+                conf_penalty=conf_penalty,
+                scale=s
+            )
+        elif softmax_type == 'am':
+            self.main_loss = AMSoftmaxLoss(
+                use_gpu=self.use_gpu,
+                label_smooth=label_smooth,
+                conf_penalty=conf_penalty,
+                m=m,
+                s=s,
+                end_s=end_s,
+                duration_s=duration_s * num_batches if self._valid(duration_s) else None,
+                skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None
+            )
 
-            if self.enable_metric_losses:
-                self.ml_losses.append(MetricLosses(
-                    self.writer,
-                    trg_num_classes,
-                    self.model.module.feature_dim,
-                    metric_cfg.center_coeff,
-                    metric_cfg.triplet_coeff,
-                    name='trg_{}'.format(trg_id)
-                ))
+        self.ml_loss = None
+        if self.enable_metric_losses:
+            self.ml_loss = MetricLosses(
+                self.writer,
+                num_classes[0],
+                self.model.module.feature_dim,
+                metric_cfg.center_coeff,
+                metric_cfg.triplet_coeff,
+            )
 
     @staticmethod
     def _valid(value):
@@ -98,8 +96,8 @@ class ImageAMSoftmaxEngine(Engine):
         data_time = AverageMeter()
         reg_losses = AverageMeter()
         total_losses = AverageMeter()
+        ml_losses = AverageMeter()
         main_losses = [AverageMeter() for _ in range(self.num_targets)]
-        ml_losses = [AverageMeter() for _ in range(self.num_targets)]
 
         self.model.train()
         if (epoch + 1) <= fixbase_epoch and open_layers is not None:
@@ -129,23 +127,20 @@ class ImageAMSoftmaxEngine(Engine):
                     continue
 
                 trg_logits = all_logits[trg_id][trg_mask]
-                main_loss = self.main_losses[trg_id](trg_logits, trg_pids, iteration=n_iter)
+                main_loss = self.main_loss(trg_logits, trg_pids, iteration=n_iter)
                 main_losses[trg_id].update(main_loss.item(), trg_pids.size(0))
 
                 trg_loss = main_loss
-                if self.enable_metric_losses:
+                if trg_id == 0 and self.enable_metric_losses:
                     embd = all_embeddings[trg_id][trg_mask]
-                    ml_module = self.ml_losses[trg_id]
+                    self.ml_loss.writer = writer
+                    self.ml_loss.init_iteration()
+                    ml_loss = self.ml_loss(embd, trg_pids, n_iter)
+                    self.ml_loss.end_iteration()
 
-                    ml_module.writer = writer
-                    ml_module.init_iteration()
-                    ml_loss = ml_module(embd, trg_pids, n_iter)
-                    ml_module.end_iteration()
-
-                    ml_losses[trg_id].update(ml_loss.item(), trg_pids.numel())
+                    ml_losses.update(ml_loss.item(), trg_pids.numel())
                     trg_loss += ml_loss
 
-                trg_loss /= float(1 + self.enable_metric_losses)
                 total_loss += trg_loss
                 num_trg_losses += 1
 
@@ -170,6 +165,7 @@ class ImageAMSoftmaxEngine(Engine):
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f}) '
                       'Data {data_time.val:.3f} ({data_time.avg:.3f}) '
                       'Loss {loss.val:.3f} ({loss.avg:.3f}) '
+                      'ML Loss {ml_loss.val:.3f} ({ml_loss.avg:.3f}) '
                       'Lr {lr:.6f} '
                       'ETA {eta}'.
                       format(
@@ -177,6 +173,7 @@ class ImageAMSoftmaxEngine(Engine):
                           batch_time=batch_time,
                           data_time=data_time,
                           loss=total_losses,
+                          ml_loss=ml_losses,
                           lr=self.optimizer.param_groups[0]['lr'],
                           eta=eta_str,
                       )
@@ -185,17 +182,17 @@ class ImageAMSoftmaxEngine(Engine):
                 if writer is not None:
                     writer.add_scalar('Train/Time', batch_time.avg, n_iter)
                     writer.add_scalar('Train/Data', data_time.avg, n_iter)
-                    info = self.main_losses[0].get_last_info()
+                    info = self.main_loss.get_last_info()
                     for k in info:
                         writer.add_scalar('AUX info/' + k, info[k], n_iter)
                     writer.add_scalar('Loss/train', total_losses.avg, n_iter)
                     if (epoch + 1) > fixbase_epoch:
                         writer.add_scalar('Loss/reg_ow', reg_losses.avg, n_iter)
                     writer.add_scalar('Aux/Learning_rate', self.optimizer.param_groups[0]['lr'], n_iter)
-                    writer.add_scalar('Aux/Scale_main', self.main_losses[0].get_last_scale(), n_iter)
+                    writer.add_scalar('Aux/Scale_main', self.main_loss.get_last_scale(), n_iter)
+                    writer.add_scalar('Loss/ml', ml_losses.avg, n_iter)
                     for trg_id in range(self.num_targets):
                         writer.add_scalar('Loss/main_{}'.format(trg_id), main_losses[trg_id].avg, n_iter)
-                        writer.add_scalar('Loss/ml_{}'.format(trg_id), ml_losses[trg_id].avg, n_iter)
             start_time = time.time()
 
         if self.scheduler is not None:
