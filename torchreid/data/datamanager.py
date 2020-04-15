@@ -207,58 +207,9 @@ class ImageDataManager(DataManager):
             drop_last=True
         )
 
-        self.train_loader_t = None
-        if load_train_targets:
-            # check if sources and targets are identical
-            assert len(set(self.sources) & set(self.targets)) == 0, \
-                'sources={} and targets={} must not have overlap'.format(self.sources, self.targets)
-
-            print('=> Loading train (target) dataset')
-            trainset_t = []
-            for name in self.targets:
-                trainset_t_ = init_image_dataset(
-                    name,
-                    transform=self.transform_tr,
-                    mode='train',
-                    combineall=False, # only use the training data
-                    root=root,
-                    cuhk03_labeled=cuhk03_labeled,
-                    cuhk03_classic_split=cuhk03_classic_split,
-                    market1501_500k=market1501_500k
-                )
-                trainset_t.append(trainset_t_)
-            trainset_t = sum(trainset_t)
-
-            self.train_loader_t = torch.utils.data.DataLoader(
-                trainset_t,
-                sampler=build_train_sampler(
-                    trainset_t.train,
-                    train_sampler,
-                    batch_size=batch_size_train,
-                    num_instances=num_instances,
-                ),
-                batch_size=batch_size_train,
-                shuffle=False,
-                num_workers=workers,
-                pin_memory=self.use_gpu,
-                drop_last=True
-            )
-
         print('=> Loading test (target) dataset')
-        self.test_loader = {
-            name: {
-                'query': None,
-                'gallery': None
-            }
-            for name in self.targets
-        }
-        self.test_dataset = {
-            name: {
-                'query': None,
-                'gallery': None
-            }
-            for name in self.targets
-        }
+        self.test_loader = {name: {'query': None, 'gallery': None} for name in self.targets}
+        self.test_dataset = {name: {'query': None, 'gallery': None} for name in self.targets}
 
         for name in self.targets:
             # build query loader
@@ -312,8 +263,6 @@ class ImageDataManager(DataManager):
         print('  # source ids      : {}'.format(self.num_train_pids))
         print('  # source images   : {}'.format(len(trainset)))
         print('  # source cameras  : {}'.format(self.num_train_cams))
-        if load_train_targets:
-            print('  # target images   : {} (unlabeled)'.format(len(trainset_t)))
         print('  target            : {}'.format(self.targets))
         print('  *****************************************')
         print('\n')
