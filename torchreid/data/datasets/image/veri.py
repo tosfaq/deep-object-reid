@@ -22,15 +22,16 @@ class VeRi(ImageDataset):
         self.data_dir = self.dataset_dir
 
         self.train_dir = osp.join(self.data_dir, 'image_train')
+        self.train_annot = osp.join(self.data_dir, 'train_label.xml')
         self.query_dir = osp.join(self.data_dir, 'image_query')
         self.gallery_dir = osp.join(self.data_dir, 'image_test')
 
         required_files = [
-            self.data_dir, self.train_dir, self.query_dir, self.gallery_dir,
+            self.data_dir, self.train_annot, self.train_dir, self.query_dir, self.gallery_dir,
         ]
         self.check_before_run(required_files)
 
-        train = self.process_dir(self.train_dir)
+        train = self.process_dir(self.train_dir, self.load_annotation(self.train_annot))
         query = self.process_dir(self.query_dir)
         gallery = self.process_dir(self.gallery_dir)
 
@@ -39,7 +40,12 @@ class VeRi(ImageDataset):
         super(VeRi, self).__init__(train, query, gallery, **kwargs)
 
     @staticmethod
-    def process_dir(data_dir):
+    def load_annotation(annot_file):
+        if annot_file is None or not osp.exists(annot_file):
+            return None
+
+    @staticmethod
+    def process_dir(data_dir, annot=None):
         image_files = [f for f in listdir(data_dir) if osp.isfile(osp.join(data_dir, f)) and f.endswith('.jpg')]
 
         data = []
@@ -53,7 +59,14 @@ class VeRi(ImageDataset):
             pid = int(pid_str)
             cam_id = int(cam_id_str[1:])
 
-            data.append((full_image_path, pid, cam_id))
+            if annot is None:
+                data.append((full_image_path, pid, cam_id))
+            else:
+                record = annot[image_file]
+                color_id = record['color_id']
+                type_id = record['type_id']
+
+                data.append((full_image_path, pid, cam_id, color_id, type_id))
 
         return data
 
