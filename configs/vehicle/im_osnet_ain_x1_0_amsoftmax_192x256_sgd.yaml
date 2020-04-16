@@ -35,7 +35,7 @@ data:
       enable: True
       p: 0.25
     random_crop:
-      enable: True
+      enable: False
       p: 0.25
       scale: 1.2
     random_rotate:
