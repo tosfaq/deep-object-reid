@@ -64,8 +64,8 @@ class CompCarsSV(CompCarsBase):
         URL: `<http://mmlab.ie.cuhk.edu.hk/datasets/comp_cars/index.html>`_
 
         Dataset statistics:
-            - identities: 4446.
-            - images: 136726.
+            - identities: .
+            - images: .
         """
 
     dataset_dir = 'compcars_sv'
