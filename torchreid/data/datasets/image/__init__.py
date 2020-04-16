@@ -14,3 +14,4 @@ from .dukemtmcreid import DukeMTMCreID
 from .vric import VRIC
 from .veri import VeRi
 from .compcars import CompCars, CompCarsSV
+from .vmmrdb import VMMRdb

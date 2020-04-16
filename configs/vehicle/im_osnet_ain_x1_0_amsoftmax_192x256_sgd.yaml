@@ -85,8 +85,8 @@ train:
   optim: 'sgd'
   lr: 0.01
   max_epoch: 40
-  batch_size: 64
-  fixbase_epoch: 2
+  batch_size: 112
+  fixbase_epoch: 0
   open_layers: ['conv5', 'classifier', 'fc']
   lr_scheduler: 'multi_step_warmup'
   stepsize: [16, 30]

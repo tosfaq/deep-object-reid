@@ -28,6 +28,8 @@ def build_train_sampler(data_source, train_sampler, batch_size=32, num_instances
         sampler = RandomIdentitySamplerV2(data_source, batch_size, num_instances)
     elif train_sampler == 'RandomIdentitySamplerV3':
         sampler = RandomIdentitySamplerV3(data_source, batch_size, num_instances)
+    elif train_sampler == 'RandomIdentitySamplerV4':
+        sampler = RandomIdentitySamplerV4(data_source, batch_size, num_instances)
     elif train_sampler == 'SequentialSampler':
         sampler = SequentialSampler(data_source)
     elif train_sampler == 'RandomSampler':
@@ -151,6 +153,7 @@ class RandomIdentitySamplerV3(Sampler):
 
         num_indices = [len(indices) for trg_dict in self.index_dict.values() for indices in trg_dict.values()]
         average_num_instances = np.median(num_indices)
+        print('Median number of samples per ID: {}'.format(average_num_instances))
 
         self.num_packages = int(average_num_instances) // self.num_instances
         self.instances_per_pid = self.num_packages * self.num_instances
