@@ -37,10 +37,10 @@ class VMMRdb(ImageDataset):
         super(VMMRdb, self).__init__(train, query, gallery, **kwargs)
 
     @staticmethod
-    def load_annotation(data_dir, dataset_id=0):
+    def load_annotation(data_dir, dataset_id=0, min_num_samples=5):
         base_dirs = []
         for root, sub_dirs, files in walk(data_dir):
-            if len(sub_dirs) == 0 and len(files) > 0:
+            if len(sub_dirs) == 0 and len(files) >= min_num_samples:
                 base_dirs.append(root)
 
         out_data = []

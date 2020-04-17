@@ -23,8 +23,8 @@ def show_stat(data, header):
 def load_compcars_maps(map_file):
     data = loadmat(map_file)
 
-    makes_data = {i: m[0] for i, m in enumerate(data['make_names'].reshape(-1))}
-    models_data = {i: m[0] if len(m) != 0 else i for i, m in enumerate(data['model_names'].reshape(-1))}
+    makes_data = {i + 1: m[0].lower() for i, m in enumerate(data['make_names'].reshape(-1))}
+    models_data = {i + 1: m[0].lower() if len(m) != 0 else i for i, m in enumerate(data['model_names'].reshape(-1))}
 
     return makes_data, models_data
 
@@ -41,6 +41,8 @@ def parse_data_compcars(data_dir, makes_map, models_map):
             assert len(relative_path_parts) == 3
 
             make, model, year = relative_path_parts
+            if year == 'unknown':
+                continue
 
             make = makes_map[int(make)]
             model = models_map[int(model)]
@@ -71,7 +73,7 @@ def parse_data_vmmrdb(data_dir):
     for root, sub_dirs, files in walk(data_dir):
         if len(sub_dirs) == 0 and len(files) > 0:
             relative_path = root[skip_size:]
-            relative_path_parts = relative_path.split('_')
+            relative_path_parts = [p.lower() for p in relative_path.split('_')]
             assert len(relative_path_parts) >= 3
 
             make = relative_path_parts[0]
@@ -102,13 +104,13 @@ def merge_data(data_a, data_b):
             out_data[make_b] = models_b
         else:
             models_a = out_data[make_b]
-            for model_b, years_b in models_b:
+            for model_b, years_b in models_b.items():
                 if model_b not in models_a:
                     models_a[model_b] = years_b
                 else:
                     years_a = models_a[model_b]
-                    for year_b, records_b in years_b:
-                        if years_b not in years_a:
+                    for year_b, records_b in years_b.items():
+                        if year_b not in years_a:
                             years_a[year_b] = records_b
                         else:
                             years_a[year_b].extend(records_b)
