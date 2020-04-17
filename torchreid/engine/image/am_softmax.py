@@ -123,12 +123,20 @@ class ImageAMSoftmaxEngine(Engine):
                 trg_mask = trg_ids == trg_id
 
                 trg_pids = pids[trg_mask]
-                if trg_pids.numel() == 0:
+                trg_num_samples = trg_pids.numel()
+                if trg_num_samples == 0:
                     continue
 
                 trg_logits = all_logits[trg_id][trg_mask]
                 main_loss = self.main_loss(trg_logits, trg_pids, iteration=n_iter)
                 main_losses[trg_id].update(main_loss.item(), trg_pids.size(0))
+
+                if trg_id > 0:
+                    anchor_loss_avg = main_losses[0].avg
+                    ref_loss_avg = main_losses[trg_id].avg
+                    main_loss_scale = (anchor_loss_avg if anchor_loss_avg > 0.0 else 1.0) / \
+                                      (ref_loss_avg if ref_loss_avg > 0.0 else 1.0)
+                    main_loss *= main_loss_scale
 
                 trg_loss = main_loss
                 if trg_id == 0 and self.enable_metric_losses:
