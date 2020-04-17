@@ -27,6 +27,7 @@ import time
 
 import torch
 import torch.nn as nn
+import numpy as np
 
 from torchreid.engine import Engine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
@@ -58,24 +59,27 @@ class ImageAMSoftmaxEngine(Engine):
         self.num_classes = num_classes
         self.num_targets = len(self.num_classes)
 
-        if softmax_type == 'stock':
-            self.main_loss = CrossEntropyLoss(
-                use_gpu=self.use_gpu,
-                label_smooth=label_smooth,
-                conf_penalty=conf_penalty,
-                scale=s
-            )
-        elif softmax_type == 'am':
-            self.main_loss = AMSoftmaxLoss(
-                use_gpu=self.use_gpu,
-                label_smooth=label_smooth,
-                conf_penalty=conf_penalty,
-                m=m,
-                s=s,
-                end_s=end_s,
-                duration_s=duration_s * num_batches if self._valid(duration_s) else None,
-                skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None
-            )
+        self.main_losses = nn.ModuleList()
+        for trg_num_classes in self.num_classes:
+            scale_factor = np.log(trg_num_classes - 1) / np.log(self.num_classes[0] - 1)
+            if softmax_type == 'stock':
+                self.main_losses.append(CrossEntropyLoss(
+                    use_gpu=self.use_gpu,
+                    label_smooth=label_smooth,
+                    conf_penalty=conf_penalty,
+                    scale=scale_factor * s
+                ))
+            elif softmax_type == 'am':
+                self.main_losses.append(AMSoftmaxLoss(
+                    use_gpu=self.use_gpu,
+                    label_smooth=label_smooth,
+                    conf_penalty=conf_penalty,
+                    m=m,
+                    s=scale_factor * s,
+                    end_s=scale_factor * end_s if self._valid(end_s) else None,
+                    duration_s=duration_s * num_batches if self._valid(duration_s) else None,
+                    skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None
+                ))
 
         self.ml_loss = None
         if self.enable_metric_losses:
@@ -128,7 +132,7 @@ class ImageAMSoftmaxEngine(Engine):
                     continue
 
                 trg_logits = all_logits[trg_id][trg_mask]
-                main_loss = self.main_loss(trg_logits, trg_pids, iteration=n_iter)
+                main_loss = self.main_losses[trg_id](trg_logits, trg_pids, iteration=n_iter)
                 main_losses[trg_id].update(main_loss.item(), trg_pids.size(0))
 
                 if trg_id > 0:
@@ -190,14 +194,14 @@ class ImageAMSoftmaxEngine(Engine):
                 if writer is not None:
                     writer.add_scalar('Train/Time', batch_time.avg, n_iter)
                     writer.add_scalar('Train/Data', data_time.avg, n_iter)
-                    info = self.main_loss.get_last_info()
+                    info = self.main_losses[0].get_last_info()
                     for k in info:
                         writer.add_scalar('AUX info/' + k, info[k], n_iter)
                     writer.add_scalar('Loss/train', total_losses.avg, n_iter)
                     if (epoch + 1) > fixbase_epoch:
                         writer.add_scalar('Loss/reg_ow', reg_losses.avg, n_iter)
                     writer.add_scalar('Aux/Learning_rate', self.optimizer.param_groups[0]['lr'], n_iter)
-                    writer.add_scalar('Aux/Scale_main', self.main_loss.get_last_scale(), n_iter)
+                    writer.add_scalar('Aux/Scale_main', self.main_losses[0].get_last_scale(), n_iter)
                     writer.add_scalar('Loss/ml', ml_losses.avg, n_iter)
                     for trg_id in range(self.num_targets):
                         writer.add_scalar('Loss/main_{}'.format(trg_id), main_losses[trg_id].avg, n_iter)
