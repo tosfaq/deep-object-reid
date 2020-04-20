@@ -31,7 +31,7 @@ import numpy as np
 
 from torchreid.engine import Engine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
-from torchreid.losses import get_regularizer, MetricLosses, AMSoftmaxLoss, CrossEntropyLoss
+from torchreid.losses import get_regularizer, MetricLosses, AMSoftmaxLoss, CrossEntropyLoss, TotalVarianceLoss
 
 
 class ImageAMSoftmaxEngine(Engine):
@@ -93,6 +93,8 @@ class ImageAMSoftmaxEngine(Engine):
                 metric_cfg.triplet_coeff,
             )
 
+        self.att_loss = TotalVarianceLoss(5, 1)
+
     @staticmethod
     def _valid(value):
         return value is not None and value > 0
@@ -103,6 +105,7 @@ class ImageAMSoftmaxEngine(Engine):
         reg_losses = AverageMeter()
         total_losses = AverageMeter()
         ml_losses = AverageMeter()
+        att_losses = AverageMeter()
         main_losses = [AverageMeter() for _ in range(self.num_targets)]
 
         self.model.train()
@@ -160,6 +163,12 @@ class ImageAMSoftmaxEngine(Engine):
 
             total_loss /= float(num_trg_losses)
 
+            if self.att_loss is not None:
+                att_loss_val = self.att_loss(glob_att)
+                att_losses.update(att_loss_val.item(), pids.size(0))
+
+                total_loss += att_loss_val
+
             if self.regularizer is not None and (epoch + 1) > fixbase_epoch:
                 reg_loss = self.regularizer(self.model)
                 reg_losses.update(reg_loss.item(), pids.size(0))
@@ -180,6 +189,7 @@ class ImageAMSoftmaxEngine(Engine):
                       'Data {data_time.val:.3f} ({data_time.avg:.3f}) '
                       'Loss {loss.val:.3f} ({loss.avg:.3f}) '
                       'ML Loss {ml_loss.val:.3f} ({ml_loss.avg:.3f}) '
+                      'Att Loss {att_loss.val:.3f} ({att_loss.avg:.3f}) '
                       'Lr {lr:.6f} '
                       'ETA {eta}'.
                       format(
@@ -188,6 +198,7 @@ class ImageAMSoftmaxEngine(Engine):
                           data_time=data_time,
                           loss=total_losses,
                           ml_loss=ml_losses,
+                          att_loss=att_losses,
                           lr=self.optimizer.param_groups[0]['lr'],
                           eta=eta_str,
                       )
@@ -202,6 +213,7 @@ class ImageAMSoftmaxEngine(Engine):
                     writer.add_scalar('Loss/train', total_losses.avg, n_iter)
                     if (epoch + 1) > fixbase_epoch:
                         writer.add_scalar('Loss/reg_ow', reg_losses.avg, n_iter)
+                    writer.add_scalar('Loss/att', att_losses.avg, n_iter)
                     writer.add_scalar('Aux/Learning_rate', self.optimizer.param_groups[0]['lr'], n_iter)
                     writer.add_scalar('Aux/Scale_main', self.main_losses[0].get_last_scale(), n_iter)
                     writer.add_scalar('Loss/ml', ml_losses.avg, n_iter)
