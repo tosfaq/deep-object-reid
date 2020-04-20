@@ -38,8 +38,9 @@ class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
 
-    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, scheduler=None,
-                 use_gpu=False, softmax_type='stock', label_smooth=False, conf_penalty=False,
+    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg,
+                 scheduler=None, use_gpu=False, softmax_type='stock',
+                 label_smooth=False, conf_penalty=False, pr_product=False,
                  m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None, writer=None):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
 
@@ -78,7 +79,8 @@ class ImageAMSoftmaxEngine(Engine):
                     s=scale_factor * s,
                     end_s=scale_factor * end_s if self._valid(end_s) else None,
                     duration_s=duration_s * num_batches if self._valid(duration_s) else None,
-                    skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None
+                    skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None,
+                    pr_product=pr_product
                 ))
 
         self.ml_loss = None

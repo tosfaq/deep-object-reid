@@ -57,12 +57,13 @@ class AMSoftmaxLoss(nn.Module):
 
     def __init__(self, use_gpu=True, conf_penalty=0.0, margin_type='cos',
                  gamma=0.0, m=0.5, s=30, t=1.0, label_smooth=False, epsilon=0.1,
-                 end_s=None, duration_s=None, skip_steps_s=None):
+                 end_s=None, duration_s=None, skip_steps_s=None, pr_product=False):
         super(AMSoftmaxLoss, self).__init__()
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
         self.label_smooth = label_smooth
         self.epsilon = epsilon
+        self.pr_product = pr_product
 
         assert margin_type in AMSoftmaxLoss.margin_types
         self.margin_type = margin_type
@@ -124,6 +125,10 @@ class AMSoftmaxLoss(nn.Module):
                 Each position contains the label index.
             iteration (int): current iteration
         """
+
+        if self.pr_product:
+            pr_alpha = torch.sqrt(1.0 - cos_theta.pow(2.0))
+            cos_theta = pr_alpha.detach() * cos_theta + cos_theta.detach() * (1.0 - pr_alpha)
 
         if self.margin_type == 'cos':
             phi_theta = cos_theta - self.m

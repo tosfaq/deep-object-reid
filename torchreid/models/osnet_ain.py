@@ -711,7 +711,7 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwar
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        attentions=[True, True, False, False, False],
+        # attentions=[True, True, False, False, False],
         # nonlocal_blocks=[False, True, True, False],
         # dropout_probs=[
         #     [None, 0.1],
