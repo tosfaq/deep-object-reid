@@ -87,7 +87,7 @@ train:
   max_epoch: 120
   batch_size: 112
   fixbase_epoch: 6
-  open_layers: ['conv5', 'classifier', 'fc']
+  open_layers: ['att1', 'att2', 'conv5', 'classifier', 'fc']
   lr_scheduler: 'multi_step_warmup'
   stepsize: [60, 90]
   warmup: 6

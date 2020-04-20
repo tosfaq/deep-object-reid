@@ -36,6 +36,7 @@ class ConvLayer(nn.Module):
         IN=False
     ):
         super(ConvLayer, self).__init__()
+
         self.conv = nn.Conv2d(
             in_channels,
             out_channels,
@@ -178,12 +179,10 @@ class LightConvStream(nn.Module):
 ##########
 
 class ResidualAttention(nn.Module):
-    def __init__(self, in_channels, gumbel=True, reduction=4.0, reg_weight=1.0):
+    def __init__(self, in_channels, gumbel=True, reduction=4.0):
         super(ResidualAttention, self).__init__()
 
         self.gumbel = gumbel
-        self.reg_weight = reg_weight
-        assert self.reg_weight > 0.0
 
         internal_channels = int(in_channels / reduction)
         self.spatial_logits = nn.Sequential(
@@ -452,8 +451,8 @@ class OSNet(nn.Module):
 
         self.use_attentions = attentions
         if self.use_attentions is None:
-            self.use_attentions = [False] * (num_blocks + 1)
-        assert len(self.use_attentions) == num_blocks + 1
+            self.use_attentions = [False] * (num_blocks + 2)
+        assert len(self.use_attentions) == num_blocks + 2
 
         self.use_nonlocal_blocks = nonlocal_blocks
         if self.use_nonlocal_blocks is None:
@@ -468,23 +467,24 @@ class OSNet(nn.Module):
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
 
         self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=conv1_IN)
-        self.maxpool = nn.MaxPool2d(3, stride=2, padding=1)
+        self.att1 = self._construct_attention_layer(channels[0], self.use_attentions[0])
+        self.pool1 = nn.MaxPool2d(3, stride=2, padding=1)
         self.conv2 = self._construct_layer(blocks[0], channels[0], channels[1])
         self.nl2 = self._construct_nonlocal_layer(channels[1], self.use_nonlocal_blocks[0])
-        self.att2 = self._construct_attention_layer(channels[1], self.use_attentions[0])
+        self.att2 = self._construct_attention_layer(channels[1], self.use_attentions[1])
         self.pool2 = nn.Sequential(Conv1x1(channels[1], channels[1]), nn.AvgPool2d(2, stride=2))
         self.conv3 = self._construct_layer(blocks[1], channels[1], channels[2])
         self.nl3 = self._construct_nonlocal_layer(channels[2], self.use_nonlocal_blocks[1])
-        self.att3 = self._construct_attention_layer(channels[2], self.use_attentions[1])
+        self.att3 = self._construct_attention_layer(channels[2], self.use_attentions[2])
         self.pool3 = nn.Sequential(Conv1x1(channels[2], channels[2]), nn.AvgPool2d(2, stride=2))
         self.conv4 = self._construct_layer(blocks[2], channels[2], channels[3])
         self.nl4 = self._construct_nonlocal_layer(channels[3], self.use_nonlocal_blocks[2])
-        self.att4 = self._construct_attention_layer(channels[3], self.use_attentions[2])
+        self.att4 = self._construct_attention_layer(channels[3], self.use_attentions[3])
 
         out_num_channels = channels[3]
         self.conv5 = Conv1x1(channels[3], out_num_channels)
         self.nl5 = self._construct_nonlocal_layer(out_num_channels, self.use_nonlocal_blocks[3])
-        self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[3])
+        self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[4])
 
         fc_layers, classifier_layers = [], []
         for trg_num_classes in self.num_classes:
@@ -510,7 +510,7 @@ class OSNet(nn.Module):
 
     @staticmethod
     def _construct_attention_layer(num_channels, enable):
-        return ChannelAttention(num_channels) if enable else None
+        return ResidualAttention(num_channels) if enable else None
 
     @staticmethod
     def _construct_nonlocal_layer(num_channels, enable):
@@ -549,7 +549,9 @@ class OSNet(nn.Module):
 
     def _backbone(self, x):
         y = self.conv1(x)
-        y = self.maxpool(y)
+        if self.att1 is not None:
+            y = self.att1(y)
+        y = self.pool1(y)
 
         y = self.conv2(y)
         if self.nl2 is not None:
@@ -709,7 +711,7 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwar
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        # attentions=[False, False, False, True],
+        attentions=[True, True, False, False, False],
         # nonlocal_blocks=[False, True, True, False],
         # dropout_probs=[
         #     [None, 0.1],
