@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, HSwish, gumbel_sigmoid, GumbelSoftmax, NonLocalModule
+from torchreid.ops import Dropout, HSwish, gumbel_sigmoid, GumbelSigmoid, GumbelSoftmax, NonLocalModule
 
 
 __all__ = ['osnet_ain_x1_0']
@@ -486,6 +486,8 @@ class OSNet(nn.Module):
         self.nl5 = self._construct_nonlocal_layer(out_num_channels, self.use_nonlocal_blocks[3])
         self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[4])
 
+        self.head_att = self._construct_head_attention(out_num_channels, enable=True)
+
         fc_layers, classifier_layers = [], []
         for trg_num_classes in self.num_classes:
             fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
@@ -515,6 +517,18 @@ class OSNet(nn.Module):
     @staticmethod
     def _construct_nonlocal_layer(num_channels, enable):
         return NonLocalModule(num_channels) if enable else None
+
+    @staticmethod
+    def _construct_head_attention(num_channels, enable):
+        if not enable:
+            return None
+
+        layers = [
+            Conv1x1(num_channels, 1, out_fn=None),
+            GumbelSigmoid(scale=10.0)
+        ]
+
+        return nn.Sequential(*layers)
 
     @staticmethod
     def _construct_fc_layer(input_dim, output_dim, dropout=False):
@@ -582,7 +596,10 @@ class OSNet(nn.Module):
         return y
 
     @staticmethod
-    def _glob_feature_vector(x):
+    def _glob_feature_vector(x, head_att=None):
+        if head_att is not None:
+            x = head_att(x) * x
+
         return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
@@ -590,7 +607,7 @@ class OSNet(nn.Module):
         if return_featuremaps:
             return feature_maps
 
-        glob_features = self._glob_feature_vector(feature_maps)
+        glob_features = self._glob_feature_vector(feature_maps, self.head_att)
         glob_embeddings = [fc(glob_features) for fc in self.fc]
 
         if not self.training and not return_logits:

@@ -7,7 +7,7 @@ def gumbel(x, eps=1e-20):
     return -torch.log(-torch.log(torch.rand_like(x) + eps) + eps)
 
 
-class GumbelSigmoid(torch.autograd.Function):
+class HardGumbelSigmoid(torch.autograd.Function):
     @staticmethod
     def forward(ctx, log_prob, t=1.0, forward_hard_map=False):
         g1 = gumbel(log_prob)
@@ -35,16 +35,29 @@ class GumbelSigmoid(torch.autograd.Function):
         return out, None, None
 
 
-gumbel_sigmoid = GumbelSigmoid.apply
+gumbel_sigmoid = HardGumbelSigmoid.apply
 
 
 class GumbelSoftmax(nn.Module):
-    def __init__(self, t=1.0, dim=1):
+    def __init__(self, scale=1.0, dim=1):
         super(GumbelSoftmax, self).__init__()
 
-        self.t = t
+        self.scale = float(scale)
         self.dim = dim
 
     def forward(self, logits):
         y = logits + gumbel(logits) if self.training else logits
-        return F.softmax(y / self.t, dim=self.dim)
+
+        return F.softmax(self.scale * y, dim=self.dim)
+
+
+class GumbelSigmoid(nn.Module):
+    def __init__(self, scale=1.0):
+        super(GumbelSigmoid, self).__init__()
+
+        self.scale = float(scale)
+
+    def forward(self, logits):
+        y = logits + gumbel(logits) if self.training else logits
+
+        return torch.sigmoid(self.scale * y)
