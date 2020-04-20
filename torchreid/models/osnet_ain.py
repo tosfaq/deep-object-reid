@@ -519,13 +519,19 @@ class OSNet(nn.Module):
         return NonLocalModule(num_channels) if enable else None
 
     @staticmethod
-    def _construct_head_attention(num_channels, enable):
+    def _construct_head_attention(num_channels, enable, factor=8):
         if not enable:
             return None
 
+        internal_num_channels = int(float(num_channels) / float(factor))
+
         layers = [
-            Conv1x1(num_channels, 1, out_fn=None),
-            GumbelSigmoid(scale=10.0)
+            Conv1x1(num_channels, internal_num_channels, out_fn=None),
+            HSwish(),
+            Conv3x3(internal_num_channels, internal_num_channels, groups=internal_num_channels, out_fn=None),
+            HSwish(),
+            Conv1x1(internal_num_channels, 1, out_fn=None),
+            GumbelSigmoid(scale=1.0)
         ]
 
         return nn.Sequential(*layers)
