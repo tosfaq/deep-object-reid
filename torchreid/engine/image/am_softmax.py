@@ -163,7 +163,7 @@ class ImageAMSoftmaxEngine(Engine):
 
             total_loss /= float(num_trg_losses)
 
-            if self.att_loss is not None:
+            if self.att_loss is not None and glob_att is not None:
                 att_loss_val = self.att_loss(glob_att)
                 att_losses.update(att_loss_val.item(), pids.size(0))
 
