@@ -121,7 +121,7 @@ class ImageAMSoftmaxEngine(Engine):
             imgs, pids, trg_ids = self._parse_data_for_train(data, self.use_gpu)
 
             self.optimizer.zero_grad()
-            all_logits, all_embeddings = self.model(imgs, get_embeddings=True)
+            all_logits, all_embeddings, glob_att = self.model(imgs, get_embeddings=True)
 
             total_loss = 0
             num_trg_losses = 0

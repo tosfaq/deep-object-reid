@@ -598,16 +598,20 @@ class OSNet(nn.Module):
     @staticmethod
     def _glob_feature_vector(x, head_att=None):
         if head_att is not None:
-            x = head_att(x) * x
+            att_map = head_att(x)
+            y = att_map * x
+        else:
+            y = x
+            att_map = None
 
-        return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
+        return F.adaptive_avg_pool2d(y, 1).view(y.size(0), -1), att_map
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
         feature_maps = self._backbone(x)
         if return_featuremaps:
             return feature_maps
 
-        glob_features = self._glob_feature_vector(feature_maps, self.head_att)
+        glob_features, glob_att = self._glob_feature_vector(feature_maps, self.head_att)
         glob_embeddings = [fc(glob_features) for fc in self.fc]
 
         if not self.training and not return_logits:
@@ -616,12 +620,12 @@ class OSNet(nn.Module):
         glob_logits = [classifier(embd) for embd, classifier in zip(glob_embeddings, self.classifier)]
 
         if get_embeddings:
-            return glob_logits, glob_embeddings
+            return glob_logits, glob_embeddings, glob_att
 
         if self.loss in ['softmax', 'am_softmax']:
-            return glob_logits
+            return glob_logits, glob_att
         elif self.loss in ['triplet']:
-            return glob_logits, glob_embeddings
+            return glob_logits, glob_embeddings, glob_att
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
