@@ -93,7 +93,8 @@ class ImageAMSoftmaxEngine(Engine):
                 metric_cfg.triplet_coeff,
             )
 
-        self.att_loss = TotalVarianceLoss(5, 1)
+        # self.att_loss = TotalVarianceLoss(5, 1)
+        self.att_loss = None
 
     @staticmethod
     def _valid(value):
