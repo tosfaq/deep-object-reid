@@ -9,7 +9,7 @@ model:
 data:
   type: 'image'
   sources: [['veri'], ['compcars']]
-  targets: ['veri']
+  targets: ['veri', 'cityflow', 'vric']
   height: 192
   width: 256
   combineall: False

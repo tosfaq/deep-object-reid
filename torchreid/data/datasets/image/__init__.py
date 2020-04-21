@@ -15,3 +15,4 @@ from .vric import VRIC
 from .veri import VeRi
 from .compcars import CompCars, CompCarsSV
 from .vmmrdb import VMMRdb
+from .cityflow import CityFlow
