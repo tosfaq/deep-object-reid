@@ -519,11 +519,11 @@ class OSNet(nn.Module):
         return NonLocalModule(num_channels) if enable else None
 
     @staticmethod
-    def _construct_head_attention(num_channels, enable, factor=8):
+    def _construct_head_attention(num_channels, enable, channel_factor=8, gumbel_scale=5.0):
         if not enable:
             return None
 
-        internal_num_channels = int(float(num_channels) / float(factor))
+        internal_num_channels = int(float(num_channels) / float(channel_factor))
 
         layers = [
             Conv1x1(num_channels, internal_num_channels, out_fn=None),
@@ -531,7 +531,7 @@ class OSNet(nn.Module):
             Conv3x3(internal_num_channels, internal_num_channels, groups=internal_num_channels, out_fn=None),
             HSwish(),
             Conv1x1(internal_num_channels, 1, out_fn=None),
-            GumbelSigmoid(scale=1.0)
+            GumbelSigmoid(scale=gumbel_scale)
         ]
 
         return nn.Sequential(*layers)
@@ -605,12 +605,21 @@ class OSNet(nn.Module):
     def _glob_feature_vector(x, head_att=None):
         if head_att is not None:
             att_map = head_att(x)
-            y = att_map * x
+            with torch.no_grad():
+                num_values = torch.sum(att_map, dim=(2, 3), keepdim=True)
+                scale = num_values.clamp_min(1.0).pow(-1)
+
+            y = scale * att_map * x
+            out = torch.sum(y, dim=(2, 3))
         else:
-            y = x
+            out = F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
             att_map = None
 
-        return F.adaptive_avg_pool2d(y, 1).view(y.size(0), -1), att_map
+        # import matplotlib.pyplot as plt
+        # plt.imshow(att_map[0, 0].detach().cpu())
+        # plt.show()
+
+        return out, att_map
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
         feature_maps = self._backbone(x)
