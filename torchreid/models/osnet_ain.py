@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, HSwish, gumbel_sigmoid, GumbelSigmoid, GumbelSoftmax, NonLocalModule
+from torchreid.ops import Dropout, HSwish, GumbelSigmoid, NonLocalModule
 
 
 __all__ = ['osnet_ain_x1_0']
@@ -175,56 +175,37 @@ class LightConvStream(nn.Module):
 
 
 ##########
-# Building blocks for spatial attention
+# Attention modules
 ##########
 
 class ResidualAttention(nn.Module):
-    def __init__(self, in_channels, gumbel=True, reduction=4.0):
+    def __init__(self, in_channels, gumbel=True, reduction=4.0, residual=True):
         super(ResidualAttention, self).__init__()
 
-        self.gumbel = gumbel
+        self.residual = residual
 
         internal_channels = int(in_channels / reduction)
-        self.spatial_logits = nn.Sequential(
+        self.spatial_attention = nn.Sequential(
             Conv1x1(in_channels, internal_channels, out_fn=None),
             HSwish(),
             Conv3x3(internal_channels, internal_channels, groups=internal_channels, out_fn=None),
             HSwish(),
             Conv1x1(internal_channels, 1, out_fn=None),
+            GumbelSigmoid(scale=5.0) if gumbel else nn.Sigmoid()
         )
 
-    def forward(self, x, return_extra_data=False):
-        logits = self.spatial_logits(x)
+    def forward(self, x, return_mask=False):
+        soft_mask = self.spatial_attention(x)
+        out = (1.0 + soft_mask) * x if self.residual else soft_mask * x
 
-        if self.gumbel and self.training:
-            soft_mask = gumbel_sigmoid(logits)
-        else:
-            soft_mask = torch.sigmoid(logits)
+        # import matplotlib.pyplot as plt
+        # plt.imshow(soft_mask[0, 0].detach().cpu())
+        # plt.show()
 
-        out = (1.0 + soft_mask) * x
-
-        if return_extra_data:
-            return out, dict(logits=logits)
+        if return_mask:
+            return out, soft_mask
         else:
             return out
-
-
-class ChannelAttention(nn.Module):
-    def __init__(self, in_channels, gumbel=False):
-        super(ChannelAttention, self).__init__()
-
-    def forward(self, x, return_extra_data=False):
-        batch, channels, _, _ = x.size()
-        m = x.view(batch, channels, -1)
-        m_tr = m.permute(0, 2, 1)
-
-        scale = float(channels ** (-0.5))
-        attention = F.softmax(scale * torch.matmul(m, m_tr), dim=2)
-
-        y = torch.matmul(attention, m).view_as(x)
-        out = x + y
-
-        return out
 
 
 ##########
@@ -486,7 +467,7 @@ class OSNet(nn.Module):
         self.nl5 = self._construct_nonlocal_layer(out_num_channels, self.use_nonlocal_blocks[3])
         self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[4])
 
-        self.head_att = self._construct_head_attention(out_num_channels, enable=True)
+        self.head_att = self._construct_head_attention(out_num_channels, enable=False)
 
         fc_layers, classifier_layers = [], []
         for trg_num_classes in self.num_classes:
@@ -512,7 +493,7 @@ class OSNet(nn.Module):
 
     @staticmethod
     def _construct_attention_layer(num_channels, enable):
-        return ResidualAttention(num_channels) if enable else None
+        return ResidualAttention(num_channels, residual=True) if enable else None
 
     @staticmethod
     def _construct_nonlocal_layer(num_channels, enable):
@@ -568,38 +549,45 @@ class OSNet(nn.Module):
                     nn.init.constant_(m.bias, 0)
 
     def _backbone(self, x):
+        att_maps = []
+
         y = self.conv1(x)
         if self.att1 is not None:
-            y = self.att1(y)
+            y, att1 = self.att1(y, return_mask=True)
+            att_maps.append(att1)
         y = self.pool1(y)
 
         y = self.conv2(y)
         if self.nl2 is not None:
             y = self.nl2(y)
         if self.att2 is not None:
-            y = self.att2(y)
+            y, att2 = self.att2(y, return_mask=True)
+            att_maps.append(att2)
         y = self.pool2(y)
 
         y = self.conv3(y)
         if self.nl3 is not None:
             y = self.nl3(y)
         if self.att3 is not None:
-            y = self.att3(y)
+            y, att3 = self.att3(y, return_mask=True)
+            att_maps.append(att3)
         y = self.pool3(y)
 
         y = self.conv4(y)
         if self.nl4 is not None:
             y = self.nl4(y)
         if self.att4 is not None:
-            y = self.att4(y)
+            y, att4 = self.att4(y, return_mask=True)
+            att_maps.append(att4)
 
         y = self.conv5(y)
         if self.nl5 is not None:
             y = self.nl5(y)
         if self.att5 is not None:
-            y = self.att5(y)
+            y, att5 = self.att5(y, return_mask=True)
+            att_maps.append(att5)
 
-        return y
+        return y, att_maps
 
     @staticmethod
     def _glob_feature_vector(x, head_att=None):
@@ -622,17 +610,18 @@ class OSNet(nn.Module):
         return out, att_map
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
-        feature_maps = self._backbone(x)
+        feature_maps, feature_att_maps = self._backbone(x)
         if return_featuremaps:
             return feature_maps
 
-        glob_features, glob_att = self._glob_feature_vector(feature_maps, self.head_att)
+        glob_features, head_att = self._glob_feature_vector(feature_maps, self.head_att)
         glob_embeddings = [fc(glob_features) for fc in self.fc]
 
         if not self.training and not return_logits:
             return glob_embeddings[0]
 
         glob_logits = [classifier(embd) for embd, classifier in zip(glob_embeddings, self.classifier)]
+        glob_att = [head_att] + feature_att_maps
 
         if get_embeddings:
             return glob_logits, glob_embeddings, glob_att
@@ -747,7 +736,7 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwar
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        # attentions=[True, True, False, False, False],
+        attentions=[False, True, True, False, False],
         # nonlocal_blocks=[False, True, True, False],
         # dropout_probs=[
         #     [None, 0.1],

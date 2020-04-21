@@ -163,11 +163,15 @@ class ImageAMSoftmaxEngine(Engine):
 
             total_loss /= float(num_trg_losses)
 
-            if self.att_loss is not None and glob_att is not None:
-                att_loss_val = self.att_loss(glob_att)
-                att_losses.update(att_loss_val.item(), pids.size(0))
+            if self.att_loss is not None and (epoch + 1) > fixbase_epoch:
+                att_loss_val = 0.0
+                for att_map in glob_att:
+                    if att_map is not None:
+                        att_loss_val += self.att_loss(att_map)
 
-                total_loss += att_loss_val
+                if att_loss_val > 0.0:
+                    att_losses.update(att_loss_val.item(), pids.size(0))
+                    total_loss += att_loss_val
 
             if self.regularizer is not None and (epoch + 1) > fixbase_epoch:
                 reg_loss = self.regularizer(self.model)
