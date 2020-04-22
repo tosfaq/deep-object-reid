@@ -36,6 +36,32 @@ class HardTripletLoss(nn.Module):
         return loss
 
 
+class MockTripletLoss(nn.Module):
+    def __init__(self, margin=0.35):
+        super().__init__()
+        self.margin = margin
+
+    def forward(self, features, labels):
+        embeddings = F.normalize(features, p=2, dim=1)
+
+        similarities = torch.mm(embeddings, torch.t(embeddings)).clamp(-1.0, 1.0)
+
+        with torch.no_grad():
+            neg_pairs = labels.view(-1, 1) != labels.view(1, -1)
+
+        s_pos, _ = torch.where(neg_pairs, similarities, torch.full_like(similarities, 1.0)).min(dim=1)
+        s_neg, _ = torch.where(neg_pairs, similarities, torch.full_like(similarities, -1.0)).max(dim=1)
+
+        losses = F.relu(self.margin + s_neg - s_pos)
+        loss = losses.sum()
+
+        num_valid = (losses > 0.0).sum().float()
+        if num_valid > 0.0:
+            loss /= num_valid
+
+        return loss
+
+
 class CenterLoss(nn.Module):
     """Implementation of the Center loss from https://ydwen.github.io/papers/WenECCV16.pdf"""
 

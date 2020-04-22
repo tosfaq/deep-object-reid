@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, HSwish, GumbelSigmoid, NonLocalModule
+from torchreid.ops import Dropout, HSwish, GumbelSigmoid, grad_reverse
 
 
 __all__ = ['osnet_ain_x1_0']
@@ -404,7 +404,6 @@ class OSNet(nn.Module):
         blocks,
         channels,
         attentions=None,
-        nonlocal_blocks=None,
         dropout_probs=None,
         feature_dim=512,
         loss='softmax',
@@ -412,6 +411,7 @@ class OSNet(nn.Module):
         conv1_IN=False,
         bn_eval=False,
         bn_frozen=False,
+        mock_embd=False,
         **kwargs
     ):
         super(OSNet, self).__init__()
@@ -436,11 +436,6 @@ class OSNet(nn.Module):
             self.use_attentions = [False] * (num_blocks + 2)
         assert len(self.use_attentions) == num_blocks + 2
 
-        self.use_nonlocal_blocks = nonlocal_blocks
-        if self.use_nonlocal_blocks is None:
-            self.use_nonlocal_blocks = [False] * (num_blocks + 1)
-        assert len(self.use_nonlocal_blocks) == num_blocks + 1
-
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
         self.num_classes = num_classes
@@ -452,31 +447,30 @@ class OSNet(nn.Module):
         self.att1 = self._construct_attention_layer(channels[0], self.use_attentions[0])
         self.pool1 = nn.MaxPool2d(3, stride=2, padding=1)
         self.conv2 = self._construct_layer(blocks[0], channels[0], channels[1])
-        self.nl2 = self._construct_nonlocal_layer(channels[1], self.use_nonlocal_blocks[0])
         self.att2 = self._construct_attention_layer(channels[1], self.use_attentions[1])
         self.pool2 = nn.Sequential(Conv1x1(channels[1], channels[1]), nn.AvgPool2d(2, stride=2))
         self.conv3 = self._construct_layer(blocks[1], channels[1], channels[2])
-        self.nl3 = self._construct_nonlocal_layer(channels[2], self.use_nonlocal_blocks[1])
         self.att3 = self._construct_attention_layer(channels[2], self.use_attentions[2])
         self.pool3 = nn.Sequential(Conv1x1(channels[2], channels[2]), nn.AvgPool2d(2, stride=2))
         self.conv4 = self._construct_layer(blocks[2], channels[2], channels[3])
-        self.nl4 = self._construct_nonlocal_layer(channels[3], self.use_nonlocal_blocks[2])
         self.att4 = self._construct_attention_layer(channels[3], self.use_attentions[3])
 
         out_num_channels = channels[3]
         self.conv5 = Conv1x1(channels[3], out_num_channels)
-        self.nl5 = self._construct_nonlocal_layer(out_num_channels, self.use_nonlocal_blocks[3])
         self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[4])
 
         self.head_att = self._construct_head_attention(out_num_channels, enable=False)
 
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
-        fc_layers, classifier_layers = [], []
+        self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
         for trg_num_classes in self.num_classes:
-            fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
-            classifier_layers.append(classifier_block(self.feature_dim, trg_num_classes))
-        self.fc = nn.ModuleList(fc_layers)
-        self.classifier = nn.ModuleList(classifier_layers)
+            self.fc.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
+            self.classifier.append(classifier_block(self.feature_dim, trg_num_classes))
+
+        self.mock_embd = mock_embd
+        # if self.mock_embd:
+        #     self.mock_fc = self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False)
+        #     self.project = self._construct_projector(self.feature_dim, 2 * self.feature_dim, self.feature_dim)
 
         self._init_params()
 
@@ -498,10 +492,6 @@ class OSNet(nn.Module):
         return ResidualAttention(num_channels, residual=True) if enable else None
 
     @staticmethod
-    def _construct_nonlocal_layer(num_channels, enable):
-        return NonLocalModule(num_channels) if enable else None
-
-    @staticmethod
     def _construct_head_attention(num_channels, enable, channel_factor=8, gumbel_scale=5.0):
         if not enable:
             return None
@@ -516,6 +506,19 @@ class OSNet(nn.Module):
             Conv1x1(internal_num_channels, 1, out_fn=None),
             GumbelSigmoid(scale=gumbel_scale)
         ]
+
+        return nn.Sequential(*layers)
+
+    @staticmethod
+    def _construct_projector(in_features, internal_features, out_features):
+        layers = []
+
+        layers.extend([
+            nn.Linear(in_features, internal_features),
+            nn.BatchNorm1d(internal_features),
+            HSwish(),
+            nn.Linear(internal_features, out_features),
+        ])
 
         return nn.Sequential(*layers)
 
@@ -562,31 +565,23 @@ class OSNet(nn.Module):
         y = self.pool1(y)
 
         y = self.conv2(y)
-        if self.nl2 is not None:
-            y = self.nl2(y)
         if self.att2 is not None:
             y, att2 = self.att2(y, return_mask=True)
             att_maps.append(att2)
         y = self.pool2(y)
 
         y = self.conv3(y)
-        if self.nl3 is not None:
-            y = self.nl3(y)
         if self.att3 is not None:
             y, att3 = self.att3(y, return_mask=True)
             att_maps.append(att3)
         y = self.pool3(y)
 
         y = self.conv4(y)
-        if self.nl4 is not None:
-            y = self.nl4(y)
         if self.att4 is not None:
             y, att4 = self.att4(y, return_mask=True)
             att_maps.append(att4)
 
         y = self.conv5(y)
-        if self.nl5 is not None:
-            y = self.nl5(y)
         if self.att5 is not None:
             y, att5 = self.att5(y, return_mask=True)
             att_maps.append(att5)
@@ -618,22 +613,32 @@ class OSNet(nn.Module):
         if return_featuremaps:
             return feature_maps
 
-        glob_features, head_att = self._glob_feature_vector(feature_maps, self.head_att)
-        glob_embeddings = [fc(glob_features) for fc in self.fc]
+        glob_features, head_att_map = self._glob_feature_vector(feature_maps, self.head_att)
+        embeddings = [fc(glob_features) for fc in self.fc]
 
         if not self.training and not return_logits:
-            return glob_embeddings[0]
+            return embeddings[0]
 
-        glob_logits = [classifier(embd) for embd, classifier in zip(glob_embeddings, self.classifier)]
-        glob_att = [head_att] + feature_att_maps
+        logits = [classifier(embd) for embd, classifier in zip(embeddings, self.classifier)]
+
+        extra_out_data = dict()
+        extra_out_data['att_maps'] = [head_att_map] + feature_att_maps
+
+        # if self.mock_embd:
+        #     mock_embeddings = self.mock_fc(glob_features)
+        #     extra_out_data['mock_embd'] = mock_embeddings
+        #
+        #     norm_mock_embedding = F.normalize(mock_embeddings, p=2, dim=1)
+        #     proj_mock_embeddings = self.project(grad_reverse(norm_mock_embedding))
+        #     extra_out_data['proj_mock_embd'] = proj_mock_embeddings
 
         if get_embeddings:
-            return glob_logits, glob_embeddings, glob_att
+            return logits, embeddings, extra_out_data
 
         if self.loss in ['softmax', 'am_softmax']:
-            return glob_logits, glob_att
+            return logits, extra_out_data
         elif self.loss in ['triplet']:
-            return glob_logits, glob_embeddings, glob_att
+            return logits, embeddings, extra_out_data
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
@@ -749,6 +754,7 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwar
         # ],
         input_IN=True,
         conv1_IN=True,
+        mock_embd=True,
         **kwargs
     )
 

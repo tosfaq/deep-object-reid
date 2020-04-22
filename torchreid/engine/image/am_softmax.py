@@ -27,11 +27,14 @@ import time
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 
 from torchreid.engine import Engine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
-from torchreid.losses import get_regularizer, MetricLosses, AMSoftmaxLoss, CrossEntropyLoss, TotalVarianceLoss
+from torchreid.losses import (get_regularizer, AMSoftmaxLoss, CrossEntropyLoss, TotalVarianceLoss,
+                              MetricLosses, MockTripletLoss)
+from torchreid.ops import grad_reverse
 
 
 class ImageAMSoftmaxEngine(Engine):
@@ -41,7 +44,8 @@ class ImageAMSoftmaxEngine(Engine):
     def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg,
                  scheduler=None, use_gpu=False, softmax_type='stock',
                  label_smooth=False, conf_penalty=False, pr_product=False,
-                 m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None, writer=None):
+                 m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None,
+                 writer=None):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
 
         assert softmax_type in ['stock', 'am']
@@ -96,6 +100,11 @@ class ImageAMSoftmaxEngine(Engine):
         # self.att_loss = TotalVarianceLoss(3, 1)
         self.att_loss = None
 
+        self.use_mock_embed = self.model.module.mock_embd
+        if self.use_mock_embed:
+            self.mock_group_id = 1
+            self.mock_triplet_loss = MockTripletLoss()
+
     @staticmethod
     def _valid(value):
         return value is not None and value > 0
@@ -106,6 +115,8 @@ class ImageAMSoftmaxEngine(Engine):
         reg_losses = AverageMeter()
         total_losses = AverageMeter()
         ml_losses = AverageMeter()
+        mock_embd_losses = AverageMeter()
+        # mock_embd_similarities = AverageMeter()
         att_losses = AverageMeter()
         main_losses = [AverageMeter() for _ in range(self.num_targets)]
 
@@ -125,7 +136,7 @@ class ImageAMSoftmaxEngine(Engine):
             imgs, pids, trg_ids = self._parse_data_for_train(data, self.use_gpu)
 
             self.optimizer.zero_grad()
-            all_logits, all_embeddings, glob_att = self.model(imgs, get_embeddings=True)
+            all_logits, all_embeddings, extra_data = self.model(imgs, get_embeddings=True)
 
             total_loss = 0
             num_trg_losses = 0
@@ -141,13 +152,6 @@ class ImageAMSoftmaxEngine(Engine):
                 main_loss = self.main_losses[trg_id](trg_logits, trg_pids, iteration=n_iter)
                 main_losses[trg_id].update(main_loss.item(), trg_pids.size(0))
 
-                # if trg_id > 0:
-                #     anchor_loss_avg = main_losses[0].avg
-                #     ref_loss_avg = main_losses[trg_id].avg
-                #     main_loss_scale = (anchor_loss_avg if anchor_loss_avg > 0.0 else 1.0) / \
-                #                       (ref_loss_avg if ref_loss_avg > 0.0 else 1.0)
-                #     main_loss *= main_loss_scale
-
                 trg_loss = main_loss
                 if trg_id == 0 and self.enable_metric_losses:
                     embd = all_embeddings[trg_id][trg_mask]
@@ -159,6 +163,23 @@ class ImageAMSoftmaxEngine(Engine):
                     ml_losses.update(ml_loss.item(), trg_pids.numel())
                     trg_loss += ml_loss
 
+                if self.use_mock_embed and trg_id == self.mock_group_id:
+                    embd = all_embeddings[trg_id][trg_mask]
+                    # mock_embd = extra_data['mock_embd'][trg_mask]
+
+                    mock_embd_loss = self.mock_triplet_loss(embd, trg_pids)
+                    mock_embd_losses.update(mock_embd_loss.item(), trg_pids.numel())
+                    trg_loss += mock_embd_loss
+
+                    # proj_mock_embd = F.normalize(extra_data['proj_mock_embd'][trg_mask])
+                    # inv_grad_norm_embd = grad_reverse(F.normalize(embd, p=2, dim=1))
+                    # mock_embd_loss = torch.sum((inv_grad_norm_embd * proj_mock_embd) ** 2, dim=1).mean()
+                    # mock_embd_sim = torch.sum(inv_grad_norm_embd * proj_mock_embd, dim=1).mean()
+                    #
+                    # mock_embd_losses.update(mock_embd_loss.item(), trg_pids.numel())
+                    # mock_embd_similarities.update(mock_embd_sim.item(), trg_pids.numel())
+                    # trg_loss -= mock_embd_loss
+
                 total_loss += trg_loss
                 num_trg_losses += 1
 
@@ -166,7 +187,7 @@ class ImageAMSoftmaxEngine(Engine):
 
             if self.att_loss is not None:
                 att_loss_val = 0.0
-                for att_map in glob_att:
+                for att_map in extra_data['att_maps']:
                     if att_map is not None:
                         att_loss_val += self.att_loss(att_map)
 
@@ -194,7 +215,8 @@ class ImageAMSoftmaxEngine(Engine):
                       'Data {data_time.val:.3f} ({data_time.avg:.3f}) '
                       'Loss {loss.val:.3f} ({loss.avg:.3f}) '
                       'ML Loss {ml_loss.val:.3f} ({ml_loss.avg:.3f}) '
-                      'Att Loss {att_loss.val:.3f} ({att_loss.avg:.3f}) '
+                      'Att {att_loss.val:.3f} ({att_loss.avg:.3f}) '
+                      'Mock {mock.val:.3f} ({mock.avg:.3f}) '
                       'Lr {lr:.6f} '
                       'ETA {eta}'.
                       format(
@@ -204,6 +226,7 @@ class ImageAMSoftmaxEngine(Engine):
                           loss=total_losses,
                           ml_loss=ml_losses,
                           att_loss=att_losses,
+                          mock=mock_embd_losses,
                           lr=self.optimizer.param_groups[0]['lr'],
                           eta=eta_str,
                       )
@@ -222,6 +245,7 @@ class ImageAMSoftmaxEngine(Engine):
                     writer.add_scalar('Aux/Learning_rate', self.optimizer.param_groups[0]['lr'], n_iter)
                     writer.add_scalar('Aux/Scale_main', self.main_losses[0].get_last_scale(), n_iter)
                     writer.add_scalar('Loss/ml', ml_losses.avg, n_iter)
+                    writer.add_scalar('Loss/mock', mock_embd_losses.avg, n_iter)
                     for trg_id in range(self.num_targets):
                         writer.add_scalar('Loss/main_{}'.format(trg_id), main_losses[trg_id].avg, n_iter)
             start_time = time.time()
