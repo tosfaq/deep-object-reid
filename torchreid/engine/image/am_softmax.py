@@ -93,7 +93,7 @@ class ImageAMSoftmaxEngine(Engine):
                 metric_cfg.triplet_coeff,
             )
 
-        # self.att_loss = TotalVarianceLoss(5, 1)
+        # self.att_loss = TotalVarianceLoss(3, 1)
         self.att_loss = None
 
     @staticmethod
@@ -164,7 +164,7 @@ class ImageAMSoftmaxEngine(Engine):
 
             total_loss /= float(num_trg_losses)
 
-            if self.att_loss is not None and (epoch + 1) > fixbase_epoch:
+            if self.att_loss is not None:
                 att_loss_val = 0.0
                 for att_map in glob_att:
                     if att_map is not None:
