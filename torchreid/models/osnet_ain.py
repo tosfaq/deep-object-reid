@@ -408,6 +408,7 @@ class OSNet(nn.Module):
         dropout_probs=None,
         feature_dim=512,
         loss='softmax',
+        input_IN=False,
         conv1_IN=False,
         bn_eval=False,
         bn_frozen=False,
@@ -445,7 +446,7 @@ class OSNet(nn.Module):
         self.num_classes = num_classes
         assert len(self.num_classes) > 0
 
-        classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
+        self.input_IN = nn.InstanceNorm2d(3, affine=True) if input_IN else None
 
         self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=conv1_IN)
         self.att1 = self._construct_attention_layer(channels[0], self.use_attentions[0])
@@ -469,6 +470,7 @@ class OSNet(nn.Module):
 
         self.head_att = self._construct_head_attention(out_num_channels, enable=False)
 
+        classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
         fc_layers, classifier_layers = [], []
         for trg_num_classes in self.num_classes:
             fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
@@ -550,6 +552,8 @@ class OSNet(nn.Module):
 
     def _backbone(self, x):
         att_maps = []
+
+        x = self.input_IN(x) if self.input_IN is not None else x
 
         y = self.conv1(x)
         if self.att1 is not None:
@@ -743,6 +747,7 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwar
         #     [0.1, None],
         #     [0.1, None]
         # ],
+        input_IN=True,
         conv1_IN=True,
         **kwargs
     )
