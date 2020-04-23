@@ -459,7 +459,7 @@ class OSNet(nn.Module):
         self.conv5 = Conv1x1(channels[3], out_num_channels)
         self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[4])
 
-        self.head_att = self._construct_head_attention(out_num_channels, enable=True)
+        self.head_att = self._construct_head_attention(out_num_channels, enable=False)
 
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
         self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()

@@ -97,8 +97,8 @@ class ImageAMSoftmaxEngine(Engine):
                 metric_cfg.triplet_coeff,
             )
 
-        self.att_loss = TotalVarianceLoss(5, 1)
-        # self.att_loss = None
+        # self.att_loss = TotalVarianceLoss(5, 1)
+        self.att_loss = None
 
         self.use_mock_embed = self.model.module.mock_embd
         if self.use_mock_embed:

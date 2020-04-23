@@ -85,13 +85,13 @@ reg:
 train:
   optim: 'sgd'
   lr: 0.01
-  max_epoch: 90
+  max_epoch: 120
   batch_size: 112
-  fixbase_epoch: 5
-  open_layers: ['conv5', 'head_att', 'classifier', 'fc']
+  fixbase_epoch: 6
+  open_layers: ['conv5', 'classifier', 'fc']
   lr_scheduler: 'multi_step_warmup'
-  stepsize: [40, 70]
-  warmup: 5
+  stepsize: [60, 90]
+  warmup: 6
   warmup_factor_base: 0.005
   frozen_factor_base: 1.0
 
