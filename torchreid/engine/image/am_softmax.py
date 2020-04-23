@@ -97,8 +97,8 @@ class ImageAMSoftmaxEngine(Engine):
                 metric_cfg.triplet_coeff,
             )
 
-        # self.att_loss = TotalVarianceLoss(3, 1)
-        self.att_loss = None
+        self.att_loss = TotalVarianceLoss(3, 1)
+        # self.att_loss = None
 
         self.use_mock_embed = self.model.module.mock_embd
         if self.use_mock_embed:
@@ -116,7 +116,6 @@ class ImageAMSoftmaxEngine(Engine):
         total_losses = AverageMeter()
         ml_losses = AverageMeter()
         mock_embd_losses = AverageMeter()
-        # mock_embd_similarities = AverageMeter()
         att_losses = AverageMeter()
         main_losses = [AverageMeter() for _ in range(self.num_targets)]
 

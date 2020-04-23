@@ -52,7 +52,7 @@ def build_dataset(mode='gallery', targets=None, height=192, width=256,
     return dataset
 
 
-def build_data_loader(dataset, use_gpu=True, batch_size=300):
+def build_data_loader(dataset, use_gpu=True, batch_size=100):
     data_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
@@ -70,7 +70,11 @@ def prepare_data(cfg, mode='query'):
     dataset = build_dataset(mode=mode, **data_config)
     data_loader = build_data_loader(dataset, use_gpu=cfg.use_gpu)
 
-    return data_loader, dataset.num_train_pids
+    pids = dataset.num_train_pids
+    keys = sorted(pids.keys())
+    pids = [pids[key] for key in keys]
+
+    return data_loader, pids
 
 
 @torch.no_grad()
@@ -177,7 +181,7 @@ def main():
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True
 
-    data_loader, num_pids = prepare_data(cfg, mode='query')
+    data_loader, num_pids = prepare_data(cfg, mode='gallery')
 
     print('Building model: {}'.format(cfg.model.name))
     model = torchreid.models.build_model(**model_kwargs(cfg, num_pids))

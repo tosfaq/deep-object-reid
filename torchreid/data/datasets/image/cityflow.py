@@ -44,9 +44,6 @@ class CityFlow(ImageDataset):
 
         super(CityFlow, self).__init__(train, query, gallery, **kwargs)
 
-    def get_num_pids(self, data):
-        return len(set(record[1] for record in data))
-
     @staticmethod
     def load_annotation(annot_path, data_dir, dataset_id=0):
         tree = etree.parse(annot_path)
