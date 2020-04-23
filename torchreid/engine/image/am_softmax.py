@@ -97,7 +97,7 @@ class ImageAMSoftmaxEngine(Engine):
                 metric_cfg.triplet_coeff,
             )
 
-        self.att_loss = TotalVarianceLoss(3, 1)
+        self.att_loss = TotalVarianceLoss(5, 1)
         # self.att_loss = None
 
         self.use_mock_embed = self.model.module.mock_embd
@@ -186,9 +186,10 @@ class ImageAMSoftmaxEngine(Engine):
 
             if self.att_loss is not None:
                 att_loss_val = 0.0
+                enable_dilation = 1 < epoch + 1 < fixbase_epoch
                 for att_map in extra_data['att_maps']:
                     if att_map is not None:
-                        att_loss_val += self.att_loss(att_map, enable_dilation=False)
+                        att_loss_val += self.att_loss(att_map, enable_dilation)
 
                 if att_loss_val > 0.0:
                     att_losses.update(att_loss_val.item(), pids.size(0))
