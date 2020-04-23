@@ -188,7 +188,7 @@ class ImageAMSoftmaxEngine(Engine):
                 att_loss_val = 0.0
                 for att_map in extra_data['att_maps']:
                     if att_map is not None:
-                        att_loss_val += self.att_loss(att_map)
+                        att_loss_val += self.att_loss(att_map, enable_dilation=False)
 
                 if att_loss_val > 0.0:
                     att_losses.update(att_loss_val.item(), pids.size(0))
