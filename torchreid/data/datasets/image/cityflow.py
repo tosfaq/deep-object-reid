@@ -14,7 +14,7 @@ class CityFlow(ImageDataset):
         - identities: 666.
         - images: 36935 (train) + 1052 (query) + 18290 (gallery).
     """
-    dataset_dir = 'aic20_reduced'
+    dataset_dir = 'cityflow_custom_test'
 
     def __init__(self, root='', dataset_id=0, **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
