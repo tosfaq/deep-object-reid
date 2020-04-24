@@ -14,44 +14,28 @@ from torchreid.utils.tools import read_image
 from PIL import Image
 
 
-class Random2DTranslation(object):
-    """Randomly translates the input image with a probability.
-
-    Specifically, given a predefined shape (height, width), the input is first
-    resized with a factor of 1.125, leading to (height*1.125, width*1.125), then
-    a random crop is performed. Such operation is done with a probability.
-
-    Args:
-        height (int): target image height.
-        width (int): target image width.
-        p (float, optional): probability that this operation takes place.
-            Default is 0.5.
-        interpolation (int, optional): desired interpolation. Default is
-            ``PIL.Image.BILINEAR``
-    """
-
-    def __init__(self, height, width, p=0.5, scale=1.125, interpolation=Image.BILINEAR, **kwargs):
-        self.height = height
-        self.width = width
+class RandomCrop(object):
+    def __init__(self, p=0.5, scale=0.9, **kwargs):
         self.p = p
+        assert 0.0 <= self.p <= 1.0
         self.scale = scale
-        self.interpolation = interpolation
+        assert 0.0 < self.scale < 1.0
 
     def __call__(self, img, *args, **kwargs):
         if random.uniform(0, 1) > self.p:
-            return img.resize((self.width, self.height), self.interpolation)
+            return img
 
-        new_width, new_height = int(round(self.width * self.scale)), int(round(self.height * self.scale))
-        resized_img = img.resize((new_width, new_height), self.interpolation)
+        img_width, img_height = img.size
+        crop_width, crop_height = int(round(img_width * self.scale)), int(round(img_height * self.scale))
 
-        x_max_range = new_width - self.width
-        y_max_range = new_height - self.height
+        x_max_range = img_width - crop_width
+        y_max_range = img_height - crop_height
         x1 = int(round(random.uniform(0, x_max_range)))
         y1 = int(round(random.uniform(0, y_max_range)))
 
-        croped_img = resized_img.crop((x1, y1, x1 + self.width, y1 + self.height))
+        out_img = img.crop((x1, y1, x1 + crop_width, y1 + crop_height))
 
-        return croped_img
+        return out_img
 
 
 class RandomErasing(object):
@@ -257,9 +241,13 @@ class RandomPadding(object):
     def __call__(self, img, *args, **kwargs):
         if random.uniform(0, 1) > self.p:
             return img
+
         rnd_padding = [random.randint(self.padding_limits[0], self.padding_limits[1]) for _ in range(4)]
         rnd_fill = random.randint(0, 255)
-        return F.pad(img, tuple(rnd_padding), fill=rnd_fill, padding_mode='constant')
+
+        out_img = F.pad(img, tuple(rnd_padding), fill=rnd_fill, padding_mode='constant')
+
+        return out_img
 
 
 class RandomRotate(object):
@@ -369,6 +357,7 @@ class RandomFigures(object):
                 r = random.randint(*self.circle_radiuses)
                 cv_image = f(cv_image, p1, r, color, thickness)
         img = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+
         return Image.fromarray(img)
 
 
@@ -460,25 +449,23 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
 
     print('Building train transforms ...')
     transform_tr = []
+    if transforms.random_crop.enable:
+        print('+ random crop')
+        transform_tr += [RandomCrop(**transforms.random_crop)]
+    if transforms.random_padding.enable:
+        print('+ random_padding')
+        transform_tr += [RandomPadding(**transforms.random_padding)]
+    print('+ resize to {}x{}'.format(height, width))
+    transform_tr += [Resize((height, width))]
     if transforms.random_grid.enable:
         print('+ random_grid')
         transform_tr += [RandomGrid(**transforms.random_grid)]
     if transforms.random_figures.enable:
         print('+ random_figures')
         transform_tr += [RandomFigures(**transforms.random_figures)]
-    if transforms.random_padding.enable:
-        print('+ random_padding')
-        transform_tr += [RandomPadding(**transforms.random_padding)]
-    transform_tr += [Resize((height, width))]
-    print('+ resize to {}x{}'.format(height, width))
     if transforms.random_flip.enable:
         print('+ random flip')
         transform_tr += [RandomHorizontalFlip(p=transforms.random_flip.p)]
-    if transforms.random_crop.enable:
-        print('+ random crop (enlarge to {}x{} and crop {}x{})'
-              .format(int(round(height*1.125)), int(round(width*1.125)),
-                      height, width, transforms.random_crop.p))
-        transform_tr += [Random2DTranslation(height, width, **transforms.random_crop)]
     if transforms.mixup.enable:
         mixup_augmentor = MixUp(**transforms.mixup)
         print('+ mixup (with {} extra images)'.format(mixup_augmentor.get_num_images()))

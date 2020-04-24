@@ -411,7 +411,6 @@ class OSNet(nn.Module):
         conv1_IN=False,
         bn_eval=False,
         bn_frozen=False,
-        mock_embd=False,
         **kwargs
     ):
         super(OSNet, self).__init__()
@@ -467,11 +466,6 @@ class OSNet(nn.Module):
             self.fc.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
             self.classifier.append(classifier_block(self.feature_dim, trg_num_classes))
 
-        self.mock_embd = mock_embd
-        # if self.mock_embd:
-        #     self.mock_fc = self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False)
-        #     self.project = self._construct_projector(self.feature_dim, 2 * self.feature_dim, self.feature_dim)
-
         self._init_params()
 
     @staticmethod
@@ -506,19 +500,6 @@ class OSNet(nn.Module):
             Conv1x1(internal_num_channels, 1, out_fn=None),
             GumbelSigmoid(scale=gumbel_scale)
         ]
-
-        return nn.Sequential(*layers)
-
-    @staticmethod
-    def _construct_projector(in_features, internal_features, out_features):
-        layers = []
-
-        layers.extend([
-            nn.Linear(in_features, internal_features),
-            nn.BatchNorm1d(internal_features),
-            HSwish(),
-            nn.Linear(internal_features, out_features),
-        ])
 
         return nn.Sequential(*layers)
 
@@ -746,7 +727,6 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwar
         ],
         channels=[64, 256, 384, 512],
         # attentions=[False, True, True, False, False],
-        # nonlocal_blocks=[False, True, True, False],
         # dropout_probs=[
         #     [None, 0.1],
         #     [0.1, None],
