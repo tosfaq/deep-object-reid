@@ -728,7 +728,7 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, enable
         ],
         channels=[64, 256, 384, 512],
         head_attention=enable_attentions,
-        # attentions=[False, True, True, False, False] if enable_attentions else None,
+        attentions=[False, True, True, False, False] if enable_attentions else None,
         input_IN=True,
         conv1_IN=True,
         **kwargs
