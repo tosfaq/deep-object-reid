@@ -24,6 +24,7 @@ def get_default_config():
     cfg.data.workers = 4  # number of data loading workers
     cfg.data.height = 256  # image height
     cfg.data.width = 128  # image width
+    cfg.data.enable_masks = False
     cfg.data.combineall = False  # combine train, query and gallery for training
     cfg.data.norm_mean = [0.485, 0.456, 0.406]  # default is imagenet mean
     cfg.data.norm_std = [0.229, 0.224, 0.225]  # default is imagenet std
@@ -236,6 +237,7 @@ def imagedata_kwargs(cfg):
         'workers': cfg.data.workers,
         'num_instances': cfg.sampler.num_instances,
         'train_sampler': cfg.sampler.train_sampler,
+        'enable_masks': cfg.data.enable_masks,
         # image
         'cuhk03_labeled': cfg.cuhk03.labeled_images,
         'cuhk03_classic_split': cfg.cuhk03.classic_split,

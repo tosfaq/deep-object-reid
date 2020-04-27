@@ -33,7 +33,8 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
                 end_s=cfg.loss.softmax.end_s,
                 duration_s=cfg.loss.softmax.duration_s,
                 skip_steps_s=cfg.loss.softmax.skip_steps_s,
-                writer=writer
+                writer=writer,
+                enable_masks=cfg.data.enable_masks,
             )
         else:
             engine = ImageTripletEngine(

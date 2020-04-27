@@ -18,12 +18,13 @@ class VeRi(ImageDataset):
     """
     dataset_dir = 'veri'
 
-    def __init__(self, root='', dataset_id=0, **kwargs):
+    def __init__(self, root='', dataset_id=0, load_masks=False, **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
 
         self.train_dir = osp.join(self.data_dir, 'image_train')
+        self.train_mask = osp.join(self.data_dir, 'mask_train')
         self.train_annot = osp.join(self.data_dir, 'train_label.xml')
         self.query_dir = osp.join(self.data_dir, 'image_query')
         self.gallery_dir = osp.join(self.data_dir, 'image_test')
@@ -31,15 +32,18 @@ class VeRi(ImageDataset):
         required_files = [
             self.data_dir, self.train_annot, self.train_dir, self.query_dir, self.gallery_dir,
         ]
+        if load_masks:
+            required_files.append(self.train_mask)
         self.check_before_run(required_files)
 
-        train = self.build_annotation(self.train_dir,
-                                      annot=self.load_annotation(self.train_annot),
-                                      dataset_id=dataset_id)
-        query = self.build_annotation(self.query_dir,
-                                      dataset_id=dataset_id)
-        gallery = self.build_annotation(self.gallery_dir,
-                                        dataset_id=dataset_id)
+        train = self.build_annotation(
+            self.train_dir, self.train_mask,
+            annot=self.load_annotation(self.train_annot),
+            dataset_id=dataset_id, load_masks=load_masks)
+        query = self.build_annotation(
+            self.query_dir, dataset_id=dataset_id)
+        gallery = self.build_annotation(
+            self.gallery_dir, dataset_id=dataset_id)
 
         train = self.compress_labels(train)
 
@@ -76,32 +80,45 @@ class VeRi(ImageDataset):
         return out_data
 
     @staticmethod
-    def build_annotation(data_dir, annot=None, dataset_id=0):
-        image_files = [f for f in listdir(data_dir) if osp.isfile(osp.join(data_dir, f)) and f.endswith('.jpg')]
+    def build_annotation(images_dir, masks_dir=None, annot=None, dataset_id=0, load_masks=False):
+        names = [f.replace('.jpg', '')
+                 for f in listdir(images_dir)
+                 if osp.isfile(osp.join(images_dir, f)) and f.endswith('.jpg')]
+
+        if load_masks:
+            mask_names = [f.replace('.png', '')
+                          for f in listdir(masks_dir)
+                          if osp.isfile(osp.join(masks_dir, f)) and f.endswith('.png')]
+            names = list(set(names) & set(mask_names))
 
         data = []
-        for image_file in image_files:
-            parts = image_file.replace('.jpg', '').split('_')
-            assert len(parts) == 4
+        for name in names:
+            name_parts = name.split('_')
+            assert len(name_parts) == 4
 
-            pid_str, cam_id_str, local_num_str, _ = parts
+            pid_str, cam_id_str, local_num_str, _ = name_parts
 
-            full_image_path = osp.join(data_dir, image_file)
+            image_name = '{}.jpg'.format(name)
+            full_image_path = osp.join(images_dir, image_name)
             pid = int(pid_str)
             cam_id = int(cam_id_str[1:])
             assert pid >= 0 and cam_id >= 0
 
+            full_mask_path = ''
+            if load_masks:
+                full_mask_path = osp.join(masks_dir, '{}.png'.format(name))
+
             if annot is None:
-                data.append((full_image_path, pid, cam_id, dataset_id, -1, -1))
+                data.append((full_image_path, pid, cam_id, dataset_id, -1, -1, full_mask_path))
             else:
-                if image_file not in annot:
+                if image_name not in annot:
                     color_id, type_id = -1, -1
                 else:
-                    record = annot[image_file]
+                    record = annot[image_name]
                     color_id = record['color_id']
                     type_id = record['type_id']
                     assert color_id >= 0 and type_id >= 0
 
-                data.append((full_image_path, pid, cam_id, dataset_id, color_id, type_id))
+                data.append((full_image_path, pid, cam_id, dataset_id, color_id, type_id, full_mask_path))
 
         return data

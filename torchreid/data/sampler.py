@@ -28,8 +28,6 @@ def build_train_sampler(data_source, train_sampler, batch_size=32, num_instances
         sampler = RandomIdentitySamplerV2(data_source, batch_size, num_instances)
     elif train_sampler == 'RandomIdentitySamplerV3':
         sampler = RandomIdentitySamplerV3(data_source, batch_size, num_instances)
-    elif train_sampler == 'RandomIdentitySamplerV4':
-        sampler = RandomIdentitySamplerV4(data_source, batch_size, num_instances)
     elif train_sampler == 'SequentialSampler':
         sampler = SequentialSampler(data_source)
     elif train_sampler == 'RandomSampler':

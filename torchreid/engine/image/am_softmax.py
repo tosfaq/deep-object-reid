@@ -45,7 +45,7 @@ class ImageAMSoftmaxEngine(Engine):
                  scheduler=None, use_gpu=False, softmax_type='stock',
                  label_smooth=False, conf_penalty=False, pr_product=False,
                  m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None,
-                 writer=None):
+                 writer=None, enable_masks=False):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
 
         assert softmax_type in ['stock', 'am']

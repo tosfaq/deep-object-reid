@@ -8,11 +8,14 @@ model:
 
 data:
   type: 'image'
-  sources: [['veri'], ['compcars']]
-  targets: ['veri', 'cityflow']
+#  sources: [['veri'], ['compcars']]
+#  targets: ['veri', 'cityflow']
+  sources: [['veri']]
+  targets: ['veri']
   height: 192
   width: 256
   combineall: False
+  enable_masks: False
   transforms:
     random_flip:
       enable: True
