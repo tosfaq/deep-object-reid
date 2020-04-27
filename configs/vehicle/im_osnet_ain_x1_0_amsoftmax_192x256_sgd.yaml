@@ -14,13 +14,6 @@ data:
   width: 256
   combineall: False
   transforms:
-    color_jitter:
-      enable: False
-      p: 0.8
-      saturation: 0.1
-      hue: 0.1
-      brightness: 0.15
-      contrast: 0.15
     random_flip:
       enable: True
       p: 0.5
@@ -37,24 +30,16 @@ data:
     random_crop:
       enable: True
       p: 0.25
-      scale: 0.85
+      scale: 0.92
     random_rotate:
       enable: True
       p: 0.33
-    random_perspective:
-      enable: False
-      p: 0.33
-      distortion_scale: 0.3
     random_grid:
       enable: True
       p: 0.15
     random_figures:
       enable: True
       p: 0.33
-    mixup:
-      enable: False
-      p: 0.33
-      alpha: 0.2
   save_dir: 'log/osnet_ain_x1_0_general'
 
 sampler:
