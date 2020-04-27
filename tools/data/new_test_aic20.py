@@ -8,7 +8,7 @@ from shutil import copyfile, rmtree
 from tqdm import tqdm
 
 
-def load_annotation(annot_path):
+def load_annotation(annot_path, masks_dir):
     tree = etree.parse(annot_path)
     root = tree.getroot()
 
@@ -21,7 +21,10 @@ def load_annotation(annot_path):
         pid = int(item.attrib['vehicleID'])
         cam_id = int(item.attrib['cameraID'][1:])
 
-        data.append((image_name, pid, cam_id))
+        mask_name = image_name.replace('.jpg', '.png')
+        mask_path = osp.join(masks_dir, mask_name)
+        if osp.exists(mask_path):
+            data.append((image_name, pid, cam_id))
 
     return data
 
@@ -88,16 +91,18 @@ def store_annotation(records, out_path, shuffle=False):
 def main():
     parser = ArgumentParser()
     parser.add_argument('--annot_path', '-a', type=str, required=True)
-    parser.add_argument('--src_path', '-s', type=str, required=True)
+    parser.add_argument('--src_images', '-si', type=str, required=True)
+    parser.add_argument('--src_masks', '-sm', type=str, required=True)
     parser.add_argument('--trg_path', '-t', type=str, required=True)
     parser.add_argument('--num_query', '-q', type=int, required=False, default=4)
     parser.add_argument('--num_gallery', '-g', type=int, required=False, default=50)
     args = parser.parse_args()
 
     assert osp.exists(args.annot_path)
-    assert osp.exists(args.src_path)
+    assert osp.exists(args.src_images)
+    assert osp.exists(args.src_masks)
 
-    data = load_annotation(args.annot_path)
+    data = load_annotation(args.annot_path, args.src_masks)
     print('Loaded {} items.'.format(len(data)))
 
     splitted_data = group_identities(data)
@@ -105,10 +110,10 @@ def main():
 
     query_records, test_records = split_samples(splitted_data, args.num_query, args.num_gallery)
 
-    copy_data(query_records, args.src_path, osp.join(args.trg_path, 'image_query'))
+    copy_data(query_records, args.src_images, osp.join(args.trg_path, 'image_query'))
     store_annotation(query_records, osp.join(args.trg_path, 'query_label.xml'))
 
-    copy_data(test_records, args.src_path, osp.join(args.trg_path, 'image_test'))
+    copy_data(test_records, args.src_images, osp.join(args.trg_path, 'image_test'))
     store_annotation(test_records, osp.join(args.trg_path, 'test_label.xml'))
 
 
