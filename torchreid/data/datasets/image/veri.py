@@ -109,7 +109,7 @@ class VeRi(ImageDataset):
                 full_mask_path = osp.join(masks_dir, '{}.png'.format(name))
 
             if annot is None:
-                data.append((full_image_path, pid, cam_id, dataset_id, -1, -1, full_mask_path))
+                data.append((full_image_path, pid, cam_id, dataset_id, full_mask_path, -1, -1))
             else:
                 if image_name not in annot:
                     color_id, type_id = -1, -1
@@ -119,6 +119,6 @@ class VeRi(ImageDataset):
                     type_id = record['type_id']
                     assert color_id >= 0 and type_id >= 0
 
-                data.append((full_image_path, pid, cam_id, dataset_id, color_id, type_id, full_mask_path))
+                data.append((full_image_path, pid, cam_id, dataset_id, full_mask_path, color_id, type_id))
 
         return data

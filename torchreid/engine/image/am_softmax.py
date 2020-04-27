@@ -97,8 +97,7 @@ class ImageAMSoftmaxEngine(Engine):
                 metric_cfg.triplet_coeff,
             )
 
-        # self.att_loss = TotalVarianceLoss(5, 1)
-        self.att_loss = None
+        self.enable_masks = enable_masks
 
     @staticmethod
     def _valid(value):
@@ -126,7 +125,7 @@ class ImageAMSoftmaxEngine(Engine):
             n_iter = epoch * num_batches + batch_idx
             data_time.update(time.time() - start_time)
 
-            imgs, pids, trg_ids = self._parse_data_for_train(data, self.use_gpu)
+            imgs, pids, trg_ids, masks = self._parse_data_for_train(data, self.enable_masks, self.use_gpu)
 
             self.optimizer.zero_grad()
             all_logits, all_embeddings, extra_data = self.model(imgs, get_embeddings=True)
@@ -161,12 +160,18 @@ class ImageAMSoftmaxEngine(Engine):
 
             total_loss /= float(num_trg_losses)
 
-            if self.att_loss is not None:
+            if self.enable_masks and masks is not None:
                 att_loss_val = 0.0
-                enable_dilation = 1 < epoch + 1 < fixbase_epoch
                 for att_map in extra_data['att_maps']:
                     if att_map is not None:
-                        att_loss_val += self.att_loss(att_map, enable_dilation)
+                        with torch.no_grad():
+                            att_map_size = att_map.size()[2:]
+                            trg_mask = F.interpolate(masks, size=att_map_size, mode='nearest')
+                            trg_mask = torch.where(trg_mask > 0.0,
+                                                   torch.ones_like(trg_mask),
+                                                   torch.zeros_like(trg_mask))
+
+                        att_loss_val += torch.abs((att_map - trg_mask)).mean()
 
                 if att_loss_val > 0.0:
                     att_losses.update(att_loss_val.item(), pids.size(0))
@@ -228,14 +233,17 @@ class ImageAMSoftmaxEngine(Engine):
             self.scheduler.step()
 
     @staticmethod
-    def _parse_data_for_train(data, use_gpu):
+    def _parse_data_for_train(data, load_masks, use_gpu):
         imgs = data[0]
         pids = data[1]
         dataset_id = data[4]
+        masks = data[5] if load_masks else None
 
         if use_gpu:
             imgs = imgs.cuda()
             pids = pids.cuda()
             dataset_id = dataset_id.cuda()
+            if load_masks:
+                masks = masks.cuda()
 
-        return imgs, pids, dataset_id
+        return imgs, pids, dataset_id, masks

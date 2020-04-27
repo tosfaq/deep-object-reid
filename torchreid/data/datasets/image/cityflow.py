@@ -64,7 +64,7 @@ class CityFlow(ImageDataset):
             color = int(item.attrib['colorID']) if 'colorID' in item.attrib else -1
             object_type = int(item.attrib['typeID']) if 'typeID' in item.attrib else -1
 
-            record = full_image_path, pid, cam_id, dataset_id, color, object_type, ''
+            record = full_image_path, pid, cam_id, dataset_id, '', color, object_type
             data.append(record)
 
         out_data = data

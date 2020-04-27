@@ -403,6 +403,7 @@ class OSNet(nn.Module):
         num_classes,
         blocks,
         channels,
+        head_attention=False,
         attentions=None,
         dropout_probs=None,
         feature_dim=512,
@@ -458,7 +459,7 @@ class OSNet(nn.Module):
         self.conv5 = Conv1x1(channels[3], out_num_channels)
         self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[4])
 
-        self.head_att = self._construct_head_attention(out_num_channels, enable=False)
+        self.head_att = self._construct_head_attention(out_num_channels, enable=head_attention)
 
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
         self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
@@ -717,7 +718,7 @@ def init_pretrained_weights(model, key=''):
 # Instantiation
 ##########
 
-def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwargs):
+def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, enable_attentions=False, **kwargs):
     model = OSNet(
         num_classes,
         blocks=[
@@ -726,12 +727,8 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwar
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        # attentions=[False, True, True, False, False],
-        # dropout_probs=[
-        #     [None, 0.1],
-        #     [0.1, None],
-        #     [0.1, None]
-        # ],
+        head_attention=False,
+        attentions=[False, True, True, False, False] if enable_attentions else None,
         input_IN=True,
         conv1_IN=True,
         **kwargs

@@ -14,6 +14,19 @@ from torchreid.utils.tools import read_image
 from PIL import Image
 
 
+class RandomHorizontalFlip(object):
+    def __init__(self, p=0.5):
+        self.p = p
+
+    def __call__(self, input_tuple):
+        if random.random() > self.p:
+            return input_tuple
+
+        img, mask = input_tuple
+
+        return F.hflip(img), F.hflip(mask)
+
+
 class RandomCrop(object):
     def __init__(self, p=0.5, scale=0.9, **kwargs):
         self.p = p
@@ -21,9 +34,11 @@ class RandomCrop(object):
         self.scale = scale
         assert 0.0 < self.scale < 1.0
 
-    def __call__(self, img, *args, **kwargs):
+    def __call__(self, input_tuple, *args, **kwargs):
         if random.uniform(0, 1) > self.p:
-            return img
+            return input_tuple
+
+        img, mask = input_tuple
 
         img_width, img_height = img.size
         crop_width, crop_height = int(round(img_width * self.scale)), int(round(img_height * self.scale))
@@ -33,9 +48,12 @@ class RandomCrop(object):
         x1 = int(round(random.uniform(0, x_max_range)))
         y1 = int(round(random.uniform(0, y_max_range)))
 
-        out_img = img.crop((x1, y1, x1 + crop_width, y1 + crop_height))
+        img = img.crop((x1, y1, x1 + crop_width, y1 + crop_height))
 
-        return out_img
+        if mask != '':
+            mask = mask.crop((x1, y1, x1 + crop_width, y1 + crop_height))
+
+        return img, mask
 
 
 class RandomErasing(object):
@@ -67,9 +85,11 @@ class RandomErasing(object):
 
             assert len(self.fill_color) == 3
 
-    def __call__(self, img, *args, **kwargs):
+    def __call__(self, input_tuple, *args, **kwargs):
         if random.uniform(0, 1) > self.probability:
-            return img
+            return input_tuple
+
+        img, mask = input_tuple
 
         for attempt in range(100):
             source_area = img.size[0] * img.size[1]
@@ -90,9 +110,9 @@ class RandomErasing(object):
                 img[x1:x1 + h, y1:y1 + w, 1] = fill_color[1]
                 img[x1:x1 + h, y1:y1 + w, 2] = fill_color[2]
 
-                return Image.fromarray(img)
+                return Image.fromarray(img), mask
 
-        return img
+        return img, mask
 
 
 class ColorAugmentation(object):
@@ -115,16 +135,17 @@ class ColorAugmentation(object):
                                      ])
         self.eig_val = torch.Tensor([[0.2175, 0.0188, 0.0045]])
 
-    def _check_input(self, tensor):
-        assert tensor.dim() == 3 and tensor.size(0) == 3
-
-    def __call__(self, tensor, *args, **kwargs):
+    def __call__(self, input_tuple, *args, **kwargs):
         if random.uniform(0, 1) > self.p:
-            return tensor
+            return input_tuple
+
+        tensor, mask = input_tuple
+
         alpha = torch.normal(mean=torch.zeros_like(self.eig_val)) * 0.1
         quatity = torch.mm(self.eig_val * alpha, self.eig_vec)
         tensor = tensor + quatity.view(3, 1, 1)
-        return tensor
+
+        return tensor, mask
 
 
 class RandomPatch(object):
@@ -176,8 +197,10 @@ class RandomPatch(object):
             patch = patch.rotate(random.randint(-10, 10))
         return patch
 
-    def __call__(self, img):
-        W, H = img.size # original image size
+    def __call__(self, input_tuple):
+        img, mask = input_tuple
+
+        W, H = img.size  # original image size
 
         # collect new patch
         w, h = self.generate_wh(W, H)
@@ -188,10 +211,10 @@ class RandomPatch(object):
             self.patchpool.append(new_patch)
 
         if len(self.patchpool) < self.min_sample_size:
-            return img
+            return img, mask
 
         if random.uniform(0, 1) > self.prob_happen:
-            return img
+            return img, mask
 
         # paste a randomly selected patch on a random position
         patch = random.sample(self.patchpool, 1)[0]
@@ -201,7 +224,7 @@ class RandomPatch(object):
         patch = self.transform_patch(patch)
         img.paste(patch, (x1, y1))
 
-        return img
+        return img, mask
 
 
 class RandomColorJitter(ColorJitter):
@@ -209,12 +232,15 @@ class RandomColorJitter(ColorJitter):
         self.p = p
         super().__init__(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)
 
-    def __call__(self, img):
+    def __call__(self, input_tuple):
         if random.uniform(0, 1) > self.p:
-            return img
+            return input_tuple
+
+        img, mask = input_tuple
+
         transform = self.get_params(self.brightness, self.contrast,
                                     self.saturation, self.hue)
-        return transform(img)
+        return transform(img), mask
 
 
 class RandomGrayScale(object):
@@ -224,10 +250,13 @@ class RandomGrayScale(object):
     def __init__(self, p=0.5, **kwargs):
         self.p = p
 
-    def __call__(self, img, *args, **kwargs):
+    def __call__(self, input_tuple, *args, **kwargs):
         if random.uniform(0, 1) > self.p:
-            return img
-        return F.to_grayscale(img, num_output_channels=3)
+            return input_tuple
+
+        img, mask = input_tuple
+
+        return F.to_grayscale(img, num_output_channels=3), mask
 
 
 class RandomPadding(object):
@@ -238,16 +267,21 @@ class RandomPadding(object):
         self.p = p
         self.padding_limits = padding
 
-    def __call__(self, img, *args, **kwargs):
+    def __call__(self, input_tuple, *args, **kwargs):
         if random.uniform(0, 1) > self.p:
-            return img
+            return input_tuple
+
+        img, mask = input_tuple
 
         rnd_padding = [random.randint(self.padding_limits[0], self.padding_limits[1]) for _ in range(4)]
         rnd_fill = random.randint(0, 255)
 
-        out_img = F.pad(img, tuple(rnd_padding), fill=rnd_fill, padding_mode='constant')
+        img = F.pad(img, tuple(rnd_padding), fill=rnd_fill, padding_mode='constant')
 
-        return out_img
+        if mask != '':
+            mask = F.pad(mask, tuple(rnd_padding), fill=0, padding_mode='constant')
+
+        return img, mask
 
 
 class RandomRotate(object):
@@ -258,11 +292,20 @@ class RandomRotate(object):
         self.p = p
         self.angle = angle
 
-    def __call__(self, img, *args, **kwargs):
+    def __call__(self, input_tuple, *args, **kwargs):
         if random.uniform(0, 1) > self.p:
-            return img
+            return input_tuple
+
+        img, mask = input_tuple
+
         rnd_angle = random.randint(self.angle[0], self.angle[1])
-        return F.rotate(img, rnd_angle, resample=False, expand=False, center=None)
+        img = F.rotate(img, rnd_angle, resample=False, expand=False, center=None)
+        if mask != '':
+            rgb_mask = mask.convert('RGB')
+            rgb_mask = F.rotate(rgb_mask, rnd_angle, resample=False, expand=False, center=None)
+            mask = rgb_mask.convert('L')
+
+        return img, mask
 
 
 class RandomGrid(object):
@@ -276,17 +319,22 @@ class RandomGrid(object):
         self.thickness = thickness
         self.angle = angle
 
-    def __call__(self, img, *args, **kwargs):
+    def __call__(self, input_tuple, *args, **kwargs):
         if random.uniform(0, 1) > self.p:
-            return img
+            return input_tuple
+
+        img, mask = input_tuple
+
         if self.color == (-1, -1, -1):  # Random color
             color = tuple([random.randint(0, 256) for _ in range(3)])
         else:
             color = self.color
+
         grid_size = random.randint(*self.grid_size)
         thickness = random.randint(*self.thickness)
         angle = random.randint(*self.angle)
-        return self.draw_grid(img, grid_size, color, thickness, angle)
+
+        return self.draw_grid(img, grid_size, color, thickness, angle), mask
 
     @staticmethod
     def draw_grid(image, grid_size, color, thickness, angle):
@@ -334,9 +382,12 @@ class RandomFigures(object):
         self.circle_radiuses = circle_radiuses
         self.figure_prob = figure_prob
 
-    def __call__(self, image):
+    def __call__(self, input_tuple):
         if random.uniform(0, 1) > self.p:
-            return image
+            return input_tuple
+
+        image, mask = input_tuple
+
         if self.always_single_figure:
             figure = [self.figures[random.randint(0, len(self.figures) - 1)]]
         else:
@@ -358,7 +409,7 @@ class RandomFigures(object):
                 cv_image = f(cv_image, p1, r, color, thickness)
         img = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
 
-        return Image.fromarray(img)
+        return Image.fromarray(img), mask
 
 
 class MixUp(object):
@@ -407,9 +458,11 @@ class MixUp(object):
 
         return image
 
-    def __call__(self, img, *args, **kwargs):
+    def __call__(self, input_tuple, *args, **kwargs):
         if not self.enable or random.uniform(0, 1) > self.p:
-            return img
+            return input_tuple
+
+        img, mask = input_tuple
 
         alpha = np.random.beta(self.alpha, self.alpha)
         alpha = alpha if alpha < 0.5 else 1.0 - alpha
@@ -423,7 +476,44 @@ class MixUp(object):
 
         out_image = mixed_image.clip(0.0, 255.0).astype(np.uint8)
 
-        return Image.fromarray(out_image)
+        return Image.fromarray(out_image), mask
+
+
+class PairResize(object):
+    def __init__(self, size, interpolation=Image.BILINEAR):
+        assert isinstance(size, int) or len(size) == 2
+        self.size = size
+        self.interpolation = interpolation
+
+    def __call__(self, input_tuple):
+        image, mask = input_tuple
+
+        image = F.resize(image, self.size, self.interpolation)
+        mask = F.resize(mask, self.size, self.interpolation) if mask != '' else mask
+
+        return image, mask
+
+
+class PairNormalize(object):
+    def __init__(self, mean, std, inplace=False):
+        self.mean = mean
+        self.std = std
+        self.inplace = inplace
+
+    def __call__(self, input_tuple):
+        image, mask = input_tuple
+
+        return F.normalize(image, self.mean, self.std, self.inplace), mask
+
+
+class PairToTensor(object):
+    def __call__(self, input_tuple):
+        image, mask = input_tuple
+
+        image = F.to_tensor(image)
+        mask = F.to_tensor(mask) if mask != '' else mask
+
+        return image, mask
 
 
 def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.406),
@@ -445,7 +535,6 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if norm_mean is None or norm_std is None:
         norm_mean = [0.485, 0.456, 0.406]  # imagenet mean
         norm_std = [0.229, 0.224, 0.225]  # imagenet std
-    normalize = Normalize(mean=norm_mean, std=norm_std)
 
     print('Building train transforms ...')
     transform_tr = []
@@ -456,7 +545,7 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
         print('+ random_padding')
         transform_tr += [RandomPadding(**transforms.random_padding)]
     print('+ resize to {}x{}'.format(height, width))
-    transform_tr += [Resize((height, width))]
+    transform_tr += [PairResize((height, width))]
     if transforms.random_grid.enable:
         print('+ random_grid')
         transform_tr += [RandomGrid(**transforms.random_grid)]
@@ -490,9 +579,9 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
         print('+ random erase')
         transform_tr += [RandomErasing(**transforms.random_erase)]
     print('+ to torch tensor of range [0, 1]')
-    transform_tr += [ToTensor()]
+    transform_tr += [PairToTensor()]
     print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
-    transform_tr += [normalize]
+    transform_tr += [PairNormalize(mean=norm_mean, std=norm_std)]
     transform_tr = Compose(transform_tr)
 
     print('Building test transforms ...')
@@ -500,9 +589,9 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     print('+ to torch tensor of range [0, 1]')
     print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
     transform_te = Compose([
-        Resize((height, width)),
-        ToTensor(),
-        normalize,
+        PairResize((height, width)),
+        PairToTensor(),
+        PairNormalize(mean=norm_mean, std=norm_std),
     ])
 
     return transform_tr, transform_te

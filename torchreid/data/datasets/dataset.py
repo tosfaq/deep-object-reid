@@ -293,12 +293,15 @@ class ImageDataset(Dataset):
         img_path = input_record[0]
         pid = input_record[1]
         cam_id = input_record[2]
+        dataset_id = input_record[3]
 
-        img = read_image(input_record[0])
+        image = read_image(input_record[0], grayscale=False)
+        mask = read_image(input_record[4], grayscale=True) if input_record[4] != '' else ''
+
         if self.transform is not None:
-            img = self.transform(img)
+            image, mask = self.transform((image, mask))
 
-        output_record = tuple([img, pid, cam_id, img_path] + list(input_record[3:]))
+        output_record = tuple([image, pid, cam_id, img_path, dataset_id, mask] + list(input_record[5:]))
 
         return output_record
 

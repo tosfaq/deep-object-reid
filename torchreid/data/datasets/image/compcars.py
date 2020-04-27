@@ -23,7 +23,7 @@ class CompCars(ImageDataset):
         self.data_dir = self.dataset_dir
 
         self.images_dir = join(self.data_dir, 'image')
-        self.masks_dir = join(self.data_dir, 'image')
+        self.masks_dir = join(self.data_dir, 'mask')
 
         required_files = [
             self.data_dir, self.images_dir
@@ -65,6 +65,6 @@ class CompCars(ImageDataset):
                 image_path = join(local_images_dir, '{}.jpg'.format(name))
                 mask_path = join(local_masks_dir, '{}.png'.format(name)) if load_masks else ''
 
-                out_data.append((image_path, class_id, 0, dataset_id, -1, -1, mask_path))
+                out_data.append((image_path, class_id, 0, dataset_id, mask_path, -1, -1))
 
         return out_data

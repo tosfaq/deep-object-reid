@@ -310,6 +310,7 @@ def model_kwargs(cfg, num_classes):
         'feature_dim': cfg.model.feature_dim,
         'bn_eval': cfg.model.bn_eval,
         'bn_frozen': cfg.model.bn_frozen,
+        'enable_attentions': cfg.data.enable_masks
     }
 
 
