@@ -484,10 +484,10 @@ class OSNet(nn.Module):
 
     @staticmethod
     def _construct_attention_layer(num_channels, enable):
-        return ResidualAttention(num_channels, residual=True) if enable else None
+        return ResidualAttention(num_channels, gumbel=False, residual=True) if enable else None
 
     @staticmethod
-    def _construct_head_attention(num_channels, enable, channel_factor=8, gumbel_scale=5.0):
+    def _construct_head_attention(num_channels, enable, channel_factor=8, gumbel=True, gumbel_scale=5.0):
         if not enable:
             return None
 
@@ -499,7 +499,7 @@ class OSNet(nn.Module):
             Conv3x3(internal_num_channels, internal_num_channels, groups=internal_num_channels, out_fn=None),
             HSwish(),
             Conv1x1(internal_num_channels, 1, out_fn=None),
-            GumbelSigmoid(scale=gumbel_scale)
+            GumbelSigmoid(scale=gumbel_scale) if gumbel else nn.Sigmoid()
         ]
 
         return nn.Sequential(*layers)
@@ -719,8 +719,8 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, enable
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        head_attention=enable_attentions,
-        # attentions=[False, True, True, False, False] if enable_attentions else None,
+        # head_attention=enable_attentions,
+        attentions=[False, True, True, False, False] if enable_attentions else None,
         input_IN=True,
         conv1_IN=True,
         **kwargs

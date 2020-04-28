@@ -166,12 +166,25 @@ class ImageAMSoftmaxEngine(Engine):
                     if att_map is not None:
                         with torch.no_grad():
                             att_map_size = att_map.size()[2:]
-                            trg_mask = F.interpolate(masks, size=att_map_size, mode='nearest')
-                            trg_mask = torch.where(trg_mask > 0.0,
-                                                   torch.ones_like(trg_mask),
-                                                   torch.zeros_like(trg_mask))
+                            pos_float_mask = F.interpolate(masks, size=att_map_size, mode='nearest')
+                            pos_mask = pos_float_mask > 0.0
+                            neg_mask = ~pos_mask
 
-                        att_loss_val += torch.abs((att_map - trg_mask)).mean()
+                            trg_mask_values = torch.where(pos_mask,
+                                                          torch.ones_like(pos_float_mask),
+                                                          torch.zeros_like(pos_float_mask))
+                            num_positives = trg_mask_values.sum(dim=(1, 2, 3), keepdim=True)
+                            num_negatives = float(att_map_size[0] * att_map_size[1]) - num_positives
+
+                            batch_factor = 1.0 / float(att_map.size(0))
+                            pos_weights = batch_factor / num_positives.clamp_min(1.0)
+                            neg_weights = batch_factor / num_negatives.clamp_min(1.0)
+
+                        att_errors = torch.abs(att_map - trg_mask_values)
+                        att_pos_errors = (pos_weights * att_errors)[pos_mask].sum()
+                        att_neg_errors = (neg_weights * att_errors)[neg_mask].sum()
+
+                        att_loss_val += 0.5 * (att_pos_errors + att_neg_errors)
 
                 if att_loss_val > 0.0:
                     att_losses.update(att_loss_val.item(), pids.size(0))
