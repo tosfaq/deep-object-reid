@@ -24,7 +24,10 @@ class RandomHorizontalFlip(object):
 
         img, mask = input_tuple
 
-        return F.hflip(img), F.hflip(mask)
+        img = F.hflip(img)
+        mask = F.hflip(mask) if mask != '' else mask
+
+        return img, mask
 
 
 class RandomCrop(object):
@@ -49,9 +52,7 @@ class RandomCrop(object):
         y1 = int(round(random.uniform(0, y_max_range)))
 
         img = img.crop((x1, y1, x1 + crop_width, y1 + crop_height))
-
-        if mask != '':
-            mask = mask.crop((x1, y1, x1 + crop_width, y1 + crop_height))
+        mask = mask.crop((x1, y1, x1 + crop_width, y1 + crop_height)) if mask != '' else mask
 
         return img, mask
 
@@ -188,6 +189,7 @@ class RandomPatch(object):
             w = int(round(math.sqrt(target_area / aspect_ratio)))
             if w < W and h < H:
                 return w, h
+
         return None, None
 
     def transform_patch(self, patch):
@@ -240,6 +242,7 @@ class RandomColorJitter(ColorJitter):
 
         transform = self.get_params(self.brightness, self.contrast,
                                     self.saturation, self.hue)
+
         return transform(img), mask
 
 
@@ -277,9 +280,7 @@ class RandomPadding(object):
         rnd_fill = random.randint(0, 255)
 
         img = F.pad(img, tuple(rnd_padding), fill=rnd_fill, padding_mode='constant')
-
-        if mask != '':
-            mask = F.pad(mask, tuple(rnd_padding), fill=0, padding_mode='constant')
+        mask = F.pad(mask, tuple(rnd_padding), fill=0, padding_mode='constant') if mask != '' else mask
 
         return img, mask
 
@@ -395,6 +396,7 @@ class RandomFigures(object):
             for i in range(len(self.figures)):
                 if random.uniform(0, 1) > self.figure_prob:
                     figure.append(self.figures[i])
+
         cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         h, w = cv_image.shape[:2]
         for f in figure:
@@ -407,6 +409,7 @@ class RandomFigures(object):
             else:
                 r = random.randint(*self.circle_radiuses)
                 cv_image = f(cv_image, p1, r, color, thickness)
+
         img = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
 
         return Image.fromarray(img), mask
