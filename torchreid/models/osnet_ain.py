@@ -606,14 +606,6 @@ class OSNet(nn.Module):
         extra_out_data = dict()
         extra_out_data['att_maps'] = [head_att_map] + feature_att_maps
 
-        # if self.mock_embd:
-        #     mock_embeddings = self.mock_fc(glob_features)
-        #     extra_out_data['mock_embd'] = mock_embeddings
-        #
-        #     norm_mock_embedding = F.normalize(mock_embeddings, p=2, dim=1)
-        #     proj_mock_embeddings = self.project(grad_reverse(norm_mock_embedding))
-        #     extra_out_data['proj_mock_embd'] = proj_mock_embeddings
-
         if get_embeddings:
             return logits, embeddings, extra_out_data
 
