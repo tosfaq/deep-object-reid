@@ -465,7 +465,8 @@ class OSNet(nn.Module):
         self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
         for trg_num_classes in self.num_classes:
             self.fc.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
-            self.classifier.append(classifier_block(self.feature_dim, trg_num_classes))
+            if trg_num_classes > 0:
+                self.classifier.append(classifier_block(self.feature_dim, trg_num_classes))
 
         self._init_params()
 

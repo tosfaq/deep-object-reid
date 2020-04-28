@@ -13,7 +13,7 @@ data:
   height: 192
   width: 256
   combineall: False
-  enable_masks: True
+  enable_masks: False
   transforms:
     random_flip:
       enable: True

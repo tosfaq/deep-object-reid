@@ -600,12 +600,28 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     return transform_tr, transform_te
 
 
+def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_std=(0.229, 0.224, 0.225), **kwargs):
+    print('Building test transforms ...')
+    print('+ resize to {}x{}'.format(height, width))
+    print('+ to torch tensor of range [0, 1]')
+    print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
+    transform_te = Compose([
+        PairResize((height, width)),
+        PairToTensor(),
+        PairNormalize(mean=norm_mean, std=norm_std),
+    ])
+
+    return transform_te
+
+
 class SubmissionTransform:
     def __init__(self, out_transform, scales=None):
         self.out_transform = out_transform
         self.scales = scales
 
-    def __call__(self, input_image):
+    def __call__(self, input_tuple):
+        input_image, input_mask = input_tuple
+
         out_images = [input_image]
 
         cropped_images = self._make_crops(input_image, self.scales)
@@ -617,7 +633,7 @@ class SubmissionTransform:
         out_images = [self.out_transform(im) for im in out_images]
         out_tensor = torch.stack(out_images, dim=0)
 
-        return out_tensor
+        return out_tensor, input_mask
 
     @staticmethod
     def _make_crops(input_image, scales):
@@ -648,12 +664,11 @@ def build_submission_transforms(height, width, norm_mean=(0.485, 0.456, 0.406), 
     if norm_mean is None or norm_std is None:
         norm_mean = [0.485, 0.456, 0.406]  # imagenet mean
         norm_std = [0.229, 0.224, 0.225]  # imagenet std
-    normalize = Normalize(mean=norm_mean, std=norm_std)
 
     out_transform = Compose([
-        Resize((height, width)),
-        ToTensor(),
-        normalize,
+        PairResize((height, width)),
+        PairToTensor(),
+        PairNormalize(mean=norm_mean, std=norm_std)
     ])
 
     return SubmissionTransform(out_transform)
