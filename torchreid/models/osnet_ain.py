@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, HSwish, GumbelSigmoid, grad_reverse
+from torchreid.ops import Dropout, HSwish, GumbelSigmoid, LocalContrastNormalization
 
 
 __all__ = ['osnet_ain_x1_0']
@@ -408,6 +408,7 @@ class OSNet(nn.Module):
         dropout_probs=None,
         feature_dim=512,
         loss='softmax',
+        input_lcn=False,
         input_IN=False,
         conv1_IN=False,
         bn_eval=False,
@@ -441,6 +442,7 @@ class OSNet(nn.Module):
         self.num_classes = num_classes
         assert len(self.num_classes) > 0
 
+        self.input_lcn = LocalContrastNormalization(3, 5, affine=True) if input_lcn else None
         self.input_IN = nn.InstanceNorm2d(3, affine=True) if input_IN else None
 
         self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=conv1_IN)
@@ -531,6 +533,9 @@ class OSNet(nn.Module):
             elif isinstance(m, (nn.InstanceNorm1d, nn.InstanceNorm2d)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+            elif isinstance(m, LocalContrastNormalization):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, 0, 0.01)
                 if m.bias is not None:
@@ -539,9 +544,10 @@ class OSNet(nn.Module):
     def _backbone(self, x):
         att_maps = []
 
-        x = self.input_IN(x) if self.input_IN is not None else x
+        y = self.input_lcn(x) if self.input_lcn is not None else x
+        y = self.input_IN(y) if self.input_IN is not None else y
 
-        y = self.conv1(x)
+        y = self.conv1(y)
         if self.att1 is not None:
             y, att1 = self.att1(y, return_mask=True)
             att_maps.append(att1)
@@ -718,7 +724,8 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, enable
         channels=[64, 256, 384, 512],
         # head_attention=enable_attentions,
         attentions=[False, True, True, False, False] if enable_attentions else None,
-        input_IN=True,
+        input_lcn=True,
+        input_IN=False,
         conv1_IN=True,
         **kwargs
     )
