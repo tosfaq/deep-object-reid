@@ -15,7 +15,7 @@ from torchreid.data.datasets import init_image_dataset
 from torchreid.data.transforms import build_test_transform
 from scripts.default_config import imagedata_kwargs, get_default_config, model_kwargs
 
-GRID_SPACING = 3
+GRID_SPACING = 4
 ANCHOR_COLOR = (0, 0, 0)
 TRUE_COLOR = (0, 255, 0)
 FALSE_COLOR = (0, 0, 255)
@@ -134,9 +134,11 @@ def visualize_matches(all_matches, images_query, images_gallery, ids_query, ids_
         query_id = ids_query[query_sample_id]
         query_image = images_query[query_sample_id]
         matches = all_matches[query_sample_id]
+        max_num_matches = np.sum(query_id == ids_gallery)
 
         grid_img = np.full((grid_height, grid_width, 3), 255, dtype=np.uint8)
 
+        num_valid = 0
         for i in range(matrix_size * matrix_size):
             if i == 0:
                 image = query_image
@@ -147,6 +149,7 @@ def visualize_matches(all_matches, images_query, images_gallery, ids_query, ids_
 
                 gallery_id = ids_gallery[gallery_sample_id]
                 color = TRUE_COLOR if query_id == gallery_id else FALSE_COLOR
+                num_valid += query_id == gallery_id
 
             row = int(i / matrix_size)
             col = int(i % matrix_size)
@@ -163,6 +166,9 @@ def visualize_matches(all_matches, images_query, images_gallery, ids_query, ids_
             image_right = image_left + width
             grid_img[image_top:image_down, image_left:image_right] = image[:, :, ::-1]
 
+            if num_valid >= max_num_matches:
+                break
+
         out_path = join(out_dir, 'img_{:04}.jpg'.format(query_sample_id))
         cv2.imwrite(out_path, grid_img)
 
@@ -173,7 +179,7 @@ def main():
     parser.add_argument('--weights', '-w', type=str, required=True)
     parser.add_argument('--root', '-r', type=str, required=True)
     parser.add_argument('--out-dir', '-o', type=str, required=True)
-    parser.add_argument('--matrix-size', '-ms', type=int, required=False, default=7)
+    parser.add_argument('--matrix-size', '-ms', type=int, required=False, default=8)
     parser.add_argument('opts', default=None, nargs=REMAINDER)
     args = parser.parse_args()
 
