@@ -585,10 +585,6 @@ class OSNet(nn.Module):
             out = F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
             att_map = None
 
-        # import matplotlib.pyplot as plt
-        # plt.imshow(att_map[0, 0].detach().cpu())
-        # plt.show()
-
         return out, att_map
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):

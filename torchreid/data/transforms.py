@@ -246,20 +246,20 @@ class RandomColorJitter(ColorJitter):
         return transform(img), mask
 
 
-class RandomGrayScale(object):
-    """Random grayscale
-    """
-
-    def __init__(self, p=0.5, **kwargs):
+class RandomGrayscale(object):
+    def __init__(self, p=0.1):
         self.p = p
 
-    def __call__(self, input_tuple, *args, **kwargs):
+    def __call__(self, input_tuple):
         if random.uniform(0, 1) > self.p:
             return input_tuple
 
         img, mask = input_tuple
 
-        return F.to_grayscale(img, num_output_channels=3), mask
+        num_output_channels = 1 if img.mode == 'L' else 3
+        img = F.to_grayscale(img, num_output_channels=num_output_channels)
+
+        return img, mask
 
 
 class RandomPadding(object):
