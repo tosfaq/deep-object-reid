@@ -23,7 +23,7 @@ data:
       brightness: 0.15
       contrast: 0.15
     random_gray_scale:
-      enable: True
+      enable: False
       p: 0.1
     random_flip:
       enable: True

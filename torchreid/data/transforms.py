@@ -240,10 +240,10 @@ class RandomColorJitter(ColorJitter):
 
         img, mask = input_tuple
 
-        transform = self.get_params(self.brightness, self.contrast,
-                                    self.saturation, self.hue)
+        transform = self.get_params(self.brightness, self.contrast, self.saturation, self.hue)
+        img = transform(img)
 
-        return transform(img), mask
+        return img, mask
 
 
 class RandomGrayscale(object):
