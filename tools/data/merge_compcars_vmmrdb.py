@@ -24,7 +24,7 @@ def show_stat(data, header):
 
 
 def norm_str(string):
-    return string.lower().replace('-', '').replace(' ', '').replace('.', '')
+    return string.strip().lower().replace('-', '').replace(' ', '').replace('.', '').replace('‘', '')
 
 
 def load_compcars_maps(map_file):
@@ -80,6 +80,14 @@ def parse_data_compcars(data_dir, makes_map, models_map):
                 model = norm_str(model[len(make):])
             elif model.startswith('benz'):
                 model = norm_str(model[len('benz'):])
+            elif model.startswith('bwm'):
+                model = norm_str(model[len('bwm'):])
+            elif make == 'tesla' and model.startswith('model'):
+                model = norm_str(model[len('model'):])
+            elif make == 'renault' and model.startswith('reno'):
+                model = norm_str(model[len('reno'):])
+            elif make == 'jaguar' and model.startswith('gaguar'):
+                model = norm_str(model[len('gaguar'):])
 
             if len(model) == 0 or model == 'unknown':
                 continue
@@ -145,9 +153,14 @@ def merge_data(data_a, data_b):
             out_data[make_b] = models_b
         else:
             models_a = out_data[make_b]
+
+            # source_list = list(models_a)
+            # candidate_list = list()
+
             for model_b, years_b in models_b.items():
                 if model_b not in models_a:
                     models_a[model_b] = years_b
+                    # candidate_list.append(model_b)
                 else:
                     years_a = models_a[model_b]
                     for year_b, records_b in years_b.items():
@@ -155,6 +168,11 @@ def merge_data(data_a, data_b):
                             years_a[year_b] = records_b
                         else:
                             years_a[year_b].extend(records_b)
+
+            # if len(candidate_list) > 0:
+            #     print('\n   * make: {}'.format(make_b))
+            #     print('      - src: {}'.format(', '.join(source_list)))
+            #     print('      - candidates: {}'.format(', '.join(candidate_list)))
 
     return out_data
 

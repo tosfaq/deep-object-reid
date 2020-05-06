@@ -81,6 +81,9 @@ def crop_image(image, bbox, scale):
 
 
 def resize_image(image, max_size):
+    if max_size <= 0:
+        return image
+
     src_height, src_width = image.shape[:2]
     if src_height < 10 or src_width < 10:
         return None
