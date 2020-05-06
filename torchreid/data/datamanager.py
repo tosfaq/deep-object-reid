@@ -119,7 +119,7 @@ class ImageDataManager(DataManager):
         batch_size_train (int, optional): number of images in a training batch. Default is 32.
         batch_size_test (int, optional): number of images in a test batch. Default is 32.
         workers (int, optional): number of workers. Default is 4.
-        num_instances (int, optional): number of instances per identity in a batch.
+        batch_num_instances (int, optional): number of instances per identity in a batch.
             Default is 4.
         train_sampler (str, optional): sampler. Default is RandomSampler.
         cuhk03_labeled (bool, optional): use cuhk03 labeled images.
@@ -164,9 +164,9 @@ class ImageDataManager(DataManager):
         batch_size_train=32,
         batch_size_test=32,
         workers=4,
-        num_instances=4,
         train_sampler='RandomSampler',
-        ave_num_instances=-1,
+        batch_num_instances=4,
+        epoch_num_instances=-1,
         cuhk03_labeled=False,
         cuhk03_classic_split=False,
         market1501_500k=False,
@@ -214,8 +214,8 @@ class ImageDataManager(DataManager):
                 train_dataset.train,
                 train_sampler,
                 batch_size=batch_size_train,
-                num_instances=num_instances,
-                ave_num_instances=ave_num_instances,
+                batch_num_instances=batch_num_instances,
+                epoch_num_instances=epoch_num_instances,
             ),
             batch_size=batch_size_train,
             shuffle=False,
@@ -305,7 +305,7 @@ class VideoDataManager(DataManager):
         batch_size_train (int, optional): number of tracklets in a training batch. Default is 3.
         batch_size_test (int, optional): number of tracklets in a test batch. Default is 3.
         workers (int, optional): number of workers. Default is 4.
-        num_instances (int, optional): number of instances per identity in a batch.
+        batch_num_instances (int, optional): number of instances per identity in a batch.
             Default is 4.
         train_sampler (str, optional): sampler. Default is RandomSampler.
         seq_len (int, optional): how many images to sample in a tracklet. Default is 15.
@@ -356,7 +356,7 @@ class VideoDataManager(DataManager):
         batch_size_train=3,
         batch_size_test=3,
         workers=4,
-        num_instances=4,
+        batch_num_instances=4,
         train_sampler='RandomSampler',
         seq_len=15,
         sample_method='evenly'
@@ -395,7 +395,7 @@ class VideoDataManager(DataManager):
             trainset.train,
             train_sampler,
             batch_size=batch_size_train,
-            num_instances=num_instances
+            batch_num_instances=batch_num_instances
         )
 
         self.train_loader = torch.utils.data.DataLoader(

@@ -9,25 +9,28 @@ AVAI_SAMPLERS = ['RandomIdentitySampler', 'RandomIdentitySamplerV2', 'RandomIden
                  'SequentialSampler', 'RandomSampler']
 
 
-def build_train_sampler(data_source, train_sampler, batch_size=32, num_instances=4, ave_num_instances=-1, **kwargs):
+def build_train_sampler(data_source, train_sampler, batch_size=32,
+                        batch_num_instances=4, epoch_num_instances=-1, **kwargs):
     """Builds a training sampler.
 
     Args:
         data_source (list): contains tuples of (img_path(s), pid, camid).
         train_sampler (str): sampler name (default: ``RandomSampler``).
         batch_size (int, optional): batch size. Default is 32.
-        num_instances (int, optional): number of instances per identity in a
+        batch_num_instances (int, optional): number of instances per identity in a
             batch (when using ``RandomIdentitySampler``). Default is 4.
+        epoch_num_instances (int, optional): number of instances per epoch
+            (when using ``RandomIdentitySamplerV3``). Default is -1 (auto configuration).
     """
     assert train_sampler in AVAI_SAMPLERS, \
         'train_sampler must be one of {}, but got {}'.format(AVAI_SAMPLERS, train_sampler)
 
     if train_sampler == 'RandomIdentitySampler':
-        sampler = RandomIdentitySampler(data_source, batch_size, num_instances)
+        sampler = RandomIdentitySampler(data_source, batch_size, batch_num_instances)
     elif train_sampler == 'RandomIdentitySamplerV2':
-        sampler = RandomIdentitySamplerV2(data_source, batch_size, num_instances)
+        sampler = RandomIdentitySamplerV2(data_source, batch_size, batch_num_instances)
     elif train_sampler == 'RandomIdentitySamplerV3':
-        sampler = RandomIdentitySamplerV3(data_source, batch_size, num_instances, ave_num_instances)
+        sampler = RandomIdentitySamplerV3(data_source, batch_size, batch_num_instances, epoch_num_instances)
     elif train_sampler == 'SequentialSampler':
         sampler = SequentialSampler(data_source)
     elif train_sampler == 'RandomSampler':
@@ -130,7 +133,7 @@ class RandomIdentitySamplerV2(RandomIdentitySampler):
 
 
 class RandomIdentitySamplerV3(Sampler):
-    def __init__(self, data_source, batch_size, num_instances, ave_num_instances=-1):
+    def __init__(self, data_source, batch_size, num_instances, epoch_num_instances=-1):
         super().__init__(data_source)
 
         if batch_size < num_instances:
@@ -149,13 +152,13 @@ class RandomIdentitySamplerV3(Sampler):
 
         self.pids = {trg_name: list(trg_dict.keys()) for trg_name, trg_dict in self.index_dict.items()}
 
-        if ave_num_instances is not None and ave_num_instances > 0:
-            average_num_instances = ave_num_instances
-            print('Manually set number of samples per ID: {}'.format(average_num_instances))
+        if epoch_num_instances is not None and epoch_num_instances > 0:
+            average_num_instances = epoch_num_instances
+            print('Manually set number of samples per ID for epoch: {}'.format(average_num_instances))
         else:
             num_indices = [len(indices) for trg_dict in self.index_dict.values() for indices in trg_dict.values()]
             average_num_instances = np.median(num_indices)
-            print('Estimated number of samples per ID: {}'.format(average_num_instances))
+            print('Estimated number of samples per ID for epoch: {}'.format(average_num_instances))
 
         self.num_packages = int(average_num_instances) // self.num_instances
         self.instances_per_pid = self.num_packages * self.num_instances
