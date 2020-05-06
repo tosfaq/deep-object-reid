@@ -166,9 +166,10 @@ class ImageDataManager(DataManager):
         workers=4,
         num_instances=4,
         train_sampler='RandomSampler',
+        ave_num_instances=-1,
         cuhk03_labeled=False,
         cuhk03_classic_split=False,
-        market1501_500k=False
+        market1501_500k=False,
     ):
 
         super(ImageDataManager, self).__init__(
@@ -214,6 +215,7 @@ class ImageDataManager(DataManager):
                 train_sampler,
                 batch_size=batch_size_train,
                 num_instances=num_instances,
+                ave_num_instances=ave_num_instances,
             ),
             batch_size=batch_size_train,
             shuffle=False,

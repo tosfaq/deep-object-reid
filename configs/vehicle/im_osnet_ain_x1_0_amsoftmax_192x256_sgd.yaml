@@ -56,6 +56,7 @@ data:
 sampler:
   train_sampler: 'RandomIdentitySamplerV3'
   num_instances: 4
+  ave_num_instances: -1
 
 loss:
   name: 'am_softmax'

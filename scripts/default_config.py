@@ -42,6 +42,7 @@ def get_default_config():
     cfg.sampler = CN()
     cfg.sampler.train_sampler = 'RandomSampler'
     cfg.sampler.num_instances = 4  # number of instances per identity for RandomIdentitySampler
+    cfg.sampler.ave_num_instances = -1
 
     # video reid setting
     cfg.video = CN()
@@ -237,6 +238,7 @@ def imagedata_kwargs(cfg):
         'workers': cfg.data.workers,
         'num_instances': cfg.sampler.num_instances,
         'train_sampler': cfg.sampler.train_sampler,
+        'ave_num_instances': cfg.sampler.ave_num_instances,
         'enable_masks': cfg.data.enable_masks,
         # image
         'cuhk03_labeled': cfg.cuhk03.labeled_images,
