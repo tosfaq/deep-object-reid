@@ -10,14 +10,14 @@ class CompCars(ImageDataset):
 
             URL: `<http://mmlab.ie.cuhk.edu.hk/datasets/comp_cars/index.html>`_
 
-            Dataset statistics:
-                - identities: 4446.
-                - images: 136726.
+            Dataset statistics (if min_num_samples parameter is set to 2):
+                - identities: 4385.
+                - images: 135996.
             """
 
     dataset_dir = 'compcars'
 
-    def __init__(self, root='', dataset_id=0, load_masks=False, min_num_samples=5, **kwargs):
+    def __init__(self, root='', dataset_id=0, load_masks=False, min_num_samples=2, **kwargs):
         self.root = abspath(expanduser(root))
         self.dataset_dir = join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir

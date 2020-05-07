@@ -602,7 +602,8 @@ class OSNet(nn.Module):
         embeddings = [fc(glob_features) for fc in self.fc]
 
         if not self.training and not return_logits:
-            return embeddings[0]
+            inference_embd = torch.cat(embeddings, dim=1)
+            return inference_embd
 
         logits = [classifier(embd) for embd, classifier in zip(embeddings, self.classifier)]
 
