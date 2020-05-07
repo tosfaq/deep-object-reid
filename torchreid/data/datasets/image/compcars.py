@@ -17,7 +17,7 @@ class CompCars(ImageDataset):
 
     dataset_dir = 'compcars'
 
-    def __init__(self, root='', dataset_id=0, load_masks=False, **kwargs):
+    def __init__(self, root='', dataset_id=0, load_masks=False, min_num_samples=5, **kwargs):
         self.root = abspath(expanduser(root))
         self.dataset_dir = join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
@@ -33,8 +33,12 @@ class CompCars(ImageDataset):
         self.check_before_run(required_files)
 
         train = self.load_annotation(
-            self.images_dir, self.masks_dir,
-            dataset_id=dataset_id, load_masks=load_masks)
+            self.images_dir,
+            self.masks_dir,
+            dataset_id=dataset_id,
+            load_masks=load_masks,
+            min_num_samples=min_num_samples
+        )
         train = self.compress_labels(train)
 
         query, gallery = [], []
@@ -42,12 +46,15 @@ class CompCars(ImageDataset):
         super(CompCars, self).__init__(train, query, gallery, **kwargs)
 
     @staticmethod
-    def load_annotation(images_dir, masks_dir=None, dataset_id=0, load_masks=False):
+    def load_annotation(images_dir, masks_dir=None, dataset_id=0, load_masks=False, min_num_samples=1):
         relative_path_shift = len(abspath(images_dir)) + 1
 
         base_dirs = []
         for root, sub_dirs, files in walk(images_dir):
-            if len(sub_dirs) == 0 and len(files) > 0:
+            if len(sub_dirs) == 0 and len(files) >= min_num_samples:
+                if root.endswith('unknown'):
+                    continue
+
                 relative_path = root[relative_path_shift:]
                 base_dirs.append(relative_path)
 
