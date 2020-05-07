@@ -32,7 +32,7 @@ import numpy as np
 
 from torchreid.engine import Engine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
-from torchreid.losses import (get_regularizer, AMSoftmaxLoss, CrossEntropyLoss, TotalVarianceLoss,
+from torchreid.losses import (get_regularizer, AMSoftmaxLoss, CrossEntropyLoss,
                               MetricLosses, MockTripletLoss)
 from torchreid.ops import grad_reverse
 
@@ -45,7 +45,7 @@ class ImageAMSoftmaxEngine(Engine):
                  scheduler=None, use_gpu=False, softmax_type='stock',
                  label_smooth=False, conf_penalty=False, pr_product=False,
                  m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None,
-                 writer=None, enable_masks=False):
+                 writer=None, enable_masks=False, projector_weight=-1.0):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
 
         assert softmax_type in ['stock', 'am']
@@ -98,6 +98,8 @@ class ImageAMSoftmaxEngine(Engine):
                 ))
 
         self.enable_masks = enable_masks
+        self.enable_aux_projector = projector_weight > 0.0 and len(self.num_classes) > 1
+        self.projector_weight = projector_weight
 
     @staticmethod
     def _valid(value):
@@ -108,6 +110,7 @@ class ImageAMSoftmaxEngine(Engine):
         data_time = AverageMeter()
         reg_losses = AverageMeter()
         total_losses = AverageMeter()
+        proj_losses = AverageMeter()
         att_losses = AverageMeter()
         ml_losses = [AverageMeter() for _ in range(self.num_targets)]
         main_losses = [AverageMeter() for _ in range(self.num_targets)]
@@ -159,8 +162,19 @@ class ImageAMSoftmaxEngine(Engine):
 
                 total_loss += trg_loss
                 num_trg_losses += 1
-
             total_loss /= float(num_trg_losses)
+
+            if self.enable_aux_projector:
+                norm_anchor_embd = grad_reverse(F.normalize(all_embeddings[0], p=2, dim=1))
+
+                proj_sim_loss = 0.0
+                for ref_embd in extra_data['proj_embd']:
+                    norm_ref_embd = F.normalize(ref_embd, p=2, dim=1)
+                    proj_sim_loss += torch.sum((norm_anchor_embd * norm_ref_embd) ** 2, dim=1).mean()
+                proj_sim_loss *= self.projector_weight / float(len(extra_data['proj_embd']))
+
+                proj_losses.update(proj_sim_loss.item(), pids.size(0))
+                total_loss -= proj_sim_loss
 
             if self.enable_masks and masks is not None:
                 att_loss_val = 0.0
@@ -213,6 +227,7 @@ class ImageAMSoftmaxEngine(Engine):
                       'Loss {loss.val:.3f} ({loss.avg:.3f}) '
                       'ML Loss {ml_loss.val:.3f} ({ml_loss.avg:.3f}) '
                       'Att {att_loss.val:.3f} ({att_loss.avg:.3f}) '
+                      'Proj {proj_loss.val:.3f} ({proj_loss.avg:.3f}) '
                       'Lr {lr:.6f} '
                       'ETA {eta}'.
                       format(
@@ -222,6 +237,7 @@ class ImageAMSoftmaxEngine(Engine):
                           loss=total_losses,
                           ml_loss=ml_losses[0],
                           att_loss=att_losses,
+                          proj_loss=proj_losses,
                           lr=self.optimizer.param_groups[0]['lr'],
                           eta=eta_str,
                       )
@@ -239,6 +255,7 @@ class ImageAMSoftmaxEngine(Engine):
                     writer.add_scalar('Loss/att', att_losses.avg, n_iter)
                     writer.add_scalar('Aux/Learning_rate', self.optimizer.param_groups[0]['lr'], n_iter)
                     writer.add_scalar('Aux/Scale_main', self.main_losses[0].get_last_scale(), n_iter)
+                    writer.add_scalar('Aux/proj', proj_losses.avg, n_iter)
                     for trg_id in range(self.num_targets):
                         writer.add_scalar('Loss/ml_{}'.format(trg_id), ml_losses[trg_id].avg, n_iter)
                         writer.add_scalar('Loss/main_{}'.format(trg_id), main_losses[trg_id].avg, n_iter)

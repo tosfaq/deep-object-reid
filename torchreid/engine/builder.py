@@ -35,6 +35,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
                 skip_steps_s=cfg.loss.softmax.skip_steps_s,
                 writer=writer,
                 enable_masks=cfg.data.enable_masks,
+                projector_weight=cfg.loss.projector_weight
             )
         else:
             engine = ImageTripletEngine(

@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, HSwish, GumbelSigmoid, LocalContrastNormalization
+from torchreid.ops import Dropout, HSwish, GumbelSigmoid, LocalContrastNormalization, grad_reverse
 
 
 __all__ = ['osnet_ain_x1_0']
@@ -406,13 +406,14 @@ class OSNet(nn.Module):
         head_attention=False,
         attentions=None,
         dropout_probs=None,
-        feature_dim=512,
+        feature_dim=256,
         loss='softmax',
         input_lcn=False,
         input_IN=False,
         conv1_IN=False,
         bn_eval=False,
         bn_frozen=False,
+        aux_projector=False,
         **kwargs
     ):
         super(OSNet, self).__init__()
@@ -470,6 +471,16 @@ class OSNet(nn.Module):
             if trg_num_classes > 0:
                 self.classifier.append(classifier_block(self.feature_dim, trg_num_classes))
 
+        self.aux_projector = aux_projector and len(self.num_classes) > 1
+        if self.aux_projector:
+            self.aux_projectors = nn.ModuleList()
+            for _ in range(len(self.num_classes) - 1):
+                self.aux_projectors.append(self._construct_projector(
+                    self.feature_dim,
+                    2 * self.feature_dim,
+                    self.feature_dim
+                ))
+
         self._init_params()
 
     @staticmethod
@@ -518,6 +529,17 @@ class OSNet(nn.Module):
             nn.Linear(input_dim, output_dim),
             nn.BatchNorm1d(output_dim)
         ])
+
+        return nn.Sequential(*layers)
+
+    @staticmethod
+    def _construct_projector(in_features, internal_features, out_features):
+        layers = [
+            nn.Linear(in_features, internal_features),
+            nn.BatchNorm1d(internal_features),
+            HSwish(),
+            nn.Linear(internal_features, out_features),
+        ]
 
         return nn.Sequential(*layers)
 
@@ -602,13 +624,19 @@ class OSNet(nn.Module):
         embeddings = [fc(glob_features) for fc in self.fc]
 
         if not self.training and not return_logits:
-            inference_embd = torch.cat(embeddings, dim=1)
-            return inference_embd
+            return torch.cat(embeddings, dim=1)
 
         logits = [classifier(embd) for embd, classifier in zip(embeddings, self.classifier)]
 
         extra_out_data = dict()
         extra_out_data['att_maps'] = [head_att_map] + feature_att_maps
+
+        if self.aux_projector:
+            proj_embeddings = []
+            for ref_task_id in range(1, len(self.num_classes)):
+                ref_embeddings = F.normalize(embeddings[ref_task_id], p=2, dim=1)
+                proj_embeddings.append(self.aux_projectors[ref_task_id - 1](grad_reverse(ref_embeddings)))
+            extra_out_data['proj_embd'] = proj_embeddings
 
         if get_embeddings:
             return logits, embeddings, extra_out_data
@@ -714,7 +742,8 @@ def init_pretrained_weights(model, key=''):
 # Instantiation
 ##########
 
-def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, enable_attentions=False, **kwargs):
+def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False,
+                   enable_attentions=False, aux_projector=False, **kwargs):
     model = OSNet(
         num_classes,
         blocks=[
@@ -723,11 +752,10 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, enable
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        # head_attention=enable_attentions,
         attentions=[False, True, True, False, False] if enable_attentions else None,
-        input_lcn=False,
         input_IN=True,
         conv1_IN=True,
+        aux_projector=aux_projector,
         **kwargs
     )
 

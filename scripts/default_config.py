@@ -100,6 +100,7 @@ def get_default_config():
     cfg.loss.triplet.margin = 0.3  # distance margin
     cfg.loss.triplet.weight_t = 1.  # weight to balance hard triplet loss
     cfg.loss.triplet.weight_x = 0.  # weight to balance cross entropy loss
+    cfg.loss.projector_weight = -1.0
 
     # metric_losses
     cfg.metric_losses = CN()
@@ -312,7 +313,8 @@ def model_kwargs(cfg, num_classes):
         'feature_dim': cfg.model.feature_dim,
         'bn_eval': cfg.model.bn_eval,
         'bn_frozen': cfg.model.bn_frozen,
-        'enable_attentions': cfg.data.enable_masks
+        'enable_attentions': cfg.data.enable_masks,
+        'aux_projector': cfg.loss.projector_weight > 0.0
     }
 
 

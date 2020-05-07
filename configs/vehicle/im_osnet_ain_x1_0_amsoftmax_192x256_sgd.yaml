@@ -69,6 +69,7 @@ loss:
     end_s: -1.0
     duration_s: -1
     skip_steps_s: -1
+  projector_weight: 1e2
 
 metric_losses:
   enable: True
@@ -85,7 +86,7 @@ train:
   max_epoch: 90
   batch_size: 112
   fixbase_epoch: 5
-  open_layers: ['conv5', 'fc', 'classifier']
+  open_layers: ['aux_projectors', 'conv5', 'fc', 'classifier']
   lr_scheduler: 'multi_step_warmup'
   stepsize: [40, 70]
   warmup: 5
