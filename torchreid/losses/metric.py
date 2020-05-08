@@ -3,12 +3,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class HardTripletLoss(nn.Module):
+class SemiHardTripletLoss(nn.Module):
     def __init__(self, margin=0.35):
         super().__init__()
         self.margin = margin
 
     def forward(self, features, labels):
+        if torch.unique(labels).numel() <= 1:
+            return torch.zeros([], dtype=features.dtype, device=features.device)
+
         embeddings = F.normalize(features, p=2, dim=1)
 
         similarities = torch.mm(embeddings, torch.t(embeddings)).clamp(-1.0, 1.0)
@@ -25,6 +28,51 @@ class HardTripletLoss(nn.Module):
 
         s_pos, _ = torch.where(pos_pairs, similarities, torch.full_like(similarities, 1.0)).min(dim=1)
         s_neg, _ = torch.where(neg_pairs, similarities, torch.full_like(similarities, -1.0)).max(dim=1)
+
+        losses = F.relu(self.margin + s_neg - s_pos)
+        loss = losses.sum()
+
+        num_valid = (losses > 0.0).sum().float()
+        if num_valid > 0.0:
+            loss /= num_valid
+
+        return loss
+
+
+class InvDistanceTripletLoss(nn.Module):
+    def __init__(self, margin=0.35):
+        super().__init__()
+        self.margin = margin
+
+    def forward(self, features, labels):
+        if torch.unique(labels).numel() <= 1:
+            return torch.zeros([], dtype=features.dtype, device=features.device)
+
+        dim = features.size(1)
+        embeddings = F.normalize(features, p=2, dim=1)
+
+        similarities = torch.mm(embeddings, torch.t(embeddings)).clamp(-1.0, 1.0)
+
+        with torch.no_grad():
+            same_class_pairs = labels.view(-1, 1) == labels.view(1, -1)
+            different_class_pairs = ~same_class_pairs
+
+            batch_ids = torch.arange(labels.size(0), device=labels.device)
+            non_diagonal_pairs = batch_ids.view(-1, 1) != batch_ids.view(1, -1)
+
+            pos_pairs = same_class_pairs & non_diagonal_pairs
+            pos_ids = torch.multinomial(pos_pairs.float(), 1).view(-1)
+
+            distances = 1.0 - similarities
+            log_q_d_inv = float(2 - dim) * torch.log(distances) + \
+                          0.5 * float(3 - dim) * torch.log(1.0 - 0.25 * distances.pow(2))
+            log_q_d_inv = torch.where(different_class_pairs, log_q_d_inv, torch.zeros_like(log_q_d_inv))
+            q_d_inv = torch.exp(log_q_d_inv - log_q_d_inv.max(dim=1, keepdim=True)[0])
+            neg_ids_weights = torch.where(different_class_pairs, q_d_inv, torch.zeros_like(q_d_inv))
+            neg_ids = torch.multinomial(neg_ids_weights, 1).view(-1)
+
+        s_pos = similarities[batch_ids, pos_ids]
+        s_neg = similarities[batch_ids, neg_ids]
 
         losses = F.relu(self.margin + s_neg - s_pos)
         loss = losses.sum()
@@ -157,7 +205,7 @@ class MetricLosses:
             self.losses_map['push_center'] = self.total_losses_num
             self.total_losses_num += 1
 
-        self.triplet_loss = HardTripletLoss(margin=0.35)
+        self.triplet_loss = InvDistanceTripletLoss(margin=0.35)
         assert triplet_coeff >= 0
         self.triplet_coeff = triplet_coeff
         if self.triplet_coeff > 0:
@@ -169,7 +217,7 @@ class MetricLosses:
             self.loss_weights = nn.Parameter(torch.FloatTensor(self.total_losses_num).cuda())
             self.balancing_optimizer = torch.optim.SGD([self.loss_weights], lr=balancing_lr)
             for i in range(self.total_losses_num):
-                self.loss_weights.data[i] = 0.
+                self.loss_weights.data[i] = 0.0
 
     def _balance_losses(self, losses, scale=0.1):
         assert len(losses) == self.total_losses_num
