@@ -1,19 +1,21 @@
 import argparse
-from os.path import exists, join, abspath, isfile
-from os import listdir, walk, makedirs
-from shutil import rmtree
+from os.path import exists, join, abspath
+from os import walk, makedirs
+from shutil import rmtree, copyfile
 
 from scipy.io import loadmat
 
 
-VMMRDB_DOUBLE_NAMES = 'alfa_romeo', 'aston_martin', 'am_general', 'can_am', 'mercedes_benz'
+VMMRDB_COMPLEX_NAMES = 'alfa_romeo', 'aston_martin', 'am_general', 'can_am', 'mercedes_benz'
 
 
-def create_dirs(dir_path):
-    if exists(dir_path):
-        rmtree(dir_path)
-
-    makedirs(dir_path)
+def create_dirs(dir_path, override=False):
+    if override:
+        if exists(dir_path):
+            rmtree(dir_path)
+        makedirs(dir_path)
+    elif not exists(dir_path):
+        makedirs(dir_path)
 
 
 def show_stat(data, header):
@@ -27,18 +29,16 @@ def norm_str(string):
     return string.strip().lower().replace('-', '').replace(' ', '').replace('.', '').replace('‘', '')
 
 
-def load_compcars_maps(map_file):
+def load_compcars_models_map(map_file):
     data = loadmat(map_file)
 
-    makes_data = {i + 1: norm_str(m[0])
-                  for i, m in enumerate(data['make_names'].reshape(-1))}
     models_data = {i + 1: norm_str(m[0]) if len(m) != 0 else 'unknown'
                    for i, m in enumerate(data['model_names'].reshape(-1))}
 
-    return makes_data, models_data
+    return models_data
 
 
-def load_map(map_file, id_shift=1):
+def load_compcars_makes_map(map_file, id_shift=1):
     out_data = dict()
     with open(map_file) as input_stream:
         for i, line in enumerate(input_stream):
@@ -48,22 +48,13 @@ def load_map(map_file, id_shift=1):
     return out_data
 
 
-def dump_map(map_dict, out_path):
-    keys = list(map_dict.keys())
-    keys.sort()
-
-    with open(out_path, 'w') as output_stream:
-        for key in keys:
-            output_stream.write('{}\n'.format(map_dict[key]))
-
-
-def parse_data_compcars(data_dir, makes_map, models_map):
-    data_dir = abspath(data_dir)
-    skip_size = len(data_dir) + 1
+def parse_data_compcars(in_images_dir, in_masks_dir, makes_map, models_map):
+    in_images_dir = abspath(in_images_dir)
+    skip_size = len(in_images_dir) + 1
 
     out_data = dict()
-    for root, sub_dirs, files in walk(data_dir):
-        if len(sub_dirs) == 0 and len(files) > 0:
+    for root, sub_dirs, image_names in walk(in_images_dir):
+        if len(sub_dirs) == 0 and len(image_names) > 0:
             relative_path = root[skip_size:]
             relative_path_parts = relative_path.split('/')
             assert len(relative_path_parts) == 3
@@ -103,24 +94,34 @@ def parse_data_compcars(data_dir, makes_map, models_map):
             if year not in models_dict:
                 models_dict[year] = []
 
-            image_files = [join(root, f) for f in files]
-            models_dict[year].extend(image_files)
+            records = []
+            for image_name in image_names:
+                mask_name = '{}.png'.format(image_name.split('.')[0])
+
+                image_full_path = join(root, image_name)
+                mask_full_path = join(in_masks_dir, relative_path, mask_name)
+
+                if exists(image_full_path) and exists(mask_full_path):
+                    records.append((image_full_path, mask_full_path))
+
+            models_dict[year].extend(records)
 
     return out_data
 
 
-def parse_data_vmmrdb(data_dir, double_names):
-    data_dir = abspath(data_dir)
-    skip_size = len(data_dir) + 1
+def parse_data_vmmrdb(in_images_dir, in_masks_dir, complex_names_list):
+    in_images_dir = abspath(in_images_dir)
+    skip_size = len(in_images_dir) + 1
 
     out_data = dict()
-    for root, sub_dirs, files in walk(data_dir):
-        if len(sub_dirs) == 0 and len(files) > 0:
-            relative_path = root[skip_size:].replace(' ', '_')
-            relative_path_parts = [p for p in relative_path.split('_')]
+    for root, sub_dirs, image_names in walk(in_images_dir):
+        if len(sub_dirs) == 0 and len(image_names) > 0:
+            relative_path = root[skip_size:]
+            fixed_relative_path = relative_path.replace(' ', '_')
+            relative_path_parts = [p for p in fixed_relative_path.split('_')]
 
             make_num_parts = 1
-            if relative_path.startswith(double_names):
+            if fixed_relative_path.startswith(complex_names_list):
                 make_num_parts += 1
 
             assert len(relative_path_parts) >= make_num_parts + 2
@@ -140,8 +141,17 @@ def parse_data_vmmrdb(data_dir, double_names):
             if year not in models_dict:
                 models_dict[year] = []
 
-            image_files = [join(root, f) for f in files]
-            models_dict[year].extend(image_files)
+            records = []
+            for image_name in image_names:
+                mask_name = '{}.png'.format(image_name.split('.')[0])
+
+                image_full_path = join(root, image_name)
+                mask_full_path = join(in_masks_dir, relative_path, mask_name)
+
+                if exists(image_full_path) and exists(mask_full_path):
+                    records.append((image_full_path, mask_full_path))
+
+            models_dict[year].extend(records)
 
     return out_data
 
@@ -153,14 +163,9 @@ def merge_data(data_a, data_b):
             out_data[make_b] = models_b
         else:
             models_a = out_data[make_b]
-
-            # source_list = list(models_a)
-            # candidate_list = list()
-
             for model_b, years_b in models_b.items():
                 if model_b not in models_a:
                     models_a[model_b] = years_b
-                    # candidate_list.append(model_b)
                 else:
                     years_a = models_a[model_b]
                     for year_b, records_b in years_b.items():
@@ -169,23 +174,18 @@ def merge_data(data_a, data_b):
                         else:
                             years_a[year_b].extend(records_b)
 
-            # if len(candidate_list) > 0:
-            #     print('\n   * make: {}'.format(make_b))
-            #     print('      - src: {}'.format(', '.join(source_list)))
-            #     print('      - candidates: {}'.format(', '.join(candidate_list)))
-
     return out_data
 
 
-def filter_data(data, min_num_images):
+def filter_data(data, min_num_records):
     out_data = dict()
     for make, models in data.items():
         out_models = dict()
         for model, years in models.items():
             out_years = dict()
-            for year, files in years.items():
-                if len(files) >= min_num_images:
-                    out_years[year] = files
+            for year, records in years.items():
+                if len(records) >= min_num_records:
+                    out_years[year] = records
 
             if len(out_years) > 0:
                 out_models[model] = out_years
@@ -196,35 +196,79 @@ def filter_data(data, min_num_images):
     return out_data
 
 
+def copy_data(data, out_dir):
+    out_images_dir = join(out_dir, 'images')
+    out_masks_dir = join(out_dir, 'masks')
+
+    create_dirs(out_images_dir, override=True)
+    create_dirs(out_masks_dir, override=True)
+
+    for make, models in data.items():
+        out_images_make_dir = join(out_images_dir, make)
+        out_masks_make_dir = join(out_masks_dir, make)
+
+        create_dirs(out_images_make_dir, override=False)
+        create_dirs(out_masks_make_dir, override=False)
+
+        for model, years in models.items():
+            out_images_model_dir = join(out_images_make_dir, model)
+            out_masks_model_dir = join(out_masks_make_dir, model)
+
+            create_dirs(out_images_model_dir, override=False)
+            create_dirs(out_masks_model_dir, override=False)
+
+            for year, records in years.items():
+                out_images_year_dir = join(out_images_model_dir, str(year))
+                out_masks_year_dir = join(out_masks_model_dir, str(year))
+
+                create_dirs(out_images_year_dir, override=False)
+                create_dirs(out_masks_year_dir, override=False)
+
+                for record_id, record in enumerate(records):
+                    name = 'instance_{:05}'.format(record_id)
+                    in_image_path, in_mask_path = record
+
+                    out_image_path = join(out_images_year_dir, '{}.jpg'.format(name))
+                    out_mask_path = join(out_masks_year_dir, '{}.png'.format(name))
+
+                    copyfile(in_image_path, out_image_path)
+                    copyfile(in_mask_path, out_mask_path)
+
+
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--compcar-map', '-cm', type=str, required=True)
-    parser.add_argument('--compcar-dir', '-ci', type=str, required=True)
-    parser.add_argument('--vmmrdb-dir', '-vi', type=str, required=True)
-    parser.add_argument('--min-num-images', '-n', type=int, required=False, default=5)
-    # parser.add_argument('--output-dir', '-o', type=str, required=True)
+    parser.add_argument('--compcar-map', '-cmp', type=str, required=True)
+    parser.add_argument('--compcar-makes', '-cmk', type=str, required=True)
+    parser.add_argument('--compcar-images', '-ci', type=str, required=True)
+    parser.add_argument('--compcar-masks', '-cm', type=str, required=True)
+    parser.add_argument('--vmmrdb-images', '-vi', type=str, required=True)
+    parser.add_argument('--vmmrdb-masks', '-vm', type=str, required=True)
+    parser.add_argument('--min-num-images', '-n', type=int, required=False, default=2)
+    parser.add_argument('--output-dir', '-o', type=str, required=True)
     args = parser.parse_args()
 
     assert exists(args.compcar_map)
-    assert exists(args.compcar_dir)
-    assert exists(args.vmmrdb_dir)
+    assert exists(args.compcar_makes)
+    assert exists(args.compcar_images)
+    assert exists(args.compcar_masks)
+    assert exists(args.vmmrdb_images)
+    assert exists(args.vmmrdb_masks)
 
-    # create_dirs(args.output_dir)
-
-    compcars_makes_map, compcars_models_map = load_compcars_maps(args.compcar_map)
-    compcars_makes_map = load_map('/media/datasets/ReID/Vehicle/CompCars/data/makes.txt')
-
-    compcars = parse_data_compcars(args.compcar_dir, compcars_makes_map, compcars_models_map)
+    compcars_makes_map = load_compcars_makes_map(args.compcar_makes)
+    compcars_models_map = load_compcars_models_map(args.compcar_map)
+    compcars = parse_data_compcars(args.compcar_images, args.compcar_masks, compcars_makes_map, compcars_models_map)
     show_stat(compcars, 'CompCars')
 
-    vmmrdb = parse_data_vmmrdb(args.vmmrdb_dir, VMMRDB_DOUBLE_NAMES)
+    vmmrdb = parse_data_vmmrdb(args.vmmrdb_images, args.vmmrdb_masks, VMMRDB_COMPLEX_NAMES)
     show_stat(vmmrdb, 'VMMRdb')
 
     merged_data = merge_data(compcars, vmmrdb)
     show_stat(merged_data, 'Merged')
 
-    filtered_data = filter_data(merged_data, min_num_images=args.min_num_images)
+    filtered_data = filter_data(merged_data, min_num_records=args.min_num_images)
     show_stat(filtered_data, 'Filtered')
+
+    copy_data(filtered_data, args.output_dir)
 
 
 if __name__ == '__main__':

@@ -151,7 +151,7 @@ def main():
     parser.add_argument('--in_masks', '-im', type=str, required=True)
     parser.add_argument('--out_images', '-oi', type=str, required=True)
     parser.add_argument('--out_masks', '-om', type=str, required=True)
-    parser.add_argument('--non_zero_fraction', '-nz', type=float, required=False, default=0.3)
+    parser.add_argument('--non_zero_fraction', '-nz', type=float, required=False, default=0.2)
     parser.add_argument('--crop_scale', '-cs', type=float, required=False, default=1.08)
     parser.add_argument('--min-side-size', '-ms', type=int, required=False, default=240)
     args = parser.parse_args()
