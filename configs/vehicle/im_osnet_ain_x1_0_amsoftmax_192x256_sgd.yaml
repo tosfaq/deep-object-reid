@@ -8,7 +8,7 @@ model:
 
 data:
   type: 'image'
-  sources: [['veri'], ['compcars']]
+  sources: [['veri'], ['universemodels']]
   targets: ['veri', 'cityflow']
   height: 192
   width: 256

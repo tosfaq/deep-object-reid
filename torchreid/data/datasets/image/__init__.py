@@ -16,3 +16,4 @@ from .veri import VeRi
 from .compcars import CompCars
 from .vmmrdb import VMMRdb
 from .cityflow import CityFlow
+from .universe_models import UniverseModels
