@@ -205,7 +205,7 @@ class MetricLosses:
             self.losses_map['push_center'] = self.total_losses_num
             self.total_losses_num += 1
 
-        self.triplet_loss = SemiHardTripletLoss(margin=0.35)
+        self.triplet_loss = InvDistanceTripletLoss(margin=0.35)
         assert triplet_coeff >= 0
         self.triplet_coeff = triplet_coeff
         if self.triplet_coeff > 0:
