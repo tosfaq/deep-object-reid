@@ -54,9 +54,9 @@ data:
   save_dir: 'log/osnet_ain_x1_0_general'
 
 sampler:
-  train_sampler: 'RandomIdentitySamplerV3'
+  train_sampler: 'RandomIdentitySamplerV2'
   batch_num_instances: 4
-  epoch_num_instances: 29
+  epoch_num_instances: -1
 
 loss:
   name: 'am_softmax'
