@@ -125,6 +125,44 @@ class MockTripletLoss(nn.Module):
         return loss
 
 
+class InvDistPushLoss(nn.Module):
+    def __init__(self, margin=0.1):
+        super().__init__()
+        self.margin = margin
+
+    def forward(self, features, labels):
+        if torch.unique(labels).numel() <= 1:
+            return torch.zeros([], dtype=features.dtype, device=features.device)
+
+        dim = features.size(1)
+        embeddings = F.normalize(features, p=2, dim=1)
+
+        similarities = torch.mm(embeddings, torch.t(embeddings)).clamp(-1.0, 1.0)
+
+        with torch.no_grad():
+            batch_ids = torch.arange(labels.size(0), device=labels.device)
+            different_class_pairs = labels.view(-1, 1) != labels.view(1, -1)
+
+            distances = 1.0 - similarities
+            log_q_d_inv = float(2 - dim) * torch.log(distances) + \
+                          0.5 * float(3 - dim) * torch.log(1.0 - 0.25 * distances.pow(2))
+            log_q_d_inv = torch.where(different_class_pairs, log_q_d_inv, torch.zeros_like(log_q_d_inv))
+            q_d_inv = torch.exp(log_q_d_inv - log_q_d_inv.max(dim=1, keepdim=True)[0])
+            neg_ids_weights = torch.where(different_class_pairs, q_d_inv, torch.zeros_like(q_d_inv))
+            neg_ids = torch.multinomial(neg_ids_weights, 1).view(-1)
+
+        s_neg = similarities[batch_ids, neg_ids]
+
+        losses = F.relu(self.margin + s_neg)
+        loss = losses.sum()
+
+        num_valid = (losses > 0.0).sum().float()
+        if num_valid > 0.0:
+            loss /= num_valid
+
+        return loss
+
+
 class CenterLoss(nn.Module):
     """Implementation of the Center loss from https://ydwen.github.io/papers/WenECCV16.pdf"""
 

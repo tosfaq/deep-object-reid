@@ -94,9 +94,7 @@ class Engine:
         """
 
         if visrank and not test_only:
-            raise ValueError(
-                'visrank can be set to True only if test_only=True'
-            )
+            raise ValueError('visrank can be set to True only if test_only=True')
 
         if test_only:
             self.test(
@@ -128,10 +126,7 @@ class Engine:
                 open_layers=open_layers
             )
 
-            if (epoch + 1) >= start_eval \
-               and eval_freq > 0 \
-               and (epoch+1) % eval_freq == 0 \
-               and (epoch + 1) != max_epoch:
+            if (epoch + 1) >= start_eval and eval_freq > 0 and (epoch+1) % eval_freq == 0 and (epoch + 1) != max_epoch:
                 rank1 = self.test(
                     epoch,
                     dist_metric=dist_metric,
@@ -161,6 +156,7 @@ class Engine:
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
         print('Elapsed {}'.format(elapsed))
+
         if self.writer is not None:
             self.writer.close()
 
