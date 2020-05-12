@@ -185,7 +185,7 @@ class MetricLosses:
     """Class-aggregator for metric-learning losses"""
 
     def __init__(self, writer, num_classes, embed_size, center_coeff=1.0, triplet_coeff=1.0,
-                 loss_balancing=True, centers_lr=0.5, balancing_lr=0.01, name='ml'):
+                 loss_balancing=True, centers_lr=0.5, balancing_lr=0.01, name='ml', triplet='semihard'):
         self.writer = writer
         self.name = name
 
@@ -205,7 +205,9 @@ class MetricLosses:
             self.losses_map['push_center'] = self.total_losses_num
             self.total_losses_num += 1
 
-        self.triplet_loss = InvDistanceTripletLoss(margin=0.35)
+        assert triplet in ['semihard', 'invdist']
+        triplet_instance = SemiHardTripletLoss if triplet == 'semihard' else InvDistanceTripletLoss
+        self.triplet_loss = triplet_instance(margin=0.35)
         assert triplet_coeff >= 0
         self.triplet_coeff = triplet_coeff
         if self.triplet_coeff > 0:

@@ -66,7 +66,7 @@ class ImageAMSoftmaxEngine(Engine):
 
         self.main_losses = nn.ModuleList()
         self.ml_losses = list()
-        for trg_num_classes in self.num_classes:
+        for trg_id, trg_num_classes in enumerate(self.num_classes):
             scale_factor = np.log(trg_num_classes - 1) / np.log(self.num_classes[0] - 1)
             if softmax_type == 'stock':
                 self.main_losses.append(CrossEntropyLoss(
@@ -95,6 +95,7 @@ class ImageAMSoftmaxEngine(Engine):
                     self.model.module.feature_dim,
                     metric_cfg.center_coeff,
                     metric_cfg.triplet_coeff,
+                    name='ml_{}'.format(trg_id)
                 ))
 
         self.enable_masks = enable_masks
