@@ -65,7 +65,7 @@ class ImageAMSoftmaxEngine(Engine):
         self.num_targets = len(self.num_classes)
 
         self.main_losses = nn.ModuleList()
-        # self.push_losses = nn.ModuleList()
+        self.push_losses = nn.ModuleList()
         self.ml_losses = list()
         for trg_id, trg_num_classes in enumerate(self.num_classes):
             scale_factor = np.log(trg_num_classes - 1) / np.log(self.num_classes[0] - 1)
@@ -99,10 +99,10 @@ class ImageAMSoftmaxEngine(Engine):
                     name='ml_{}'.format(trg_id)
                 ))
 
-                # if trg_id > 0:
-                #     self.push_losses.append(InvDistPushLoss(
-                #         margin=0.1
-                #     ))
+                if trg_id > 0:
+                    self.push_losses.append(InvDistPushLoss(
+                        margin=-0.2
+                    ))
 
         self.enable_masks = enable_masks
         self.enable_aux_projector = projector_weight > 0.0 and len(self.num_classes) > 1
@@ -120,7 +120,7 @@ class ImageAMSoftmaxEngine(Engine):
         proj_losses = AverageMeter()
         att_losses = AverageMeter()
         ml_losses = [AverageMeter() for _ in range(self.num_targets)]
-        # push_losses = [AverageMeter() for _ in range(self.num_targets - 1)]
+        push_losses = [AverageMeter() for _ in range(self.num_targets - 1)]
         main_losses = [AverageMeter() for _ in range(self.num_targets)]
 
         self.model.train()
@@ -168,13 +168,13 @@ class ImageAMSoftmaxEngine(Engine):
                     ml_losses[trg_id].update(ml_loss.item(), trg_pids.numel())
                     trg_loss += ml_loss
 
-                # if trg_id > 0 and self.enable_metric_losses:
-                #     push_loss_module = self.push_losses[trg_id - 1]
-                #     src_embd = all_embeddings[0][trg_mask]
-                #
-                #     push_loss = push_loss_module(src_embd, trg_pids)
-                #     push_losses[trg_id - 1].update(push_loss.item(), trg_pids.numel())
-                #     trg_loss += push_loss
+                if trg_id > 0 and self.enable_metric_losses:
+                    push_loss_module = self.push_losses[trg_id - 1]
+                    src_embd = all_embeddings[0][trg_mask]
+
+                    push_loss = push_loss_module(src_embd, trg_pids)
+                    push_losses[trg_id - 1].update(push_loss.item(), trg_pids.numel())
+                    trg_loss += push_loss
 
                 total_loss += trg_loss
                 num_trg_losses += 1
@@ -275,8 +275,8 @@ class ImageAMSoftmaxEngine(Engine):
                     for trg_id in range(self.num_targets):
                         writer.add_scalar('Loss/ml_{}'.format(trg_id), ml_losses[trg_id].avg, n_iter)
                         writer.add_scalar('Loss/main_{}'.format(trg_id), main_losses[trg_id].avg, n_iter)
-                        # if trg_id > 0:
-                        #     writer.add_scalar('Loss/push_{}'.format(trg_id), push_losses[trg_id - 1].avg, n_iter)
+                        if trg_id > 0:
+                            writer.add_scalar('Loss/push_{}'.format(trg_id), push_losses[trg_id - 1].avg, n_iter)
             start_time = time.time()
 
         if self.scheduler is not None:
