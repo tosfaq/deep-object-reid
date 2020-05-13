@@ -57,6 +57,6 @@ class VRIC(ImageDataset):
             pid = int(pid_str)
             cam_id = int(cam_id_str)
 
-            data.append((full_image_path, pid, cam_id, dataset_id, -1, -1))
+            data.append((full_image_path, pid, cam_id, dataset_id, '', -1, -1))
 
         return data
