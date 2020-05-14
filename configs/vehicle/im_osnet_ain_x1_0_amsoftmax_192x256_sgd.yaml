@@ -56,7 +56,7 @@ data:
 sampler:
   train_sampler: 'RandomIdentitySamplerV3'
   batch_num_instances: 4
-  epoch_num_instances: 30
+  epoch_num_instances: 28
 
 loss:
   name: 'am_softmax'
@@ -83,12 +83,12 @@ reg:
 train:
   optim: 'sgd'
   lr: 0.01
-  max_epoch: 90
+  max_epoch: 70
   batch_size: 110
   fixbase_epoch: 5
   open_layers: ['conv5', 'fc', 'classifier']
   lr_scheduler: 'multi_step_warmup'
-  stepsize: [40, 70]
+  stepsize: [30, 50]
   warmup: 5
   warmup_factor_base: 0.005
   frozen_factor_base: 1.0

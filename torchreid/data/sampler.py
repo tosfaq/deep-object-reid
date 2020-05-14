@@ -149,19 +149,23 @@ class RandomIdentitySamplerV3(Sampler):
                 self.index_dict[trg_name] = defaultdict(list)
 
             self.index_dict[trg_name][record[1]].append(index)
+        self.orig_index_dict = copy.deepcopy(self.index_dict)
 
         self.pids = {trg_name: list(trg_dict.keys()) for trg_name, trg_dict in self.index_dict.items()}
 
         if epoch_num_instances is not None and epoch_num_instances > 0:
             average_num_instances = epoch_num_instances
-            print('Manually set number of samples per ID for epoch: {}'.format(average_num_instances))
+            print('Manually set the number of samples per ID for epoch: {}'.format(average_num_instances))
         else:
             num_indices = [len(indices) for trg_dict in self.index_dict.values() for indices in trg_dict.values()]
             average_num_instances = np.median(num_indices)
-            print('Estimated number of samples per ID for epoch: {}'.format(average_num_instances))
+            print('Estimated the number of samples per ID for epoch: {}'.format(average_num_instances))
 
         self.num_packages = int(average_num_instances) // self.num_instances
         self.instances_per_pid = self.num_packages * self.num_instances
+        if self.instances_per_pid != int(average_num_instances):
+            print('Forced the number of samples per ID for epoch: {}'.format(self.instances_per_pid))
+
         self.length = sum([len(ids) for ids in self.pids.values()]) * self.instances_per_pid
 
     def __iter__(self):
@@ -170,17 +174,32 @@ class RandomIdentitySamplerV3(Sampler):
 
         final_data_indices = []
         for trg_name, trg_pid in final_pids:
-            sampled_indices = copy.deepcopy(self.index_dict[trg_name][trg_pid])
-            random.shuffle(sampled_indices)
+            rest_indices = self.index_dict[trg_name][trg_pid]
+            random.shuffle(rest_indices)
 
-            if len(sampled_indices) < self.instances_per_pid:
-                num_extra = self.instances_per_pid - len(sampled_indices)
-                extra_indices = np.random.choice(sampled_indices, size=num_extra, replace=True)
+            if len(rest_indices) < self.instances_per_pid:
+                sampled_indices = copy.deepcopy(rest_indices)
+                total_rest_num = self.instances_per_pid - len(rest_indices)
+                while True:
+                    rest_indices = copy.deepcopy(self.orig_index_dict[trg_name][trg_pid])
+                    if len(rest_indices) <= total_rest_num:
+                        sampled_indices.extend(rest_indices)
+                        total_rest_num -= len(rest_indices)
+                    else:
+                        random.shuffle(rest_indices)
+                        sampled_indices.extend(copy.deepcopy(rest_indices[:total_rest_num]))
 
-                sampled_indices.extend(extra_indices)
+                        rest_indices = rest_indices[total_rest_num:]
+                        self.index_dict[trg_name][trg_pid] = rest_indices
+
+                        break
+
                 random.shuffle(sampled_indices)
-            elif len(sampled_indices) > self.instances_per_pid:
-                sampled_indices = sampled_indices[:self.instances_per_pid]
+            elif len(rest_indices) > self.instances_per_pid:
+                sampled_indices = copy.deepcopy(rest_indices[:self.instances_per_pid])
+
+                rest_indices = rest_indices[self.instances_per_pid:]
+                self.index_dict[trg_name][trg_pid] = rest_indices
 
             final_data_indices.append(sampled_indices)
 
