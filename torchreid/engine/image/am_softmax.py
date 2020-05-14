@@ -67,7 +67,7 @@ class ImageAMSoftmaxEngine(Engine):
         self.main_losses = nn.ModuleList()
         self.ml_losses = list()
         for trg_id, trg_num_classes in enumerate(self.num_classes):
-            scale_factor = np.log(trg_num_classes - 1) / np.log(self.num_classes[0] - 1)
+            scale_factor = np.log(trg_num_classes - 1) / np.log(1000)  # init scale is set for 1000-classes task
             if softmax_type == 'stock':
                 self.main_losses.append(CrossEntropyLoss(
                     use_gpu=self.use_gpu,
