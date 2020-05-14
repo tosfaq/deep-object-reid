@@ -195,7 +195,7 @@ class RandomIdentitySamplerV3(Sampler):
                         break
 
                 random.shuffle(sampled_indices)
-            elif len(rest_indices) > self.instances_per_pid:
+            else:
                 sampled_indices = copy.deepcopy(rest_indices[:self.instances_per_pid])
 
                 rest_indices = rest_indices[self.instances_per_pid:]
