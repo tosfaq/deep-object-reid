@@ -10,8 +10,8 @@ data:
   type: 'image'
   sources: [['veri', 'vehicle1m'], ['universemodels']]
   targets: ['veri', 'cityflow']
-  height: 192
-  width: 256
+  height: 208
+  width: 208
   combineall: False
   enable_masks: False
   transforms:
@@ -54,9 +54,9 @@ data:
   save_dir: 'log/osnet_ain_x1_0_general'
 
 sampler:
-  train_sampler: 'RandomIdentitySamplerV2'
+  train_sampler: 'RandomIdentitySamplerV3'
   batch_num_instances: 4
-  epoch_num_instances: -1
+  epoch_num_instances: 30
 
 loss:
   name: 'am_softmax'
@@ -84,7 +84,7 @@ train:
   optim: 'sgd'
   lr: 0.01
   max_epoch: 90
-  batch_size: 112
+  batch_size: 110
   fixbase_epoch: 5
   open_layers: ['conv5', 'fc', 'classifier']
   lr_scheduler: 'multi_step_warmup'
