@@ -615,8 +615,10 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     print('+ resize to {}x{}'.format(height, width))
     transform_tr += [PairResize((height, width))]
     if transforms.random_grid.enable:
-        print('+ random_background_substitution')
-        transform_tr += [RandomBackgroundSubstitution(**transforms.random_background_substitution)]
+        aug_module = RandomBackgroundSubstitution(**transforms.random_background_substitution)
+        if aug_module.enable:
+            print('+ random_background_substitution')
+            transform_tr += [aug_module]
     if transforms.random_grid.enable:
         print('+ random_grid')
         transform_tr += [RandomGrid(**transforms.random_grid)]

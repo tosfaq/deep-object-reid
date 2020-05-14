@@ -54,7 +54,7 @@ data:
       p: 0.33
     random_background_substitution:
       enable: True
-      p: 0.2
+      p: 0.25
   save_dir: 'log/osnet_ain_x1_0_general'
 
 sampler:
