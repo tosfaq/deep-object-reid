@@ -14,6 +14,7 @@ def get_default_config():
     cfg.model.feature_dim = 512  # embedding size
     cfg.model.bn_eval = False
     cfg.model.bn_frozen = False
+    cfg.model.enable_attentions = False
 
     # data
     cfg.data = CN()
@@ -206,6 +207,12 @@ def get_default_config():
     cfg.data.transforms.random_grid.thickness = (1, 1)
     cfg.data.transforms.random_grid.angle = (0, 180)
 
+    cfg.data.transforms.random_background_substitution = CN()
+    cfg.data.transforms.random_background_substitution.enable = False
+    cfg.data.transforms.random_background_substitution.p = 0.2
+    cfg.data.transforms.random_background_substitution.images_root_dir = ''
+    cfg.data.transforms.random_background_substitution.images_list_file = ''
+
     cfg.data.transforms.mixup = CN()
     cfg.data.transforms.mixup.enable = False
     cfg.data.transforms.mixup.p = 0.33
@@ -313,7 +320,7 @@ def model_kwargs(cfg, num_classes):
         'feature_dim': cfg.model.feature_dim,
         'bn_eval': cfg.model.bn_eval,
         'bn_frozen': cfg.model.bn_frozen,
-        'enable_attentions': cfg.data.enable_masks,
+        'enable_attentions': cfg.model.enable_attentions and cfg.data.enable_masks,
         'aux_projector': cfg.loss.projector_weight > 0.0
     }
 

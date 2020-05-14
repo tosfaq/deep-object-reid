@@ -482,6 +482,71 @@ class MixUp(object):
         return Image.fromarray(out_image), mask
 
 
+class RandomBackgroundSubstitution(object):
+    """Random background substitution augmentation
+    """
+
+    def __init__(self, p=0.5, images_root_dir=None, images_list_file=None, **kwargs):
+        self.p = p
+
+        self.enable = images_root_dir is not None and exists(images_root_dir) and \
+                      images_list_file is not None and exists(images_list_file)
+
+        if self.enable:
+            all_image_files = []
+            with open(images_list_file) as input_stream:
+                for line in input_stream:
+                    image_name = line.replace('\n', '')
+                    if len(image_name) > 0:
+                        image_path = join(images_root_dir, image_name)
+                        all_image_files.append(image_path)
+            self.surrogate_image_paths = all_image_files
+            assert len(self.surrogate_image_paths) > 0
+
+    def get_num_images(self):
+        return len(self.surrogate_image_paths) if self.enable else 0
+
+    def _load_surrogate_image(self, idx, trg_image_size):
+        trg_image_width, trg_image_height = trg_image_size
+
+        image = read_image(self.surrogate_image_paths[idx])
+
+        scale = 1.125
+        new_width, new_height = int(trg_image_width * scale), int(trg_image_height * scale)
+        image = image.resize((new_width, new_height), Image.BILINEAR)
+
+        x_max_range = new_width - trg_image_width
+        y_max_range = new_height - trg_image_height
+        x1 = int(round(random.uniform(0, x_max_range)))
+        y1 = int(round(random.uniform(0, y_max_range)))
+
+        image = image.crop((x1, y1, x1 + trg_image_width, y1 + trg_image_height))
+
+        if random.uniform(0, 1) > 0.5:
+            image = image.transpose(Image.FLIP_LEFT_RIGHT)
+
+        return image
+
+    def __call__(self, input_tuple, *args, **kwargs):
+        if not self.enable or random.uniform(0, 1) > self.p:
+            return input_tuple
+
+        img, mask = input_tuple
+        if mask == '':
+            return input_tuple
+
+        surrogate_image_idx = random.randint(0, len(self.surrogate_image_paths) - 1)
+        surrogate_image = self._load_surrogate_image(surrogate_image_idx, img.size)
+
+        src_img = np.array(img)
+        out_img = np.array(surrogate_image)
+
+        fg_mask = np.array(mask).astype(np.bool)
+        out_img[fg_mask] = src_img[fg_mask]
+
+        return Image.fromarray(out_img), mask
+
+
 class PairResize(object):
     def __init__(self, size, interpolation=Image.BILINEAR):
         assert isinstance(size, int) or len(size) == 2
@@ -549,6 +614,9 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
         transform_tr += [RandomPadding(**transforms.random_padding)]
     print('+ resize to {}x{}'.format(height, width))
     transform_tr += [PairResize((height, width))]
+    if transforms.random_grid.enable:
+        print('+ random_background_substitution')
+        transform_tr += [RandomBackgroundSubstitution(**transforms.random_background_substitution)]
     if transforms.random_grid.enable:
         print('+ random_grid')
         transform_tr += [RandomGrid(**transforms.random_grid)]

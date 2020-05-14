@@ -5,15 +5,16 @@ model:
   feature_dim: 256
   bn_eval: False
   bn_frozen: False
+  enable_attentions: False
 
 data:
   type: 'image'
-  sources: [['veri', 'vehicle1m'], ['universemodels']]
+  sources: [['veri', ], ['universemodels']]
   targets: ['veri', 'cityflow']
   height: 208
   width: 208
   combineall: False
-  enable_masks: False
+  enable_masks: True
   transforms:
     color_jitter:
       enable: False
@@ -51,6 +52,9 @@ data:
     random_figures:
       enable: True
       p: 0.33
+    random_background_substitution:
+      enable: True
+      p: 0.2
   save_dir: 'log/osnet_ain_x1_0_general'
 
 sampler:
@@ -63,7 +67,7 @@ loss:
   softmax:
     conf_penalty: 0.085
     label_smooth: True
-    pr_product: False
+    pr_product: True
     m: 0.35
     s: 15.0
     end_s: -1.0
