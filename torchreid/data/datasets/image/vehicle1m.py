@@ -1,4 +1,5 @@
 from __future__ import division, print_function, absolute_import
+from collections import defaultdict
 import os.path as osp
 
 from ..dataset import ImageDataset
@@ -16,7 +17,7 @@ class Vehicle1M(ImageDataset):
 
     dataset_dir = 'vehicle-1m'
 
-    def __init__(self, root='', dataset_id=0, **kwargs):
+    def __init__(self, root='', dataset_id=0, min_num_samples=4, **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
@@ -29,7 +30,12 @@ class Vehicle1M(ImageDataset):
         ]
         self.check_before_run(required_files)
 
-        train = self.load_annotation(self.train_annot, self.train_dir, dataset_id=dataset_id)
+        train = self.load_annotation(
+            self.train_annot,
+            self.train_dir,
+            dataset_id=dataset_id,
+            min_num_samples=min_num_samples
+        )
         train = self.compress_labels(train)
 
         query, gallery = [], []
@@ -37,8 +43,8 @@ class Vehicle1M(ImageDataset):
         super(Vehicle1M, self).__init__(train, query, gallery, **kwargs)
 
     @staticmethod
-    def load_annotation(annot_path, data_dir, dataset_id=0):
-        data = []
+    def load_annotation(annot_path, data_dir, dataset_id=0, min_num_samples=1):
+        data = defaultdict(list)
         for line in open(annot_path):
             parts = line.strip().split(' ')
             assert len(parts) == 3
@@ -50,8 +56,14 @@ class Vehicle1M(ImageDataset):
                 continue
 
             pid = int(pid_str)
-            # model_id = int(model_id_str)
+            data[pid].append(full_image_path)
 
-            data.append((full_image_path, pid, 0, dataset_id, '', -1, -1))
+        out_data = []
+        for pid, records in data.items():
+            if len(records) < min_num_samples:
+                continue
 
-        return data
+            for full_image_path in records:
+                out_data.append((full_image_path, pid, 0, dataset_id, '', -1, -1))
+
+        return out_data

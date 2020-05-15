@@ -9,7 +9,7 @@ model:
 
 data:
   type: 'image'
-  sources: [['veri', ], ['universemodels']]
+  sources: [['veri', 'vehicle1m'], ['universemodels']]
   targets: ['veri', 'cityflow']
   height: 208
   width: 208
@@ -67,9 +67,9 @@ loss:
   softmax:
     conf_penalty: 0.085
     label_smooth: True
-    pr_product: True
+    pr_product: False
     m: 0.35
-    s: 15.0
+    s: 40.0
     end_s: -1.0
     duration_s: -1
     skip_steps_s: -1
