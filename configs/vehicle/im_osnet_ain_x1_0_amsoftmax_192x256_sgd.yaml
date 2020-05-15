@@ -9,7 +9,7 @@ model:
 
 data:
   type: 'image'
-  sources: [['veri', 'vehicle1m'], ['universemodels']]
+  sources: [['veri'], ['universemodels']]
   targets: ['veri', 'cityflow']
   height: 208
   width: 208
@@ -60,7 +60,7 @@ data:
 sampler:
   train_sampler: 'RandomIdentitySamplerV3'
   batch_num_instances: 4
-  epoch_num_instances: 28
+  epoch_num_instances: 50
 
 loss:
   name: 'am_softmax'
