@@ -69,7 +69,7 @@ loss:
     label_smooth: True
     pr_product: False
     m: 0.35
-    s: 10.0
+    s: 5.0
     end_s: -1.0
     duration_s: -1
     skip_steps_s: -1
