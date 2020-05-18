@@ -684,6 +684,16 @@ def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_st
     return transform_te
 
 
+def build_inference_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_std=(0.229, 0.224, 0.225), **kwargs):
+    transform_te = Compose([
+        Resize((height, width)),
+        ToTensor(),
+        Normalize(mean=norm_mean, std=norm_std),
+    ])
+
+    return transform_te
+
+
 class SubmissionTransform:
     def __init__(self, out_transform, scales=None):
         self.out_transform = out_transform

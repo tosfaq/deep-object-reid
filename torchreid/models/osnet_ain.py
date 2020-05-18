@@ -198,10 +198,6 @@ class ResidualAttention(nn.Module):
         soft_mask = self.spatial_attention(x)
         out = (1.0 + soft_mask) * x if self.residual else soft_mask * x
 
-        # import matplotlib.pyplot as plt
-        # plt.imshow(soft_mask[0, 0].detach().cpu())
-        # plt.show()
-
         if return_mask:
             return out, soft_mask
         else:
