@@ -9,7 +9,7 @@ model:
 
 data:
   type: 'image'
-  sources: [['veri'], ['universemodels']]
+  sources: [['veri', 'vehicle1m'], ['universemodels']]
   targets: ['veri', 'cityflow']
   height: 208
   width: 208
@@ -69,7 +69,7 @@ loss:
     label_smooth: True
     pr_product: False
     m: 0.35
-    s: 15.0
+    s: 10.0
     end_s: -1.0
     duration_s: -1
     skip_steps_s: -1
@@ -92,7 +92,7 @@ train:
   fixbase_epoch: 5
   open_layers: ['conv5', 'fc', 'classifier']
   lr_scheduler: 'multi_step_warmup'
-  stepsize: [30, 50]
+  stepsize: [40, 55]
   warmup: 5
   warmup_factor_base: 0.005
   frozen_factor_base: 1.0
