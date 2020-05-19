@@ -18,3 +18,4 @@ from .vmmrdb import VMMRdb
 from .cityflow import CityFlow
 from .universe_models import UniverseModels
 from .vehicle1m import Vehicle1M
+from .veriwild import VeRiWild

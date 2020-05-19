@@ -6,7 +6,7 @@ from ..dataset import ImageDataset
 
 
 class Vehicle1M(ImageDataset):
-    """VRIC.
+    """Vehicle-1M.
 
     URL: `<http://www.nlpr.ia.ac.cn/iva/homepage/jqwang/Vehicle1M.htm>`_
 
@@ -17,7 +17,7 @@ class Vehicle1M(ImageDataset):
 
     dataset_dir = 'vehicle-1m'
 
-    def __init__(self, root='', dataset_id=0, min_num_samples=24, **kwargs):
+    def __init__(self, root='', dataset_id=0, min_num_samples=2, **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
