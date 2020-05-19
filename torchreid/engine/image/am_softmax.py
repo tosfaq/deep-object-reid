@@ -45,7 +45,8 @@ class ImageAMSoftmaxEngine(Engine):
                  scheduler=None, use_gpu=False, softmax_type='stock',
                  label_smooth=False, conf_penalty=False, pr_product=False,
                  m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None,
-                 writer=None, enable_masks=False, projector_weight=-1.0):
+                 writer=None, enable_masks=False, projector_weight=-1.0,
+                 adaptive_margins=False):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
 
         assert softmax_type in ['stock', 'am']
@@ -76,6 +77,12 @@ class ImageAMSoftmaxEngine(Engine):
                     scale=scale_factor * s
                 ))
             elif softmax_type == 'am':
+                if adaptive_margins:
+                    trg_class_counts = datamanager.data_counts[trg_id]
+                    assert len(trg_class_counts) == trg_num_classes
+                else:
+                    trg_class_counts = None
+
                 self.main_losses.append(AMSoftmaxLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
@@ -85,7 +92,8 @@ class ImageAMSoftmaxEngine(Engine):
                     end_s=scale_factor * end_s if self._valid(end_s) else None,
                     duration_s=duration_s * num_batches if self._valid(duration_s) else None,
                     skip_steps_s=skip_steps_s * num_batches if self._valid(skip_steps_s) else None,
-                    pr_product=pr_product
+                    pr_product=pr_product,
+                    class_counts=trg_class_counts
                 ))
 
             if self.enable_metric_losses:

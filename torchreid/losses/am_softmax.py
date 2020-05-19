@@ -57,7 +57,8 @@ class AMSoftmaxLoss(nn.Module):
 
     def __init__(self, use_gpu=True, conf_penalty=0.0, margin_type='cos',
                  gamma=0.0, m=0.5, s=30, t=1.0, label_smooth=False, epsilon=0.1,
-                 end_s=None, duration_s=None, skip_steps_s=None, pr_product=False):
+                 end_s=None, duration_s=None, skip_steps_s=None, pr_product=False,
+                 class_counts=None):
         super(AMSoftmaxLoss, self).__init__()
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
@@ -83,6 +84,18 @@ class AMSoftmaxLoss(nn.Module):
         self.th = math.cos(math.pi - m)
         assert t >= 1
         self.t = t
+
+        if class_counts is not None:
+            class_ids = list(class_counts)
+            class_ids.sort()
+
+            counts = np.array([class_counts[class_id] for class_id in class_ids], dtype=np.float32)
+            class_margins = (self.m / np.power(counts, 1. / 4.)).reshape((1, -1))
+
+            self.register_buffer('class_margins', torch.from_numpy(class_margins).cuda())
+            print('[INFO] Enabled adaptive margins for AM-Softmax loss')
+        else:
+            self.class_margins = self.m
 
     @staticmethod
     def get_last_info():
@@ -131,7 +144,7 @@ class AMSoftmaxLoss(nn.Module):
             cos_theta = pr_alpha.detach() * cos_theta + cos_theta.detach() * (1.0 - pr_alpha)
 
         if self.margin_type == 'cos':
-            phi_theta = cos_theta - self.m
+            phi_theta = cos_theta - self.class_margins
         else:
             sine = torch.sqrt(1.0 - torch.pow(cos_theta, 2))
             phi_theta = cos_theta * self.cos_m - sine * self.sin_m

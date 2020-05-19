@@ -68,6 +68,11 @@ class DataManager(object):
         """Returns the number of training cameras."""
         return self._num_train_cams
 
+    @property
+    def data_counts(self):
+        """Returns the number of samples for each ID."""
+        return self._data_counts
+
     def return_query_and_gallery_by_name(self, name):
         """Returns query and gallery of a test dataset, each containing
         tuples of (img_path(s), pid, camid).
@@ -202,6 +207,7 @@ class ImageDataManager(DataManager):
             ))
         train_dataset = sum(train_dataset)
 
+        self._data_counts = self.to_ordered_list(train_dataset.data_counts)
         self._num_train_pids = self.to_ordered_list(train_dataset.num_train_pids)
         self._num_train_cams = self.to_ordered_list(train_dataset.num_train_cams)
         assert isinstance(self._num_train_pids, list)

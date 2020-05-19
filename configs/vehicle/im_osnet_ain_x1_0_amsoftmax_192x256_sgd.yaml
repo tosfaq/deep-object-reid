@@ -73,6 +73,7 @@ loss:
     end_s: -1.0
     duration_s: -1
     skip_steps_s: -1
+    adaptive_margins: False
   projector_weight: -1.0
 
 metric_losses:

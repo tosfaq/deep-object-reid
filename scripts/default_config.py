@@ -97,6 +97,7 @@ def get_default_config():
     cfg.loss.softmax.end_s = -1.0
     cfg.loss.softmax.duration_s = -1
     cfg.loss.softmax.skip_steps_s = -1
+    cfg.loss.softmax.adaptive_margins = False
     cfg.loss.triplet = CN()
     cfg.loss.triplet.margin = 0.3  # distance margin
     cfg.loss.triplet.weight_t = 1.  # weight to balance hard triplet loss

@@ -155,16 +155,16 @@ class RandomIdentitySamplerV3(Sampler):
 
         if epoch_num_instances is not None and epoch_num_instances > 0:
             average_num_instances = epoch_num_instances
-            print('Manually set the number of samples per ID for epoch: {}'.format(average_num_instances))
+            print('[INFO] Manually set the number of samples per ID for epoch: {}'.format(average_num_instances))
         else:
             num_indices = [len(indices) for trg_dict in self.index_dict.values() for indices in trg_dict.values()]
             average_num_instances = np.median(num_indices)
-            print('Estimated the number of samples per ID for epoch: {}'.format(average_num_instances))
+            print('[INFO] Estimated the number of samples per ID for epoch: {}'.format(average_num_instances))
 
         self.num_packages = int(average_num_instances) // self.num_instances
         self.instances_per_pid = self.num_packages * self.num_instances
         if self.instances_per_pid != int(average_num_instances):
-            print('Forced the number of samples per ID for epoch: {}'.format(self.instances_per_pid))
+            print('[INFO] Forced the number of samples per ID for epoch: {}'.format(self.instances_per_pid))
 
         self.length = sum([len(ids) for ids in self.pids.values()]) * self.instances_per_pid
 

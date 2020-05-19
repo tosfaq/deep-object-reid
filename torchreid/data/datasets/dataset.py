@@ -49,6 +49,7 @@ class Dataset:
 
         self.num_train_pids = self.get_num_pids(self.train)
         self.num_train_cams = self.get_num_cams(self.train)
+        self.data_counts = self.get_data_counts(self.train)
 
         if self.combineall:
             raise NotImplementedError
@@ -158,6 +159,18 @@ class Dataset:
     def get_num_cams(self, data):
         """Returns the number of training cameras."""
         return self.parse_data(data)[1]
+
+    @staticmethod
+    def get_data_counts(data):
+        counts = dict()
+        for record in data:
+            dataset_id = record[3]
+            if dataset_id not in counts:
+                counts[dataset_id] = defaultdict(int)
+
+            counts[dataset_id][record[1]] += 1
+
+        return counts
 
     def show_summary(self):
         """Shows dataset statistics."""
