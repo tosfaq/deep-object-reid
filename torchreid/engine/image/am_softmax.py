@@ -106,9 +106,6 @@ class ImageAMSoftmaxEngine(Engine):
                     name='ml_{}'.format(trg_id)
                 ))
 
-        # if self.enable_metric_losses:
-        #     self.push_loss = InvDistPushLoss(margin=-0.5)
-
         self.enable_masks = enable_masks
         self.enable_aux_projector = projector_weight > 0.0 and len(self.num_classes) > 1
         self.projector_weight = projector_weight
@@ -125,7 +122,6 @@ class ImageAMSoftmaxEngine(Engine):
         proj_losses = AverageMeter()
         att_losses = AverageMeter()
         ml_losses = [AverageMeter() for _ in range(self.num_targets)]
-        # push_losses = [AverageMeter() for _ in range(self.num_targets - 1)]
         main_losses = [AverageMeter() for _ in range(self.num_targets)]
 
         self.model.train()
@@ -172,13 +168,6 @@ class ImageAMSoftmaxEngine(Engine):
 
                     ml_losses[trg_id].update(ml_loss.item(), trg_pids.numel())
                     trg_loss += ml_loss
-
-                # if trg_id > 0 and self.enable_metric_losses:
-                #     src_embd = all_embeddings[0][trg_mask]
-                #     push_loss = self.push_loss(src_embd, trg_pids)
-                #
-                #     push_losses[trg_id - 1].update(push_loss.item(), trg_pids.numel())
-                #     trg_loss += push_loss
 
                 total_loss += trg_loss
                 num_trg_losses += 1
@@ -247,7 +236,7 @@ class ImageAMSoftmaxEngine(Engine):
                       'Loss {loss.val:.3f} ({loss.avg:.3f}) '
                       'ML Loss {ml_loss.val:.3f} ({ml_loss.avg:.3f}) '
                       'Att {att_loss.val:.3f} ({att_loss.avg:.3f}) '
-                      'Proj {proj_loss.val:.3f} ({proj_loss.avg:.3f}) '
+                      'Reg {reg_loss.val:.3f} ({reg_loss.avg:.3f}) '
                       'Lr {lr:.6f} '
                       'ETA {eta}'.
                       format(
@@ -257,7 +246,7 @@ class ImageAMSoftmaxEngine(Engine):
                           loss=total_losses,
                           ml_loss=ml_losses[0],
                           att_loss=att_losses,
-                          proj_loss=proj_losses,
+                          reg_loss=reg_losses,
                           lr=self.optimizer.param_groups[0]['lr'],
                           eta=eta_str,
                       )
@@ -279,8 +268,6 @@ class ImageAMSoftmaxEngine(Engine):
                     for trg_id in range(self.num_targets):
                         writer.add_scalar('Loss/ml_{}'.format(trg_id), ml_losses[trg_id].avg, n_iter)
                         writer.add_scalar('Loss/main_{}'.format(trg_id), main_losses[trg_id].avg, n_iter)
-                        # if trg_id > 0:
-                        #     writer.add_scalar('Loss/push_{}'.format(trg_id), push_losses[trg_id - 1].avg, n_iter)
             start_time = time.time()
 
         if self.scheduler is not None:

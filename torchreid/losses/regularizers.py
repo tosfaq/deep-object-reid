@@ -19,9 +19,10 @@ import torch.nn as nn
 
 
 class ConvRegularizer(nn.Module):
-    def __init__(self, reg_class, controller):
+    def __init__(self, reg_class, **kwargs):
         super().__init__()
-        self.reg_instance = reg_class(controller)
+
+        self.reg_instance = reg_class(**kwargs)
 
     def forward(self, net):
         num_losses = 0
@@ -39,6 +40,7 @@ class ConvRegularizer(nn.Module):
 class SVMORegularizer(nn.Module):
     def __init__(self, beta):
         super().__init__()
+
         self.beta = beta
 
     @staticmethod
@@ -75,8 +77,43 @@ class SVMORegularizer(nn.Module):
         return loss.squeeze()
 
 
+class NormRegularizer(nn.Module):
+    def __init__(self, max_factor, scale):
+        super().__init__()
+
+        self.max_factor = max_factor
+        self.scale = scale
+
+    def forward(self, W):
+        num_filters = W.size(0)
+        if num_filters == 1:
+            return 0
+
+        W = W.view(num_filters, -1)
+        norms = torch.sqrt(torch.sum(W ** 2, dim=-1))
+
+        with torch.no_grad():
+            max_norm = torch.max(norms)
+            mask = max_norm / norms > float(self.max_factor)
+            num_invalid = mask.float().sum()
+
+            trg_norm = torch.median(norms)
+
+        losses = (norms - trg_norm) ** 2
+        loss = losses[mask].sum()
+        if num_invalid > 0.0:
+            loss /= num_invalid
+
+        return self.scale * loss
+
+
 def get_regularizer(cfg_reg):
     if cfg_reg.ow:
-        return ConvRegularizer(SVMORegularizer, cfg_reg.ow_beta)
+        return ConvRegularizer(SVMORegularizer,
+                               beta=cfg_reg.ow_beta)
+    elif cfg_reg.nw:
+        return ConvRegularizer(NormRegularizer,
+                               max_factor=cfg_reg.nw_max_factor,
+                               scale=cfg_reg.nw_scale)
     else:
         return None
