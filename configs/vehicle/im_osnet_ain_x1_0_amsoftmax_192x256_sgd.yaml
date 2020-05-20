@@ -68,12 +68,12 @@ loss:
     conf_penalty: 0.085
     label_smooth: True
     pr_product: False
-    m: 0.35
+    m: 0.5
     s: 15.0
     end_s: -1.0
     duration_s: -1
     skip_steps_s: -1
-    adaptive_margins: False
+    adaptive_margins: True
   projector_weight: -1.0
 
 metric_losses:
