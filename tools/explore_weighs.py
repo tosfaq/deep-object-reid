@@ -30,15 +30,26 @@ def explore(model, max_scale=10.0):
             num_filters = shape[0]
             filters = weights.reshape([num_filters, -1])
 
+            if num_filters > filters.shape[1]:
+                continue
+
             norms = np.sqrt(np.sum(np.square(filters), axis=-1))
             min_norm, max_norm = np.min(norms), np.max(norms)
+            median_norm = np.median(norms)
             scale = max_norm / min_norm
+
+            norm_filters = filters / norms.reshape([-1, 1])
+            similarities = np.matmul(norm_filters, np.transpose(norm_filters))
+            triu_values = similarities[np.triu_indices(similarities.shape[0], k=1)]
+            median_sim = np.percentile(triu_values, 5)
 
             scales = max_norm / norms
             num_invalid = np.sum(scales > max_scale)
-            if num_invalid > 0:
-                print('   - {} ({}): scale={:.3f} invalid: {} / {}'
-                      .format(name, kernel_type, scale, num_invalid, num_filters))
+            if num_invalid >= 0:
+                print('   - {} ({}): sim={:.3f} min={:.3f} median={:.3f} max={:.3f} scale={:.3f} invalid: {} / {}'
+                      .format(name, kernel_type, median_sim,
+                              min_norm, median_norm, max_norm, scale,
+                              num_invalid, num_filters))
 
 
 def main():

@@ -16,6 +16,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class ConvRegularizer(nn.Module):
@@ -31,10 +32,12 @@ class ConvRegularizer(nn.Module):
             if not isinstance(module, nn.Conv2d):
                 continue
 
-            accumulator += self.reg_instance(module.weight)
-            num_losses += 1
+            loss = self.reg_instance(module.weight)
+            if loss > 0:
+                accumulator += loss
+                num_losses += 1
 
-        return accumulator / float(max(1.0, num_losses))
+        return accumulator / float(max(1, num_losses))
 
 
 class SVMORegularizer(nn.Module):
@@ -77,11 +80,40 @@ class SVMORegularizer(nn.Module):
         return loss.squeeze()
 
 
-class NormRegularizer(nn.Module):
-    def __init__(self, max_factor, scale):
+class HardDecorrelationRegularizer(nn.Module):
+    def __init__(self, max_score, scale):
         super().__init__()
 
-        self.max_factor = max_factor
+        self.max_score = float(max_score)
+        assert -1.0 < self.max_score < 1.0
+        self.scale = float(scale)
+        assert self.scale > 0.0
+
+    def forward(self, W):
+        num_filters = W.size(0)
+        if num_filters == 1:
+            return 0
+
+        W = W.view(num_filters, -1)
+
+        dim = W.size(1)
+        if dim < num_filters:
+            return 0
+
+        W = F.normalize(W, p=2, dim=-1)
+        similarities = torch.matmul(W, W.t())
+
+        losses = torch.triu(similarities.abs().clamp_min(self.max_score) ** 2, diagonal=1)
+        filtered_losses = losses[losses > 0.0]
+        loss = filtered_losses.mean() if filtered_losses.numel() > 0 else filtered_losses.sum()
+
+        return self.scale * loss
+
+
+class NormRegularizer(nn.Module):
+    def __init__(self, scale):
+        super().__init__()
+
         self.scale = scale
 
     def forward(self, W):
@@ -92,28 +124,51 @@ class NormRegularizer(nn.Module):
         W = W.view(num_filters, -1)
         norms = torch.sqrt(torch.sum(W ** 2, dim=-1))
 
-        with torch.no_grad():
-            max_norm = torch.max(norms)
-            mask = max_norm / norms > float(self.max_factor)
-            num_invalid = mask.float().sum()
-
-            trg_norm = torch.median(norms)
-
+        trg_norm = torch.median(norms.detach())
         losses = (norms - trg_norm) ** 2
-        loss = losses[mask].sum()
-        if num_invalid > 0.0:
-            loss /= num_invalid
+        loss = losses.mean()
 
         return self.scale * loss
 
 
+class ComposeRegularizer(nn.Module):
+    def __init__(self, regularizers):
+        super().__init__()
+
+        self.regularizers = regularizers
+        assert len(regularizers) > 0
+
+    def forward(self, net):
+        loss = 0
+        for regularizer in self.regularizers:
+            loss += regularizer(net)
+
+        return loss
+
+
 def get_regularizer(cfg_reg):
+    regularizers = []
+
     if cfg_reg.ow:
-        return ConvRegularizer(SVMORegularizer,
-                               beta=cfg_reg.ow_beta)
-    elif cfg_reg.nw:
-        return ConvRegularizer(NormRegularizer,
-                               max_factor=cfg_reg.nw_max_factor,
-                               scale=cfg_reg.nw_scale)
+        regularizers.append(ConvRegularizer(
+            SVMORegularizer,
+            beta=cfg_reg.ow_beta
+        ))
+
+    if cfg_reg.nw:
+        regularizers.append(ConvRegularizer(
+            NormRegularizer,
+            scale=cfg_reg.nw_scale
+        ))
+
+    if cfg_reg.hd:
+        regularizers.append(ConvRegularizer(
+            HardDecorrelationRegularizer,
+            max_score=cfg_reg.hd_max_score,
+            scale=cfg_reg.hd_scale
+        ))
+
+    if len(regularizers) > 0:
+        return ComposeRegularizer(regularizers)
     else:
         return None

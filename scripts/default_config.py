@@ -115,8 +115,10 @@ def get_default_config():
     cfg.reg.ow = False
     cfg.reg.ow_beta = 1e-3
     cfg.reg.nw = False
-    cfg.reg.nw_max_factor = 10.0
     cfg.reg.nw_scale = 10.0
+    cfg.reg.hd = False
+    cfg.reg.hd_max_score = 0.1
+    cfg.reg.hd_scale = 10.0
     cfg.reg.of = False
     cfg.reg.of_beta = 1e-6
     cfg.reg.of_start_epoch = 23
