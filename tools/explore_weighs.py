@@ -10,8 +10,9 @@ from torchreid.utils import load_pretrained_weights
 from scripts.default_config import get_default_config, model_kwargs
 
 
-def explore(model, max_scale=10.0):
-    print('Norms:')
+def explore(model, max_scale=5.0, max_sim=0.1, sim_percentile=95):
+    invalid_scales = []
+    invalid_sim = []
     for name, m in model.named_modules():
         if isinstance(m, nn.Conv2d):
             weights = m.weight.detach().cpu().numpy()
@@ -30,26 +31,41 @@ def explore(model, max_scale=10.0):
             num_filters = shape[0]
             filters = weights.reshape([num_filters, -1])
 
-            if num_filters > filters.shape[1]:
-                continue
-
             norms = np.sqrt(np.sum(np.square(filters), axis=-1))
             min_norm, max_norm = np.min(norms), np.max(norms)
             median_norm = np.median(norms)
             scale = max_norm / min_norm
 
-            norm_filters = filters / norms.reshape([-1, 1])
-            similarities = np.matmul(norm_filters, np.transpose(norm_filters))
-            triu_values = similarities[np.triu_indices(similarities.shape[0], k=1)]
-            median_sim = np.percentile(triu_values, 5)
+            if num_filters <= filters.shape[1]:
+                norm_filters = filters / norms.reshape([-1, 1])
+                similarities = np.matmul(norm_filters, np.transpose(norm_filters))
+                triu_values = similarities[np.triu_indices(similarities.shape[0], k=1)]
+                sim = np.percentile(np.abs(triu_values), sim_percentile)
+                if sim > max_sim:
+                    invalid_sim.append((name, kernel_type, sim, num_filters))
 
             scales = max_norm / norms
             num_invalid = np.sum(scales > max_scale)
-            if num_invalid >= 0:
-                print('   - {} ({}): sim={:.3f} min={:.3f} median={:.3f} max={:.3f} scale={:.3f} invalid: {} / {}'
-                      .format(name, kernel_type, median_sim,
-                              min_norm, median_norm, max_norm, scale,
-                              num_invalid, num_filters))
+            if num_invalid > 0:
+                invalid_scales.append((name, kernel_type, median_norm, scale, num_invalid, num_filters))
+
+    if len(invalid_scales) > 0:
+        print('\nFound {} layers with invalid norm fraction (max/cur > {}):'
+              .format(len(invalid_scales), max_scale))
+        for name, kernel_type, median_norm, scale, num_invalid, num_filters in invalid_scales:
+            print('   - {} ({}): {:.3f} (median={:.3f} invalid: {} / {})'
+                  .format(name, kernel_type, scale, median_norm, num_invalid, num_filters))
+    else:
+        print('There are no layers with invalid norm.')
+
+    if len(invalid_sim) > 0:
+        print('\nFound {} layers with invalid similarity (p@{} > {}):'
+              .format(len(invalid_sim), sim_percentile, max_sim))
+        for name, kernel_type, sim, num_filters in invalid_sim:
+            print('   - {} ({}): {:.3f} (size={})'
+                  .format(name, kernel_type, sim, num_filters))
+    else:
+        print('There are no layers with invalid similarity.')
 
 
 def main():
