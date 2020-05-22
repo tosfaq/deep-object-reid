@@ -10,7 +10,7 @@ from torchreid.utils import load_pretrained_weights
 from scripts.default_config import get_default_config, model_kwargs
 
 
-def explore(model, max_scale=5.0, max_sim=0.2, sim_percentile=95):
+def explore(model, max_scale=5.0, max_similarity=0.2, sim_percentile=95):
     invalid_scales = []
     invalid_sim = []
     for name, m in model.named_modules():
@@ -39,10 +39,13 @@ def explore(model, max_scale=5.0, max_sim=0.2, sim_percentile=95):
             if num_filters <= filters.shape[1]:
                 norm_filters = filters / norms.reshape([-1, 1])
                 similarities = np.matmul(norm_filters, np.transpose(norm_filters))
-                triu_values = similarities[np.triu_indices(similarities.shape[0], k=1)]
-                sim = np.percentile(np.abs(triu_values), sim_percentile)
-                if sim > max_sim:
-                    invalid_sim.append((name, kernel_type, sim, num_filters))
+                similarities = np.abs(similarities[np.triu_indices(similarities.shape[0], k=1)])
+
+                num_invalid = np.sum(similarities > max_similarity)
+                num_total = len(similarities)
+                if num_invalid > 0:
+                    sim = np.percentile(similarities, sim_percentile)
+                    invalid_sim.append((name, kernel_type, sim, num_invalid, num_total, num_filters))
 
             scales = max_norm / norms
             num_invalid = np.sum(scales > max_scale)
@@ -59,11 +62,11 @@ def explore(model, max_scale=5.0, max_sim=0.2, sim_percentile=95):
         print('There are no layers with invalid norm.')
 
     if len(invalid_sim) > 0:
-        print('\nFound {} layers with invalid similarity (p@{} > {}):'
-              .format(len(invalid_sim), sim_percentile, max_sim))
-        for name, kernel_type, sim, num_filters in invalid_sim:
-            print('   - {} ({}): {:.3f} (size={})'
-                  .format(name, kernel_type, sim, num_filters))
+        print('\nFound {} layers with invalid similarity (value > {}):'
+              .format(len(invalid_sim), max_similarity))
+        for name, kernel_type, sim, num_invalid, num_total, num_filters in invalid_sim:
+            print('   - {} ({}): {:.3f} (invalid: {} / {} size={})'
+                  .format(name, kernel_type, sim, num_invalid, num_total, num_filters))
     else:
         print('There are no layers with invalid similarity.')
 
