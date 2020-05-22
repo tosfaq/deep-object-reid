@@ -9,7 +9,7 @@ model:
 
 data:
   type: 'image'
-  sources: [['veri', 'veriwild'], ['vehicle1m'], ['universemodels']]
+  sources: [['veri', 'veriwild'], ['universemodels']]
   targets: ['veri', 'cityflow']
   height: 208
   width: 208
@@ -68,7 +68,7 @@ loss:
     conf_penalty: 0.085
     label_smooth: True
     pr_product: False
-    m: 0.5
+    m: 0.9
     s: 15.0
     end_s: -1.0
     duration_s: -1
@@ -82,18 +82,22 @@ metric_losses:
   triplet_coeff: 1.0
 
 reg:
-  ow: False
-  ow_beta: 1e-2
+  nw: False
+  nw_max_ratio: 5.0
+  nw_scale: 10.0
+  hd: False
+  hd_max_score: 0.2
+  hd_scale: 10.0
 
 train:
   optim: 'sgd'
   lr: 0.01
-  max_epoch: 70
+  max_epoch: 80
   batch_size: 112
   fixbase_epoch: 5
   open_layers: ['conv5', 'fc', 'classifier']
   lr_scheduler: 'multi_step_warmup'
-  stepsize: [40, 55]
+  stepsize: [40, 60]
   warmup: 5
   warmup_factor_base: 0.005
   frozen_factor_base: 1.0
