@@ -85,44 +85,50 @@ class HardDecorrelationRegularizer(nn.Module):
         super().__init__()
 
         self.max_score = float(max_score)
-        assert -1.0 < self.max_score < 1.0
+        assert 0.0 < self.max_score < 1.0
         self.scale = float(scale)
         assert self.scale > 0.0
 
     def forward(self, W):
         num_filters = W.size(0)
         if num_filters == 1:
-            return 0
+            return 0.0
 
         W = W.view(num_filters, -1)
 
         dim = W.size(1)
         if dim < num_filters:
-            return 0
+            return 0.0
 
         W = F.normalize(W, p=2, dim=-1)
         similarities = torch.matmul(W, W.t())
 
-        losses = torch.triu(similarities.abs().clamp_min(self.max_score) ** 2, diagonal=1)
-        filtered_losses = losses[losses > 0.0]
+        all_losses = (similarities.abs().clamp_min(self.max_score) - self.max_score) ** 2
+        valid_losses = torch.triu(all_losses, diagonal=1)
+        filtered_losses = valid_losses[valid_losses > 0.0]
         loss = filtered_losses.mean() if filtered_losses.numel() > 0 else filtered_losses.sum()
 
         return self.scale * loss
 
 
 class NormRegularizer(nn.Module):
-    def __init__(self, scale):
+    def __init__(self, scale, max_ratio):
         super().__init__()
 
+        self.max_ratio = max_ratio
         self.scale = scale
 
     def forward(self, W):
         num_filters = W.size(0)
         if num_filters == 1:
-            return 0
+            return 0.0
 
         W = W.view(num_filters, -1)
         norms = torch.sqrt(torch.sum(W ** 2, dim=-1))
+
+        norm_ratio = torch.max(norms.detach()) / torch.min(norms.detach())
+        if norm_ratio < self.max_ratio:
+            return 0.0
 
         trg_norm = torch.median(norms.detach())
         losses = (norms - trg_norm) ** 2
@@ -158,6 +164,7 @@ def get_regularizer(cfg_reg):
     if cfg_reg.nw:
         regularizers.append(ConvRegularizer(
             NormRegularizer,
+            max_ratio=cfg_reg.nw_max_ratio,
             scale=cfg_reg.nw_scale
         ))
 
