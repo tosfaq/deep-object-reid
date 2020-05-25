@@ -7,6 +7,32 @@ from lxml import etree
 from ..dataset import ImageDataset
 
 
+COLORS_MAP = {
+    1: 4,   # yellow
+    2: 6,   # orange
+    3: 11,  # green
+    4: 1,   # gray
+    5: 7,   # red
+    6: 10,  # blue
+    7: 0,   # white
+    8: 5,   # golden
+    9: 12,  # brown
+    10: 3   # black
+}
+
+TYPES_MAP = {
+    1: 0,   # sedan
+    2: 1,   # suv
+    3: 10,  # van
+    4: 3,   # hatchback
+    5: 18,  # mpv
+    6: 6,   # pickup
+    7: 12,  # bus
+    8: 14,  # truck
+    9: 5    # estate
+}
+
+
 class VeRi(ImageDataset):
     """VeRi-776.
 
@@ -66,15 +92,14 @@ class VeRi(ImageDataset):
 
             pid = int(item.attrib['vehicleID'])
             cam_id = int(item.attrib['cameraID'][1:])
-
-            color = int(item.attrib['colorID'])
-            object_type = int(item.attrib['typeID'])
+            color_id = int(item.attrib['colorID'])
+            type_id = int(item.attrib['typeID'])
 
             out_data[image_name] = dict(
                 pid=pid,
                 cam_id=cam_id,
-                color_id=color - 1,
-                type_id=object_type - 1
+                color_id=COLORS_MAP[color_id] if color_id in COLORS_MAP else -1,
+                type_id=TYPES_MAP[type_id] if type_id in TYPES_MAP else -1
             )
 
         return out_data

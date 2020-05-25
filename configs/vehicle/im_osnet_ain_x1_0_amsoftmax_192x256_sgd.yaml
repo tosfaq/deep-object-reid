@@ -57,15 +57,21 @@ loss:
     pr_product: False
     m: 0.9
     s: 15.0
-    end_s: -1.0
-    duration_s: -1
-    skip_steps_s: -1
     adaptive_margins: True
 
 metric_losses:
   enable: True
   center_coeff: 1.0
   triplet_coeff: 1.0
+
+attr_loss:
+  names: ['attr_color', 'attr_type']
+  num_classes: [13, 19]
+  conf_penalty: 0.085
+  label_smooth: True
+  pr_product: False
+  m: 0.35
+  s: 15.0
 
 reg:
   nw: True
@@ -81,7 +87,7 @@ train:
   max_epoch: 80
   batch_size: 112
   fixbase_epoch: 5
-  open_layers: ['conv5', 'fc', 'classifier']
+  open_layers: ['conv5', 'fc', 'classifier', 'attr', 'attr_classifier']
   lr_scheduler: 'multi_step_warmup'
   stepsize: [40, 60]
   warmup: 5

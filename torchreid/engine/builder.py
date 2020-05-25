@@ -37,6 +37,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
                 enable_masks=cfg.data.enable_masks,
                 projector_weight=cfg.loss.projector_weight,
                 adaptive_margins=cfg.loss.softmax.adaptive_margins,
+                attr_cfg=cfg.attr_loss,
             )
         else:
             engine = ImageTripletEngine(

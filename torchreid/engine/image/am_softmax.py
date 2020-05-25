@@ -32,8 +32,7 @@ import numpy as np
 
 from torchreid.engine import Engine
 from torchreid.utils import AverageMeter, open_specified_layers, open_all_layers
-from torchreid.losses import (get_regularizer, AMSoftmaxLoss, CrossEntropyLoss,
-                              MetricLosses, MockTripletLoss, InvDistPushLoss)
+from torchreid.losses import get_regularizer, AMSoftmaxLoss, CrossEntropyLoss, MetricLosses
 from torchreid.ops import grad_reverse
 
 
@@ -46,7 +45,7 @@ class ImageAMSoftmaxEngine(Engine):
                  label_smooth=False, conf_penalty=False, pr_product=False,
                  m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None,
                  writer=None, enable_masks=False, projector_weight=-1.0,
-                 adaptive_margins=False):
+                 adaptive_margins=False, attr_cfg=None):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
 
         assert softmax_type in ['stock', 'am']
@@ -106,6 +105,29 @@ class ImageAMSoftmaxEngine(Engine):
                     name='ml_{}'.format(trg_id)
                 ))
 
+        self.enable_attr = attr_cfg is not None
+        self.attr_losses = {}
+        if self.enable_attr:
+            self.attr_losses = nn.ModuleDict()
+            for attr_name, attr_size in zip(attr_cfg.names, attr_cfg.num_classes):
+                if attr_size is None or attr_size <= 0:
+                    continue
+
+                self.attr_losses[attr_name] = AMSoftmaxLoss(
+                    use_gpu=self.use_gpu,
+                    label_smooth=attr_cfg.label_smooth,
+                    conf_penalty=attr_cfg.conf_penalty,
+                    m=attr_cfg.m,
+                    s=attr_cfg.s,
+                    end_s=attr_cfg.end_s if self._valid(attr_cfg.end_s) else None,
+                    duration_s=attr_cfg.duration_s * num_batches if self._valid(attr_cfg.duration_s) else None,
+                    skip_steps_s=attr_cfg.skip_steps_s * num_batches if self._valid(attr_cfg.skip_steps_s) else None,
+                    pr_product=attr_cfg.pr_product
+                )
+
+            if len(self.attr_losses) == 0:
+                self.enable_attr = False
+
         self.enable_masks = enable_masks
         self.enable_aux_projector = projector_weight > 0.0 and len(self.num_classes) > 1
         self.projector_weight = projector_weight
@@ -121,6 +143,7 @@ class ImageAMSoftmaxEngine(Engine):
         total_losses = AverageMeter()
         proj_losses = AverageMeter()
         att_losses = AverageMeter()
+        attr_losses = {attr_name: AverageMeter() for attr_name in self.attr_losses.keys()}
         ml_losses = [AverageMeter() for _ in range(self.num_targets)]
         main_losses = [AverageMeter() for _ in range(self.num_targets)]
 
@@ -137,7 +160,8 @@ class ImageAMSoftmaxEngine(Engine):
             n_iter = epoch * num_batches + batch_idx
             data_time.update(time.time() - start_time)
 
-            imgs, pids, trg_ids, masks = self._parse_data_for_train(data, self.enable_masks, self.use_gpu)
+            imgs, pids, trg_ids, masks, attributes =\
+                self._parse_data_for_train(data, self.enable_masks, self.use_gpu)
 
             self.optimizer.zero_grad()
             all_logits, all_embeddings, extra_data = self.model(imgs, get_embeddings=True)
@@ -172,6 +196,29 @@ class ImageAMSoftmaxEngine(Engine):
                 total_loss += trg_loss
                 num_trg_losses += 1
             total_loss /= float(num_trg_losses)
+
+            if self.enable_attr:
+                all_attr_logits = extra_data['attr_logits']
+
+                num_attr_losses = 0
+                total_attr_loss = 0
+                for attr_name, attr_loss_module in self.attr_losses.items():
+                    attr_labels = attributes[attr_name]
+                    valid_attr_mask = attr_labels >= 0
+
+                    attr_labels = attr_labels[valid_attr_mask]
+                    if attr_labels.numel() == 0:
+                        continue
+
+                    attr_logits = all_attr_logits[attr_name][valid_attr_mask]
+
+                    attr_loss = attr_loss_module(attr_logits, attr_labels, iteration=n_iter)
+                    attr_losses[attr_name].update(attr_loss.item(), attr_labels.numel())
+
+                    total_attr_loss += attr_loss
+                    num_attr_losses += 1
+
+                total_loss += total_attr_loss / float(max(1, num_attr_losses))
 
             if self.enable_aux_projector:
                 norm_anchor_embd = grad_reverse(F.normalize(all_embeddings[0], p=2, dim=1))
@@ -265,6 +312,8 @@ class ImageAMSoftmaxEngine(Engine):
                     writer.add_scalar('Aux/Learning_rate', self.optimizer.param_groups[0]['lr'], n_iter)
                     writer.add_scalar('Aux/Scale_main', self.main_losses[0].get_last_scale(), n_iter)
                     writer.add_scalar('Aux/proj', proj_losses.avg, n_iter)
+                    for attr_name in attr_losses:
+                        writer.add_scalar('Loss/attr_{}'.format(attr_name), attr_losses[attr_name].avg, n_iter)
                     for trg_id in range(self.num_targets):
                         writer.add_scalar('Loss/ml_{}'.format(trg_id), ml_losses[trg_id].avg, n_iter)
                         writer.add_scalar('Loss/main_{}'.format(trg_id), main_losses[trg_id].avg, n_iter)
@@ -279,12 +328,21 @@ class ImageAMSoftmaxEngine(Engine):
         pids = data[1]
         dataset_id = data[4]
         masks = data[5] if load_masks else None
+        attr_colors = data[6]
+        attr_types = data[7]
 
         if use_gpu:
             imgs = imgs.cuda()
             pids = pids.cuda()
             dataset_id = dataset_id.cuda()
+            attr_colors = attr_colors.cuda()
+            attr_types = attr_types.cuda()
             if load_masks:
                 masks = masks.cuda()
 
-        return imgs, pids, dataset_id, masks
+        attr = {
+            'attr_color': attr_colors,
+            'attr_type': attr_types
+        }
+
+        return imgs, pids, dataset_id, masks, attr

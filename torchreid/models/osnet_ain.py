@@ -410,6 +410,8 @@ class OSNet(nn.Module):
         bn_eval=False,
         bn_frozen=False,
         aux_projector=False,
+        attr_names=None,
+        attr_num_classes=None,
         **kwargs
     ):
         super(OSNet, self).__init__()
@@ -466,6 +468,25 @@ class OSNet(nn.Module):
             self.fc.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
             if trg_num_classes > 0:
                 self.classifier.append(classifier_block(self.feature_dim, trg_num_classes))
+
+        self.use_attr = attr_names is not None and attr_num_classes is not None
+        if self.use_attr:
+            assert len(attr_names) == len(attr_num_classes)
+
+            self.attr_names = []
+            self.attr, self.attr_classifier = nn.ModuleDict(), nn.ModuleDict()
+            attr_feature_dim = self.feature_dim // 4
+            for attr_name, attr_size in zip(attr_names, attr_num_classes):
+                if attr_size is None or attr_size <= 0:
+                    continue
+
+                self.attr[attr_name] = self._construct_fc_layer(out_num_channels, attr_feature_dim, dropout=False)
+                self.attr_classifier[attr_name] = classifier_block(attr_feature_dim, attr_size)
+
+                self.attr_names.append(attr_name)
+
+            if len(self.attr) == 0:
+                self.use_attr = False
 
         self.aux_projector = aux_projector and len(self.num_classes) > 1
         if self.aux_projector:
@@ -619,13 +640,22 @@ class OSNet(nn.Module):
         glob_features, head_att_map = self._glob_feature_vector(feature_maps, self.head_att)
         embeddings = [fc(glob_features) for fc in self.fc]
 
+        attr_embeddings = {}
+        if self.use_attr:
+            attr_embeddings = {attr_name: attr_fc(glob_features) for attr_name, attr_fc in self.attr.items()}
+
         if not self.training and not return_logits:
-            return torch.cat(embeddings, dim=1)
+            return torch.cat(embeddings + [attr_embeddings[attr_name] for attr_name in self.attr_names], dim=1)
 
         logits = [classifier(embd) for embd, classifier in zip(embeddings, self.classifier)]
 
         extra_out_data = dict()
         extra_out_data['att_maps'] = [head_att_map] + feature_att_maps
+
+        if self.use_attr:
+            attr_logits = {attr_name: attr_classifier(attr_embeddings[attr_name])
+                           for attr_name, attr_classifier in self.attr_classifier.items()}
+            extra_out_data['attr_logits'] = attr_logits
 
         if self.aux_projector:
             proj_embeddings = []

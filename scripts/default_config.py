@@ -110,6 +110,19 @@ def get_default_config():
     cfg.metric_losses.center_coeff = 1.0
     cfg.metric_losses.triplet_coeff = 1.0
 
+    # attribute loss
+    cfg.attr_loss = CN()
+    cfg.attr_loss.names = ['color', 'type']
+    cfg.attr_loss.num_classes = [-1, -1]
+    cfg.attr_loss.label_smooth = False
+    cfg.attr_loss.conf_penalty = 0.0
+    cfg.attr_loss.pr_product = False
+    cfg.attr_loss.m = 0.35
+    cfg.attr_loss.s = 30.0
+    cfg.attr_loss.end_s = -1.0
+    cfg.attr_loss.duration_s = -1
+    cfg.attr_loss.skip_steps_s = -1
+
     # regularizers
     cfg.reg = CN()
     cfg.reg.ow = False
@@ -328,7 +341,9 @@ def model_kwargs(cfg, num_classes):
         'bn_eval': cfg.model.bn_eval,
         'bn_frozen': cfg.model.bn_frozen,
         'enable_attentions': cfg.model.enable_attentions and cfg.data.enable_masks,
-        'aux_projector': cfg.loss.projector_weight > 0.0
+        'aux_projector': cfg.loss.projector_weight > 0.0,
+        'attr_names': cfg.attr_loss.names,
+        'attr_num_classes': cfg.attr_loss.num_classes,
     }
 
 
