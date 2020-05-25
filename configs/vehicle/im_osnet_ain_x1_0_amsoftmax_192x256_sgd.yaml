@@ -16,16 +16,6 @@ data:
   combineall: False
   enable_masks: False
   transforms:
-    color_jitter:
-      enable: False
-      p: 0.1
-      saturation: 0.1
-      hue: 0.1
-      brightness: 0.15
-      contrast: 0.15
-    random_gray_scale:
-      enable: False
-      p: 0.1
     random_flip:
       enable: True
       p: 0.5
@@ -52,9 +42,6 @@ data:
     random_figures:
       enable: True
       p: 0.33
-    random_background_substitution:
-      enable: False
-      p: 0.25
   save_dir: 'log/osnet_ain_x1_0_general'
 
 sampler:
@@ -74,7 +61,6 @@ loss:
     duration_s: -1
     skip_steps_s: -1
     adaptive_margins: True
-  projector_weight: -1.0
 
 metric_losses:
   enable: True
@@ -82,11 +68,11 @@ metric_losses:
   triplet_coeff: 1.0
 
 reg:
-  nw: False
+  nw: True
   nw_max_ratio: 5.0
   nw_scale: 10.0
-  hd: False
-  hd_max_score: 0.2
+  hd: True
+  hd_max_score: 0.5
   hd_scale: 10.0
 
 train:

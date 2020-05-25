@@ -10,7 +10,7 @@ from torchreid.utils import load_pretrained_weights
 from scripts.default_config import get_default_config, model_kwargs
 
 
-def explore(model, max_scale=5.0, max_similarity=0.2, sim_percentile=95):
+def explore(model, max_scale=5.0, max_similarity=0.5, sim_percentile=95):
     invalid_scales = []
     invalid_sim = []
     for name, m in model.named_modules():
