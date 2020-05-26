@@ -39,6 +39,12 @@ def explore(model, max_scale=5.0, max_similarity=0.5, sim_percentile=95):
             if num_filters <= filters.shape[1]:
                 norm_filters = filters / norms.reshape([-1, 1])
                 similarities = np.matmul(norm_filters, np.transpose(norm_filters))
+
+                if 'gate.fc' in name:
+                    print('\nSimilarity for {}:'.format(name))
+                    for line in np.abs(similarities):
+                        print('   '.join(['{:.3f}'.format(s) for s in line]))
+
                 similarities = np.abs(similarities[np.triu_indices(similarities.shape[0], k=1)])
 
                 num_invalid = np.sum(similarities > max_similarity)

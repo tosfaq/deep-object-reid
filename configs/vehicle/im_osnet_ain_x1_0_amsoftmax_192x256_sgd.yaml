@@ -74,10 +74,10 @@ attr_loss:
   s: 15.0
 
 reg:
-  nw: True
+  nw: False
   nw_max_ratio: 5.0
   nw_scale: 10.0
-  hd: True
+  hd: False
   hd_max_score: 0.5
   hd_scale: 10.0
 
