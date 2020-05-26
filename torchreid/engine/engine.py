@@ -302,10 +302,10 @@ class Engine:
                 self.writer.add_scalar('Val/{}/Rank-{}'.format(dataset_name, r), cmc[r - 1], epoch + 1)
 
         print('** Results **')
-        print('mAP: {:.1%}'.format(mAP))
+        print('mAP: {:.2%}'.format(mAP))
         print('CMC curve')
         for r in ranks:
-            print('Rank-{:<3}: {:.1%}'.format(r, cmc[r - 1]))
+            print('Rank-{:<3}: {:.2%}'.format(r, cmc[r - 1]))
 
         if visrank:
             visualize_ranked_results(

@@ -464,10 +464,12 @@ class OSNet(nn.Module):
 
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
         self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
-        for trg_num_classes in self.num_classes:
-            self.fc.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
+        for trg_id, trg_num_classes in enumerate(self.num_classes):
+            trg_feature_dim = self.feature_dim if trg_id == 0 else self.feature_dim // 2
+
+            self.fc.append(self._construct_fc_layer(out_num_channels, trg_feature_dim, dropout=False))
             if trg_num_classes > 0:
-                self.classifier.append(classifier_block(self.feature_dim, trg_num_classes))
+                self.classifier.append(classifier_block(trg_feature_dim, trg_num_classes))
 
         self.use_attr = attr_names is not None and attr_num_classes is not None
         if self.use_attr:
@@ -493,9 +495,9 @@ class OSNet(nn.Module):
             self.aux_projectors = nn.ModuleList()
             for _ in range(len(self.num_classes) - 1):
                 self.aux_projectors.append(self._construct_projector(
+                    self.feature_dim // 2,
                     self.feature_dim,
-                    2 * self.feature_dim,
-                    self.feature_dim
+                    self.feature_dim // 2
                 ))
 
         self._init_params()

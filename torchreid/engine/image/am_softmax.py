@@ -99,7 +99,7 @@ class ImageAMSoftmaxEngine(Engine):
                 self.ml_losses.append(MetricLosses(
                     self.writer,
                     trg_num_classes,
-                    self.model.module.feature_dim,
+                    self.model.module.feature_dim if trg_id == 0 else self.model.module.feature_dim // 2,
                     metric_cfg.center_coeff,
                     metric_cfg.triplet_coeff,
                     name='ml_{}'.format(trg_id)
