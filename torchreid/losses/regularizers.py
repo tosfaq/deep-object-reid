@@ -20,16 +20,31 @@ import torch.nn.functional as F
 
 
 class ConvRegularizer(nn.Module):
-    def __init__(self, reg_class, **kwargs):
+    def __init__(self, reg_class, exclude=None, **kwargs):
         super().__init__()
 
         self.reg_instance = reg_class(**kwargs)
 
+        self.exclude = exclude
+        if self.exclude is None:
+            self.exclude = tuple()
+        else:
+            self.exclude = tuple(self.exclude)
+
     def forward(self, net):
         num_losses = 0
         accumulator = torch.tensor(0.0).cuda()
-        for module in net.module.modules():
+        for name, module in net.module.named_modules():
             if not isinstance(module, nn.Conv2d):
+                continue
+
+            valid_name = True
+            for exclude_name in self.exclude:
+                if exclude_name not in name:
+                    valid_name = False
+                    break
+
+            if not valid_name:
                 continue
 
             loss = self.reg_instance(module.weight)
@@ -112,13 +127,56 @@ class HardDecorrelationRegularizer(nn.Module):
 
 
 class NormRegularizer(nn.Module):
-    def __init__(self, scale, max_ratio):
+    def __init__(self, scale, max_ratio, eps=1e-5):
         super().__init__()
 
         self.max_ratio = max_ratio
         self.scale = scale
+        self.eps = eps
 
-    def forward(self, W):
+    def forward(self, net):
+        conv_layers = self._collect_conv_layers(net, self.eps)
+
+        num_losses = 0
+        accumulator = torch.tensor(0.0).cuda()
+        for conv in conv_layers:
+            loss = self._loss(conv['weight'], self.max_ratio)
+            if loss > 0:
+                accumulator += loss
+                num_losses += 1
+
+        return self.scale * accumulator / float(max(1, num_losses))
+
+    @staticmethod
+    def _collect_conv_layers(net, eps):
+        conv_layers = []
+        for name, m in net.named_modules():
+            if isinstance(m, nn.Conv2d):
+                conv_layers.append(dict(
+                    name=name,
+                    weight=m.weight,
+                    updated=False,
+                ))
+            elif isinstance(m, nn.BatchNorm2d):
+                assert len(conv_layers) > 0
+
+                last_conv = conv_layers[-1]
+                assert not last_conv['updated']
+
+                alpha = m.weight
+                # beta = m.bias
+                # running_mean = m.running_mean.detach()
+                running_var = m.running_var.detach()
+
+                scales = (alpha / torch.sqrt(running_var + eps)).view(-1, 1, 1, 1)
+                last_conv['weight'] = scales * last_conv['weight']
+                # last_conv['bias'] = scales * (last_conv['bias'] - running_mean) + beta
+                last_conv['updated'] = True
+
+        return conv_layers
+
+    @staticmethod
+    def _loss(W, max_ratio):
         num_filters = W.size(0)
         if num_filters == 1:
             return 0.0
@@ -127,14 +185,14 @@ class NormRegularizer(nn.Module):
         norms = torch.sqrt(torch.sum(W ** 2, dim=-1))
 
         norm_ratio = torch.max(norms.detach()) / torch.min(norms.detach())
-        if norm_ratio < self.max_ratio:
+        if norm_ratio < max_ratio:
             return 0.0
 
         trg_norm = torch.median(norms.detach())
         losses = (norms - trg_norm) ** 2
         loss = losses.mean()
 
-        return self.scale * loss
+        return loss
 
 
 class ComposeRegularizer(nn.Module):
@@ -162,8 +220,7 @@ def get_regularizer(cfg_reg):
         ))
 
     if cfg_reg.nw:
-        regularizers.append(ConvRegularizer(
-            NormRegularizer,
+        regularizers.append(NormRegularizer(
             max_ratio=cfg_reg.nw_max_ratio,
             scale=cfg_reg.nw_scale
         ))
@@ -172,7 +229,8 @@ def get_regularizer(cfg_reg):
         regularizers.append(ConvRegularizer(
             HardDecorrelationRegularizer,
             max_score=cfg_reg.hd_max_score,
-            scale=cfg_reg.hd_scale
+            scale=cfg_reg.hd_scale,
+            exclude='gate.fc',
         ))
 
     if len(regularizers) > 0:

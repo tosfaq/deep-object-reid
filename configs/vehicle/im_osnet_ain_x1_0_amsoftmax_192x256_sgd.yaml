@@ -66,7 +66,7 @@ metric_losses:
 
 attr_loss:
   names: ['attr_color', 'attr_type']
-  num_classes: [13, 19]
+  num_classes: [-1, -1]
   conf_penalty: 0.085
   label_smooth: True
   pr_product: False
@@ -74,10 +74,10 @@ attr_loss:
   s: 15.0
 
 reg:
-  nw: False
+  nw: True
   nw_max_ratio: 5.0
-  nw_scale: 10.0
-  hd: False
+  nw_scale: 1.0
+  hd: True
   hd_max_score: 0.5
   hd_scale: 10.0
 
@@ -87,7 +87,7 @@ train:
   max_epoch: 80
   batch_size: 112
   fixbase_epoch: 5
-  open_layers: ['conv5', 'fc', 'classifier', 'attr', 'attr_classifier']
+  open_layers: ['conv5', 'fc', 'classifier']
   lr_scheduler: 'multi_step_warmup'
   stepsize: [40, 60]
   warmup: 5

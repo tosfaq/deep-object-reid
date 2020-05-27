@@ -211,14 +211,17 @@ class ResidualAttention(nn.Module):
 class LCTGate(nn.Module):
     def __init__(self, channels, groups=16):
         super(LCTGate, self).__init__()
+
         assert channels > 0
         assert groups > 0
         self.gn = nn.GroupNorm(groups, channels, affine=True)
-        nn.init.ones_(self.gn.bias)
-        nn.init.zeros_(self.gn.weight)
 
         self.global_avgpool = nn.AdaptiveAvgPool2d(1)
         self.gate_activation = nn.Sigmoid()
+
+    def init_params(self):
+        nn.init.ones_(self.gn.bias)
+        nn.init.zeros_(self.gn.weight)
 
     def forward(self, x):
         y = self.global_avgpool(x)
@@ -465,11 +468,9 @@ class OSNet(nn.Module):
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
         self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
         for trg_id, trg_num_classes in enumerate(self.num_classes):
-            trg_feature_dim = self.feature_dim if trg_id == 0 else self.feature_dim // 2
-
-            self.fc.append(self._construct_fc_layer(out_num_channels, trg_feature_dim, dropout=False))
+            self.fc.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
             if trg_num_classes > 0:
-                self.classifier.append(classifier_block(trg_feature_dim, trg_num_classes))
+                self.classifier.append(classifier_block(self.feature_dim, trg_num_classes))
 
         self.use_attr = attr_names is not None and attr_num_classes is not None
         if self.use_attr:
@@ -495,9 +496,9 @@ class OSNet(nn.Module):
             self.aux_projectors = nn.ModuleList()
             for _ in range(len(self.num_classes) - 1):
                 self.aux_projectors.append(self._construct_projector(
-                    self.feature_dim // 2,
                     self.feature_dim,
-                    self.feature_dim // 2
+                    self.feature_dim,
+                    self.feature_dim
                 ))
 
         self._init_params()
@@ -581,6 +582,8 @@ class OSNet(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+            elif isinstance(m, LCTGate):
+                m.init_params()
 
     def _backbone(self, x):
         att_maps = []
