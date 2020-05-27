@@ -72,16 +72,9 @@ def show_stat(conv_layers, max_scale=5.0, max_similarity=0.5, sim_percentile=95)
         median_norm = np.median(norms)
         scale = max_norm / min_norm
 
-        if num_filters <= filters.shape[1]:
+        if num_filters <= filters.shape[1] and 'gate.fc' not in name:
             norm_filters = filters / norms.reshape([-1, 1])
             similarities = np.matmul(norm_filters, np.transpose(norm_filters))
-
-            # if 'gate.fc' in name:
-            #     print('\nSimilarity for {}:'.format(name))
-            #     for line in np.abs(similarities):
-            #         print('   '.join(['{:.3f}'.format(s) for s in line]))
-            #
-            #     continue
 
             similarities = np.abs(similarities[np.triu_indices(similarities.shape[0], k=1)])
 
@@ -119,14 +112,14 @@ def show_stat(conv_layers, max_scale=5.0, max_similarity=0.5, sim_percentile=95)
     else:
         print('\nThere are no layers with invalid bias.')
 
-    # if len(invalid_sim) > 0:
-    #     print('\nFound {} layers with invalid similarity (value > {}):'
-    #           .format(len(invalid_sim), max_similarity))
-    #     for name, kernel_type, sim, num_invalid, num_total, num_filters in invalid_sim:
-    #         print('   - {} ({}): {:.3f} (invalid: {} / {} size={})'
-    #               .format(name, kernel_type, sim, num_invalid, num_total, num_filters))
-    # else:
-    #     print('\nThere are no layers with invalid similarity.')
+    if len(invalid_sim) > 0:
+        print('\nFound {} layers with invalid similarity (value > {}):'
+              .format(len(invalid_sim), max_similarity))
+        for name, kernel_type, sim, num_invalid, num_total, num_filters in invalid_sim:
+            print('   - {} ({}): {:.3f} (invalid: {} / {} size={})'
+                  .format(name, kernel_type, sim, num_invalid, num_total, num_filters))
+    else:
+        print('\nThere are no layers with invalid similarity.')
 
 
 def main():
