@@ -38,6 +38,8 @@ class DataManager(object):
             raise ValueError('sources must not be None')
         if isinstance(self.source_groups, str):
             self.source_groups = [[self.source_groups]]
+        elif isinstance(self.source_groups, (list, tuple)):
+            self.source_groups = [[v] if isinstance(v, str) else v for v in self.source_groups]
         self.sources = [s for group in self.source_groups for s in group]
 
         self.targets = targets
