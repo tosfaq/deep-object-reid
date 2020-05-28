@@ -4,7 +4,7 @@ from torchreid.engine import (
 )
 
 
-def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
+def build_engine(cfg, datamanager, model, optimizer, scheduler):
     if cfg.data.type == 'image':
         if cfg.loss.name == 'softmax':
             engine = ImageSoftmaxEngine(
@@ -19,11 +19,11 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
             engine = ImageAMSoftmaxEngine(
                 datamanager,
                 model,
-                optimizer,
-                cfg.reg,
-                cfg.metric_losses,
-                scheduler,
-                cfg.use_gpu,
+                optimizer=optimizer,
+                reg_cfg=cfg.reg,
+                metric_cfg=cfg.metric_losses,
+                scheduler=scheduler,
+                use_gpu=cfg.use_gpu,
                 conf_penalty=cfg.loss.softmax.conf_penalty,
                 label_smooth=cfg.loss.softmax.label_smooth,
                 pr_product=cfg.loss.softmax.pr_product,
@@ -33,9 +33,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler, writer=None):
                 end_s=cfg.loss.softmax.end_s,
                 duration_s=cfg.loss.softmax.duration_s,
                 skip_steps_s=cfg.loss.softmax.skip_steps_s,
-                writer=writer,
                 enable_masks=cfg.data.enable_masks,
-                projector_weight=cfg.loss.projector_weight,
                 adaptive_margins=cfg.loss.softmax.adaptive_margins,
                 attr_cfg=cfg.attr_loss,
             )

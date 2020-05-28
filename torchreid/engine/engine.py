@@ -22,9 +22,6 @@ class Engine:
     Args:
         datamanager (DataManager): an instance of ``torchreid.data.ImageDataManager``
             or ``torchreid.data.VideoDataManager``.
-        model (nn.Module): model instance.
-        optimizer (Optimizer): an Optimizer.
-        scheduler (LRScheduler, optional): if None, no learning rate decay will be performed.
         use_gpu (bool, optional): use gpu. Default is True.
     """
 
@@ -185,6 +182,7 @@ class Engine:
         time_start = time.time()
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch
+        self.fixbase_epoch = fixbase_epoch
         print('=> Start training')
 
         for self.epoch in range(self.start_epoch, self.max_epoch):
@@ -255,9 +253,7 @@ class Engine:
 
             if (self.batch_idx + 1) % print_freq == 0:
                 nb_this_epoch = self.num_batches - (self.batch_idx + 1)
-                nb_future_epochs = (
-                    self.max_epoch - (self.epoch + 1)
-                ) * self.num_batches
+                nb_future_epochs = (self.max_epoch - (self.epoch + 1)) * self.num_batches
                 eta_seconds = batch_time.avg * (nb_this_epoch+nb_future_epochs)
                 eta_str = str(datetime.timedelta(seconds=int(eta_seconds)))
                 print(
@@ -465,9 +461,7 @@ class Engine:
         cam_ids = data[2]
         return imgs, pids, cam_ids
 
-    def two_stepped_transfer_learning(
-        self, epoch, fixbase_epoch, open_layers, model=None
-    ):
+    def two_stepped_transfer_learning(self, epoch, fixbase_epoch, open_layers, model=None):
         """Two-stepped transfer learning.
 
         The idea is to freeze base layers for a certain number of epochs

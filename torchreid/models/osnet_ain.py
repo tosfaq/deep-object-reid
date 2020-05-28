@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, HSwish, GumbelSigmoid, LocalContrastNormalization, grad_reverse
+from torchreid.ops import Dropout, HSwish, GumbelSigmoid, LocalContrastNormalization
 
 
 __all__ = ['osnet_ain_x1_0']
@@ -412,7 +412,6 @@ class OSNet(nn.Module):
         conv1_IN=False,
         bn_eval=False,
         bn_frozen=False,
-        aux_projector=False,
         attr_names=None,
         attr_num_classes=None,
         **kwargs
@@ -490,16 +489,6 @@ class OSNet(nn.Module):
 
             if len(self.attr) == 0:
                 self.use_attr = False
-
-        self.aux_projector = aux_projector and len(self.num_classes) > 1
-        if self.aux_projector:
-            self.aux_projectors = nn.ModuleList()
-            for _ in range(len(self.num_classes) - 1):
-                self.aux_projectors.append(self._construct_projector(
-                    self.feature_dim,
-                    self.feature_dim,
-                    self.feature_dim
-                ))
 
         self._init_params()
 
@@ -662,13 +651,6 @@ class OSNet(nn.Module):
                            for attr_name, attr_classifier in self.attr_classifier.items()}
             extra_out_data['attr_logits'] = attr_logits
 
-        if self.aux_projector:
-            proj_embeddings = []
-            for ref_task_id in range(1, len(self.num_classes)):
-                ref_embeddings = F.normalize(embeddings[ref_task_id], p=2, dim=1)
-                proj_embeddings.append(self.aux_projectors[ref_task_id - 1](grad_reverse(ref_embeddings)))
-            extra_out_data['proj_embd'] = proj_embeddings
-
         if get_embeddings:
             return logits, embeddings, extra_out_data
 
@@ -774,7 +756,7 @@ def init_pretrained_weights(model, key=''):
 ##########
 
 def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False,
-                   enable_attentions=False, aux_projector=False, **kwargs):
+                   enable_attentions=False, **kwargs):
     model = OSNet(
         num_classes,
         blocks=[
@@ -786,7 +768,6 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False,
         attentions=[False, True, True, False, False] if enable_attentions else None,
         input_IN=True,
         conv1_IN=True,
-        aux_projector=aux_projector,
         **kwargs
     )
 

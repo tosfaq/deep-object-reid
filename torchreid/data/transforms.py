@@ -685,6 +685,10 @@ def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_st
 
 
 def build_inference_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_std=(0.229, 0.224, 0.225), **kwargs):
+    print('Building inference transforms ...')
+    print('+ resize to {}x{}'.format(height, width))
+    print('+ to torch tensor of range [0, 1]')
+    print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
     transform_te = Compose([
         Resize((height, width)),
         ToTensor(),
@@ -692,63 +696,3 @@ def build_inference_transform(height, width, norm_mean=(0.485, 0.456, 0.406), no
     ])
 
     return transform_te
-
-
-class SubmissionTransform:
-    def __init__(self, out_transform, scales=None):
-        self.out_transform = out_transform
-        self.scales = scales
-
-    def __call__(self, input_tuple):
-        input_image, input_mask = input_tuple
-
-        out_images = [input_image]
-
-        cropped_images = self._make_crops(input_image, self.scales)
-        out_images += cropped_images
-
-        flipped_images = [im.transpose(Image.FLIP_LEFT_RIGHT) for im in out_images]
-        out_images += flipped_images
-
-        out_images = [self.out_transform(im) for im in out_images]
-        out_tensor = torch.stack(out_images, dim=0)
-
-        return out_tensor, input_mask
-
-    @staticmethod
-    def _make_crops(input_image, scales):
-        if scales is None or len(scales) == 0:
-            return []
-
-        src_width, src_height = input_image.size
-
-        out_crops = []
-        for scale in scales:
-            crop_width, crop_height = int(scale * float(src_width)), int(scale * float(src_height))
-
-            x_shift = src_width - crop_width
-            y_shift = src_height - crop_height
-            x_half_shift = int(x_shift / 2)
-            y_half_shift = int(y_shift / 2)
-
-            crop = input_image.crop((x_half_shift,
-                                     y_half_shift,
-                                     x_half_shift + crop_width,
-                                     y_half_shift + crop_height))
-            out_crops.append(crop)
-
-        return out_crops
-
-
-def build_submission_transforms(height, width, norm_mean=(0.485, 0.456, 0.406), norm_std=(0.229, 0.224, 0.225)):
-    if norm_mean is None or norm_std is None:
-        norm_mean = [0.485, 0.456, 0.406]  # imagenet mean
-        norm_std = [0.229, 0.224, 0.225]  # imagenet std
-
-    out_transform = Compose([
-        PairResize((height, width)),
-        PairToTensor(),
-        PairNormalize(mean=norm_mean, std=norm_std)
-    ])
-
-    return SubmissionTransform(out_transform)
