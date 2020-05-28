@@ -80,8 +80,9 @@ class DataManager(object):
         Args:
             name (str): dataset name.
         """
-        return self.test_dataset[name]['query'], self.test_dataset[name][
-            'gallery']
+        query_loader = self.test_dataset[name]['query']
+        gallery_loader = self.test_dataset[name]['gallery']
+        return query_loader, gallery_loader
 
     def preprocess_pil_img(self, img):
         """Transforms a PIL image to torch tensor for testing."""
@@ -127,6 +128,7 @@ class ImageDataManager(DataManager):
         batch_num_instances (int, optional): number of instances per identity in a batch.
             Default is 4.
         train_sampler (str, optional): sampler. Default is RandomSampler.
+        train_sampler_t (str, optional): sampler for target train loader. Default is RandomSampler.
         cuhk03_labeled (bool, optional): use cuhk03 labeled images.
             Default is False (defaul is to use detected images).
         cuhk03_classic_split (bool, optional): use the classic split in cuhk03.
