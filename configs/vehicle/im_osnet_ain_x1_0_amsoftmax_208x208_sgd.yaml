@@ -9,7 +9,8 @@ model:
 
 data:
   type: 'image'
-  sources: [['veri', 'veriwild'], ['universemodels']]
+  sources: ['veri']
+  # sources: [['veri', 'veriwild'], ['universemodels']]
   targets: ['veri', 'cityflow']
   height: 208
   width: 208

@@ -63,7 +63,8 @@ class RandomIdentitySampler(Sampler):
         self.num_pids_per_batch = self.batch_size // self.num_instances
         self.index_dic = defaultdict(list)
         for index, record in enumerate(self.data_source):
-            self.index_dic[record[1]].append(index)
+            obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            self.index_dic[obj_id].append(index)
         self.pids = list(self.index_dic.keys())
 
         # estimate number of examples in an epoch

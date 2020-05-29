@@ -53,7 +53,6 @@ class Dataset:
 
         if self.combineall:
             raise NotImplementedError
-            # self.combine_all()
 
         if self.mode == 'train':
             self.data = self.train
@@ -79,19 +78,27 @@ class Dataset:
         updated_train = copy.deepcopy(self.train)
 
         for record in other.train:
-            dataset_id = record[3]
+            dataset_id = record['dataset_id'] if isinstance(record, dict) else 0
 
             num_train_pids = 0
             if dataset_id in self.num_train_pids:
                 num_train_pids = self.num_train_pids[dataset_id]
-            new_pid = record[1] + num_train_pids
+            old_obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            new_obj_id = old_obj_id + num_train_pids
 
             num_train_cams = 0
             if dataset_id in self.num_train_cams:
                 num_train_cams = self.num_train_cams[dataset_id]
-            new_cam_id = record[2] + num_train_cams
+            old_cam_id = record['cam_id'] if isinstance(record, dict) else record[2]
+            new_cam_id = old_cam_id + num_train_cams
 
-            updated_record = tuple([record[0], new_pid, new_cam_id] + list(record[3:]))
+            if isinstance(record, dict):
+                record['obj_id'] = new_obj_id
+                record['cam_id'] = new_cam_id
+                updated_record = record
+            else:
+                updated_record = tuple([record[0], new_obj_id, new_cam_id] + list(record[3:]))
+
             updated_train.append(updated_record)
 
         ###################################
@@ -143,9 +150,9 @@ class Dataset:
 
         pids, cams = defaultdict(set), defaultdict(set)
         for record in data:
-            dataset_id = record[3]
-            pids[dataset_id].add(record[1])
-            cams[dataset_id].add(record[2])
+            dataset_id = record['dataset_id'] if isinstance(record, dict) else 0
+            pids[dataset_id].add(record['obj_id'] if isinstance(record, dict) else record[1])
+            cams[dataset_id].add(record['cam_id'] if isinstance(record, dict) else record[2])
 
         num_pids = {dataset_id: len(dataset_pids) for dataset_id, dataset_pids in pids.items()}
         num_cams = {dataset_id: len(dataset_cams) for dataset_id, dataset_cams in cams.items()}
@@ -164,42 +171,18 @@ class Dataset:
     def get_data_counts(data):
         counts = dict()
         for record in data:
-            dataset_id = record[3]
+            dataset_id = record['dataset_id'] if isinstance(record, dict) else 0
             if dataset_id not in counts:
                 counts[dataset_id] = defaultdict(int)
 
-            counts[dataset_id][record[1]] += 1
+            obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            counts[dataset_id][obj_id] += 1
 
         return counts
 
     def show_summary(self):
         """Shows dataset statistics."""
         pass
-
-    def combine_all(self):
-        """Combines train, query and gallery in a dataset for training."""
-        combined = copy.deepcopy(self.train)
-
-        # relabel pids in gallery (query shares the same scope)
-        g_pids = set()
-        for _, pid, _ in self.gallery:
-            if pid in self._junk_pids:
-                continue
-            g_pids.add(pid)
-        pid2label = {pid: i for i, pid in enumerate(g_pids)}
-
-        def _combine_data(data):
-            for img_path, pid, camid in data:
-                if pid in self._junk_pids:
-                    continue
-                pid = pid2label[pid] + self.num_train_pids
-                combined.append((img_path, pid, camid))
-
-        _combine_data(self.query)
-        _combine_data(self.gallery)
-
-        self.train = combined
-        self.num_train_pids = self.get_num_pids(self.train)
 
     def download_dataset(self, dataset_dir, dataset_url):
         """Downloads and extracts dataset.
@@ -259,12 +242,13 @@ class Dataset:
 
     @staticmethod
     def compress_labels(data):
-        pid_container = set(record[1] for record in data)
+        pid_container = set(record['obj_id'] for record in data)
         pid2label = {pid: label for label, pid in enumerate(pid_container)}
 
-        out_data = [record[:1] + (pid2label[record[1]],) + record[2:] for record in data]
+        for record in data:
+            record['obj_id'] = pid2label[record['obj_id']]
 
-        return out_data
+        return data
 
     def __repr__(self):
         num_train_pids, num_train_cams = self.parse_data(self.train)
@@ -304,20 +288,27 @@ class ImageDataset(Dataset):
     def __getitem__(self, index):
         input_record = self.data[index]
 
+        if isinstance(input_record, dict):
+            output_record = input_record
 
+            image = read_image(input_record['img_path'], grayscale=False)
+            mask = read_image(input_record['mask_path'], grayscale=True) if 'mask_path' in input_record else ''
 
-        img_path = input_record[0]
-        pid = input_record[1]
-        cam_id = input_record[2]
-        dataset_id = input_record[3]
+            if self.transform is not None:
+                image, mask = self.transform((image, mask))
 
-        image = read_image(input_record[0], grayscale=False)
-        mask = read_image(input_record[4], grayscale=True) if input_record[4] != '' else ''
+            output_record['img'] = image
+            if mask != '':
+                output_record['mask'] = mask
+        else:
+            pid = input_record[1]
+            cam_id = input_record[2]
 
-        if self.transform is not None:
-            image, mask = self.transform((image, mask))
+            image = read_image(input_record[0], grayscale=False)
+            if self.transform is not None:
+                image, _ = self.transform((image, ''))
 
-        output_record = tuple([image, pid, cam_id, img_path, dataset_id, mask] + list(input_record[5:]))
+            output_record = image, pid, cam_id
 
         return output_record
 

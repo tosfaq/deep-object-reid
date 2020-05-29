@@ -240,25 +240,29 @@ class ImageAMSoftmaxEngine(Engine):
 
     @staticmethod
     def parse_data_for_train(data, load_masks, use_gpu):
-        imgs = data[0]
-        pids = data[1]
-        dataset_id = data[4]
-        masks = data[5] if load_masks else None
-        attr_colors = data[6]
-        attr_types = data[7]
+        if isinstance(data, dict):
+            imgs = data['img'].cuda() if use_gpu else data['img']
+            obj_ids = data['obj_id'].cuda() if use_gpu else data['obj_id']
+            dataset_ids = data['dataset_id'].cuda() if use_gpu else data['dataset_id']
 
-        if use_gpu:
-            imgs = imgs.cuda()
-            pids = pids.cuda()
-            dataset_id = dataset_id.cuda()
-            attr_colors = attr_colors.cuda()
-            attr_types = attr_types.cuda()
+            masks = None
             if load_masks:
-                masks = masks.cuda()
+                masks = data['mask'].cuda() if use_gpu else data['mask']
 
-        attr = {
-            'attr_color': attr_colors,
-            'attr_type': attr_types
-        }
+            attr = dict()
+            for record_name, record in data.items():
+                if record_name.startswith('attr_'):
+                    attr[record_name] = record.cuda() if use_gpu else record
+            if len(attr) == 0:
+                attr = None
+        else:
+            imgs = data[0]
+            obj_ids = data[1]
+            if use_gpu:
+                imgs = imgs.cuda()
+                obj_ids = obj_ids.cuda()
+            dataset_ids = torch.zeros_like(obj_ids)
+            masks = None
+            attr = None
 
-        return imgs, pids, dataset_id, masks, attr
+        return imgs, obj_ids, dataset_ids, masks, attr
