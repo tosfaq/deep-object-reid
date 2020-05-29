@@ -654,7 +654,7 @@ class OSNet(nn.Module):
         if get_embeddings:
             return logits, embeddings, extra_out_data
 
-        if self.loss in ['softmax', 'am_softmax']:
+        if self.loss in ['softmax', 'adacos', 'd_softmax', 'am_softmax']:
             return logits, extra_out_data
         elif self.loss in ['triplet']:
             return logits, embeddings, extra_out_data

@@ -115,32 +115,13 @@ class CenterLoss(nn.Module):
         return center_loss
 
 
-class NormalizedLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, features, centers, labels):
-        losses, pairs_valid_mask = self._calculate(features, centers, labels)
-        losses = torch.where(pairs_valid_mask, losses, torch.zeros_like(losses))
-
-        num_valid = pairs_valid_mask.sum().float()
-        loss = losses.sum()
-        if num_valid > 0.0:
-            loss /= num_valid
-
-        return loss
-
-    def _calculate(self, features, centers, labels):
-        raise NotImplementedError
-
-
-class CentersPush(NormalizedLoss):
+class CentersPush(nn.Module):
     def __init__(self, margin=0.3):
         super().__init__()
 
         self.margin = margin
 
-    def _calculate(self, features, centers, labels):
+    def forward(self, features, centers, labels):
         centers = F.normalize(centers, p=2, dim=1)
 
         unique_labels = torch.unique(labels)
@@ -152,39 +133,78 @@ class CentersPush(NormalizedLoss):
         different_class_pairs = unique_labels.view(-1, 1) != unique_labels.view(1, -1)
         pairs_valid_mask = different_class_pairs & (losses > 0.0)
 
-        return losses, pairs_valid_mask
+        losses = torch.where(pairs_valid_mask, losses, torch.zeros_like(losses))
+
+        num_valid = pairs_valid_mask.sum().float()
+        loss = losses.sum()
+        if num_valid > 0.0:
+            loss /= num_valid
+
+        return loss
+
+
+class LocalPushLoss(nn.Module):
+    def __init__(self, margin=0.1, smart_margin=True):
+        super(LocalPushLoss, self).__init__()
+        self.margin = margin
+        assert self.margin >= 0.0
+        self.smart_margin = smart_margin
+
+    def forward(self, features, cos_theta, target):
+        normalized_embeddings = F.normalize(features, p=2, dim=1)
+        similarity = normalized_embeddings.matmul(normalized_embeddings.permute(1, 0))
+
+        with torch.no_grad():
+            pairs_mask = target.view(-1, 1) != target.view(1, -1)
+
+            if self.smart_margin:
+                center_similarity = cos_theta[torch.arange(cos_theta.size(0), device=target.device), target]
+                threshold = center_similarity.clamp(min=self.margin).view(-1, 1) - self.margin
+            else:
+                threshold = self.margin
+
+            similarity_mask = similarity > threshold
+            mask = pairs_mask & similarity_mask
+
+        filtered_similarity = torch.where(mask, similarity - threshold, torch.zeros_like(similarity))
+        losses, _ = filtered_similarity.max(dim=-1)
+
+        return losses.mean()
 
 
 class MetricLosses:
     """Class-aggregator for metric-learning losses"""
 
-    def __init__(self, writer, num_classes, embed_size, center_coeff=1.0, triplet_coeff=1.0,
-                 loss_balancing=True, centers_lr=0.5, balancing_lr=0.01, name='ml', triplet='semihard'):
-        self.writer = writer
+    def __init__(self, num_classes, embed_size,
+                 center_coeff=1.0, triplet_coeff=1.0, local_push_coeff=1.0,
+                 loss_balancing=True, centers_lr=0.5, balancing_lr=0.01,
+                 name='ml', triplet='semihard'):
         self.name = name
-
         self.total_losses_num = 0
         self.losses_map = dict()
 
-        self.center_loss = CenterLoss(num_classes, embed_size)
-        self.center_optimizer = torch.optim.SGD(self.center_loss.parameters(), lr=centers_lr)
-        assert center_coeff >= 0
         self.center_coeff = center_coeff
-        if self.center_coeff > 0:
+        if self.center_coeff is not None and self.center_coeff > 0:
+            self.center_loss = CenterLoss(num_classes, embed_size)
+            self.center_optimizer = torch.optim.SGD(self.center_loss.parameters(), lr=centers_lr)
             self.losses_map['center'] = self.total_losses_num
             self.total_losses_num += 1
 
-        self.centers_push_loss = CentersPush(margin=0.1)
-        if self.center_coeff > 0:
+            self.centers_push_loss = CentersPush(margin=0.1)
             self.losses_map['push_center'] = self.total_losses_num
             self.total_losses_num += 1
 
-        assert triplet in ['semihard', 'invdist']
-        triplet_instance = SemiHardTripletLoss if triplet == 'semihard' else InvDistanceTripletLoss
-        self.triplet_loss = triplet_instance(margin=0.35)
-        assert triplet_coeff >= 0
+        self.local_push_coeff = local_push_coeff
+        if self.local_push_coeff is not None and self.local_push_coeff > 0:
+            self.local_push_loss = LocalPushLoss(margin=0.1, smart_margin=True)
+            self.losses_map['local_push'] = self.total_losses_num
+            self.total_losses_num += 1
+
         self.triplet_coeff = triplet_coeff
-        if self.triplet_coeff > 0:
+        if self.triplet_coeff is not None and self.triplet_coeff > 0:
+            assert triplet in ['semihard', 'invdist']
+            triplet_instance = SemiHardTripletLoss if triplet == 'semihard' else InvDistanceTripletLoss
+            self.triplet_loss = triplet_instance(margin=0.35)
             self.losses_map['triplet'] = self.total_losses_num
             self.total_losses_num += 1
 
@@ -198,7 +218,6 @@ class MetricLosses:
     def _balance_losses(self, losses, scale=0.1):
         assert len(losses) == self.total_losses_num
 
-        weighted_losses = []
         num_valid_losses = 0
         for i, loss_val in enumerate(losses):
             if loss_val > 0.0:
@@ -206,76 +225,52 @@ class MetricLosses:
                 weighted_loss_val = weight * loss_val + scale * self.loss_weights[i]
 
                 losses[i] = weighted_loss_val.clamp_min(0.0)
-                weighted_losses.append(weighted_loss_val)
 
                 num_valid_losses += 1
             else:
                 losses[i] = loss_val.clamp_min(0.0)
-                weighted_losses.append(losses[i])
 
         scale = float(len(losses)) / float(num_valid_losses if num_valid_losses > 0 else 1)
         loss = scale * sum(losses)
 
-        return loss, weighted_losses
+        return loss
 
-    def __call__(self, features, labels, iteration):
+    def __call__(self, features, cos_theta, labels, iteration):
         all_loss_values = []
+        loss_summary = dict()
 
         center_loss_val = 0
         centers_push_loss_val = 0
         if self.center_coeff > 0.:
             center_loss_val = self.center_loss(features, labels)
             all_loss_values.append(center_loss_val)
+            loss_summary['{}/center'.format(self.name)] = center_loss_val.item()
 
             centers_push_loss_val = self.centers_push_loss(features, self.center_loss.get_centers(), labels)
             all_loss_values.append(centers_push_loss_val)
+            loss_summary['{}/push_center'.format(self.name)] = centers_push_loss_val.item()
 
         triplet_loss_val = 0
         if self.triplet_coeff > 0.0:
             triplet_loss_val = self.triplet_loss(features, labels)
             all_loss_values.append(triplet_loss_val)
+            loss_summary['{}/triplet'.format(self.name)] = triplet_loss_val.item()
+
+        local_push_loss_val = 0
+        if self.local_push_coeff > 0.0:
+            local_push_loss_val = self.local_push_loss(features, cos_theta, labels)
+            all_loss_values.append(local_push_loss_val)
+            loss_summary['{}/local_push'.format(self.name)] = local_push_loss_val.item()
 
         if self.loss_balancing and self.total_losses_num > 1:
-            loss_value, weighted_loss_values = self._balance_losses(all_loss_values)
+            loss_value = self._balance_losses(all_loss_values)
         else:
             loss_value = self.center_coeff * (center_loss_val + centers_push_loss_val) + \
-                         self.triplet_coeff * triplet_loss_val
-            weighted_loss_values = [0.0] * self.total_losses_num
+                         self.triplet_coeff * triplet_loss_val +\
+                         self.local_push_coeff * local_push_loss_val
         self.last_loss_value = loss_value
 
-        if self.writer is not None:
-            if self.center_coeff > 0.:
-                self.writer.add_scalar(
-                    'Loss/{}/center'.format(self.name), center_loss_val, iteration)
-                if self.loss_balancing:
-                    self.writer.add_scalar(
-                        'Aux/{}/center_w'.format(self.name),
-                        weighted_loss_values[self.losses_map['center']],
-                        iteration)
-
-                self.writer.add_scalar(
-                    'Loss/{}/push_center'.format(self.name), centers_push_loss_val,
-                    iteration)
-                if self.loss_balancing:
-                    self.writer.add_scalar(
-                        'Aux/{}/push_center_w'.format(self.name),
-                        weighted_loss_values[self.losses_map['push_center']],
-                        iteration)
-
-                if self.triplet_coeff > 0.0:
-                    self.writer.add_scalar(
-                        'Loss/{}/triplet'.format(self.name), triplet_loss_val,
-                        iteration)
-                    if self.loss_balancing:
-                        self.writer.add_scalar(
-                            'Aux/{}/triplet_w'.format(self.name),
-                            weighted_loss_values[self.losses_map['triplet']],
-                            iteration)
-
-            if self.total_losses_num > 0:
-                self.writer.add_scalar('Loss/{}/AUX_losses'.format(self.name), loss_value, iteration)
-
-        return loss_value
+        return loss_value, loss_summary
 
     def init_iteration(self):
         """Initializes a training iteration"""

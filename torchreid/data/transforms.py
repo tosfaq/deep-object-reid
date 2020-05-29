@@ -73,12 +73,14 @@ class RandomErasing(object):
         r1 (float, optional): min aspect ratio.
     """
 
-    def __init__(self, p=0.5, sl=0.02, sh=0.4, rl=0.5, rh=2.0, fill_color=None, **kwargs):
+    def __init__(self, p=0.5, sl=0.02, sh=0.4, rl=0.5, rh=2.0,
+                 fill_color=(125.307, 122.961, 113.8575), norm_image=True, **kwargs):
         self.probability = p
         self.sl = sl
         self.sh = sh
         self.rl = rl
         self.rh = rh
+        self.norm_image = norm_image
         self.fill_color = fill_color
         if self.fill_color is not None:
             if len(self.fill_color) == 1:
@@ -91,27 +93,31 @@ class RandomErasing(object):
             return input_tuple
 
         img, mask = input_tuple
+        img_size = img.size() if self.norm_image else img.size
 
         for attempt in range(100):
-            source_area = img.size[0] * img.size[1]
+            source_area = img_size[0] * img_size[1]
             target_area = random.uniform(self.sl, self.sh) * source_area
             aspect_ratio = random.uniform(self.rl, self.rh)
 
             h = int(round(math.sqrt(target_area * aspect_ratio)))
             w = int(round(math.sqrt(target_area / aspect_ratio)))
 
-            if w < img.size[1] and h < img.size[0]:
-                x1 = random.randint(0, img.size[0] - h)
-                y1 = random.randint(0, img.size[1] - w)
-
-                img = np.array(img)
+            if w < img_size[1] and h < img_size[0]:
+                x1 = random.randint(0, img_size[0] - h)
+                y1 = random.randint(0, img_size[1] - w)
 
                 fill_color = self.fill_color if self.fill_color is not None else [random.randint(0, 255)] * 3
+                if self.norm_image:
+                    fill_color = np.array(fill_color) / 255.0
+
+                img = img if self.norm_image else np.array(img)
                 img[x1:x1 + h, y1:y1 + w, 0] = fill_color[0]
                 img[x1:x1 + h, y1:y1 + w, 1] = fill_color[1]
                 img[x1:x1 + h, y1:y1 + w, 2] = fill_color[2]
+                img = img if self.norm_image else Image.fromarray(img)
 
-                return Image.fromarray(img), mask
+                return img, mask
 
         return img, mask
 
@@ -506,7 +512,7 @@ class RandomBackgroundSubstitution(object):
     def get_num_images(self):
         return len(self.surrogate_image_paths) if self.enable else 0
 
-    def _load_surrogate_image(self, idx, trg_image_size):
+    def _load_bg_image(self, idx, trg_image_size):
         trg_image_width, trg_image_height = trg_image_size
 
         image = read_image(self.surrogate_image_paths[idx])
@@ -536,7 +542,7 @@ class RandomBackgroundSubstitution(object):
             return input_tuple
 
         surrogate_image_idx = random.randint(0, len(self.surrogate_image_paths) - 1)
-        surrogate_image = self._load_surrogate_image(surrogate_image_idx, img.size)
+        surrogate_image = self._load_bg_image(surrogate_image_idx, img.size)
 
         src_img = np.array(img)
         out_img = np.array(surrogate_image)
@@ -545,6 +551,20 @@ class RandomBackgroundSubstitution(object):
         out_img[fg_mask] = src_img[fg_mask]
 
         return Image.fromarray(out_img), mask
+
+
+class DisableBackground(object):
+    def __call__(self, input_tuple, *args, **kwargs):
+        img, mask = input_tuple
+        if mask == '':
+            return input_tuple
+
+        bg_mask = ~np.array(mask).astype(np.bool)
+
+        img = np.array(img)
+        img[bg_mask] = 0
+
+        return Image.fromarray(img), mask
 
 
 class PairResize(object):
@@ -585,7 +605,7 @@ class PairToTensor(object):
 
 
 def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.406),
-                     norm_std=(0.229, 0.224, 0.225), **kwargs):
+                     norm_std=(0.229, 0.224, 0.225), apply_masks_to_test=False, **kwargs):
     """Builds train and test transform functions.
 
     Args:
@@ -606,6 +626,12 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
 
     print('Building train transforms ...')
     transform_tr = []
+    if transforms.random_grid.enable:
+        print('+ random_grid')
+        transform_tr += [RandomGrid(**transforms.random_grid)]
+    if transforms.random_figures.enable:
+        print('+ random_figures')
+        transform_tr += [RandomFigures(**transforms.random_figures)]
     if transforms.random_crop.enable:
         print('+ random crop')
         transform_tr += [RandomCrop(**transforms.random_crop)]
@@ -619,12 +645,6 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
         if aug_module.enable:
             print('+ random_background_substitution')
             transform_tr += [aug_module]
-    if transforms.random_grid.enable:
-        print('+ random_grid')
-        transform_tr += [RandomGrid(**transforms.random_grid)]
-    if transforms.random_figures.enable:
-        print('+ random_figures')
-        transform_tr += [RandomFigures(**transforms.random_figures)]
     if transforms.random_flip.enable:
         print('+ random flip')
         transform_tr += [RandomHorizontalFlip(p=transforms.random_flip.p)]
@@ -648,43 +668,43 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.random_rotate.enable:
         print('+ random_rotate')
         transform_tr += [RandomRotate(**transforms.random_rotate)]
-    if transforms.random_erase.enable:
+    if transforms.random_erase.enable and not transforms.random_erase.norm_image:
         print('+ random erase')
         transform_tr += [RandomErasing(**transforms.random_erase)]
     print('+ to torch tensor of range [0, 1]')
     transform_tr += [PairToTensor()]
     print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
     transform_tr += [PairNormalize(mean=norm_mean, std=norm_std)]
+    if transforms.random_erase.enable and transforms.random_erase.norm_image:
+        print('+ random erase')
+        transform_tr += [RandomErasing(**transforms.random_erase)]
     transform_tr = Compose(transform_tr)
 
-    print('Building test transforms ...')
-    print('+ resize to {}x{}'.format(height, width))
-    print('+ to torch tensor of range [0, 1]')
-    print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
-    transform_te = Compose([
-        PairResize((height, width)),
-        PairToTensor(),
-        PairNormalize(mean=norm_mean, std=norm_std),
-    ])
+    transform_te = build_test_transform(height, width, norm_mean, norm_std, apply_masks_to_test)
 
     return transform_tr, transform_te
 
 
-def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_std=(0.229, 0.224, 0.225), **kwargs):
+def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406),
+                         norm_std=(0.229, 0.224, 0.225), apply_masks_to_test=False, **kwargs):
     print('Building test transforms ...')
+    transform_te = []
+    if apply_masks_to_test:
+        print('+ background zeroing')
+        transform_te.append(DisableBackground())
     print('+ resize to {}x{}'.format(height, width))
+    transform_te.append(PairResize((height, width)))
     print('+ to torch tensor of range [0, 1]')
+    transform_te.append(PairToTensor())
     print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
-    transform_te = Compose([
-        PairResize((height, width)),
-        PairToTensor(),
-        PairNormalize(mean=norm_mean, std=norm_std),
-    ])
+    transform_te.append(PairNormalize(mean=norm_mean, std=norm_std))
+    transform_te = Compose(transform_te)
 
     return transform_te
 
 
-def build_inference_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_std=(0.229, 0.224, 0.225), **kwargs):
+def build_inference_transform(height, width, norm_mean=(0.485, 0.456, 0.406),
+                              norm_std=(0.229, 0.224, 0.225), **kwargs):
     print('Building inference transforms ...')
     print('+ resize to {}x{}'.format(height, width))
     print('+ to torch tensor of range [0, 1]')

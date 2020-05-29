@@ -106,8 +106,9 @@ def get_default_config():
     # metric_losses
     cfg.metric_losses = CN()
     cfg.metric_losses.enable = False
-    cfg.metric_losses.center_coeff = 1.0
-    cfg.metric_losses.triplet_coeff = 1.0
+    cfg.metric_losses.center_coeff = 0.0
+    cfg.metric_losses.triplet_coeff = 0.0
+    cfg.metric_losses.local_push_coeff = 1.0
 
     # attribute loss
     cfg.attr_loss = CN()
@@ -191,7 +192,8 @@ def get_default_config():
     cfg.data.transforms.random_erase.sh = 0.4
     cfg.data.transforms.random_erase.rl = 0.5
     cfg.data.transforms.random_erase.rh = 2.0
-    cfg.data.transforms.random_erase.fill_color = (123.675, 116.28, 103.53)
+    cfg.data.transforms.random_erase.fill_color = (125.307, 122.961, 113.8575)
+    cfg.data.transforms.random_erase.norm_image = True
 
     cfg.data.transforms.random_rotate = CN()
     cfg.data.transforms.random_rotate.enable = False

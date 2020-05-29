@@ -96,11 +96,11 @@ class ImageAMSoftmaxEngine(Engine):
 
             if self.enable_metric_losses:
                 self.ml_losses.append(MetricLosses(
-                    self.writer,
                     trg_num_classes,
                     self.model.module.feature_dim,
                     metric_cfg.center_coeff,
                     metric_cfg.triplet_coeff,
+                    metric_cfg.local_push_coeff,
                     name='ml_{}'.format(trg_id)
                 ))
 
@@ -159,19 +159,19 @@ class ImageAMSoftmaxEngine(Engine):
                 ml_loss_module = self.ml_losses[trg_id]
                 embd = all_embeddings[trg_id][trg_mask]
 
-                ml_loss_module.writer = self.writer
                 ml_loss_module.init_iteration()
-                ml_loss = ml_loss_module(embd, trg_pids, n_iter)
+                ml_loss, ml_loss_summary = ml_loss_module(embd, trg_logits, trg_pids, n_iter)
                 ml_loss_module.end_iteration()
 
                 loss_summary['ml_{}'.format(trg_id)] = ml_loss.item()
+                loss_summary.update(ml_loss_summary)
                 trg_loss += ml_loss
 
             total_loss += trg_loss
             num_trg_losses += 1
         total_loss /= float(num_trg_losses)
 
-        if self.enable_attr:
+        if self.enable_attr and attributes is not None:
             all_attr_logits = extra_data['attr_logits']
 
             num_attr_losses = 0

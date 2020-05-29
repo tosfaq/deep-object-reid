@@ -26,6 +26,7 @@ data:
       sh: 0.4
       rl: 0.3
       rh: 3.3
+      norm_image: False
     random_padding:
       enable: True
       p: 0.25
@@ -63,6 +64,7 @@ metric_losses:
   enable: True
   center_coeff: 1.0
   triplet_coeff: 1.0
+  local_push_coeff: 0.0
 
 attr_loss:
   names: ['attr_color', 'attr_type']

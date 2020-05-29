@@ -39,11 +39,7 @@ def build_lr_scheduler(optimizer,
         >>> )
     """
     if lr_scheduler not in AVAI_SCH:
-        raise ValueError(
-            'Unsupported scheduler: {}. Must be one of {}'.format(
-                lr_scheduler, AVAI_SCH
-            )
-        )
+        raise ValueError('Unsupported scheduler: {}. Must be one of {}'.format(lr_scheduler, AVAI_SCH))
 
     if lr_scheduler == 'single_step':
         if isinstance(stepsize, list):
@@ -100,7 +96,7 @@ class MultiStepLRWithWarmUp(_LRScheduler):
                  lr_scales=None,
                  warmup_method='linear',
                  warmup_factor_base=0.1,
-                 frozen_factor_base=0.1,
+                 frozen_factor_base=1.0,
                  gamma=0.1,
                  last_epoch=-1):
         if warmup_method not in {'constant', 'linear'}:

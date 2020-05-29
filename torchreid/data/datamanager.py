@@ -31,7 +31,8 @@ class DataManager(object):
         transforms='random_flip',
         norm_mean=None,
         norm_std=None,
-        use_gpu=False
+        use_gpu=False,
+        apply_masks_to_test=False,
     ):
         self.source_groups = sources
         if self.source_groups is None:
@@ -55,7 +56,8 @@ class DataManager(object):
             self.width,
             transforms=transforms,
             norm_mean=norm_mean,
-            norm_std=norm_std
+            norm_std=norm_std,
+            apply_masks_to_test=apply_masks_to_test,
         )
 
         self.use_gpu = (torch.cuda.is_available() and use_gpu)
@@ -130,7 +132,6 @@ class ImageDataManager(DataManager):
         batch_num_instances (int, optional): number of instances per identity in a batch.
             Default is 4.
         train_sampler (str, optional): sampler. Default is RandomSampler.
-        train_sampler_t (str, optional): sampler for target train loader. Default is RandomSampler.
         cuhk03_labeled (bool, optional): use cuhk03 labeled images.
             Default is False (defaul is to use detected images).
         cuhk03_classic_split (bool, optional): use the classic split in cuhk03.
@@ -169,6 +170,7 @@ class ImageDataManager(DataManager):
         norm_mean=None,
         norm_std=None,
         use_gpu=True,
+        split_id=0,
         combineall=False,
         batch_size_train=32,
         batch_size_test=32,
@@ -179,6 +181,7 @@ class ImageDataManager(DataManager):
         cuhk03_labeled=False,
         cuhk03_classic_split=False,
         market1501_500k=False,
+        apply_masks_to_test=False,
     ):
 
         super(ImageDataManager, self).__init__(
@@ -189,7 +192,8 @@ class ImageDataManager(DataManager):
             transforms=transforms,
             norm_mean=norm_mean,
             norm_std=norm_std,
-            use_gpu=use_gpu
+            use_gpu=use_gpu,
+            apply_masks_to_test=apply_masks_to_test,
         )
 
         print('=> Loading train (source) dataset')
@@ -203,6 +207,7 @@ class ImageDataManager(DataManager):
                 mode='train',
                 combineall=combineall,
                 root=root,
+                split_id=split_id,
                 load_masks=enable_masks,
                 dataset_id=train_dataset_ids_map[name],
                 cuhk03_labeled=cuhk03_labeled,
@@ -246,6 +251,7 @@ class ImageDataManager(DataManager):
                 mode='query',
                 combineall=combineall,
                 root=root,
+                split_id=split_id,
                 cuhk03_labeled=cuhk03_labeled,
                 cuhk03_classic_split=cuhk03_classic_split,
                 market1501_500k=market1501_500k
@@ -267,6 +273,7 @@ class ImageDataManager(DataManager):
                 combineall=combineall,
                 verbose=False,
                 root=root,
+                split_id=split_id,
                 cuhk03_labeled=cuhk03_labeled,
                 cuhk03_classic_split=cuhk03_classic_split,
                 market1501_500k=market1501_500k

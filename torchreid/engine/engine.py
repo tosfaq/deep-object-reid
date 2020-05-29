@@ -179,6 +179,9 @@ class Engine:
         if self.writer is None:
             self.writer = SummaryWriter(log_dir=save_dir)
 
+        # Save zeroth checkpoint
+        self.save_model(-1, 0.0, save_dir)
+
         time_start = time.time()
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch

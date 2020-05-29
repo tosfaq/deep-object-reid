@@ -58,41 +58,35 @@ class ConvRegularizer(nn.Module):
 class SVMORegularizer(nn.Module):
     def __init__(self, beta):
         super().__init__()
-
         self.beta = beta
 
     @staticmethod
     def dominant_eigenvalue(A):  # A: 'N x N'
-        x = torch.rand(A.size(0), 1, dtype=A.dtype, device=A.device)
-
+        N, _ = A.size()
+        x = torch.rand(N, 1, device='cuda')
         Ax = (A @ x)
         AAx = (A @ Ax)
-        value = AAx.permute(1, 0) @ Ax / (Ax.permute(1, 0) @ Ax)
-
-        return value
+        return AAx.permute(1, 0) @ Ax / (Ax.permute(1, 0) @ Ax)
 
     def get_singular_values(self, A):  # A: 'M x N, M >= N'
         ATA = A.permute(1, 0) @ A
         N, _ = ATA.size()
-
         largest = self.dominant_eigenvalue(ATA)
-
-        I = largest * torch.eye(N, dtype=A.dtype, device=A.device)
-        smallest = self.dominant_eigenvalue(ATA - I)
-
-        return largest, smallest
+        I = torch.eye(N, device='cuda')  # noqa
+        I = I * largest  # noqa
+        tmp = self.dominant_eigenvalue(ATA - I)
+        return tmp + largest, largest
 
     def forward(self, W):  # W: 'S x C x H x W'
+        # old_W = W
         old_size = W.size()
         if old_size[0] == 1:
             return 0
-
         W = W.view(old_size[0], -1).permute(1, 0)  # (C x H x W) x S
-        largest, smallest = self.get_singular_values(W)
-
-        loss = self.beta * (largest - smallest) ** 2
-
-        return loss.squeeze()
+        smallest, largest = self.get_singular_values(W)
+        return (
+            self.beta * 10 * (largest - smallest)**2
+        ).squeeze()
 
 
 class HardDecorrelationRegularizer(nn.Module):

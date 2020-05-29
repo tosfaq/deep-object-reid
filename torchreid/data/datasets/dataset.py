@@ -303,6 +303,9 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, index):
         input_record = self.data[index]
+
+
+
         img_path = input_record[0]
         pid = input_record[1]
         cam_id = input_record[2]
