@@ -302,12 +302,12 @@ class OSNetFPN(OSNet):
         y = self.classifier(v)
 
         if get_embeddings:
-            return v, y
+            return y, v
 
         if self.loss in ['softmax', 'adacos', 'd_softmax', 'am_softmax']:
             return y
         elif self.loss in ['triplet', ]:
-            return v, y
+            return y, v
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 

@@ -151,7 +151,7 @@ class ImageAMSoftmaxEngine(Engine):
             run_kwargs['get_extra_data'] = True
         model_output = self.model(imgs, **run_kwargs)
         if self.enable_metric_losses:
-            all_embeddings, all_logits = model_output[:2]
+            all_logits, all_embeddings = model_output[:2]
             all_embeddings = all_embeddings if isinstance(all_embeddings, (tuple, list)) else [all_embeddings]
         else:
             all_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output

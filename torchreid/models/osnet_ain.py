@@ -638,11 +638,11 @@ class OSNet(nn.Module):
             embeddings = embeddings[0]
 
         if get_embeddings:
-            out_data = [embeddings, logits]
+            out_data = [logits, embeddings]
         elif self.loss in ['softmax', 'adacos', 'd_softmax', 'am_softmax']:
             out_data = [logits]
         elif self.loss in ['triplet']:
-            out_data = [embeddings, logits]
+            out_data = [logits, embeddings]
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
