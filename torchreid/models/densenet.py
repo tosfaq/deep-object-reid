@@ -1,34 +1,33 @@
 """
 Code source: https://github.com/pytorch/vision
 """
-
 from __future__ import division, absolute_import
-
 import re
-import warnings
 from collections import OrderedDict
-
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils import model_zoo
 
-from torchreid.losses import AngleSimpleLinear
-
-
 __all__ = [
-    'densenet121', 'densenet161', 'densenet169', 'densenet201',
+    'densenet121', 'densenet169', 'densenet201', 'densenet161',
+    'densenet121_fc512'
 ]
 
 model_urls = {
-    'densenet121': 'https://download.pytorch.org/models/densenet121-a639ec97.pth',
-    'densenet161': 'https://download.pytorch.org/models/densenet161-8d451a50.pth',
-    'densenet169': 'https://download.pytorch.org/models/densenet169-b2777c0a.pth',
-    'densenet201': 'https://download.pytorch.org/models/densenet201-c1103571.pth',
+    'densenet121':
+    'https://download.pytorch.org/models/densenet121-a639ec97.pth',
+    'densenet169':
+    'https://download.pytorch.org/models/densenet169-b2777c0a.pth',
+    'densenet201':
+    'https://download.pytorch.org/models/densenet201-c1103571.pth',
+    'densenet161':
+    'https://download.pytorch.org/models/densenet161-8d451a50.pth',
 }
 
 
 class _DenseLayer(nn.Sequential):
+
     def __init__(self, num_input_features, growth_rate, bn_size, drop_rate):
         super(_DenseLayer, self).__init__()
         self.add_module('norm1', nn.BatchNorm2d(num_input_features)),
@@ -68,7 +67,10 @@ class _DenseLayer(nn.Sequential):
 
 
 class _DenseBlock(nn.Sequential):
-    def __init__(self, num_layers, num_input_features, bn_size, growth_rate, drop_rate):
+
+    def __init__(
+        self, num_layers, num_input_features, bn_size, growth_rate, drop_rate
+    ):
         super(_DenseBlock, self).__init__()
         for i in range(num_layers):
             layer = _DenseLayer(
@@ -79,6 +81,7 @@ class _DenseBlock(nn.Sequential):
 
 
 class _Transition(nn.Sequential):
+
     def __init__(self, num_input_features, num_output_features):
         super(_Transition, self).__init__()
         self.add_module('norm', nn.BatchNorm2d(num_input_features))
@@ -98,7 +101,7 @@ class _Transition(nn.Sequential):
 
 class DenseNet(nn.Module):
     """Densely connected network.
-    
+
     Reference:
         Huang et al. Densely Connected Convolutional Networks. CVPR 2017.
 
@@ -107,29 +110,25 @@ class DenseNet(nn.Module):
         - ``densenet169``: DenseNet169.
         - ``densenet201``: DenseNet201.
         - ``densenet161``: DenseNet161.
+        - ``densenet121_fc512``: DenseNet121 + FC.
     """
 
     def __init__(
         self,
         num_classes,
-        feature_dim=512,
-        loss='softmax',
+        loss,
         growth_rate=32,
         block_config=(6, 12, 24, 16),
         num_init_features=64,
         bn_size=4,
         drop_rate=0,
-        attr_tasks=None,
-        enable_attr_tasks=False,
-        num_parts=None,
+        fc_dims=None,
+        dropout_p=None,
         **kwargs
     ):
 
         super(DenseNet, self).__init__()
-
         self.loss = loss
-        self.feature_dim = feature_dim
-        assert self.feature_dim is not None and self.feature_dim > 0
 
         # First convolution
         self.features = nn.Sequential(
@@ -176,68 +175,61 @@ class DenseNet(nn.Module):
                 self.features.add_module('transition%d' % (i+1), trans)
                 num_features = num_features // 2
 
+        # Final batch norm
         self.features.add_module('norm5', nn.BatchNorm2d(num_features))
-        out_num_channels = num_features
 
-        if isinstance(num_classes, (list, tuple)):
-            assert len(num_classes) == 2
-            real_data_num_classes, synthetic_data_num_classes = num_classes
-        else:
-            real_data_num_classes, synthetic_data_num_classes = num_classes, None
+        self.global_avgpool = nn.AdaptiveAvgPool2d(1)
+        self.feature_dim = num_features
+        self.fc = self._construct_fc_layer(fc_dims, num_features, dropout_p)
 
-        classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
-        self.num_parts = num_parts if num_parts is not None and num_parts > 1 else 0
-
-        fc_layers, classifier_layers = [], []
-        for _ in range(self.num_parts + 1):  # main branch + part-based branches
-            fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim))
-            classifier_layers.append(classifier_block(self.feature_dim, real_data_num_classes))
-        self.fc = nn.ModuleList(fc_layers)
-        self.classifier = nn.ModuleList(classifier_layers)
-
-        self.aux_fc = None
-        self.aux_classifier = None
-        self.split_embeddings = synthetic_data_num_classes is not None
-        if self.split_embeddings:
-            aux_fc_layers, aux_classifier_layers = [], []
-            for _ in range(self.num_parts + 1):  # main branch + part-based branches
-                aux_fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim))
-                aux_classifier_layers.append(classifier_block(self.feature_dim, synthetic_data_num_classes))
-            self.aux_fc = nn.ModuleList(aux_fc_layers)
-            self.aux_classifier = nn.ModuleList(aux_classifier_layers)
-
-        self.attr_fc = None
-        self.attr_classifiers = None
-        if enable_attr_tasks and attr_tasks is not None and len(attr_tasks) > 0:
-            attr_fc = dict()
-            attr_classifier = dict()
-            for attr_name, attr_num_classes in attr_tasks.items():
-                attr_fc[attr_name] = self._construct_fc_layer(out_num_channels, self.feature_dim // 4)
-                attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim // 4, attr_num_classes)
-            self.attr_fc = nn.ModuleDict(attr_fc)
-            self.attr_classifiers = nn.ModuleDict(attr_classifier)
+        # Linear layer
+        self.classifier = nn.Linear(self.feature_dim, num_classes)
 
         self._init_params()
 
-    @staticmethod
-    def _construct_fc_layer(input_dim, out_dim):
-        layers = [
-            nn.Linear(input_dim, out_dim),
-            nn.BatchNorm1d(out_dim)
-        ]
+    def _construct_fc_layer(self, fc_dims, input_dim, dropout_p=None):
+        """Constructs fully connected layer.
+
+        Args:
+            fc_dims (list or tuple): dimensions of fc layers, if None, no fc layers are constructed
+            input_dim (int): input dimension
+            dropout_p (float): dropout probability, if None, dropout is unused
+        """
+        if fc_dims is None:
+            self.feature_dim = input_dim
+            return None
+
+        assert isinstance(
+            fc_dims, (list, tuple)
+        ), 'fc_dims must be either list or tuple, but got {}'.format(
+            type(fc_dims)
+        )
+
+        layers = []
+        for dim in fc_dims:
+            layers.append(nn.Linear(input_dim, dim))
+            layers.append(nn.BatchNorm1d(dim))
+            layers.append(nn.ReLU(inplace=True))
+            if dropout_p is not None:
+                layers.append(nn.Dropout(p=dropout_p))
+            input_dim = dim
+
+        self.feature_dim = fc_dims[-1]
 
         return nn.Sequential(*layers)
 
     def _init_params(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.kaiming_normal_(
+                    m.weight, mode='fan_out', nonlinearity='relu'
+                )
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-            elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
+            elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
-            elif isinstance(m, (nn.InstanceNorm1d, nn.InstanceNorm2d)):
+            elif isinstance(m, nn.BatchNorm1d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
@@ -245,127 +237,57 @@ class DenseNet(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def _backbone(self, x):
+    def forward(self, x):
         f = self.features(x)
         f = F.relu(f, inplace=True)
+        v = self.global_avgpool(f)
+        v = v.view(v.size(0), -1)
 
-        return f
+        if self.fc is not None:
+            v = self.fc(v)
 
-    @staticmethod
-    def _glob_feature_vector(x, num_parts=4):
-        return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
-
-    @staticmethod
-    def _part_feature_vector(x, num_parts):
-        if num_parts <= 1:
-            return []
-
-        feature_vectors = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
-
-        return [f.squeeze(dim=-1) for f in torch.split(feature_vectors, 1, dim=-1)]
-
-    def forward(self, x, return_featuremaps=False, get_embeddings=False):
-        feature_maps = self._backbone(x)
-        if return_featuremaps:
-            return feature_maps
-
-        glob_feature = self._glob_feature_vector(feature_maps, num_parts=self.num_parts)
-        part_features = self._part_feature_vector(feature_maps, num_parts=self.num_parts)
-        features = [glob_feature] + list(part_features)
-
-        main_embeddings = [fc(f) for f, fc in zip(features, self.fc)]
         if not self.training:
-            return torch.cat(main_embeddings, dim=-1)
+            return v
 
-        main_logits = [classifier(embd) for embd, classifier in zip(main_embeddings, self.classifier)]
-        main_centers = [classifier.get_centers() for classifier in self.classifier]
+        y = self.classifier(v)
 
-        if self.split_embeddings:
-            aux_embeddings = [fc(f) for f, fc in zip(features, self.aux_fc)]
-            aux_logits = [classifier(embd) for embd, classifier in zip(aux_embeddings, self.aux_classifier)]
-            aux_centers = [classifier.get_centers() for classifier in self.aux_classifier]
+        if self.loss == 'softmax':
+            return y
+        elif self.loss == 'triplet':
+            return y, v
         else:
-            aux_embeddings = [None] * len(features)
-            aux_logits = [None] * len(features)
-            aux_centers = [None] * len(features)
-
-        all_embeddings = dict(real=main_embeddings, synthetic=aux_embeddings)
-        all_outputs = dict(real=main_logits, synthetic=aux_logits,
-                           real_centers=main_centers, synthetic_centers=aux_centers)
-
-        attr_embeddings = dict()
-        if self.attr_fc is not None:
-            for attr_name, attr_fc in self.attr_fc.items():
-                attr_embeddings[attr_name] = attr_fc(glob_feature)
-
-        attr_logits = dict()
-        if self.attr_classifiers is not None:
-            for att_name, attr_classifier in self.attr_classifiers.items():
-                attr_logits[att_name] = attr_classifier(attr_embeddings[att_name])
-
-        if get_embeddings:
-            return all_embeddings, all_outputs, attr_logits
-
-        if self.loss in ['softmax', 'am_softmax']:
-            return all_outputs, attr_logits
-        elif self.loss in ['triplet']:
-            return all_outputs, attr_logits, all_embeddings
-        else:
-            raise KeyError("Unsupported loss: {}".format(self.loss))
-
-    def load_pretrained_weights(self, pretrained_dict):
-        # '.'s are no longer allowed in module names, but previous _DenseLayer
-        # has keys 'norm.1', 'relu.1', 'conv.1', 'norm.2', 'relu.2', 'conv.2'.
-        # They are also in the checkpoints in model_urls. This pattern is used
-        # to find such keys.
-        pattern = re.compile(
-            r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$'
-        )
-        for key in list(pretrained_dict.keys()):
-            res = pattern.match(key)
-            if res:
-                new_key = res.group(1) + res.group(2)
-                pretrained_dict[new_key] = pretrained_dict[key]
-                del pretrained_dict[key]
-
-        new_state_dict = OrderedDict()
-        model_dict = self.state_dict()
-
-        matched_layers, discarded_layers = [], []
-        for k, v in pretrained_dict.items():
-            if k in model_dict and model_dict[k].size() == v.size():
-                new_state_dict[k] = v
-                matched_layers.append(k)
-            else:
-                discarded_layers.append(k)
-
-        model_dict.update(new_state_dict)
-        self.load_state_dict(model_dict)
-
-        if len(matched_layers) == 0:
-            warnings.warn(
-                'The pretrained weights cannot be loaded, '
-                'please check the key names manually '
-                '(** ignored and continue **)'
-            )
-        else:
-            print('Successfully loaded pretrained weights')
-            if len(discarded_layers) > 0:
-                print(
-                    '** The following layers are discarded '
-                    'due to unmatched keys or layer size: {}'.
-                    format(discarded_layers)
-                )
+            raise KeyError('Unsupported loss: {}'.format(self.loss))
 
 
 def init_pretrained_weights(model, model_url):
     """Initializes model with pretrained weights.
-    
+
     Layers that don't match with pretrained layers in name or size are kept unchanged.
     """
+    pretrain_dict = model_zoo.load_url(model_url)
 
-    pretrained_dict = model_zoo.load_url(model_url)
-    model.load_pretrained_weights(pretrained_dict)
+    # '.'s are no longer allowed in module names, but pervious _DenseLayer
+    # has keys 'norm.1', 'relu.1', 'conv.1', 'norm.2', 'relu.2', 'conv.2'.
+    # They are also in the checkpoints in model_urls. This pattern is used
+    # to find such keys.
+    pattern = re.compile(
+        r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$'
+    )
+    for key in list(pretrain_dict.keys()):
+        res = pattern.match(key)
+        if res:
+            new_key = res.group(1) + res.group(2)
+            pretrain_dict[new_key] = pretrain_dict[key]
+            del pretrain_dict[key]
+
+    model_dict = model.state_dict()
+    pretrain_dict = {
+        k: v
+        for k, v in pretrain_dict.items()
+        if k in model_dict and model_dict[k].size() == v.size()
+    }
+    model_dict.update(pretrain_dict)
+    model.load_state_dict(model_dict)
 
 
 """
@@ -378,57 +300,81 @@ densenet161: num_init_features=96, growth_rate=48, block_config=(6, 12, 36, 24)
 """
 
 
-def densenet121(num_classes=1000, pretrained=True, download_weights=False, **kwargs):
+def densenet121(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = DenseNet(
-        num_classes,
+        num_classes=num_classes,
+        loss=loss,
         num_init_features=64,
         growth_rate=32,
         block_config=(6, 12, 24, 16),
+        fc_dims=None,
+        dropout_p=None,
         **kwargs
     )
-    if pretrained and download_weights:
+    if pretrained:
         init_pretrained_weights(model, model_urls['densenet121'])
-
     return model
 
 
-def densenet169(num_classes=1000, pretrained=True, download_weights=False, **kwargs):
+def densenet169(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = DenseNet(
-        num_classes,
+        num_classes=num_classes,
+        loss=loss,
         num_init_features=64,
         growth_rate=32,
         block_config=(6, 12, 32, 32),
+        fc_dims=None,
+        dropout_p=None,
         **kwargs
     )
-    if pretrained and download_weights:
+    if pretrained:
         init_pretrained_weights(model, model_urls['densenet169'])
-
     return model
 
 
-def densenet201(num_classes=1000, pretrained=True, download_weights=False, **kwargs):
+def densenet201(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = DenseNet(
-        num_classes,
+        num_classes=num_classes,
+        loss=loss,
         num_init_features=64,
         growth_rate=32,
         block_config=(6, 12, 48, 32),
+        fc_dims=None,
+        dropout_p=None,
         **kwargs
     )
-    if pretrained and download_weights:
+    if pretrained:
         init_pretrained_weights(model, model_urls['densenet201'])
-
     return model
 
 
-def densenet161(num_classes=1000, pretrained=True, download_weights=False, **kwargs):
+def densenet161(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = DenseNet(
-        num_classes,
+        num_classes=num_classes,
+        loss=loss,
         num_init_features=96,
         growth_rate=48,
         block_config=(6, 12, 36, 24),
+        fc_dims=None,
+        dropout_p=None,
         **kwargs
     )
-    if pretrained and download_weights:
+    if pretrained:
         init_pretrained_weights(model, model_urls['densenet161'])
+    return model
 
+
+def densenet121_fc512(num_classes, loss='softmax', pretrained=True, **kwargs):
+    model = DenseNet(
+        num_classes=num_classes,
+        loss=loss,
+        num_init_features=64,
+        growth_rate=32,
+        block_config=(6, 12, 24, 16),
+        fc_dims=[512],
+        dropout_p=None,
+        **kwargs
+    )
+    if pretrained:
+        init_pretrained_weights(model, model_urls['densenet121'])
     return model

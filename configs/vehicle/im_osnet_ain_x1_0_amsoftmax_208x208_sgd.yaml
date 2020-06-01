@@ -1,18 +1,28 @@
+#model:
+#  name: 'osnet_ain2_x1_0'
+#  pretrained: True
+#  download_weights: False
+#  feature_dim: 256
+#  bn_eval: False
+#  bn_frozen: False
+#  enable_attentions: False
+
 model:
-  name: 'osnet_ain2_x1_0'
+  name: 'fpn_osnet_x0_5'
   pretrained: True
-  download_weights: False
   feature_dim: 256
-  bn_eval: False
-  bn_frozen: False
-  enable_attentions: False
+  IN_first: True
+  pooling_type: 'conv'
+  lct_gate: True
+  fpn:
+    enable: False
 
 data:
   type: 'image'
-  sources: [['veri', 'veriwild'], ['universemodels']]
-  targets: ['veri', 'cityflow']
-#  sources: ['market1501']
-#  targets: ['market1501']
+#  sources: [['veri', 'veriwild'], ['universemodels']]
+#  targets: ['veri', 'cityflow']
+  sources: ['market1501']
+  targets: ['market1501']
   height: 208
   width: 208
   combineall: False
@@ -79,10 +89,10 @@ attr_loss:
   s: 15.0
 
 reg:
-  nw: True
+  nw: False
   nw_max_ratio: 5.0
   nw_scale: 1.0
-  hd: True
+  hd: False
   hd_max_score: 0.5
   hd_scale: 10.0
 
@@ -92,7 +102,8 @@ train:
   max_epoch: 80
   batch_size: 112
   fixbase_epoch: 5
-  open_layers: ['conv5', 'fc', 'classifier']
+  # open_layers: ['conv5', 'fc', 'classifier']
+  open_layers: ['classifier', 'fc', 'global_avgpool']
   lr_scheduler: 'multi_step_warmup'
   stepsize: [40, 60]
   warmup: 5

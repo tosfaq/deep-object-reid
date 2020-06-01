@@ -113,9 +113,6 @@ class Res2Net(nn.Module):
                  scale=4,
                  feature_dim=512,
                  loss='softmax',
-                 attr_tasks=None,
-                 enable_attr_tasks=False,
-                 num_parts=None,
                  **kwargs):
         super(Res2Net, self).__init__()
 
@@ -150,46 +147,9 @@ class Res2Net(nn.Module):
             real_data_num_classes, synthetic_data_num_classes = num_classes, None
 
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
-        self.num_parts = num_parts if num_parts is not None and num_parts > 1 else 0
         out_num_channels = 512 * block.expansion
-
-        if self.num_parts > 1:
-            self.part_self_fc = nn.ModuleList()
-            self.part_rest_fc = nn.ModuleList()
-            self.part_cat_fc = nn.ModuleList()
-            for _ in range(self.num_parts):
-                self.part_self_fc.append(self._construct_fc_layer(out_num_channels, out_num_channels))
-                self.part_rest_fc.append(self._construct_fc_layer(out_num_channels, out_num_channels))
-                self.part_cat_fc.append(self._construct_fc_layer(2 * out_num_channels, out_num_channels))
-
-        fc_layers, classifier_layers = [], []
-        for _ in range(self.num_parts + 1):  # main branch + part-based branches
-            fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim))
-            classifier_layers.append(classifier_block(self.feature_dim, real_data_num_classes))
-        self.fc = nn.ModuleList(fc_layers)
-        self.classifier = nn.ModuleList(classifier_layers)
-
-        self.aux_fc = None
-        self.aux_classifier = None
-        self.split_embeddings = synthetic_data_num_classes is not None
-        if self.split_embeddings:
-            aux_fc_layers, aux_classifier_layers = [], []
-            for _ in range(self.num_parts + 1):  # main branch + part-based branches
-                aux_fc_layers.append(self._construct_fc_layer(out_num_channels, self.feature_dim))
-                aux_classifier_layers.append(classifier_block(self.feature_dim, synthetic_data_num_classes))
-            self.aux_fc = nn.ModuleList(aux_fc_layers)
-            self.aux_classifier = nn.ModuleList(aux_classifier_layers)
-
-        self.attr_fc = None
-        self.attr_classifiers = None
-        if enable_attr_tasks and attr_tasks is not None and len(attr_tasks) > 0:
-            attr_fc = dict()
-            attr_classifier = dict()
-            for attr_name, attr_num_classes in attr_tasks.items():
-                attr_fc[attr_name] = self._construct_fc_layer(out_num_channels, self.feature_dim // 4)
-                attr_classifier[attr_name] = AngleSimpleLinear(self.feature_dim // 4, attr_num_classes)
-            self.attr_fc = nn.ModuleDict(attr_fc)
-            self.attr_classifiers = nn.ModuleDict(attr_classifier)
+        self.fc = self._construct_fc_layer(out_num_channels, self.feature_dim)
+        self.classifier = classifier_block(self.feature_dim, real_data_num_classes)
 
         self._init_params()
 
@@ -253,66 +213,28 @@ class Res2Net(nn.Module):
         return y
 
     @staticmethod
-    def _glob_feature_vector(x, num_parts):
+    def _glob_feature_vector(x):
         return F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
-
-    @staticmethod
-    def _part_feature_vector(x, num_parts):
-        if num_parts <= 1:
-            return []
-
-        gap_branch = F.adaptive_avg_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
-        gmp_branch = F.adaptive_max_pool2d(x, (num_parts, 1)).squeeze(dim=-1)
-        feature_vectors = gap_branch + gmp_branch
-
-        return [f.squeeze(dim=-1) for f in torch.split(feature_vectors, 1, dim=-1)]
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False):
         feature_maps = self._backbone(x)
         if return_featuremaps:
             return feature_maps
 
-        glob_feature = self._glob_feature_vector(feature_maps, num_parts=self.num_parts)
-        part_features = self._part_feature_vector(feature_maps, num_parts=self.num_parts)
-        features = [glob_feature] + list(part_features)
+        glob_feature = self._glob_feature_vector(feature_maps)
+        embeddings = self.fc(glob_feature)
 
-        main_embeddings = [fc(f) for f, fc in zip(features, self.fc)]
         if not self.training:
-            return torch.cat(main_embeddings, dim=-1)
+            return embeddings
 
-        main_logits = [classifier(embd) for embd, classifier in zip(main_embeddings, self.classifier)]
-        main_centers = [classifier.get_centers() for classifier in self.classifier]
-
-        if self.split_embeddings:
-            aux_embeddings = [fc(f) for f, fc in zip(features, self.aux_fc)]
-            aux_logits = [classifier(embd) for embd, classifier in zip(aux_embeddings, self.aux_classifier)]
-            aux_centers = [classifier.get_centers() for classifier in self.aux_classifier]
-        else:
-            aux_embeddings = [None] * len(features)
-            aux_logits = [None] * len(features)
-            aux_centers = [None] * len(features)
-
-        all_embeddings = dict(real=main_embeddings, synthetic=aux_embeddings)
-        all_outputs = dict(real=main_logits, synthetic=aux_logits,
-                           real_centers=main_centers, synthetic_centers=aux_centers)
-
-        attr_embeddings = dict()
-        if self.attr_fc is not None:
-            for attr_name, attr_fc in self.attr_fc.items():
-                attr_embeddings[attr_name] = attr_fc(glob_feature)
-
-        attr_logits = dict()
-        if self.attr_classifiers is not None:
-            for att_name, attr_classifier in self.attr_classifiers.items():
-                attr_logits[att_name] = attr_classifier(attr_embeddings[att_name])
+        logits = self.classifier(embeddings)
 
         if get_embeddings:
-            return all_embeddings, all_outputs, attr_logits
-
-        if self.loss in ['softmax', 'am_softmax']:
-            return all_outputs, attr_logits
+            return embeddings, logits
+        elif self.loss in ['softmax', 'am_softmax']:
+            return logits
         elif self.loss in ['triplet']:
-            return all_outputs, attr_logits, all_embeddings
+            return embeddings, logits
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 

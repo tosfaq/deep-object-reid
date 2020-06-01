@@ -12,6 +12,7 @@ from .res2net import *
 from .densenet import *
 from .xception import *
 from .osnet_ain import *
+from .osnet_fpn import *
 from .resnetmid import *
 from .shufflenet import *
 from .squeezenet import *
@@ -75,6 +76,11 @@ __model_factory = {
     'osnet_ibn_x1_0': osnet_ibn_x1_0,
     'osnet_ain_x1_0': osnet_ain_x1_0,
     'osnet_ain2_x1_0': osnet_ain2_x1_0,
+    'fpn_osnet_x1_0': fpn_osnet_x1_0,
+    'fpn_osnet_x0_75': fpn_osnet_x0_75,
+    'fpn_osnet_x0_5': fpn_osnet_x0_5,
+    'fpn_osnet_x0_25': fpn_osnet_x0_25,
+    'fpn_osnet_ibn_x1_0': fpn_osnet_ibn_x1_0,
     'res2net50_v1b': res2net50_v1b_26w_4s,
     'res2net101_v1b': res2net101_v1b_26w_4s
 }

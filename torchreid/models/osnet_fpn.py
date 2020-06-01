@@ -379,9 +379,10 @@ def init_pretrained_weights(model, key=''):
             raise
     filename = key + '_imagenet.pth'
     cached_file = os.path.join(model_dir, filename)
+    print(cached_file, os.path.exists(cached_file))
 
     if not os.path.exists(cached_file):
-        gdown.download(pretrained_urls[key], cached_file, quiet=False)
+        gdown.download(pretrained_urls_fpn[key], cached_file, quiet=False)
 
     state_dict = torch.load(cached_file)
     model.load_pretrained_weights(state_dict)
