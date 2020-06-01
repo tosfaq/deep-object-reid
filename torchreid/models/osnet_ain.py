@@ -11,7 +11,7 @@ from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, HSwish, GumbelSigmoid, LocalContrastNormalization
 
 
-__all__ = ['osnet_ain_x1_0']
+__all__ = ['osnet_ain_x1_0', 'osnet_ain2_x1_0']
 
 pretrained_urls = {
     'osnet_ain_x1_0': 'https://drive.google.com/uc?id=1-CaioD9NaqbHK_kzSMW8VE4_3KcsRjEo'
@@ -755,8 +755,27 @@ def init_pretrained_weights(model, key=''):
 # Instantiation
 ##########
 
-def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False,
-                   enable_attentions=False, **kwargs):
+def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwargs):
+    model = OSNet(
+        num_classes,
+        blocks=[
+            [OSBlockINin, OSBlockINin],
+            [OSBlock, OSBlockINin],
+            [OSBlockINin, OSBlock]
+        ],
+        channels=[64, 256, 384, 512],
+        conv1_IN=True,
+        **kwargs
+    )
+
+    if pretrained and download_weights:
+        init_pretrained_weights(model, key='osnet_ain_x1_0')
+
+    return model
+
+
+def osnet_ain2_x1_0(num_classes, pretrained=False, download_weights=False,
+                    enable_attentions=False, **kwargs):
     model = OSNet(
         num_classes,
         blocks=[

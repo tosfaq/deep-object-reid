@@ -452,17 +452,48 @@ class Engine:
         return self.model(input)
 
     @staticmethod
-    def parse_data_for_train(data):
-        imgs = data[0]
-        pids = data[1]
-        return imgs, pids
+    def parse_data_for_train(data, output_dict=False, masks=False, use_gpu=False):
+        imgs = data['img'] if isinstance(data, dict) else data[0]
+        obj_ids = data['obj_id'] if isinstance(data, dict) else data[1]
+        if use_gpu:
+            imgs = imgs.cuda()
+            obj_ids = obj_ids.cuda()
+
+        if output_dict:
+            if isinstance(data, dict):
+                dataset_ids = data['dataset_id'].cuda() if use_gpu else data['dataset_id']
+
+                masks = None
+                if masks:
+                    masks = data['mask'].cuda() if use_gpu else data['mask']
+
+                attr = dict()
+                for record_name, record in data.items():
+                    if record_name.startswith('attr_'):
+                        attr[record_name] = record.cuda() if use_gpu else record
+                if len(attr) == 0:
+                    attr = None
+            else:
+                dataset_ids = torch.zeros_like(obj_ids)
+                masks = None
+                attr = None
+
+            return dict(img=imgs, obj_id=obj_ids, dataset_id=dataset_ids, mask=masks, attr=attr)
+        else:
+            return imgs, obj_ids
 
     @staticmethod
     def parse_data_for_eval(data):
-        imgs = data[0]
-        pids = data[1]
-        cam_ids = data[2]
-        return imgs, pids, cam_ids
+        if isinstance(data, dict):
+            imgs = data['img']
+            obj_ids = data['obj_id']
+            cam_ids = data['cam_id']
+        else:
+            imgs = data[0]
+            obj_ids = data[1]
+            cam_ids = data[2]
+
+        return imgs, obj_ids, cam_ids
 
     def two_stepped_transfer_learning(self, epoch, fixbase_epoch, open_layers, model=None):
         """Two-stepped transfer learning.

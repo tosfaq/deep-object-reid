@@ -49,7 +49,7 @@ class VeRiWild(ImageDataset):
 
     dataset_dir = 'veri-wild'
 
-    def __init__(self, root='', dataset_id=0, min_num_samples=2, **kwargs):
+    def __init__(self, root='', dataset_id=0, min_num_samples=2, load_masks=False, **kwargs):
         self.root = abspath(expanduser(root))
         self.dataset_dir = join(self.root, self. dataset_dir)
         self.data_dir = self.dataset_dir
@@ -68,7 +68,8 @@ class VeRiWild(ImageDataset):
             self.images_dir,
             attr_info,
             dataset_id=dataset_id,
-            min_num_samples=min_num_samples
+            min_num_samples=min_num_samples,
+            load_masks=load_masks
         )
         train = self.compress_labels(train)
 
@@ -97,7 +98,10 @@ class VeRiWild(ImageDataset):
         return out_data
 
     @staticmethod
-    def load_annotation(data_dir, attr_info, dataset_id=0, min_num_samples=1):
+    def load_annotation(data_dir, attr_info, dataset_id=0, min_num_samples=1, load_masks=False):
+        if load_masks:
+            raise NotImplementedError
+
         base_dirs = []
         for root, sub_dirs, files in walk(data_dir):
             if len(sub_dirs) == 0 and len(files) >= min_num_samples:
@@ -115,6 +119,13 @@ class VeRiWild(ImageDataset):
                 camera_id, color_id, type_id = attr_info[rel_image_name]
 
                 full_image_path = join(base_dir, image_name)
-                out_data.append((full_image_path, class_id, camera_id, dataset_id, '', color_id, type_id))
+                out_data.append(dict(
+                    img_path=full_image_path,
+                    obj_id=class_id,
+                    cam_id=camera_id,
+                    dataset_id=dataset_id,
+                    attr_color=color_id,
+                    attr_type=type_id
+                ))
 
         return out_data

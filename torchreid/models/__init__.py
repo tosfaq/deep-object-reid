@@ -74,6 +74,7 @@ __model_factory = {
     'osnet_x0_25': osnet_x0_25,
     'osnet_ibn_x1_0': osnet_ibn_x1_0,
     'osnet_ain_x1_0': osnet_ain_x1_0,
+    'osnet_ain2_x1_0': osnet_ain2_x1_0,
     'res2net50_v1b': res2net50_v1b_26w_4s,
     'res2net101_v1b': res2net101_v1b_26w_4s
 }

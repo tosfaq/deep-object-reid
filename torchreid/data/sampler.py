@@ -135,8 +135,6 @@ class RandomIdentitySamplerV2(RandomIdentitySampler):
 
 class RandomIdentitySamplerV3(Sampler):
     def __init__(self, data_source, batch_size, num_instances, epoch_num_instances=-1):
-        super().__init__(data_source)
-
         if batch_size < num_instances:
             raise ValueError('batch_size={} must be no less than num_instances={}'
                              .format(batch_size, num_instances))
@@ -145,11 +143,12 @@ class RandomIdentitySamplerV3(Sampler):
 
         self.index_dict = dict()
         for index, record in enumerate(data_source):
-            trg_name = record[3]
+            trg_name = record['dataset_id'] if isinstance(record, dict) else 0
             if trg_name not in self.index_dict:
                 self.index_dict[trg_name] = defaultdict(list)
 
-            self.index_dict[trg_name][record[1]].append(index)
+            obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            self.index_dict[trg_name][obj_id].append(index)
         self.orig_index_dict = copy.deepcopy(self.index_dict)
 
         self.pids = {trg_name: list(trg_dict.keys()) for trg_name, trg_dict in self.index_dict.items()}

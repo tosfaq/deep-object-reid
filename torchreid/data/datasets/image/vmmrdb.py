@@ -17,7 +17,7 @@ class VMMRdb(ImageDataset):
 
     dataset_dir = 'vmmrdb'
 
-    def __init__(self, root='', dataset_id=0, **kwargs):
+    def __init__(self, root='', dataset_id=0, load_masks=False, **kwargs):
         self.root = abspath(expanduser(root))
         self.dataset_dir = join(self.root, self. dataset_dir)
         self.data_dir = self.dataset_dir
@@ -29,7 +29,11 @@ class VMMRdb(ImageDataset):
         ]
         self.check_before_run(required_files)
 
-        train = self.load_annotation(self.images_dir, dataset_id=dataset_id)
+        train = self.load_annotation(
+            self.images_dir,
+            dataset_id=dataset_id,
+            load_masks=load_masks
+        )
         train = self.compress_labels(train)
 
         query, gallery = [], []
@@ -37,7 +41,10 @@ class VMMRdb(ImageDataset):
         super(VMMRdb, self).__init__(train, query, gallery, **kwargs)
 
     @staticmethod
-    def load_annotation(data_dir, dataset_id=0, min_num_samples=5):
+    def load_annotation(data_dir, dataset_id=0, min_num_samples=5, load_masks=False):
+        if load_masks:
+            raise NotImplementedError
+
         base_dirs = []
         for root, sub_dirs, files in walk(data_dir):
             if len(sub_dirs) == 0 and len(files) >= min_num_samples:
@@ -48,6 +55,13 @@ class VMMRdb(ImageDataset):
             image_files = [join(base_dir, f) for f in listdir(base_dir) if isfile(join(base_dir, f))]
 
             for image_path in image_files:
-                out_data.append((image_path, class_id, 0, dataset_id, '', -1, -1))
+                out_data.append(dict(
+                    img_path=image_path,
+                    obj_id=class_id,
+                    cam_id=0,
+                    dataset_id=dataset_id,
+                    attr_color=-1,
+                    attr_type=-1
+                ))
 
         return out_data

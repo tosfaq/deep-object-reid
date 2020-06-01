@@ -15,7 +15,7 @@ class VRIC(ImageDataset):
     """
     dataset_dir = 'vric'
 
-    def __init__(self, root='', dataset_id=0, **kwargs):
+    def __init__(self, root='', dataset_id=0, load_masks=False, **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
@@ -34,7 +34,12 @@ class VRIC(ImageDataset):
         ]
         self.check_before_run(required_files)
 
-        train = self.load_annotation(self.train_annot, self.train_dir, dataset_id=dataset_id)
+        train = self.load_annotation(
+            self.train_annot,
+            self.train_dir,
+            dataset_id=dataset_id,
+            load_masks=load_masks
+        )
         query = self.load_annotation(self.query_annot, self.query_dir)
         gallery = self.load_annotation(self.gallery_annot, self.gallery_dir)
 
@@ -43,8 +48,11 @@ class VRIC(ImageDataset):
         super(VRIC, self).__init__(train, query, gallery, **kwargs)
 
     @staticmethod
-    def load_annotation(annot_path, data_dir, dataset_id=0):
-        data = []
+    def load_annotation(annot_path, data_dir, dataset_id=0, load_masks=False):
+        if load_masks:
+            raise NotImplementedError
+
+        out_data = []
         for line in open(annot_path):
             parts = line.replace('\n', '').split(' ')
             assert len(parts) == 3
@@ -54,9 +62,16 @@ class VRIC(ImageDataset):
             full_image_path = osp.join(data_dir, image_name)
             assert osp.exists(full_image_path)
 
-            pid = int(pid_str)
+            obj_id = int(pid_str)
             cam_id = int(cam_id_str)
 
-            data.append((full_image_path, pid, cam_id, dataset_id, '', -1, -1))
+            out_data.append(dict(
+                img_path=full_image_path,
+                obj_id=obj_id,
+                cam_id=cam_id,
+                dataset_id=dataset_id,
+                attr_color=-1,
+                attr_type=-1
+            ))
 
-        return data
+        return out_data

@@ -1,5 +1,5 @@
 model:
-  name: 'osnet_ain_x1_0'
+  name: 'osnet_ain2_x1_0'
   pretrained: True
   download_weights: False
   feature_dim: 256
@@ -9,9 +9,10 @@ model:
 
 data:
   type: 'image'
-  sources: ['veri']
-  # sources: [['veri', 'veriwild'], ['universemodels']]
+  sources: [['veri', 'veriwild'], ['universemodels']]
   targets: ['veri', 'cityflow']
+#  sources: ['market1501']
+#  targets: ['market1501']
   height: 208
   width: 208
   combineall: False

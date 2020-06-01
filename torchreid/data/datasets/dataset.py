@@ -109,7 +109,8 @@ class Dataset:
         #    create new IDs that should have been included
         ###################################
 
-        if isinstance(updated_train[0][0], str):
+        first_field = updated_train[0]['img_path'] if isinstance(updated_train[0], dict) else updated_train[0][0]
+        if isinstance(first_field, str):
             return ImageDataset(
                 updated_train,
                 self.query,
@@ -242,13 +243,20 @@ class Dataset:
 
     @staticmethod
     def compress_labels(data):
-        pid_container = set(record['obj_id'] for record in data)
+        if len(data) == 0:
+            return data
+
+        pid_container = set(record['obj_id'] if isinstance(record, dict) else record[1] for record in data)
         pid2label = {pid: label for label, pid in enumerate(pid_container)}
 
-        for record in data:
-            record['obj_id'] = pid2label[record['obj_id']]
+        if isinstance(data[0], dict):
+            out_data = data
+            for record in out_data:
+                record['obj_id'] = pid2label[record['obj_id']]
+        else:
+            out_data = [record[:1] + (pid2label[record[1]],) + record[2:] for record in data]
 
-        return data
+        return out_data
 
     def __repr__(self):
         num_train_pids, num_train_cams = self.parse_data(self.train)

@@ -14,7 +14,7 @@ class UniverseModels(ImageDataset):
 
     dataset_dir = 'universe_models'
 
-    def __init__(self, root='', dataset_id=0, load_masks=False, min_num_samples=2, **kwargs):
+    def __init__(self, root='', dataset_id=0, min_num_samples=2, load_masks=False, **kwargs):
         self.root = abspath(expanduser(root))
         self.dataset_dir = join(self.root, self.dataset_dir)
         self.data_dir = self.dataset_dir
@@ -33,8 +33,8 @@ class UniverseModels(ImageDataset):
             self.images_dir,
             self.masks_dir,
             dataset_id=dataset_id,
-            load_masks=load_masks,
-            min_num_samples=min_num_samples
+            min_num_samples=min_num_samples,
+            load_masks=load_masks
         )
         train = self.compress_labels(train)
 
@@ -43,7 +43,7 @@ class UniverseModels(ImageDataset):
         super(UniverseModels, self).__init__(train, query, gallery, **kwargs)
 
     @staticmethod
-    def load_annotation(images_dir, masks_dir=None, dataset_id=0, load_masks=False, min_num_samples=1):
+    def load_annotation(images_dir, masks_dir=None, dataset_id=0, min_num_samples=1, load_masks=False):
         relative_path_shift = len(abspath(images_dir)) + 1
 
         base_dirs = []
@@ -67,8 +67,18 @@ class UniverseModels(ImageDataset):
 
             for name in names:
                 image_path = join(local_images_dir, '{}.jpg'.format(name))
-                mask_path = join(local_masks_dir, '{}.png'.format(name)) if load_masks else ''
+                new_record = dict(
+                    img_path=image_path,
+                    obj_id=class_id,
+                    cam_id=0,
+                    dataset_id=dataset_id,
+                    attr_color=-1,
+                    attr_type=-1
+                )
 
-                out_data.append((image_path, class_id, 0, dataset_id, mask_path, -1, -1))
+                if load_masks:
+                    new_record['mask_path'] = join(local_masks_dir, '{}.png'.format(name))
+
+                out_data.append(new_record)
 
         return out_data

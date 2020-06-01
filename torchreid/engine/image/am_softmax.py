@@ -134,24 +134,23 @@ class ImageAMSoftmaxEngine(Engine):
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx
 
-        imgs, pids, trg_ids, masks, attributes = \
-            self.parse_data_for_train(data, self.enable_masks, self.use_gpu)
-        all_logits, all_embeddings, extra_data = self.model(imgs, get_embeddings=True)
+        train_records = self.parse_data_for_train(data, True, self.enable_masks, self.use_gpu)
+        all_logits, all_embeddings, extra_data = self.model(train_records['img'], get_embeddings=True)
 
-        total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
+        total_loss = torch.zeros([], dtype=train_records['img'].dtype, device=train_records['img'].device)
         loss_summary = dict()
 
         num_trg_losses = 0
         for trg_id in range(self.num_targets):
-            trg_mask = trg_ids == trg_id
+            trg_mask = train_records['dataset_id'] == trg_id
 
-            trg_pids = pids[trg_mask]
-            trg_num_samples = trg_pids.numel()
+            trg_obj_ids = train_records['obj_id'][trg_mask]
+            trg_num_samples = trg_obj_ids.numel()
             if trg_num_samples == 0:
                 continue
 
             trg_logits = all_logits[trg_id][trg_mask]
-            main_loss = self.main_losses[trg_id](trg_logits, trg_pids, iteration=n_iter)
+            main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, iteration=n_iter)
             loss_summary['main_{}'.format(trg_id)] = main_loss.item()
 
             trg_loss = main_loss
@@ -160,7 +159,7 @@ class ImageAMSoftmaxEngine(Engine):
                 embd = all_embeddings[trg_id][trg_mask]
 
                 ml_loss_module.init_iteration()
-                ml_loss, ml_loss_summary = ml_loss_module(embd, trg_logits, trg_pids, n_iter)
+                ml_loss, ml_loss_summary = ml_loss_module(embd, trg_logits, trg_obj_ids, n_iter)
                 ml_loss_module.end_iteration()
 
                 loss_summary['ml_{}'.format(trg_id)] = ml_loss.item()
@@ -171,7 +170,8 @@ class ImageAMSoftmaxEngine(Engine):
             num_trg_losses += 1
         total_loss /= float(num_trg_losses)
 
-        if self.enable_attr and attributes is not None:
+        if self.enable_attr and train_records['attr'] is not None:
+            attributes = train_records['attr']
             all_attr_logits = extra_data['attr_logits']
 
             num_attr_losses = 0
@@ -194,13 +194,13 @@ class ImageAMSoftmaxEngine(Engine):
 
             total_loss += total_attr_loss / float(max(1, num_attr_losses))
 
-        if self.enable_masks and masks is not None:
+        if self.enable_masks and train_records['mask'] is not None:
             att_loss_val = 0.0
             for att_map in extra_data['att_maps']:
                 if att_map is not None:
                     with torch.no_grad():
                         att_map_size = att_map.size()[2:]
-                        pos_float_mask = F.interpolate(masks, size=att_map_size, mode='nearest')
+                        pos_float_mask = F.interpolate(train_records['mask'], size=att_map_size, mode='nearest')
                         pos_mask = pos_float_mask > 0.0
                         neg_mask = ~pos_mask
 
@@ -237,32 +237,3 @@ class ImageAMSoftmaxEngine(Engine):
         self.optimizer.step()
 
         return loss_summary
-
-    @staticmethod
-    def parse_data_for_train(data, load_masks, use_gpu):
-        if isinstance(data, dict):
-            imgs = data['img'].cuda() if use_gpu else data['img']
-            obj_ids = data['obj_id'].cuda() if use_gpu else data['obj_id']
-            dataset_ids = data['dataset_id'].cuda() if use_gpu else data['dataset_id']
-
-            masks = None
-            if load_masks:
-                masks = data['mask'].cuda() if use_gpu else data['mask']
-
-            attr = dict()
-            for record_name, record in data.items():
-                if record_name.startswith('attr_'):
-                    attr[record_name] = record.cuda() if use_gpu else record
-            if len(attr) == 0:
-                attr = None
-        else:
-            imgs = data[0]
-            obj_ids = data[1]
-            if use_gpu:
-                imgs = imgs.cuda()
-                obj_ids = obj_ids.cuda()
-            dataset_ids = torch.zeros_like(obj_ids)
-            masks = None
-            attr = None
-
-        return imgs, obj_ids, dataset_ids, masks, attr
