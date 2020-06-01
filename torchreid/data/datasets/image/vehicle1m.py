@@ -37,7 +37,7 @@ class Vehicle1M(ImageDataset):
             min_num_samples=min_num_samples,
             load_masks=load_masks
         )
-        train = self.compress_labels(train)
+        train = self._compress_labels(train)
 
         query, gallery = [], []
 

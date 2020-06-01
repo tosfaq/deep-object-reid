@@ -43,7 +43,7 @@ class VRIC(ImageDataset):
         query = self.load_annotation(self.query_annot, self.query_dir)
         gallery = self.load_annotation(self.gallery_annot, self.gallery_dir)
 
-        train = self.compress_labels(train)
+        train = self._compress_labels(train)
 
         super(VRIC, self).__init__(train, query, gallery, **kwargs)
 

@@ -71,7 +71,7 @@ class VeRi(ImageDataset):
         gallery = self.build_annotation(
             self.gallery_dir, dataset_id=dataset_id)
 
-        train = self.compress_labels(train)
+        train = self._compress_labels(train)
 
         super(VeRi, self).__init__(train, query, gallery, **kwargs)
 

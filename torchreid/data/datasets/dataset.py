@@ -52,7 +52,7 @@ class Dataset:
         self.data_counts = self.get_data_counts(self.train)
 
         if self.combineall:
-            raise NotImplementedError
+            self.combine_all()
 
         if self.mode == 'train':
             self.data = self.train
@@ -185,6 +185,59 @@ class Dataset:
         """Shows dataset statistics."""
         pass
 
+    @staticmethod
+    def _get_obj_ids(data, junk_obj_ids, obj_ids=None):
+        if obj_ids is None:
+            obj_ids = defaultdict(set)
+
+        for record in data:
+            obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            if obj_id in junk_obj_ids:
+                continue
+
+            dataset_id = record['dataset_id'] if isinstance(record, dict) else 0
+            obj_ids[dataset_id].add(record['obj_id'] if isinstance(record, dict) else record[1])
+
+        return obj_ids
+
+    @staticmethod
+    def _relabel(data, junk_obj_ids, id2label_map, num_train_ids):
+        out_data = []
+        for record in data:
+            obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            if obj_id in junk_obj_ids:
+                continue
+
+            dataset_id = record['dataset_id'] if isinstance(record, dict) else 0
+            obj_id = id2label_map[dataset_id][obj_id] + num_train_ids[dataset_id]
+
+            if isinstance(data[0], dict):
+                out_record = copy.deepcopy(record)
+                out_record['obj_id'] = obj_id
+            else:
+                out_record = record[:1] + (obj_id,) + record[2:]
+
+            out_data.append(out_record)
+
+        return out_data
+
+    def combine_all(self):
+        """Combines train, query and gallery in a dataset for training."""
+        combined = copy.deepcopy(self.train)
+
+        new_obj_ids = self._get_obj_ids(self.query, self._junk_pids)
+        new_obj_ids = self._get_obj_ids(self.gallery, self._junk_pids, new_obj_ids)
+
+        id2label_map = dict()
+        for dataset_id, dataset_ids in new_obj_ids.items():
+            id2label_map[dataset_id] = {obj_id: i for i, obj_id in enumerate(set(dataset_ids))}
+
+        combined += self._relabel(self.query, self._junk_pids, id2label_map, self.num_train_pids)
+        combined += self._relabel(self.gallery, self._junk_pids, id2label_map, self.num_train_pids)
+
+        self.train = combined
+        self.num_train_pids = self.get_num_pids(self.train)
+
     def download_dataset(self, dataset_dir, dataset_url):
         """Downloads and extracts dataset.
 
@@ -242,7 +295,7 @@ class Dataset:
                 raise RuntimeError('"{}" is not found'.format(fpath))
 
     @staticmethod
-    def compress_labels(data):
+    def _compress_labels(data):
         if len(data) == 0:
             return data
 

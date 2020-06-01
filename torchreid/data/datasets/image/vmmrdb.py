@@ -34,7 +34,7 @@ class VMMRdb(ImageDataset):
             dataset_id=dataset_id,
             load_masks=load_masks
         )
-        train = self.compress_labels(train)
+        train = self._compress_labels(train)
 
         query, gallery = [], []
 
