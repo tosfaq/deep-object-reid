@@ -7,22 +7,36 @@ def get_default_config():
     # model
     cfg.model = CN()
     cfg.model.name = 'resnet50'
-    cfg.model.pretrained = False  # automatically load pretrained model weights if available
-    cfg.model.download_weights = False
+    cfg.model.pretrained = False
+    cfg.model.download_weights = True
     cfg.model.load_weights = ''  # path to model weights
     cfg.model.resume = ''  # path to checkpoint for resume training
+    cfg.model.dropout = CN()
+    cfg.model.dropout.p = 0.0
+    cfg.model.dropout.mu = 0.1
+    cfg.model.dropout.sigma = 0.03
+    cfg.model.dropout.dist = 'none'
     cfg.model.feature_dim = 512  # embedding size
     cfg.model.bn_eval = False
     cfg.model.bn_frozen = False
     cfg.model.enable_attentions = False
+    cfg.model.pooling_type = 'avg'
+    cfg.model.IN_first = False
+    cfg.model.extra_blocks = False
+    cfg.model.lct_gate = False
+    cfg.model.fpn = CN()
+    cfg.model.fpn.enable = True
+    cfg.model.fpn.dim = 256
+    cfg.model.fpn.process = 'concatenation'
 
     # data
     cfg.data = CN()
     cfg.data.type = 'image'
     cfg.data.root = 'reid-data'
-    cfg.data.sources = [['market1501'], ]
+    cfg.data.sources = ['market1501']
     cfg.data.targets = ['market1501']
     cfg.data.workers = 4  # number of data loading workers
+    cfg.data.split_id = 0  # Split index
     cfg.data.height = 256  # image height
     cfg.data.width = 128  # image width
     cfg.data.enable_masks = False
@@ -98,6 +112,7 @@ def get_default_config():
     cfg.loss.softmax.duration_s = -1
     cfg.loss.softmax.skip_steps_s = -1
     cfg.loss.softmax.adaptive_margins = False
+    cfg.loss.softmax.base_num_classes = -1
     cfg.loss.triplet = CN()
     cfg.loss.triplet.margin = 0.3  # distance margin
     cfg.loss.triplet.weight_t = 1.  # weight to balance hard triplet loss
@@ -150,6 +165,7 @@ def get_default_config():
     cfg.test.visrank = False  # visualize ranked results (only available when cfg.test.evaluate=True)
     cfg.test.visrank_topk = 10  # top-k ranks to visualize
     cfg.test.visactmap = False  # visualize CNN activation maps
+    cfg.test.apply_masks = False
 
     # Augmentations
     cfg.data.transforms = CN()
@@ -161,7 +177,7 @@ def get_default_config():
     cfg.data.transforms.random_crop = CN()
     cfg.data.transforms.random_crop.enable = False
     cfg.data.transforms.random_crop.p = 0.5
-    cfg.data.transforms.random_crop.scale = 1.125
+    cfg.data.transforms.random_crop.scale = 0.9
 
     cfg.data.transforms.random_gray_scale = CN()
     cfg.data.transforms.random_gray_scale.enable = False
@@ -190,8 +206,8 @@ def get_default_config():
     cfg.data.transforms.random_erase.p = 0.5
     cfg.data.transforms.random_erase.sl = 0.2
     cfg.data.transforms.random_erase.sh = 0.4
-    cfg.data.transforms.random_erase.rl = 0.5
-    cfg.data.transforms.random_erase.rh = 2.0
+    cfg.data.transforms.random_erase.rl = 0.3
+    cfg.data.transforms.random_erase.rh = 3.3
     cfg.data.transforms.random_erase.fill_color = (125.307, 122.961, 113.8575)
     cfg.data.transforms.random_erase.norm_image = True
 
@@ -261,6 +277,7 @@ def imagedata_kwargs(cfg):
         'norm_mean': cfg.data.norm_mean,
         'norm_std': cfg.data.norm_std,
         'use_gpu': cfg.use_gpu,
+        'split_id': cfg.data.split_id,
         'combineall': cfg.data.combineall,
         'batch_size_train': cfg.train.batch_size,
         'batch_size_test': cfg.test.batch_size,
@@ -273,6 +290,7 @@ def imagedata_kwargs(cfg):
         'cuhk03_labeled': cfg.cuhk03.labeled_images,
         'cuhk03_classic_split': cfg.cuhk03.classic_split,
         'market1501_500k': cfg.market1501.use_500k_distractors,
+        'apply_masks_to_test': cfg.test.apply_masks,
     }
 
 
@@ -287,6 +305,7 @@ def videodata_kwargs(cfg):
         'norm_mean': cfg.data.norm_mean,
         'norm_std': cfg.data.norm_std,
         'use_gpu': cfg.use_gpu,
+        'split_id': cfg.data.split_id,
         'combineall': cfg.data.combineall,
         'batch_size_train': cfg.train.batch_size,
         'batch_size_test': cfg.test.batch_size,
@@ -331,6 +350,9 @@ def lr_scheduler_kwargs(cfg):
 
 
 def model_kwargs(cfg, num_classes):
+    if isinstance(num_classes, (tuple, list)) and len(num_classes) == 1:
+        num_classes = num_classes[0]
+
     return {
         'name': cfg.model.name,
         'num_classes': num_classes,
@@ -338,7 +360,14 @@ def model_kwargs(cfg, num_classes):
         'pretrained': cfg.model.pretrained,
         'download_weights': cfg.model.download_weights,
         'use_gpu': cfg.use_gpu,
+        'dropout_cfg': cfg.model.dropout,
         'feature_dim': cfg.model.feature_dim,
+        'fpn_cfg': cfg.model.fpn,
+        'pooling_type': cfg.model.pooling_type,
+        'input_size': (cfg.data.height, cfg.data.width),
+        'IN_first': cfg.model.IN_first,
+        'extra_blocks': cfg.model.extra_blocks,
+        'lct_gate': cfg.model.lct_gate,
         'bn_eval': cfg.model.bn_eval,
         'bn_frozen': cfg.model.bn_frozen,
         'enable_attentions': cfg.model.enable_attentions and cfg.data.enable_masks,

@@ -60,6 +60,7 @@ loss:
     pr_product: False
     m: 0.9
     s: 15.0
+    base_num_classes: 1001
     adaptive_margins: True
 
 metric_losses:

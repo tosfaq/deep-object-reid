@@ -61,49 +61,55 @@ class RandomIdentitySampler(Sampler):
         self.batch_size = batch_size
         self.num_instances = num_instances
         self.num_pids_per_batch = self.batch_size // self.num_instances
-        self.index_dic = defaultdict(list)
-        for index, record in enumerate(self.data_source):
+
+        self.index_dict = dict()
+        for index, record in enumerate(data_source):
+            trg_name = record['dataset_id'] if isinstance(record, dict) else 0
+            if trg_name not in self.index_dict:
+                self.index_dict[trg_name] = defaultdict(list)
+
             obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
-            self.index_dic[obj_id].append(index)
-        self.pids = list(self.index_dic.keys())
+            self.index_dict[trg_name][obj_id].append(index)
+        self.pids = {trg_name: list(trg_dict.keys()) for trg_name, trg_dict in self.index_dict.items()}
 
         # estimate number of examples in an epoch
         # TODO: improve precision
         self.length = 0
-        for pid in self.pids:
-            idxs = self.index_dic[pid]
-            num = len(idxs)
-            if num < self.num_instances:
-                num = self.num_instances
-            self.length += num - num % self.num_instances
+        for pids in self.index_dict.values():
+            for idxs in pids.values():
+                num = len(idxs)
+                if num < self.num_instances:
+                    num = self.num_instances
+                self.length += num - num % self.num_instances
 
     def __iter__(self):
-        batch_idxs_dict = defaultdict(list)
+        final_pids = [(trg_name, trg_pid) for trg_name, trg_pids in self.pids.items() for trg_pid in trg_pids]
+        random.shuffle(final_pids)
 
-        for pid in self.pids:
-            idxs = copy.deepcopy(self.index_dic[pid])
+        batch_idxs_dict = {trg_name: defaultdict(list) for trg_name in self.pids.keys()}
+        for trg_name, trg_pid in final_pids:
+            idxs = copy.deepcopy(self.index_dict[trg_name][trg_pid])
             if len(idxs) < self.num_instances:
-                idxs = np.random.choice(
-                    idxs, size=self.num_instances, replace=True
-                )
+                idxs = np.random.choice(idxs, size=self.num_instances, replace=True)
             random.shuffle(idxs)
+
             batch_idxs = []
             for idx in idxs:
                 batch_idxs.append(idx)
                 if len(batch_idxs) == self.num_instances:
-                    batch_idxs_dict[pid].append(batch_idxs)
+                    batch_idxs_dict[trg_name][trg_pid].append(batch_idxs)
                     batch_idxs = []
 
-        avai_pids = copy.deepcopy(self.pids)
-        final_idxs = []
+        avai_pids = [(trg_name, trg_pid) for trg_name, trg_pids in self.pids.items() for trg_pid in trg_pids]
 
+        final_idxs = []
         while len(avai_pids) >= self.num_pids_per_batch:
             selected_pids = random.sample(avai_pids, self.num_pids_per_batch)
-            for pid in selected_pids:
-                batch_idxs = batch_idxs_dict[pid].pop(0)
+            for trg_name, trg_pid in selected_pids:
+                batch_idxs = batch_idxs_dict[trg_name][trg_pid].pop(0)
                 final_idxs.extend(batch_idxs)
-                if len(batch_idxs_dict[pid]) == 0:
-                    avai_pids.remove(pid)
+                if len(batch_idxs_dict[trg_name][trg_pid]) == 0:
+                    avai_pids.remove((trg_name, trg_pid))
 
         return iter(final_idxs)
 
@@ -115,18 +121,25 @@ class RandomIdentitySamplerV2(RandomIdentitySampler):
     def __init__(self, data_source, batch_size, num_instances):
         super().__init__(data_source, batch_size, num_instances)
 
+        self.length = len(self.data_source) - len(self.data_source) % self.num_instances
+
     def __iter__(self):
-        random.shuffle(self.pids)
+        final_pids = [(trg_name, trg_pid) for trg_name, trg_pids in self.pids.items() for trg_pid in trg_pids]
+        random.shuffle(final_pids)
+
         output_ids = []
-        for pid in self.pids:
-            random.shuffle(self.index_dic[pid])
-            output_ids += self.index_dic[pid]
+        for trg_name, trg_pid in final_pids:
+            random.shuffle(self.index_dict[trg_name][trg_pid])
+            output_ids += self.index_dict[trg_name][trg_pid]
+
         extra_samples = len(output_ids) % self.num_instances
         output_ids = output_ids[: len(output_ids) - extra_samples]
+
         ids = np.array(output_ids)
         ids = ids.reshape((-1, self.num_instances))
         np.random.shuffle(ids)
         ids = ids.reshape((-1))
+
         return iter(ids.tolist())
 
     def __len__(self):

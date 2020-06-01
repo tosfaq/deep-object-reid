@@ -35,11 +35,11 @@ class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
 
-    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg,
-                 scheduler=None, use_gpu=False, softmax_type='stock',
-                 label_smooth=False, conf_penalty=False, pr_product=False,
-                 m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None,
-                 enable_masks=False, adaptive_margins=False, attr_cfg=None):
+    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, batch_transform_cfg,
+                 scheduler=None, use_gpu=False, softmax_type='stock', label_smooth=False,
+                 conf_penalty=False, pr_product=False, m=0.35, s=10, end_s=None,
+                 duration_s=None, skip_steps_s=None, enable_masks=False,
+                 adaptive_margins=False, attr_cfg=None, base_num_classes=-1):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, use_gpu)
 
         self.model = model
@@ -66,7 +66,8 @@ class ImageAMSoftmaxEngine(Engine):
         self.main_losses = nn.ModuleList()
         self.ml_losses = list()
         for trg_id, trg_num_classes in enumerate(self.num_classes):
-            scale_factor = np.log(trg_num_classes - 1) / np.log(1000)  # init scale is set for 1000-classes task
+            scale_base_size = trg_num_classes if base_num_classes <= 0 else base_num_classes
+            scale_factor = np.log(trg_num_classes - 1) / np.log(scale_base_size - 1)
             if softmax_type == 'stock':
                 self.main_losses.append(CrossEntropyLoss(
                     use_gpu=self.use_gpu,
@@ -127,6 +128,10 @@ class ImageAMSoftmaxEngine(Engine):
             if len(self.attr_losses) == 0:
                 self.enable_attr = False
 
+        self.batch_transform_cfg = batch_transform_cfg
+        self.lambd_distr = torch.distributions.beta.Beta(self.batch_transform_cfg.alpha,
+                                                         self.batch_transform_cfg.alpha)
+
     @staticmethod
     def _valid(value):
         return value is not None and value > 0
@@ -135,16 +140,33 @@ class ImageAMSoftmaxEngine(Engine):
         n_iter = self.epoch * self.num_batches + self.batch_idx
 
         train_records = self.parse_data_for_train(data, True, self.enable_masks, self.use_gpu)
-        all_logits, all_embeddings, extra_data = self.model(train_records['img'], get_embeddings=True)
+        imgs = train_records['img']
+        obj_ids = train_records['obj_id']
+        imgs, obj_ids = self._apply_batch_transform(imgs, obj_ids)
 
-        total_loss = torch.zeros([], dtype=train_records['img'].dtype, device=train_records['img'].device)
+        run_kwargs = dict()
+        if self.enable_metric_losses:
+            run_kwargs['get_embeddings'] = True
+        if self.enable_attr or self.enable_masks:
+            run_kwargs['get_extra_data'] = True
+        model_output = self.model(imgs, **run_kwargs)
+        if self.enable_metric_losses:
+            all_embeddings, all_logits = model_output[:2]
+            all_embeddings = all_embeddings if isinstance(all_embeddings, (tuple, list)) else [all_embeddings]
+        else:
+            all_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
+        all_logits = all_logits if isinstance(all_logits, (tuple, list)) else [all_logits]
+        if self.enable_attr or self.enable_masks:
+            extra_data = model_output[-1]
+
+        total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
         loss_summary = dict()
 
         num_trg_losses = 0
         for trg_id in range(self.num_targets):
             trg_mask = train_records['dataset_id'] == trg_id
 
-            trg_obj_ids = train_records['obj_id'][trg_mask]
+            trg_obj_ids = obj_ids[trg_mask]
             trg_num_samples = trg_obj_ids.numel()
             if trg_num_samples == 0:
                 continue
@@ -237,3 +259,15 @@ class ImageAMSoftmaxEngine(Engine):
         self.optimizer.step()
 
         return loss_summary
+
+    def _apply_batch_transform(self, imgs, obj_ids):
+        if self.batch_transform_cfg.enable:
+            lambd = self.batch_transform_cfg.anchor_bias \
+                    + (1 - self.batch_transform_cfg.anchor_bias) \
+                    * self.lambd_distr.sample((imgs.shape[0],))
+            lambd = lambd.view(-1, 1, 1, 1)
+
+            permuted_idx = torch.randperm(imgs.shape[0])
+            imgs = lambd * imgs + (1 - lambd) * imgs[permuted_idx]
+
+        return imgs, obj_ids

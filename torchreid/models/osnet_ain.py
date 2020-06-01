@@ -541,17 +541,6 @@ class OSNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    @staticmethod
-    def _construct_projector(in_features, internal_features, out_features):
-        layers = [
-            nn.Linear(in_features, internal_features),
-            nn.BatchNorm1d(internal_features),
-            HSwish(),
-            nn.Linear(internal_features, out_features),
-        ]
-
-        return nn.Sequential(*layers)
-
     def _init_params(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -626,7 +615,7 @@ class OSNet(nn.Module):
 
         return out, att_map
 
-    def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
+    def forward(self, x, return_featuremaps=False, get_embeddings=False, get_extra_data=False):
         feature_maps, feature_att_maps = self._backbone(x)
         if return_featuremaps:
             return feature_maps
@@ -638,28 +627,37 @@ class OSNet(nn.Module):
         if self.use_attr:
             attr_embeddings = {attr_name: attr_fc(glob_features) for attr_name, attr_fc in self.attr.items()}
 
-        if not self.training and not return_logits:
+        if not self.training:
             return torch.cat(embeddings + [attr_embeddings[attr_name] for attr_name in self.attr_names], dim=1)
 
         logits = [classifier(embd) for embd, classifier in zip(embeddings, self.classifier)]
 
-        extra_out_data = dict()
-        extra_out_data['att_maps'] = [head_att_map] + feature_att_maps
-
-        if self.use_attr:
-            attr_logits = {attr_name: attr_classifier(attr_embeddings[attr_name])
-                           for attr_name, attr_classifier in self.attr_classifier.items()}
-            extra_out_data['attr_logits'] = attr_logits
+        if len(logits) == 1:
+            logits = logits[0]
+        if len(embeddings) == 1:
+            embeddings = embeddings[0]
 
         if get_embeddings:
-            return logits, embeddings, extra_out_data
-
-        if self.loss in ['softmax', 'adacos', 'd_softmax', 'am_softmax']:
-            return logits, extra_out_data
+            out_data = [embeddings, logits]
+        elif self.loss in ['softmax', 'adacos', 'd_softmax', 'am_softmax']:
+            out_data = [logits]
         elif self.loss in ['triplet']:
-            return logits, embeddings, extra_out_data
+            out_data = [embeddings, logits]
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
+
+        if get_extra_data:
+            extra_out_data = dict()
+            extra_out_data['att_maps'] = [head_att_map] + feature_att_maps
+
+            if self.use_attr:
+                attr_logits = {attr_name: attr_classifier(attr_embeddings[attr_name])
+                               for attr_name, attr_classifier in self.attr_classifier.items()}
+                extra_out_data['attr_logits'] = attr_logits
+
+            out_data += [extra_out_data]
+
+        return tuple(out_data)
 
     def train(self, train_mode=True):
         super(OSNet, self).train(train_mode)

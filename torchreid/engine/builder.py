@@ -1,33 +1,26 @@
 from torchreid.engine import (
-    ImageSoftmaxEngine, ImageAMSoftmaxEngine, VideoSoftmaxEngine,
+    ImageAMSoftmaxEngine, VideoSoftmaxEngine,
     ImageTripletEngine, VideoTripletEngine
 )
 
 
 def build_engine(cfg, datamanager, model, optimizer, scheduler):
     if cfg.data.type == 'image':
-        if cfg.loss.name == 'softmax':
-            engine = ImageSoftmaxEngine(
-                datamanager,
-                model,
-                optimizer=optimizer,
-                scheduler=scheduler,
-                use_gpu=cfg.use_gpu,
-                label_smooth=cfg.loss.softmax.label_smooth
-            )
-        elif cfg.loss.name == 'am_softmax':
+        if cfg.loss.name in ['softmax', 'am_softmax']:
+            softmax_type = 'stock' if cfg.loss.name == 'softmax' else 'am'
             engine = ImageAMSoftmaxEngine(
                 datamanager,
                 model,
                 optimizer=optimizer,
                 reg_cfg=cfg.reg,
                 metric_cfg=cfg.metric_losses,
+                batch_transform_cfg=cfg.data.transforms.batch_transform,
                 scheduler=scheduler,
                 use_gpu=cfg.use_gpu,
                 conf_penalty=cfg.loss.softmax.conf_penalty,
                 label_smooth=cfg.loss.softmax.label_smooth,
                 pr_product=cfg.loss.softmax.pr_product,
-                softmax_type='am',
+                softmax_type=softmax_type,
                 m=cfg.loss.softmax.m,
                 s=cfg.loss.softmax.s,
                 end_s=cfg.loss.softmax.end_s,
@@ -36,6 +29,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 enable_masks=cfg.data.enable_masks,
                 adaptive_margins=cfg.loss.softmax.adaptive_margins,
                 attr_cfg=cfg.attr_loss,
+                base_num_classes=cfg.loss.softmax.base_num_classes,
             )
         else:
             engine = ImageTripletEngine(

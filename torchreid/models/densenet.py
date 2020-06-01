@@ -264,7 +264,7 @@ class DenseNet(nn.Module):
 
         return [f.squeeze(dim=-1) for f in torch.split(feature_vectors, 1, dim=-1)]
 
-    def forward(self, x, return_featuremaps=False, get_embeddings=False, return_logits=False):
+    def forward(self, x, return_featuremaps=False, get_embeddings=False):
         feature_maps = self._backbone(x)
         if return_featuremaps:
             return feature_maps
@@ -274,7 +274,7 @@ class DenseNet(nn.Module):
         features = [glob_feature] + list(part_features)
 
         main_embeddings = [fc(f) for f, fc in zip(features, self.fc)]
-        if not self.training and not return_logits:
+        if not self.training:
             return torch.cat(main_embeddings, dim=-1)
 
         main_logits = [classifier(embd) for embd, classifier in zip(main_embeddings, self.classifier)]

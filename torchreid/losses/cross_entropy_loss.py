@@ -37,7 +37,7 @@ class CrossEntropyLoss(nn.Module):
         self.conf_penalty = conf_penalty
         self.penalty_scale = penalty_scale
 
-    def forward(self, inputs, targets, scale=None):
+    def forward(self, inputs, targets, scale=None, iteration=None):
         """
         Args:
             inputs (torch.Tensor): prediction matrix (before softmax) with
