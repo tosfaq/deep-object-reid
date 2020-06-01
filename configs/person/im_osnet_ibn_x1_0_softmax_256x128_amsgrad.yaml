@@ -9,7 +9,17 @@ data:
   height: 256
   width: 128
   combineall: False
-  transforms: ['random_flip', 'color_jitter']
+  transforms:
+    random_flip:
+      enable: True
+      p: 0.5
+    color_jitter:
+      enable: True
+      p: 0.8
+      saturation: 0.1
+      hue: 0.1
+      brightness: 0.15
+      contrast: 0.15
   save_dir: 'log/osnet_ibn_x1_0_market2duke_softmax'
 
 loss:
