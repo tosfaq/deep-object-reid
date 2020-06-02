@@ -65,13 +65,6 @@ class VRIC(ImageDataset):
             obj_id = int(pid_str)
             cam_id = int(cam_id_str)
 
-            out_data.append(dict(
-                img_path=full_image_path,
-                obj_id=obj_id,
-                cam_id=cam_id,
-                dataset_id=dataset_id,
-                attr_color=-1,
-                attr_type=-1
-            ))
+            out_data.append((full_image_path, obj_id, cam_id, dataset_id, '', -1, -1))
 
         return out_data

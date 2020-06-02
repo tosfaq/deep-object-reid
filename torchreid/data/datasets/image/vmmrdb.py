@@ -55,13 +55,6 @@ class VMMRdb(ImageDataset):
             image_files = [join(base_dir, f) for f in listdir(base_dir) if isfile(join(base_dir, f))]
 
             for image_path in image_files:
-                out_data.append(dict(
-                    img_path=image_path,
-                    obj_id=class_id,
-                    cam_id=0,
-                    dataset_id=dataset_id,
-                    attr_color=-1,
-                    attr_type=-1
-                ))
+                out_data.append((image_path, class_id, 0, dataset_id, '', -1, -1))
 
         return out_data

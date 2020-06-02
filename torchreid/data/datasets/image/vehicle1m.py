@@ -68,13 +68,6 @@ class Vehicle1M(ImageDataset):
                 continue
 
             for full_image_path in records:
-                out_data.append(dict(
-                    img_path=full_image_path,
-                    obj_id=obj_id,
-                    cam_id=0,
-                    dataset_id=dataset_id,
-                    attr_color=-1,
-                    attr_type=-1
-                ))
+                out_data.append((full_image_path, obj_id, 0, dataset_id, '', -1, -1))
 
         return out_data

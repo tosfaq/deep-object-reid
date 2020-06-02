@@ -452,25 +452,22 @@ class Engine:
         return self.model(input)
 
     @staticmethod
-    def parse_data_for_train(data, output_dict=False, masks=False, use_gpu=False):
-        imgs = data['img'] if isinstance(data, dict) else data[0]
-        obj_ids = data['obj_id'] if isinstance(data, dict) else data[1]
+    def parse_data_for_train(data, output_dict=False, enable_masks=False, use_gpu=False):
+        imgs = data[0]
+        obj_ids = data[1]
         if use_gpu:
             imgs = imgs.cuda()
             obj_ids = obj_ids.cuda()
 
         if output_dict:
-            if isinstance(data, dict):
-                dataset_ids = data['dataset_id'].cuda() if use_gpu else data['dataset_id']
+            if len(data) > 3:
+                dataset_ids = data[3].cuda() if use_gpu else data[3]
 
                 masks = None
-                if masks:
-                    masks = data['mask'].cuda() if use_gpu else data['mask']
+                if enable_masks:
+                    masks = data[4].cuda() if use_gpu else data[4]
 
-                attr = dict()
-                for record_name, record in data.items():
-                    if record_name.startswith('attr_'):
-                        attr[record_name] = record.cuda() if use_gpu else record
+                attr = [record.cuda() if use_gpu else record for record in data[5:]]
                 if len(attr) == 0:
                     attr = None
             else:
@@ -484,14 +481,9 @@ class Engine:
 
     @staticmethod
     def parse_data_for_eval(data):
-        if isinstance(data, dict):
-            imgs = data['img']
-            obj_ids = data['obj_id']
-            cam_ids = data['cam_id']
-        else:
-            imgs = data[0]
-            obj_ids = data[1]
-            cam_ids = data[2]
+        imgs = data[0]
+        obj_ids = data[1]
+        cam_ids = data[2]
 
         return imgs, obj_ids, cam_ids
 

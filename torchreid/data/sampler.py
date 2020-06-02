@@ -64,11 +64,11 @@ class RandomIdentitySampler(Sampler):
 
         self.index_dict = dict()
         for index, record in enumerate(data_source):
-            trg_name = record['dataset_id'] if isinstance(record, dict) else 0
+            trg_name = record[3] if len(record) > 3 else 0
             if trg_name not in self.index_dict:
                 self.index_dict[trg_name] = defaultdict(list)
 
-            obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            obj_id = record[1]
             self.index_dict[trg_name][obj_id].append(index)
         self.pids = {trg_name: list(trg_dict.keys()) for trg_name, trg_dict in self.index_dict.items()}
 
@@ -163,11 +163,11 @@ class RandomIdentitySamplerV3(Sampler):
 
         self.index_dict = dict()
         for index, record in enumerate(data_source):
-            trg_name = record['dataset_id'] if isinstance(record, dict) else 0
+            trg_name = record[3] if len(record) > 3 else 0
             if trg_name not in self.index_dict:
                 self.index_dict[trg_name] = defaultdict(list)
 
-            obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            obj_id = record[1]
             self.index_dict[trg_name][obj_id].append(index)
         self.orig_index_dict = copy.deepcopy(self.index_dict)
 

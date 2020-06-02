@@ -125,19 +125,13 @@ class VeRi(ImageDataset):
 
             image_name = '{}.jpg'.format(name)
             full_image_path = osp.join(images_dir, image_name)
-            pid = int(pid_str)
+            obj_id = int(pid_str)
             cam_id = int(cam_id_str[1:])
-            assert pid >= 0 and cam_id >= 0
+            assert obj_id >= 0 and cam_id >= 0
 
-            new_record = dict(
-                img_path=full_image_path,
-                obj_id=pid,
-                cam_id=cam_id,
-                dataset_id=dataset_id
-            )
-
+            full_mask_path = ''
             if load_masks:
-                new_record['mask_path'] = osp.join(masks_dir, '{}.png'.format(name))
+                full_mask_path = osp.join(masks_dir, '{}.png'.format(name))
 
             if annot is None:
                 color_id, type_id = -1, -1
@@ -150,9 +144,6 @@ class VeRi(ImageDataset):
                     type_id = record['type_id']
                     assert color_id >= 0 and type_id >= 0
 
-            new_record['attr_color'] = color_id
-            new_record['attr_type'] = type_id
-
-            data.append(new_record)
+            data.append((full_image_path, obj_id, cam_id, dataset_id, full_mask_path, color_id, type_id))
 
         return data

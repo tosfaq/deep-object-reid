@@ -128,6 +128,8 @@ class ImageAMSoftmaxEngine(Engine):
 
             if len(self.attr_losses) == 0:
                 self.enable_attr = False
+            else:
+                self.attr_name_map = {attr_name: attr_id for attr_id, attr_name in enumerate(attr_cfg.names)}
 
         self.batch_transform_cfg = batch_transform_cfg
         self.lambd_distr = torch.distributions.beta.Beta(self.batch_transform_cfg.alpha,
@@ -189,7 +191,7 @@ class ImageAMSoftmaxEngine(Engine):
             num_attr_losses = 0
             total_attr_loss = 0
             for attr_name, attr_loss_module in self.attr_losses.items():
-                attr_labels = attributes[attr_name]
+                attr_labels = attributes[self.attr_name_map[attr_name]]
                 valid_attr_mask = attr_labels >= 0
 
                 attr_labels = attr_labels[valid_attr_mask]

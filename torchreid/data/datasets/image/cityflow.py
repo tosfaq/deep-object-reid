@@ -69,16 +69,9 @@ class CityFlow(ImageDataset):
             obj_id = int(item.attrib['vehicleID'])
             cam_id = int(item.attrib['cameraID'][1:])
 
-            color = int(item.attrib['colorID']) if 'colorID' in item.attrib else -1
-            object_type = int(item.attrib['typeID']) if 'typeID' in item.attrib else -1
+            color_id = int(item.attrib['colorID']) if 'colorID' in item.attrib else -1
+            type_id = int(item.attrib['typeID']) if 'typeID' in item.attrib else -1
 
-            out_data.append(dict(
-                img_path=full_image_path,
-                obj_id=obj_id,
-                cam_id=cam_id,
-                dataset_id=dataset_id,
-                attr_color=color,
-                attr_type=object_type
-            ))
+            out_data.append((full_image_path, obj_id, cam_id, dataset_id, '', color_id, type_id))
 
         return out_data

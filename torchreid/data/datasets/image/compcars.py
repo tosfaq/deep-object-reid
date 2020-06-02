@@ -70,18 +70,11 @@ class CompCars(ImageDataset):
 
             for name in names:
                 image_path = join(local_images_dir, '{}.jpg'.format(name))
-                new_record = dict(
-                    img_path=image_path,
-                    obj_id=class_id,
-                    cam_id=0,
-                    dataset_id=dataset_id,
-                    attr_color=-1,
-                    attr_type=-1
-                )
 
+                mask_path = ''
                 if load_masks:
-                    new_record['mask_path'] = join(local_masks_dir, '{}.png'.format(name))
+                    mask_path = join(local_masks_dir, '{}.png'.format(name))
 
-                out_data.append(new_record)
+                out_data.append((image_path, class_id, 0, dataset_id, mask_path, -1, -1))
 
         return out_data

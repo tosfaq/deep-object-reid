@@ -78,27 +78,21 @@ class Dataset:
         updated_train = copy.deepcopy(self.train)
 
         for record in other.train:
-            dataset_id = record['dataset_id'] if isinstance(record, dict) else 0
+            dataset_id = record[3] if len(record) > 3 else 0
 
             num_train_pids = 0
             if dataset_id in self.num_train_pids:
                 num_train_pids = self.num_train_pids[dataset_id]
-            old_obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            old_obj_id = record[1]
             new_obj_id = old_obj_id + num_train_pids
 
             num_train_cams = 0
             if dataset_id in self.num_train_cams:
                 num_train_cams = self.num_train_cams[dataset_id]
-            old_cam_id = record['cam_id'] if isinstance(record, dict) else record[2]
+            old_cam_id = record[2]
             new_cam_id = old_cam_id + num_train_cams
 
-            if isinstance(record, dict):
-                record['obj_id'] = new_obj_id
-                record['cam_id'] = new_cam_id
-                updated_record = record
-            else:
-                updated_record = tuple([record[0], new_obj_id, new_cam_id] + list(record[3:]))
-
+            updated_record = record[:1] + (new_obj_id, new_cam_id) + record[3:]
             updated_train.append(updated_record)
 
         ###################################
@@ -109,7 +103,7 @@ class Dataset:
         #    create new IDs that should have been included
         ###################################
 
-        first_field = updated_train[0]['img_path'] if isinstance(updated_train[0], dict) else updated_train[0][0]
+        first_field = updated_train[0][0]
         if isinstance(first_field, str):
             return ImageDataset(
                 updated_train,
@@ -151,9 +145,10 @@ class Dataset:
 
         pids, cams = defaultdict(set), defaultdict(set)
         for record in data:
-            dataset_id = record['dataset_id'] if isinstance(record, dict) else 0
-            pids[dataset_id].add(record['obj_id'] if isinstance(record, dict) else record[1])
-            cams[dataset_id].add(record['cam_id'] if isinstance(record, dict) else record[2])
+            dataset_id = record[3] if len(record) > 3 else 0
+
+            pids[dataset_id].add(record[1])
+            cams[dataset_id].add(record[2])
 
         num_pids = {dataset_id: len(dataset_pids) for dataset_id, dataset_pids in pids.items()}
         num_cams = {dataset_id: len(dataset_cams) for dataset_id, dataset_cams in cams.items()}
@@ -172,11 +167,11 @@ class Dataset:
     def get_data_counts(data):
         counts = dict()
         for record in data:
-            dataset_id = record['dataset_id'] if isinstance(record, dict) else 0
+            dataset_id = record[3] if len(record) > 3 else 0
             if dataset_id not in counts:
                 counts[dataset_id] = defaultdict(int)
 
-            obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            obj_id = record[1]
             counts[dataset_id][obj_id] += 1
 
         return counts
@@ -191,12 +186,12 @@ class Dataset:
             obj_ids = defaultdict(set)
 
         for record in data:
-            obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            obj_id = record[1]
             if obj_id in junk_obj_ids:
                 continue
 
-            dataset_id = record['dataset_id'] if isinstance(record, dict) else 0
-            obj_ids[dataset_id].add(record['obj_id'] if isinstance(record, dict) else record[1])
+            dataset_id = record[3] if len(record) > 3 else 0
+            obj_ids[dataset_id].add(obj_id)
 
         return obj_ids
 
@@ -204,20 +199,15 @@ class Dataset:
     def _relabel(data, junk_obj_ids, id2label_map, num_train_ids):
         out_data = []
         for record in data:
-            obj_id = record['obj_id'] if isinstance(record, dict) else record[1]
+            obj_id = record[1]
             if obj_id in junk_obj_ids:
                 continue
 
-            dataset_id = record['dataset_id'] if isinstance(record, dict) else 0
+            dataset_id = record[3] if len(record) > 3 else 0
             obj_id = id2label_map[dataset_id][obj_id] + num_train_ids[dataset_id]
 
-            if isinstance(data[0], dict):
-                out_record = copy.deepcopy(record)
-                out_record['obj_id'] = obj_id
-            else:
-                out_record = record[:1] + (obj_id,) + record[2:]
-
-            out_data.append(out_record)
+            updated_record = record[:1] + (obj_id,) + record[2:]
+            out_data.append(updated_record)
 
         return out_data
 
@@ -299,15 +289,10 @@ class Dataset:
         if len(data) == 0:
             return data
 
-        pid_container = set(record['obj_id'] if isinstance(record, dict) else record[1] for record in data)
+        pid_container = set(record[1] for record in data)
         pid2label = {pid: label for label, pid in enumerate(pid_container)}
 
-        if isinstance(data[0], dict):
-            out_data = data
-            for record in out_data:
-                record['obj_id'] = pid2label[record['obj_id']]
-        else:
-            out_data = [record[:1] + (pid2label[record[1]],) + record[2:] for record in data]
+        out_data = [record[:1] + (pid2label[record[1]],) + record[2:] for record in data]
 
         return out_data
 
@@ -349,27 +334,26 @@ class ImageDataset(Dataset):
     def __getitem__(self, index):
         input_record = self.data[index]
 
-        if isinstance(input_record, dict):
-            output_record = input_record
+        image = read_image(input_record[0], grayscale=False)
+        obj_id = input_record[1]
+        cam_id = input_record[2]
 
-            image = read_image(input_record['img_path'], grayscale=False)
-            mask = read_image(input_record['mask_path'], grayscale=True) if 'mask_path' in input_record else ''
+        if len(input_record) > 3:
+            dataset_id = input_record[3]
+
+            mask = ''
+            if input_record[4] != '':
+                mask = read_image(input_record[4], grayscale=True)
 
             if self.transform is not None:
                 image, mask = self.transform((image, mask))
 
-            output_record['img'] = image
-            if mask != '':
-                output_record['mask'] = mask
+            output_record = (image, obj_id, cam_id, dataset_id, mask) + input_record[5:]
         else:
-            pid = input_record[1]
-            cam_id = input_record[2]
-
-            image = read_image(input_record[0], grayscale=False)
             if self.transform is not None:
                 image, _ = self.transform((image, ''))
 
-            output_record = image, pid, cam_id
+            output_record = image, obj_id, cam_id
 
         return output_record
 

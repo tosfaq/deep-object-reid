@@ -117,15 +117,8 @@ class VeRiWild(ImageDataset):
                     continue
 
                 camera_id, color_id, type_id = attr_info[rel_image_name]
-
                 full_image_path = join(base_dir, image_name)
-                out_data.append(dict(
-                    img_path=full_image_path,
-                    obj_id=class_id,
-                    cam_id=camera_id,
-                    dataset_id=dataset_id,
-                    attr_color=color_id,
-                    attr_type=type_id
-                ))
+
+                out_data.append((full_image_path, class_id, camera_id, dataset_id, '', color_id, type_id))
 
         return out_data
