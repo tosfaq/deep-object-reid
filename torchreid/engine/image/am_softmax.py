@@ -68,6 +68,7 @@ class ImageAMSoftmaxEngine(Engine):
         for trg_id, trg_num_classes in enumerate(self.num_classes):
             scale_base_size = trg_num_classes if base_num_classes <= 0 else base_num_classes
             scale_factor = np.log(trg_num_classes - 1) / np.log(scale_base_size - 1)
+
             if softmax_type == 'stock':
                 self.main_losses.append(CrossEntropyLoss(
                     use_gpu=self.use_gpu,
@@ -144,20 +145,9 @@ class ImageAMSoftmaxEngine(Engine):
         obj_ids = train_records['obj_id']
         imgs, obj_ids = self._apply_batch_transform(imgs, obj_ids)
 
-        run_kwargs = dict()
-        if self.enable_metric_losses:
-            run_kwargs['get_embeddings'] = True
-        if self.enable_attr or self.enable_masks:
-            run_kwargs['get_extra_data'] = True
+        run_kwargs = self._prepare_run_kwargs()
         model_output = self.model(imgs, **run_kwargs)
-        if self.enable_metric_losses:
-            all_logits, all_embeddings = model_output[:2]
-            all_embeddings = all_embeddings if isinstance(all_embeddings, (tuple, list)) else [all_embeddings]
-        else:
-            all_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
-        all_logits = all_logits if isinstance(all_logits, (tuple, list)) else [all_logits]
-        if self.enable_attr or self.enable_masks:
-            extra_data = model_output[-1]
+        all_logits, all_embeddings, extra_data = self._parse_model_output(model_output)
 
         total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
         loss_summary = dict()
@@ -259,6 +249,32 @@ class ImageAMSoftmaxEngine(Engine):
         self.optimizer.step()
 
         return loss_summary
+
+    def _prepare_run_kwargs(self):
+        run_kwargs = dict()
+        if self.enable_metric_losses:
+            run_kwargs['get_embeddings'] = True
+        if self.enable_attr or self.enable_masks:
+            run_kwargs['get_extra_data'] = True
+
+        return run_kwargs
+
+    def _parse_model_output(self, model_output):
+        if self.enable_metric_losses:
+            all_logits, all_embeddings = model_output[:2]
+            all_embeddings = all_embeddings if isinstance(all_embeddings, (tuple, list)) else [all_embeddings]
+        else:
+            all_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
+            all_embeddings = None
+
+        all_logits = all_logits if isinstance(all_logits, (tuple, list)) else [all_logits]
+
+        if self.enable_attr or self.enable_masks:
+            extra_data = model_output[-1]
+        else:
+            extra_data = None
+
+        return all_logits, all_embeddings, extra_data
 
     def _apply_batch_transform(self, imgs, obj_ids):
         if self.batch_transform_cfg.enable:

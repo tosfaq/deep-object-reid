@@ -84,7 +84,6 @@ class ImageTripletEngine(Engine):
 
         self.criterion_t = TripletLoss(margin=margin)
         self.criterion_x = CrossEntropyLoss(
-            num_classes=self.datamanager.num_train_pids,
             use_gpu=self.use_gpu,
             label_smooth=label_smooth,
             conf_penalty=conf_penalty
