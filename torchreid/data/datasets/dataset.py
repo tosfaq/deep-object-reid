@@ -204,9 +204,10 @@ class Dataset:
                 continue
 
             dataset_id = record[3] if len(record) > 3 else 0
-            obj_id = id2label_map[dataset_id][obj_id] + num_train_ids[dataset_id]
+            ids_shift = num_train_ids[dataset_id] if dataset_id in num_train_ids else 0
+            updated_obj_id = id2label_map[dataset_id][obj_id] + ids_shift
 
-            updated_record = record[:1] + (obj_id,) + record[2:]
+            updated_record = record[:1] + (updated_obj_id,) + record[2:]
             out_data.append(updated_record)
 
         return out_data
