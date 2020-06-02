@@ -58,6 +58,7 @@ def get_default_config():
     cfg.sampler.train_sampler = 'RandomSampler'
     cfg.sampler.batch_num_instances = 4  # number of instances per identity for RandomIdentitySampler
     cfg.sampler.epoch_num_instances = -1
+    cfg.sampler.fill_instances = False
 
     # video reid setting
     cfg.video = CN()
@@ -284,6 +285,7 @@ def imagedata_kwargs(cfg):
         'workers': cfg.data.workers,
         'batch_num_instances': cfg.sampler.batch_num_instances,
         'epoch_num_instances': cfg.sampler.epoch_num_instances,
+        'fill_instances': cfg.sampler.fill_instances,
         'train_sampler': cfg.sampler.train_sampler,
         'enable_masks': cfg.data.enable_masks,
         # image

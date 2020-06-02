@@ -11,6 +11,7 @@ For instance, your datasets are put under $DATA and you wanna
 compute the statistics of Market1501, do
 $ python compute_mean_std.py $DATA market1501
 """
+
 import argparse
 
 import torchreid

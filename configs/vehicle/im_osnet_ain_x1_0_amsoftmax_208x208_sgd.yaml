@@ -49,6 +49,7 @@ sampler:
   train_sampler: 'RandomIdentitySamplerV2'
   batch_num_instances: 4
   epoch_num_instances: -1
+  fill_instances: True
 
 loss:
   name: 'am_softmax'

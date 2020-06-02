@@ -17,14 +17,54 @@
 import argparse
 from PIL import Image
 
-import torch
-import onnx
 import numpy as np
+import onnx
+import torch
+from torch.onnx.symbolic_registry import register_op
+from torch.onnx.symbolic_helper import parse_args
 
 from torchreid.models import build_model
 from torchreid.utils import load_pretrained_weights
 from torchreid.data.transforms import build_inference_transform
 from scripts.default_config import get_default_config, model_kwargs
+
+
+@parse_args('v', 'i', 'v', 'v', 'f', 'i')
+def group_norm_symbolic(g, input, num_groups, weight, bias, eps, cudnn_enabled):
+    from torch.onnx.symbolic_opset9 import reshape, mul, add, reshape_as
+
+    channels_num = input.type().sizes()[1]
+
+    if num_groups == channels_num:
+        output = g.op('InstanceNormalization', input, weight, bias, epsilon_f=eps)
+    else:
+        # Reshape from [n, g * cg, h, w] to [1, n * g, cg * h, w].
+        x = reshape(g, input, [0, num_groups, -1, 0])
+        x = reshape(g, x, [1, -1, 0, 0])
+        # Normalize channel-wise.
+        x = g.op('MeanVarianceNormalization', x, axes_i=[2, 3])
+        # Reshape back.
+        x = reshape_as(g, x, input)
+        # Apply affine transform.
+        x = mul(g, x, reshape(g, weight, [1, channels_num, 1, 1]))
+        output = add(g, x, reshape(g, bias, [1, channels_num, 1, 1]))
+
+    return output
+
+
+def parse_num_classes(source_datasets):
+    num_clustered = 0
+    num_rest = 0
+    for src in source_datasets:
+        if isinstance(src, (tuple, list)):
+            num_clustered += 1
+        else:
+            num_rest += 1
+
+    total_num_sources = num_clustered + int(num_rest > 0)
+    assert total_num_sources > 0
+
+    return [0] * total_num_sources  # dummy number of classes
 
 
 def random_image(height, width):
@@ -37,6 +77,10 @@ def random_image(height, width):
     return out_img
 
 
+def reset_config(cfg):
+    cfg.model.download_weights = False
+
+
 def main():
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -44,6 +88,7 @@ def main():
                         help='Path to config file')
     parser.add_argument('--output-name', type=str, default='model',
                         help='Path to save ONNX model')
+    parser.add_argument('--opset', type=int, default=9)
     parser.add_argument('--verbose', default=False, action='store_true',
                         help='Verbose mode for onnx.export')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
@@ -54,10 +99,11 @@ def main():
     cfg.use_gpu = torch.cuda.is_available()
     if args.config_file:
         cfg.merge_from_file(args.config_file)
+    reset_config(cfg)
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 
-    num_classes = [0, 0]  # dummy num classes for two-head architecture
+    num_classes = parse_num_classes(cfg.data.sources)
     model = build_model(**model_kwargs(cfg, num_classes))
     load_pretrained_weights(model, cfg.model.load_weights)
     model.eval()
@@ -72,16 +118,29 @@ def main():
     input_img = random_image(cfg.data.height, cfg.data.width)
     input_blob = transform(input_img).unsqueeze(0)
 
-    input_names = ['input']
-    output_names = ['output']
-    dynamic_axes = {'input': {0: 'batch_size', 1: 'channels', 2: 'height', 3: 'width'},
-                    'output': {0: 'batch_size', 1: 'dim'}}
-    output_file_path = '{}.onnx'.format(args.output_name)
-    torch.onnx.export(
-        model, input_blob, output_file_path, verbose=args.verbose, export_params=True,
-        input_names=input_names, output_names=output_names, dynamic_axes=dynamic_axes,
-        operator_export_type=torch.onnx.OperatorExportTypes.ONNX
-    )
+    input_names = ['data']
+    output_names = ['reid_embedding']
+    dynamic_axes = {'data': {0: 'batch_size', 1: 'channels', 2: 'height', 3: 'width'},
+                    'reid_embedding': {0: 'batch_size', 1: 'dim'}}
+
+    output_file_path = args.output_name
+    if not args.output_name.endswith('.onnx'):
+        output_file_path += '.onnx'
+
+    register_op("group_norm", group_norm_symbolic, "", args.opset)
+    with torch.no_grad():
+        torch.onnx.export(
+            model,
+            input_blob,
+            output_file_path,
+            verbose=args.verbose,
+            export_params=True,
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes=dynamic_axes,
+            opset_version=args.opset,
+            operator_export_type=torch.onnx.OperatorExportTypes.ONNX
+        )
 
     net_from_onnx = onnx.load(output_file_path)
     try:

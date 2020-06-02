@@ -9,8 +9,8 @@ AVAI_SAMPLERS = ['RandomIdentitySampler', 'RandomIdentitySamplerV2', 'RandomIden
                  'SequentialSampler', 'RandomSampler']
 
 
-def build_train_sampler(data_source, train_sampler, batch_size=32,
-                        batch_num_instances=4, epoch_num_instances=-1, **kwargs):
+def build_train_sampler(data_source, train_sampler, batch_size=32, batch_num_instances=4,
+                        epoch_num_instances=-1, fill_instances=False, **kwargs):
     """Builds a training sampler.
 
     Args:
@@ -28,7 +28,7 @@ def build_train_sampler(data_source, train_sampler, batch_size=32,
     if train_sampler == 'RandomIdentitySampler':
         sampler = RandomIdentitySampler(data_source, batch_size, batch_num_instances)
     elif train_sampler == 'RandomIdentitySamplerV2':
-        sampler = RandomIdentitySamplerV2(data_source, batch_size, batch_num_instances)
+        sampler = RandomIdentitySamplerV2(data_source, batch_size, batch_num_instances, fill_instances)
     elif train_sampler == 'RandomIdentitySamplerV3':
         sampler = RandomIdentitySamplerV3(data_source, batch_size, batch_num_instances, epoch_num_instances)
     elif train_sampler == 'SequentialSampler':
@@ -118,10 +118,15 @@ class RandomIdentitySampler(Sampler):
 
 
 class RandomIdentitySamplerV2(RandomIdentitySampler):
-    def __init__(self, data_source, batch_size, num_instances):
+    def __init__(self, data_source, batch_size, num_instances, fill_instances=False):
         super().__init__(data_source, batch_size, num_instances)
 
-        self.length = len(self.data_source) - len(self.data_source) % self.num_instances
+        self.fill_instances = fill_instances
+        if self.fill_instances:
+            self.length = sum([len(trg_idxs) + len(trg_idxs) % self.num_instances
+                               for trg_pids in self.index_dict.values() for trg_idxs in trg_pids.values()])
+        else:
+            self.length = len(self.data_source) - len(self.data_source) % self.num_instances
 
     def __iter__(self):
         final_pids = [(trg_name, trg_pid) for trg_name, trg_pids in self.pids.items() for trg_pid in trg_pids]
@@ -129,11 +134,16 @@ class RandomIdentitySamplerV2(RandomIdentitySampler):
 
         output_ids = []
         for trg_name, trg_pid in final_pids:
-            random.shuffle(self.index_dict[trg_name][trg_pid])
-            output_ids += self.index_dict[trg_name][trg_pid]
+            candidates = self.index_dict[trg_name][trg_pid]
+            random.shuffle(candidates)
 
-        extra_samples = len(output_ids) % self.num_instances
-        output_ids = output_ids[: len(output_ids) - extra_samples]
+            output_ids += candidates
+            if self.fill_instances and len(candidates) % self.num_instances > 0:
+                extra_size = len(candidates) % self.num_instances
+                output_ids += np.random.choice(candidates, size=extra_size, replace=True).tolist()
+
+        num_rest_samples = len(output_ids) % self.num_instances
+        output_ids = output_ids[: len(output_ids) - num_rest_samples]
 
         ids = np.array(output_ids)
         ids = ids.reshape((-1, self.num_instances))
@@ -141,9 +151,6 @@ class RandomIdentitySamplerV2(RandomIdentitySampler):
         ids = ids.reshape((-1))
 
         return iter(ids.tolist())
-
-    def __len__(self):
-        return len(self.data_source)
 
 
 class RandomIdentitySamplerV3(Sampler):
