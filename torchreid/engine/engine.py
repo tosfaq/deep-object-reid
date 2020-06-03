@@ -71,7 +71,7 @@ class Engine:
         else:
             return names_real
 
-    def save_model(self, epoch, rank1, save_dir, is_best=False):
+    def save_model(self, epoch, save_dir, is_best=False):
         names = self.get_model_names()
 
         for name in names:
@@ -79,7 +79,6 @@ class Engine:
                 {
                     'state_dict': self._models[name].state_dict(),
                     'epoch': epoch + 1,
-                    'rank1': rank1,
                     'optimizer': self._optims[name].state_dict(),
                     'scheduler': self._scheds[name].state_dict()
                 },
@@ -180,7 +179,7 @@ class Engine:
             self.writer = SummaryWriter(log_dir=save_dir)
 
         # Save zeroth checkpoint
-        self.save_model(-1, 0.0, save_dir)
+        self.save_model(-1, save_dir)
 
         time_start = time.time()
         self.start_epoch = start_epoch
@@ -200,7 +199,7 @@ class Engine:
                and (self.epoch+1) % eval_freq == 0 \
                and (self.epoch + 1) != self.max_epoch:
 
-                rank1 = self.test(
+                self.test(
                     self.epoch,
                     dist_metric=dist_metric,
                     normalize_feature=normalize_feature,
@@ -210,12 +209,11 @@ class Engine:
                     use_metric_cuhk03=use_metric_cuhk03,
                     ranks=ranks
                 )
-                self.save_model(self.epoch, rank1, save_dir)
-                self.writer.add_scalar('Test/rank1', rank1, self.epoch)
+                self.save_model(self.epoch, save_dir)
 
         if self.max_epoch > 0:
             print('=> Final test')
-            rank1 = self.test(
+            self.test(
                 self.epoch,
                 dist_metric=dist_metric,
                 normalize_feature=normalize_feature,
@@ -225,8 +223,7 @@ class Engine:
                 use_metric_cuhk03=use_metric_cuhk03,
                 ranks=ranks
             )
-            self.save_model(self.epoch, rank1, save_dir)
-            self.writer.add_scalar('Test/rank1', rank1, self.epoch)
+            self.save_model(self.epoch, save_dir)
 
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
@@ -282,11 +279,9 @@ class Engine:
                 n_iter = self.epoch * self.num_batches + self.batch_idx
                 self.writer.add_scalar('Train/time', batch_time.avg, n_iter)
                 self.writer.add_scalar('Train/data', data_time.avg, n_iter)
+                self.writer.add_scalar('Aux/lr', self.get_current_lr(), n_iter)
                 for name, meter in losses.meters.items():
-                    self.writer.add_scalar('Train/' + name, meter.avg, n_iter)
-                self.writer.add_scalar(
-                    'Train/lr', self.get_current_lr(), n_iter
-                )
+                    self.writer.add_scalar('Loss/' + name, meter.avg, n_iter)
 
             end = time.time()
 
@@ -328,7 +323,7 @@ class Engine:
             print('##### Evaluating {} ({}) #####'.format(name, domain))
             query_loader = self.test_loader[name]['query']
             gallery_loader = self.test_loader[name]['gallery']
-            rank1 = self._evaluate(
+            self._evaluate(
                 epoch,
                 dataset_name=name,
                 query_loader=query_loader,
@@ -342,8 +337,6 @@ class Engine:
                 ranks=ranks,
                 rerank=rerank
             )
-
-        return rank1
 
     @torch.no_grad()
     def _evaluate(
@@ -437,8 +430,6 @@ class Engine:
                 save_dir=osp.join(save_dir, 'visrank_' + dataset_name),
                 topk=visrank_topk
             )
-
-        return cmc[0]
 
     @staticmethod
     def compute_loss(criterion, outputs, targets, **kwargs):
