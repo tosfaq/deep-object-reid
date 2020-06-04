@@ -101,7 +101,7 @@ class _Transition(nn.Sequential):
 
 class DenseNet(nn.Module):
     """Densely connected network.
-    
+
     Reference:
         Huang et al. Densely Connected Convolutional Networks. CVPR 2017.
 
@@ -261,7 +261,7 @@ class DenseNet(nn.Module):
 
 def init_pretrained_weights(model, model_url):
     """Initializes model with pretrained weights.
-    
+
     Layers that don't match with pretrained layers in name or size are kept unchanged.
     """
     pretrain_dict = model_zoo.load_url(model_url)

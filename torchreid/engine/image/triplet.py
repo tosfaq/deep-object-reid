@@ -69,7 +69,8 @@ class ImageTripletEngine(Engine):
         weight_x=1,
         scheduler=None,
         use_gpu=True,
-        label_smooth=True
+        label_smooth=True,
+        conf_penalty=0.0
     ):
         super(ImageTripletEngine, self).__init__(datamanager, use_gpu)
 
@@ -83,9 +84,9 @@ class ImageTripletEngine(Engine):
 
         self.criterion_t = TripletLoss(margin=margin)
         self.criterion_x = CrossEntropyLoss(
-            num_classes=self.datamanager.num_train_pids,
             use_gpu=self.use_gpu,
-            label_smooth=label_smooth
+            label_smooth=label_smooth,
+            conf_penalty=conf_penalty
         )
 
     def forward_backward(self, data):

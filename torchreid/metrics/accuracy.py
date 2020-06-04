@@ -19,7 +19,7 @@ def accuracy(output, target, topk=(1, )):
         >>> metrics.accuracy(output, target)
     """
     maxk = max(topk)
-    batch_size = target.size(0)
+    batch_size = max(1, target.size(0))
 
     if isinstance(output, (tuple, list)):
         output = output[0]

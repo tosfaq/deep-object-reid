@@ -1,5 +1,5 @@
 model:
-  name: 'osnet_x1_0'
+  name: 'osnet_x0_25'
   pretrained: True
 
 data:
@@ -9,8 +9,11 @@ data:
   height: 256
   width: 128
   combineall: False
-  transforms: ['random_flip']
-  save_dir: 'log/osnet_x1_0_market1501_softmax'
+  transforms:
+    random_flip:
+      enable: True
+      p: 0.5
+  save_dir: 'log/osnet_x0_25_market1501_softmax'
 
 loss:
   name: 'softmax'
@@ -19,13 +22,13 @@ loss:
 
 train:
   optim: 'amsgrad'
-  lr: 0.0015
-  max_epoch: 150
-  batch_size: 64
+  lr: 0.003
+  max_epoch: 180
+  batch_size: 128
   fixbase_epoch: 10
   open_layers: ['classifier']
   lr_scheduler: 'single_step'
-  stepsize: [60]
+  stepsize: [80]
 
 test:
   batch_size: 300

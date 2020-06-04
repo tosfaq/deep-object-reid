@@ -11,3 +11,11 @@ from .msmt17 import MSMT17
 from .sensereid import SenseReID
 from .market1501 import Market1501
 from .dukemtmcreid import DukeMTMCreID
+from .vric import VRIC
+from .veri import VeRi
+from .compcars import CompCars
+from .vmmrdb import VMMRdb
+from .cityflow import CityFlow
+from .universe_models import UniverseModels
+from .vehicle1m import Vehicle1M
+from .veriwild import VeRiWild

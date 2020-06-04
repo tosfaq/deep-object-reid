@@ -1,7 +1,10 @@
 from __future__ import division, print_function, absolute_import
+
 import copy
-import numpy as np
 import os.path as osp
+from collections import defaultdict
+
+import numpy as np
 import tarfile
 import zipfile
 import torch
@@ -9,7 +12,7 @@ import torch
 from torchreid.utils import read_image, download_url, mkdir_if_missing
 
 
-class Dataset(object):
+class Dataset:
     """An abstract class representing a Dataset.
 
     This is the base class for ``ImageDataset`` and ``VideoDataset``.
@@ -20,12 +23,10 @@ class Dataset(object):
         gallery (list): contains tuples of (img_path(s), pid, camid).
         transform: transform function.
         mode (str): 'train', 'query' or 'gallery'.
-        combineall (bool): combines train, query and gallery in a
-            dataset for training.
+        combineall (bool): combines train, query and gallery in a dataset for training.
         verbose (bool): show information.
     """
-    _junk_pids = [
-    ] # contains useless person IDs, e.g. background, false detections
+    _junk_pids = []  # contains useless person IDs, e.g. background, false detections
 
     def __init__(
         self,
@@ -48,6 +49,7 @@ class Dataset(object):
 
         self.num_train_pids = self.get_num_pids(self.train)
         self.num_train_cams = self.get_num_cams(self.train)
+        self.data_counts = self.get_data_counts(self.train)
 
         if self.combineall:
             self.combine_all()
@@ -59,10 +61,8 @@ class Dataset(object):
         elif self.mode == 'gallery':
             self.data = self.gallery
         else:
-            raise ValueError(
-                'Invalid mode. Got {}, but expected to be '
-                'one of [train | query | gallery]'.format(self.mode)
-            )
+            raise ValueError('Invalid mode. Got {}, but expected to be '
+                             'one of [train | query | gallery]'.format(self.mode))
 
         if self.verbose:
             self.show_summary()
@@ -75,12 +75,25 @@ class Dataset(object):
 
     def __add__(self, other):
         """Adds two datasets together (only the train set)."""
-        train = copy.deepcopy(self.train)
+        updated_train = copy.deepcopy(self.train)
 
-        for img_path, pid, camid in other.train:
-            pid += self.num_train_pids
-            camid += self.num_train_cams
-            train.append((img_path, pid, camid))
+        for record in other.train:
+            dataset_id = record[3] if len(record) > 3 else 0
+
+            num_train_pids = 0
+            if dataset_id in self.num_train_pids:
+                num_train_pids = self.num_train_pids[dataset_id]
+            old_obj_id = record[1]
+            new_obj_id = old_obj_id + num_train_pids
+
+            num_train_cams = 0
+            if dataset_id in self.num_train_cams:
+                num_train_cams = self.num_train_cams[dataset_id]
+            old_cam_id = record[2]
+            new_cam_id = old_cam_id + num_train_cams
+
+            updated_record = record[:1] + (new_obj_id, new_cam_id) + record[3:]
+            updated_train.append(updated_record)
 
         ###################################
         # Things to do beforehand:
@@ -89,9 +102,11 @@ class Dataset(object):
         #    if it was True for a specific dataset, setting it to True will
         #    create new IDs that should have been included
         ###################################
-        if isinstance(train[0][0], str):
+
+        first_field = updated_train[0][0]
+        if isinstance(first_field, str):
             return ImageDataset(
-                train,
+                updated_train,
                 self.query,
                 self.gallery,
                 transform=self.transform,
@@ -101,7 +116,7 @@ class Dataset(object):
             )
         else:
             return VideoDataset(
-                train,
+                updated_train,
                 self.query,
                 self.gallery,
                 transform=self.transform,
@@ -119,19 +134,26 @@ class Dataset(object):
         else:
             return self.__add__(other)
 
-    def parse_data(self, data):
+    @staticmethod
+    def parse_data(data):
         """Parses data list and returns the number of person IDs
         and the number of camera views.
 
         Args:
             data (list): contains tuples of (img_path(s), pid, camid)
         """
-        pids = set()
-        cams = set()
-        for _, pid, camid in data:
-            pids.add(pid)
-            cams.add(camid)
-        return len(pids), len(cams)
+
+        pids, cams = defaultdict(set), defaultdict(set)
+        for record in data:
+            dataset_id = record[3] if len(record) > 3 else 0
+
+            pids[dataset_id].add(record[1])
+            cams[dataset_id].add(record[2])
+
+        num_pids = {dataset_id: len(dataset_pids) for dataset_id, dataset_pids in pids.items()}
+        num_cams = {dataset_id: len(dataset_cams) for dataset_id, dataset_cams in cams.items()}
+
+        return num_pids, num_cams
 
     def get_num_pids(self, data):
         """Returns the number of training person identities."""
@@ -141,31 +163,68 @@ class Dataset(object):
         """Returns the number of training cameras."""
         return self.parse_data(data)[1]
 
+    @staticmethod
+    def get_data_counts(data):
+        counts = dict()
+        for record in data:
+            dataset_id = record[3] if len(record) > 3 else 0
+            if dataset_id not in counts:
+                counts[dataset_id] = defaultdict(int)
+
+            obj_id = record[1]
+            counts[dataset_id][obj_id] += 1
+
+        return counts
+
     def show_summary(self):
         """Shows dataset statistics."""
         pass
+
+    @staticmethod
+    def _get_obj_ids(data, junk_obj_ids, obj_ids=None):
+        if obj_ids is None:
+            obj_ids = defaultdict(set)
+
+        for record in data:
+            obj_id = record[1]
+            if obj_id in junk_obj_ids:
+                continue
+
+            dataset_id = record[3] if len(record) > 3 else 0
+            obj_ids[dataset_id].add(obj_id)
+
+        return obj_ids
+
+    @staticmethod
+    def _relabel(data, junk_obj_ids, id2label_map, num_train_ids):
+        out_data = []
+        for record in data:
+            obj_id = record[1]
+            if obj_id in junk_obj_ids:
+                continue
+
+            dataset_id = record[3] if len(record) > 3 else 0
+            ids_shift = num_train_ids[dataset_id] if dataset_id in num_train_ids else 0
+            updated_obj_id = id2label_map[dataset_id][obj_id] + ids_shift
+
+            updated_record = record[:1] + (updated_obj_id,) + record[2:]
+            out_data.append(updated_record)
+
+        return out_data
 
     def combine_all(self):
         """Combines train, query and gallery in a dataset for training."""
         combined = copy.deepcopy(self.train)
 
-        # relabel pids in gallery (query shares the same scope)
-        g_pids = set()
-        for _, pid, _ in self.gallery:
-            if pid in self._junk_pids:
-                continue
-            g_pids.add(pid)
-        pid2label = {pid: i for i, pid in enumerate(g_pids)}
+        new_obj_ids = self._get_obj_ids(self.query, self._junk_pids)
+        new_obj_ids = self._get_obj_ids(self.gallery, self._junk_pids, new_obj_ids)
 
-        def _combine_data(data):
-            for img_path, pid, camid in data:
-                if pid in self._junk_pids:
-                    continue
-                pid = pid2label[pid] + self.num_train_pids
-                combined.append((img_path, pid, camid))
+        id2label_map = dict()
+        for dataset_id, dataset_ids in new_obj_ids.items():
+            id2label_map[dataset_id] = {obj_id: i for i, obj_id in enumerate(set(dataset_ids))}
 
-        _combine_data(self.query)
-        _combine_data(self.gallery)
+        combined += self._relabel(self.query, self._junk_pids, id2label_map, self.num_train_pids)
+        combined += self._relabel(self.gallery, self._junk_pids, id2label_map, self.num_train_pids)
 
         self.train = combined
         self.num_train_pids = self.get_num_pids(self.train)
@@ -212,7 +271,8 @@ class Dataset(object):
 
         print('{} dataset is ready'.format(self.__class__.__name__))
 
-    def check_before_run(self, required_files):
+    @staticmethod
+    def check_before_run(required_files):
         """Checks if required files exist before going deeper.
 
         Args:
@@ -224,6 +284,18 @@ class Dataset(object):
         for fpath in required_files:
             if not osp.exists(fpath):
                 raise RuntimeError('"{}" is not found'.format(fpath))
+
+    @staticmethod
+    def _compress_labels(data):
+        if len(data) == 0:
+            return data
+
+        pid_container = set(record[1] for record in data)
+        pid2label = {pid: label for label, pid in enumerate(pid_container)}
+
+        out_data = [record[:1] + (pid2label[record[1]],) + record[2:] for record in data]
+
+        return out_data
 
     def __repr__(self):
         num_train_pids, num_train_cams = self.parse_data(self.train)
@@ -238,9 +310,9 @@ class Dataset(object):
               '  gallery  | {:5d} | {:7d} | {:9d}\n' \
               '  ----------------------------------------\n' \
               '  items: images/tracklets for image/video dataset\n'.format(
-                  num_train_pids, len(self.train), num_train_cams,
-                  num_query_pids, len(self.query), num_query_cams,
-                  num_gallery_pids, len(self.gallery), num_gallery_cams
+                  sum(num_train_pids.values()), len(self.train), sum(num_train_cams.values()),
+                  sum(num_query_pids.values()), len(self.query), sum(num_query_cams.values()),
+                  sum(num_gallery_pids.values()), len(self.gallery), sum(num_gallery_cams.values())
               )
 
         return msg
@@ -261,11 +333,30 @@ class ImageDataset(Dataset):
         super(ImageDataset, self).__init__(train, query, gallery, **kwargs)
 
     def __getitem__(self, index):
-        img_path, pid, camid = self.data[index]
-        img = read_image(img_path)
-        if self.transform is not None:
-            img = self.transform(img)
-        return img, pid, camid, img_path
+        input_record = self.data[index]
+
+        image = read_image(input_record[0], grayscale=False)
+        obj_id = input_record[1]
+        cam_id = input_record[2]
+
+        if len(input_record) > 3:
+            dataset_id = input_record[3]
+
+            mask = ''
+            if input_record[4] != '':
+                mask = read_image(input_record[4], grayscale=True)
+
+            if self.transform is not None:
+                image, mask = self.transform((image, mask))
+
+            output_record = (image, obj_id, cam_id, dataset_id, mask) + input_record[5:]
+        else:
+            if self.transform is not None:
+                image, _ = self.transform((image, ''))
+
+            output_record = image, obj_id, cam_id
+
+        return output_record
 
     def show_summary(self):
         num_train_pids, num_train_cams = self.parse_data(self.train)
@@ -276,21 +367,12 @@ class ImageDataset(Dataset):
         print('  ----------------------------------------')
         print('  subset   | # ids | # images | # cameras')
         print('  ----------------------------------------')
-        print(
-            '  train    | {:5d} | {:8d} | {:9d}'.format(
-                num_train_pids, len(self.train), num_train_cams
-            )
-        )
-        print(
-            '  query    | {:5d} | {:8d} | {:9d}'.format(
-                num_query_pids, len(self.query), num_query_cams
-            )
-        )
-        print(
-            '  gallery  | {:5d} | {:8d} | {:9d}'.format(
-                num_gallery_pids, len(self.gallery), num_gallery_cams
-            )
-        )
+        print('  train    | {:5d} | {:8d} | {:9d}'.format(
+            sum(num_train_pids.values()), len(self.train), sum(num_train_cams.values())))
+        print('  query    | {:5d} | {:8d} | {:9d}'.format(
+            sum(num_query_pids.values()), len(self.query), sum(num_query_cams.values())))
+        print('  gallery  | {:5d} | {:8d} | {:9d}'.format(
+            sum(num_gallery_pids.values()), len(self.gallery), sum(num_gallery_cams.values())))
         print('  ----------------------------------------')
 
 

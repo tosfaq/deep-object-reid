@@ -65,6 +65,7 @@ class VideoSoftmaxEngine(ImageSoftmaxEngine):
         scheduler=None,
         use_gpu=True,
         label_smooth=True,
+        conf_penalty=0.0,
         pooling_method='avg'
     ):
         super(VideoSoftmaxEngine, self).__init__(
@@ -73,7 +74,8 @@ class VideoSoftmaxEngine(ImageSoftmaxEngine):
             optimizer,
             scheduler=scheduler,
             use_gpu=use_gpu,
-            label_smooth=label_smooth
+            label_smooth=label_smooth,
+            conf_penalty=conf_penalty
         )
         self.pooling_method = pooling_method
 

@@ -1,5 +1,8 @@
 from __future__ import division, absolute_import
+
 import warnings
+from collections import OrderedDict
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -9,34 +12,30 @@ __all__ = [
 ]
 
 pretrained_urls = {
-    'osnet_x1_0':
-    'https://drive.google.com/uc?id=1LaG1EJpHrxdAxKnSCJ_i0u-nbxSAeiFY',
-    'osnet_x0_75':
-    'https://drive.google.com/uc?id=1uwA9fElHOk3ZogwbeY5GkLI6QPTX70Hq',
-    'osnet_x0_5':
-    'https://drive.google.com/uc?id=16DGLbZukvVYgINws8u8deSaOqjybZ83i',
-    'osnet_x0_25':
-    'https://drive.google.com/uc?id=1rb8UN5ZzPKRc_xvtHlyDh-cSz88YX9hs',
-    'osnet_ibn_x1_0':
-    'https://drive.google.com/uc?id=1sr90V6irlYYDd4_4ISU2iruoRG8J__6l'
+    'osnet_x1_0': 'https://drive.google.com/uc?id=1LaG1EJpHrxdAxKnSCJ_i0u-nbxSAeiFY',
+    'osnet_x0_75': 'https://drive.google.com/uc?id=1uwA9fElHOk3ZogwbeY5GkLI6QPTX70Hq',
+    'osnet_x0_5': 'https://drive.google.com/uc?id=16DGLbZukvVYgINws8u8deSaOqjybZ83i',
+    'osnet_x0_25': 'https://drive.google.com/uc?id=1rb8UN5ZzPKRc_xvtHlyDh-cSz88YX9hs',
+    'osnet_ibn_x1_0': 'https://drive.google.com/uc?id=1sr90V6irlYYDd4_4ISU2iruoRG8J__6l'
 }
 
 
 ##########
 # Basic layers
 ##########
+
 class ConvLayer(nn.Module):
     """Convolution layer (conv + bn + relu)."""
 
     def __init__(
-        self,
-        in_channels,
-        out_channels,
-        kernel_size,
-        stride=1,
-        padding=0,
-        groups=1,
-        IN=False
+            self,
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=1,
+            padding=0,
+            groups=1,
+            IN=False
     ):
         super(ConvLayer, self).__init__()
         self.conv = nn.Conv2d(
@@ -159,17 +158,18 @@ class LightConv3x3(nn.Module):
 ##########
 # Building blocks for omni-scale feature learning
 ##########
+
 class ChannelGate(nn.Module):
     """A mini-network that generates channel-wise gates conditioned on input tensor."""
 
     def __init__(
-        self,
-        in_channels,
-        num_gates=None,
-        return_gates=False,
-        gate_activation='sigmoid',
-        reduction=16,
-        layer_norm=False
+            self,
+            in_channels,
+            num_gates=None,
+            return_gates=False,
+            gate_activation='sigmoid',
+            reduction=16,
+            layer_norm=False
     ):
         super(ChannelGate, self).__init__()
         if num_gates is None:
@@ -224,12 +224,12 @@ class OSBlock(nn.Module):
     """Omni-scale feature learning block."""
 
     def __init__(
-        self,
-        in_channels,
-        out_channels,
-        IN=False,
-        bottleneck_reduction=4,
-        **kwargs
+            self,
+            in_channels,
+            out_channels,
+            IN=False,
+            bottleneck_reduction=4,
+            **kwargs
     ):
         super(OSBlock, self).__init__()
         mid_channels = out_channels // bottleneck_reduction
@@ -279,9 +279,10 @@ class OSBlock(nn.Module):
 ##########
 # Network architecture
 ##########
+
 class OSNet(nn.Module):
     """Omni-Scale Network.
-    
+
     Reference:
         - Zhou et al. Omni-Scale Feature Learning for Person Re-Identification. ICCV, 2019.
         - Zhou et al. Learning Generalisable Omni-Scale Representations
@@ -289,15 +290,15 @@ class OSNet(nn.Module):
     """
 
     def __init__(
-        self,
-        num_classes,
-        blocks,
-        layers,
-        channels,
-        feature_dim=512,
-        loss='softmax',
-        IN=False,
-        **kwargs
+            self,
+            num_classes,
+            blocks,
+            layers,
+            channels,
+            feature_dim=512,
+            loss='softmax',
+            IN=False,
+            **kwargs
     ):
         super(OSNet, self).__init__()
         num_blocks = len(blocks)
@@ -342,13 +343,13 @@ class OSNet(nn.Module):
         self._init_params()
 
     def _make_layer(
-        self,
-        block,
-        layer,
-        in_channels,
-        out_channels,
-        reduce_spatial_size,
-        IN=False
+            self,
+            block,
+            layer,
+            in_channels,
+            out_channels,
+            reduce_spatial_size,
+            IN=False
     ):
         layers = []
 
@@ -436,16 +437,48 @@ class OSNet(nn.Module):
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
+    def load_pretrained_weights(self, pretrained_dict):
+        model_dict = self.state_dict()
+        new_state_dict = OrderedDict()
+        matched_layers, discarded_layers = [], []
+
+        for k, v in pretrained_dict.items():
+            if k.startswith('module.'):
+                k = k[7:]  # discard module.
+
+            if k in model_dict and model_dict[k].size() == v.size():
+                new_state_dict[k] = v
+                matched_layers.append(k)
+            else:
+                discarded_layers.append(k)
+
+        model_dict.update(new_state_dict)
+        self.load_state_dict(model_dict)
+
+        if len(matched_layers) == 0:
+            warnings.warn(
+                'The pretrained weights cannot be loaded, '
+                'please check the key names manually '
+                '(** ignored and continue **)'
+            )
+        else:
+            print('Successfully loaded pretrained weights')
+            if len(discarded_layers) > 0:
+                print(
+                    '** The following layers are discarded '
+                    'due to unmatched keys or layer size: {}'.
+                    format(discarded_layers)
+                )
+
 
 def init_pretrained_weights(model, key=''):
     """Initializes model with pretrained weights.
-    
+
     Layers that don't match with pretrained layers in name or size are kept unchanged.
     """
     import os
     import errno
     import gdown
-    from collections import OrderedDict
 
     def _get_torch_home():
         ENV_TORCH_HOME = 'TORCH_HOME'
@@ -467,10 +500,8 @@ def init_pretrained_weights(model, key=''):
         os.makedirs(model_dir)
     except OSError as e:
         if e.errno == errno.EEXIST:
-            # Directory already exists, ignore.
             pass
         else:
-            # Unexpected OSError, re-raise.
             raise
     filename = key + '_imagenet.pth'
     cached_file = os.path.join(model_dir, filename)
@@ -479,108 +510,78 @@ def init_pretrained_weights(model, key=''):
         gdown.download(pretrained_urls[key], cached_file, quiet=False)
 
     state_dict = torch.load(cached_file)
-    model_dict = model.state_dict()
-    new_state_dict = OrderedDict()
-    matched_layers, discarded_layers = [], []
-
-    for k, v in state_dict.items():
-        if k.startswith('module.'):
-            k = k[7:] # discard module.
-
-        if k in model_dict and model_dict[k].size() == v.size():
-            new_state_dict[k] = v
-            matched_layers.append(k)
-        else:
-            discarded_layers.append(k)
-
-    model_dict.update(new_state_dict)
-    model.load_state_dict(model_dict)
-
-    if len(matched_layers) == 0:
-        warnings.warn(
-            'The pretrained weights from "{}" cannot be loaded, '
-            'please check the key names manually '
-            '(** ignored and continue **)'.format(cached_file)
-        )
-    else:
-        print(
-            'Successfully loaded imagenet pretrained weights from "{}"'.
-            format(cached_file)
-        )
-        if len(discarded_layers) > 0:
-            print(
-                '** The following layers are discarded '
-                'due to unmatched keys or layer size: {}'.
-                format(discarded_layers)
-            )
+    model.load_pretrained_weights(state_dict)
 
 
 ##########
 # Instantiation
 ##########
-def osnet_x1_0(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
+
+def osnet_x1_0(num_classes, pretrained=False, download_weights=False, **kwargs):
     # standard size (width x1.0)
     model = OSNet(
         num_classes,
         blocks=[OSBlock, OSBlock, OSBlock],
         layers=[2, 2, 2],
         channels=[64, 256, 384, 512],
-        loss=loss,
         **kwargs
     )
-    if pretrained:
+
+    if pretrained and download_weights:
         init_pretrained_weights(model, key='osnet_x1_0')
+
     return model
 
 
-def osnet_x0_75(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
+def osnet_x0_75(num_classes, pretrained=False, download_weights=False, **kwargs):
     # medium size (width x0.75)
     model = OSNet(
         num_classes,
         blocks=[OSBlock, OSBlock, OSBlock],
         layers=[2, 2, 2],
         channels=[48, 192, 288, 384],
-        loss=loss,
         **kwargs
     )
-    if pretrained:
+
+    if pretrained and download_weights:
         init_pretrained_weights(model, key='osnet_x0_75')
+
     return model
 
 
-def osnet_x0_5(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
+def osnet_x0_5(num_classes, pretrained=False, download_weights=False, **kwargs):
     # tiny size (width x0.5)
     model = OSNet(
         num_classes,
         blocks=[OSBlock, OSBlock, OSBlock],
         layers=[2, 2, 2],
         channels=[32, 128, 192, 256],
-        loss=loss,
         **kwargs
     )
-    if pretrained:
+
+    if pretrained and download_weights:
         init_pretrained_weights(model, key='osnet_x0_5')
+
     return model
 
 
-def osnet_x0_25(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
+def osnet_x0_25(num_classes, pretrained=False, download_weights=False, **kwargs):
     # very tiny size (width x0.25)
     model = OSNet(
         num_classes,
         blocks=[OSBlock, OSBlock, OSBlock],
         layers=[2, 2, 2],
         channels=[16, 64, 96, 128],
-        loss=loss,
         **kwargs
     )
-    if pretrained:
+
+    if pretrained and download_weights:
         init_pretrained_weights(model, key='osnet_x0_25')
+
     return model
 
 
-def osnet_ibn_x1_0(
-    num_classes=1000, pretrained=True, loss='softmax', **kwargs
-):
+def osnet_ibn_x1_0(num_classes, pretrained=False, download_weights=False, **kwargs):
     # standard size (width x1.0) + IBN layer
     # Ref: Pan et al. Two at Once: Enhancing Learning and Generalization Capacities via IBN-Net. ECCV, 2018.
     model = OSNet(
@@ -588,10 +589,11 @@ def osnet_ibn_x1_0(
         blocks=[OSBlock, OSBlock, OSBlock],
         layers=[2, 2, 2],
         channels=[64, 256, 384, 512],
-        loss=loss,
         IN=True,
         **kwargs
     )
-    if pretrained:
+
+    if pretrained and download_weights:
         init_pretrained_weights(model, key='osnet_ibn_x1_0')
+
     return model

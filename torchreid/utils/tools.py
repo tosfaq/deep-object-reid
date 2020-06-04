@@ -94,27 +94,28 @@ def download_url(url, dst):
     sys.stdout.write('\n')
 
 
-def read_image(path):
+def read_image(path, grayscale=False):
     """Reads image from path using ``PIL.Image``.
 
     Args:
         path (str): path to an image.
+        grayscale (bool): load grayscale image
 
     Returns:
         PIL image
     """
+
     got_img = False
     if not osp.exists(path):
         raise IOError('"{}" does not exist'.format(path))
+
     while not got_img:
         try:
-            img = Image.open(path).convert('RGB')
+            img = Image.open(path).convert('L' if grayscale else 'RGB')
             got_img = True
         except IOError:
-            print(
-                'IOError incurred when reading "{}". Will redo. Don\'t worry. Just chill.'
-                .format(path)
-            )
+            print('IOError incurred when reading "{}". Will redo. Don\'t worry. Just chill.'.format(path))
+
     return img
 
 

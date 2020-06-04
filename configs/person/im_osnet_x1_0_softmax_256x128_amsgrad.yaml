@@ -1,5 +1,5 @@
 model:
-  name: 'resnet50_fc512'
+  name: 'osnet_x1_0'
   pretrained: True
 
 data:
@@ -9,8 +9,11 @@ data:
   height: 256
   width: 128
   combineall: False
-  transforms: ['random_flip']
-  save_dir: 'log/resnet50_fc512_market1501_softmax'
+  transforms:
+    random_flip:
+      enable: True
+      p: 0.5
+  save_dir: 'log/osnet_x1_0_market1501_softmax'
 
 loss:
   name: 'softmax'
@@ -19,16 +22,16 @@ loss:
 
 train:
   optim: 'amsgrad'
-  lr: 0.0003
-  max_epoch: 60
-  batch_size: 32
-  fixbase_epoch: 5
-  open_layers: ['fc', 'classifier']
+  lr: 0.0015
+  max_epoch: 150
+  batch_size: 64
+  fixbase_epoch: 10
+  open_layers: ['classifier']
   lr_scheduler: 'single_step'
-  stepsize: [20]
+  stepsize: [60]
 
 test:
-  batch_size: 100
+  batch_size: 300
   dist_metric: 'euclidean'
   normalize_feature: False
   evaluate: False

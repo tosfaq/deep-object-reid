@@ -1,16 +1,19 @@
 model:
-  name: 'osnet_ibn_x1_0'
+  name: 'resnet50_fc512'
   pretrained: True
 
 data:
   type: 'image'
   sources: ['market1501']
-  targets: ['dukemtmcreid']
+  targets: ['market1501']
   height: 256
   width: 128
   combineall: False
-  transforms: ['random_flip', 'color_jitter']
-  save_dir: 'log/osnet_ibn_x1_0_market2duke_softmax'
+  transforms:
+    random_flip:
+      enable: True
+      p: 0.5
+  save_dir: 'log/resnet50_market1501_softmax'
 
 loss:
   name: 'softmax'
@@ -19,16 +22,16 @@ loss:
 
 train:
   optim: 'amsgrad'
-  lr: 0.0015
-  max_epoch: 150
-  batch_size: 64
-  fixbase_epoch: 10
+  lr: 0.0003
+  max_epoch: 60
+  batch_size: 32
+  fixbase_epoch: 5
   open_layers: ['classifier']
   lr_scheduler: 'single_step'
-  stepsize: [60]
+  stepsize: [20]
 
 test:
-  batch_size: 300
+  batch_size: 100
   dist_metric: 'euclidean'
   normalize_feature: False
   evaluate: False

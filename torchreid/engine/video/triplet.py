@@ -75,6 +75,7 @@ class VideoTripletEngine(ImageTripletEngine, VideoSoftmaxEngine):
         scheduler=None,
         use_gpu=True,
         label_smooth=True,
+        conf_penalty=0.0,
         pooling_method='avg'
     ):
         super(VideoTripletEngine, self).__init__(
@@ -86,6 +87,7 @@ class VideoTripletEngine(ImageTripletEngine, VideoSoftmaxEngine):
             weight_x=weight_x,
             scheduler=scheduler,
             use_gpu=use_gpu,
-            label_smooth=label_smooth
+            label_smooth=label_smooth,
+            conf_penalty=conf_penalty
         )
         self.pooling_method = pooling_method

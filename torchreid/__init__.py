@@ -1,6 +1,6 @@
 from __future__ import print_function, absolute_import
 
-from torchreid import data, optim, utils, engine, losses, models, metrics
+from torchreid import data, optim, utils, engine, losses, models, metrics, ops
 
 __version__ = '1.2.3'
 __author__ = 'Kaiyang Zhou'

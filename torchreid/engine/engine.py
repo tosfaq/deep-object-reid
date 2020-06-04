@@ -16,15 +16,12 @@ from torchreid.utils import (
 from torchreid.losses import DeepSupervision
 
 
-class Engine(object):
+class Engine:
     r"""A generic base Engine class for both image- and video-reid.
 
     Args:
         datamanager (DataManager): an instance of ``torchreid.data.ImageDataManager``
             or ``torchreid.data.VideoDataManager``.
-        model (nn.Module): model instance.
-        optimizer (Optimizer): an Optimizer.
-        scheduler (LRScheduler, optional): if None, no learning rate decay will be performed.
         use_gpu (bool, optional): use gpu. Default is True.
     """
 
@@ -74,7 +71,7 @@ class Engine(object):
         else:
             return names_real
 
-    def save_model(self, epoch, rank1, save_dir, is_best=False):
+    def save_model(self, epoch, save_dir, is_best=False):
         names = self.get_model_names()
 
         for name in names:
@@ -82,7 +79,6 @@ class Engine(object):
                 {
                     'state_dict': self._models[name].state_dict(),
                     'epoch': epoch + 1,
-                    'rank1': rank1,
                     'optimizer': self._optims[name].state_dict(),
                     'scheduler': self._scheds[name].state_dict()
                 },
@@ -163,9 +159,7 @@ class Engine(object):
         """
 
         if visrank and not test_only:
-            raise ValueError(
-                'visrank can be set to True only if test_only=True'
-            )
+            raise ValueError('visrank can be set to True only if test_only=True')
 
         if test_only:
             self.test(
@@ -184,9 +178,13 @@ class Engine(object):
         if self.writer is None:
             self.writer = SummaryWriter(log_dir=save_dir)
 
+        # Save zeroth checkpoint
+        self.save_model(-1, save_dir)
+
         time_start = time.time()
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch
+        self.fixbase_epoch = fixbase_epoch
         print('=> Start training')
 
         for self.epoch in range(self.start_epoch, self.max_epoch):
@@ -200,7 +198,8 @@ class Engine(object):
                and eval_freq > 0 \
                and (self.epoch+1) % eval_freq == 0 \
                and (self.epoch + 1) != self.max_epoch:
-                rank1 = self.test(
+
+                self.test(
                     self.epoch,
                     dist_metric=dist_metric,
                     normalize_feature=normalize_feature,
@@ -210,12 +209,11 @@ class Engine(object):
                     use_metric_cuhk03=use_metric_cuhk03,
                     ranks=ranks
                 )
-                self.save_model(self.epoch, rank1, save_dir)
-                self.writer.add_scalar('Test/rank1', rank1, self.epoch)
+                self.save_model(self.epoch, save_dir)
 
         if self.max_epoch > 0:
             print('=> Final test')
-            rank1 = self.test(
+            self.test(
                 self.epoch,
                 dist_metric=dist_metric,
                 normalize_feature=normalize_feature,
@@ -225,12 +223,12 @@ class Engine(object):
                 use_metric_cuhk03=use_metric_cuhk03,
                 ranks=ranks
             )
-            self.save_model(self.epoch, rank1, save_dir)
-            self.writer.add_scalar('Test/rank1', rank1, self.epoch)
+            self.save_model(self.epoch, save_dir)
 
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
         print('Elapsed {}'.format(elapsed))
+
         if self.writer is not None:
             self.writer.close()
 
@@ -255,9 +253,7 @@ class Engine(object):
 
             if (self.batch_idx + 1) % print_freq == 0:
                 nb_this_epoch = self.num_batches - (self.batch_idx + 1)
-                nb_future_epochs = (
-                    self.max_epoch - (self.epoch + 1)
-                ) * self.num_batches
+                nb_future_epochs = (self.max_epoch - (self.epoch + 1)) * self.num_batches
                 eta_seconds = batch_time.avg * (nb_this_epoch+nb_future_epochs)
                 eta_str = str(datetime.timedelta(seconds=int(eta_seconds)))
                 print(
@@ -283,11 +279,9 @@ class Engine(object):
                 n_iter = self.epoch * self.num_batches + self.batch_idx
                 self.writer.add_scalar('Train/time', batch_time.avg, n_iter)
                 self.writer.add_scalar('Train/data', data_time.avg, n_iter)
+                self.writer.add_scalar('Aux/lr', self.get_current_lr(), n_iter)
                 for name, meter in losses.meters.items():
-                    self.writer.add_scalar('Train/' + name, meter.avg, n_iter)
-                self.writer.add_scalar(
-                    'Train/lr', self.get_current_lr(), n_iter
-                )
+                    self.writer.add_scalar('Loss/' + name, meter.avg, n_iter)
 
             end = time.time()
 
@@ -329,7 +323,7 @@ class Engine(object):
             print('##### Evaluating {} ({}) #####'.format(name, domain))
             query_loader = self.test_loader[name]['query']
             gallery_loader = self.test_loader[name]['gallery']
-            rank1 = self._evaluate(
+            self._evaluate(
                 epoch,
                 dataset_name=name,
                 query_loader=query_loader,
@@ -343,8 +337,6 @@ class Engine(object):
                 ranks=ranks,
                 rerank=rerank
             )
-
-        return rank1
 
     @torch.no_grad()
     def _evaluate(
@@ -397,9 +389,7 @@ class Engine(object):
             qf = F.normalize(qf, p=2, dim=1)
             gf = F.normalize(gf, p=2, dim=1)
 
-        print(
-            'Computing distance matrix with metric={} ...'.format(dist_metric)
-        )
+        print('Computing distance matrix with metric={} ...'.format(dist_metric))
         distmat = metrics.compute_distance_matrix(qf, gf, dist_metric)
         distmat = distmat.numpy()
 
@@ -419,11 +409,16 @@ class Engine(object):
             use_metric_cuhk03=use_metric_cuhk03
         )
 
+        if self.writer is not None:
+            self.writer.add_scalar('Val/{}/mAP'.format(dataset_name), mAP, epoch + 1)
+            for r in ranks:
+                self.writer.add_scalar('Val/{}/Rank-{}'.format(dataset_name, r), cmc[r - 1], epoch + 1)
+
         print('** Results **')
-        print('mAP: {:.1%}'.format(mAP))
+        print('mAP: {:.2%}'.format(mAP))
         print('CMC curve')
         for r in ranks:
-            print('Rank-{:<3}: {:.1%}'.format(r, cmc[r - 1]))
+            print('Rank-{:<3}: {:.2%}'.format(r, cmc[r - 1]))
 
         if visrank:
             visualize_ranked_results(
@@ -436,32 +431,54 @@ class Engine(object):
                 topk=visrank_topk
             )
 
-        return cmc[0]
-
-    def compute_loss(self, criterion, outputs, targets):
+    @staticmethod
+    def compute_loss(criterion, outputs, targets, **kwargs):
         if isinstance(outputs, (tuple, list)):
-            loss = DeepSupervision(criterion, outputs, targets)
+            loss = DeepSupervision(criterion, outputs, targets, **kwargs)
         else:
-            loss = criterion(outputs, targets)
+            loss = criterion(outputs, targets, **kwargs)
         return loss
 
     def extract_features(self, input):
         return self.model(input)
 
-    def parse_data_for_train(self, data):
+    @staticmethod
+    def parse_data_for_train(data, output_dict=False, enable_masks=False, use_gpu=False):
         imgs = data[0]
-        pids = data[1]
-        return imgs, pids
+        obj_ids = data[1]
+        if use_gpu:
+            imgs = imgs.cuda()
+            obj_ids = obj_ids.cuda()
 
-    def parse_data_for_eval(self, data):
+        if output_dict:
+            if len(data) > 3:
+                dataset_ids = data[3].cuda() if use_gpu else data[3]
+
+                masks = None
+                if enable_masks:
+                    masks = data[4].cuda() if use_gpu else data[4]
+
+                attr = [record.cuda() if use_gpu else record for record in data[5:]]
+                if len(attr) == 0:
+                    attr = None
+            else:
+                dataset_ids = torch.zeros_like(obj_ids)
+                masks = None
+                attr = None
+
+            return dict(img=imgs, obj_id=obj_ids, dataset_id=dataset_ids, mask=masks, attr=attr)
+        else:
+            return imgs, obj_ids
+
+    @staticmethod
+    def parse_data_for_eval(data):
         imgs = data[0]
-        pids = data[1]
-        camids = data[2]
-        return imgs, pids, camids
+        obj_ids = data[1]
+        cam_ids = data[2]
 
-    def two_stepped_transfer_learning(
-        self, epoch, fixbase_epoch, open_layers, model=None
-    ):
+        return imgs, obj_ids, cam_ids
+
+    def two_stepped_transfer_learning(self, epoch, fixbase_epoch, open_layers, model=None):
         """Two-stepped transfer learning.
 
         The idea is to freeze base layers for a certain number of epochs
