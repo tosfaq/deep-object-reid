@@ -44,7 +44,7 @@ def get_default_config():
     cfg.data.norm_mean = [0.485, 0.456, 0.406]  # default is imagenet mean
     cfg.data.norm_std = [0.229, 0.224, 0.225]  # default is imagenet std
     cfg.data.save_dir = 'log'  # path to save log
-
+    cfg.data.min_samples_per_id = 1
     # specific datasets
     cfg.market1501 = CN()
     cfg.market1501.use_500k_distractors = False  # add 500k distractors to the gallery set for market1501
@@ -295,6 +295,7 @@ def imagedata_kwargs(cfg):
         'cuhk03_classic_split': cfg.cuhk03.classic_split,
         'market1501_500k': cfg.market1501.use_500k_distractors,
         'apply_masks_to_test': cfg.test.apply_masks,
+        'min_samples_per_id': cfg.data.min_samples_per_id,
     }
 
 
