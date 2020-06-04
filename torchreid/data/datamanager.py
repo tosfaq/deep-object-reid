@@ -183,6 +183,7 @@ class ImageDataManager(DataManager):
         cuhk03_classic_split=False,
         market1501_500k=False,
         apply_masks_to_test=False,
+        min_samples_per_id=0,
     ):
 
         super(ImageDataManager, self).__init__(
@@ -214,6 +215,7 @@ class ImageDataManager(DataManager):
                 cuhk03_labeled=cuhk03_labeled,
                 cuhk03_classic_split=cuhk03_classic_split,
                 market1501_500k=market1501_500k,
+                min_id_samples=min_samples_per_id
             ))
         train_dataset = sum(train_dataset)
 

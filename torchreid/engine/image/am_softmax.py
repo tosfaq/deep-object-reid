@@ -29,7 +29,7 @@ import numpy as np
 
 from torchreid.engine import Engine
 from torchreid.losses import get_regularizer, AMSoftmaxLoss, CrossEntropyLoss, MetricLosses
-
+from torchreid import metrics
 
 class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
@@ -159,6 +159,7 @@ class ImageAMSoftmaxEngine(Engine):
         loss_summary = dict()
 
         num_trg_losses = 0
+        avg_acc = 0
         for trg_id in range(self.num_targets):
             trg_mask = train_records['dataset_id'] == trg_id
 
@@ -169,6 +170,7 @@ class ImageAMSoftmaxEngine(Engine):
 
             trg_logits = all_logits[trg_id][trg_mask]
             main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, iteration=n_iter)
+            avg_acc += metrics.accuracy(trg_logits, trg_obj_ids)[0].item()
             loss_summary['main_{}'.format(trg_id)] = main_loss.item()
 
             trg_loss = main_loss
@@ -187,6 +189,7 @@ class ImageAMSoftmaxEngine(Engine):
             total_loss += trg_loss
             num_trg_losses += 1
         total_loss /= float(num_trg_losses)
+        avg_acc /= float(num_trg_losses)
 
         if self.enable_attr and train_records['attr'] is not None:
             attributes = train_records['attr']
@@ -254,7 +257,7 @@ class ImageAMSoftmaxEngine(Engine):
         total_loss.backward()
         self.optimizer.step()
 
-        return loss_summary
+        return loss_summary, avg_acc
 
     def _prepare_run_kwargs(self):
         run_kwargs = dict()

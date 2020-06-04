@@ -8,6 +8,7 @@ import numpy as np
 import tarfile
 import zipfile
 import torch
+import operator
 
 from torchreid.utils import read_image, download_url, mkdir_if_missing
 
@@ -37,6 +38,7 @@ class Dataset:
         mode='train',
         combineall=False,
         verbose=True,
+        min_id_samples=0,
         **kwargs
     ):
         self.train = train
@@ -53,6 +55,8 @@ class Dataset:
 
         if self.combineall:
             self.combine_all()
+
+        self._cut_train_ids(min_id_samples)
 
         if self.mode == 'train':
             self.data = self.train
@@ -211,6 +215,36 @@ class Dataset:
             out_data.append(updated_record)
 
         return out_data
+
+    def _cut_train_ids(self, min_imgs):
+        if min_imgs < 2:
+            return
+
+        self.train = sorted(self.train, key=operator.itemgetter(1))
+
+        id_counters = {}
+        for path, pid, cam in self.train:
+            if pid in id_counters:
+                id_counters[pid] += 1
+            else:
+                id_counters[pid] = 1
+        pids_to_del = set()
+        for k in id_counters:
+            if id_counters[k] < min_imgs:
+                pids_to_del.add(k)
+
+        filtered_train = []
+        removed_pids = set()
+        for path, pid, cam in self.train:
+            if pid in pids_to_del:
+                removed_pids.add(pid)
+            else:
+                filtered_train.append((path, pid - len(removed_pids), cam))
+
+        self.train = filtered_train
+
+        self.num_train_pids = self.get_num_pids(self.train)
+        self.num_train_cams = self.get_num_cams(self.train)
 
     def combine_all(self):
         """Combines train, query and gallery in a dataset for training."""

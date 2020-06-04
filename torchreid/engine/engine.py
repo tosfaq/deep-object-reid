@@ -236,6 +236,7 @@ class Engine:
         losses = MetricMeter()
         batch_time = AverageMeter()
         data_time = AverageMeter()
+        accuracy = AverageMeter()
 
         self.set_model_mode('train')
 
@@ -247,9 +248,10 @@ class Engine:
         end = time.time()
         for self.batch_idx, data in enumerate(self.train_loader):
             data_time.update(time.time() - end)
-            loss_summary = self.forward_backward(data)
+            loss_summary, avg_acc = self.forward_backward(data)
             batch_time.update(time.time() - end)
             losses.update(loss_summary)
+            accuracy.update(avg_acc)
 
             if (self.batch_idx + 1) % print_freq == 0:
                 nb_this_epoch = self.num_batches - (self.batch_idx + 1)
@@ -260,6 +262,7 @@ class Engine:
                     'epoch: [{0}/{1}][{2}/{3}]\t'
                     'time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                     'data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                    'cls acc {accuracy.val:.3f} ({accuracy.avg:.3f})\t'
                     'eta {eta}\t'
                     '{losses}\t'
                     'lr {lr:.6f}'.format(
@@ -269,6 +272,7 @@ class Engine:
                         self.num_batches,
                         batch_time=batch_time,
                         data_time=data_time,
+                        accuracy=accuracy,
                         eta=eta_str,
                         losses=losses,
                         lr=self.get_current_lr()
@@ -280,6 +284,7 @@ class Engine:
                 self.writer.add_scalar('Train/time', batch_time.avg, n_iter)
                 self.writer.add_scalar('Train/data', data_time.avg, n_iter)
                 self.writer.add_scalar('Aux/lr', self.get_current_lr(), n_iter)
+                self.writer.add_scalar('Accuracy/train', accuracy.avg, n_iter)
                 for name, meter in losses.meters.items():
                     self.writer.add_scalar('Loss/' + name, meter.avg, n_iter)
 

@@ -2,8 +2,12 @@ from __future__ import print_function, absolute_import
 
 from .image import (
     GRID, PRID, CUHK01, CUHK02, CUHK03, MSMT17, VIPeR, SenseReID, Market1501, DukeMTMCreID, iLIDS,
-    VRIC, VeRi, CompCars, VMMRdb, CityFlow, Vehicle1M, UniverseModels, VeRiWild
+    VRIC, VeRi, CompCars, VMMRdb, CityFlow, Vehicle1M, UniverseModels, VeRiWild,
+    InternalWildtrack, InternalAirport, InternalCameraTampering, InternalGlobalMe,
+    InternalMall, InternalPSVIndoor, InternalPSVOutdoor, InternalSSPlatform,
+    InternalSSStreet, InternalSSTicket, MarketTrainOnly
 )
+
 from .video import PRID2011, Mars, DukeMTMCVidReID, iLIDSVID
 from .dataset import Dataset, ImageDataset, VideoDataset
 
@@ -27,6 +31,17 @@ __image_datasets = {
     'vehicle1m': Vehicle1M,
     'universemodels': UniverseModels,
     'veriwild': VeRiWild,
+    'market-train': MarketTrainOnly,
+    'int-airport': InternalAirport,
+    'int-camera-tampering': InternalCameraTampering,
+    'int-globalme': InternalGlobalMe,
+    'int-mall': InternalMall,
+    'int-psv-indoor': InternalPSVIndoor,
+    'int-psv-outdoor': InternalPSVOutdoor,
+    'int-ss-platform': InternalSSPlatform,
+    'int-ss-street': InternalSSStreet,
+    'int-ss-ticket': InternalSSTicket,
+    'int-wildtrack': InternalWildtrack,
 }
 
 __video_datasets = {
@@ -67,7 +82,7 @@ def register_image_dataset(name, dataset):
         dataset (Dataset): the new dataset class.
 
     Examples::
-        
+
         import torchreid
         import NewDataset
         torchreid.data.register_image_dataset('new_dataset', NewDataset)
@@ -100,7 +115,7 @@ def register_video_dataset(name, dataset):
         dataset (Dataset): the new dataset class.
 
     Examples::
-        
+
         import torchreid
         import NewDataset
         torchreid.data.register_video_dataset('new_dataset', NewDataset)
