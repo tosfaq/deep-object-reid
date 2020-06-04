@@ -23,7 +23,7 @@ import glob
 import re
 import warnings
 
-from torchreid.data.datasets import ImageDataset
+from ..dataset import ImageDataset
 
 
 class GlobalMe(ImageDataset):
@@ -97,3 +97,91 @@ class GlobalMe(ImageDataset):
                 pid = pid2label[pid]
             data.append((img_path, pid, camid))
         return data
+
+
+class InternalWildtrack(GlobalMe):
+    dataset_dir = 'internal'
+    dataset_subdir = 'wildtrack'
+
+    def __init__(self, root='', market1501_500k=False, **kwargs):
+        super(InternalWildtrack, self).__init__(root, market1501_500k, **kwargs)
+
+
+class InternalAirport(GlobalMe):
+    dataset_dir = 'internal'
+    dataset_subdir = 'airport'
+
+    def __init__(self, root='', market1501_500k=False, **kwargs):
+        super(InternalAirport, self).__init__(root, market1501_500k, **kwargs)
+
+
+class InternalCameraTampering(GlobalMe):
+    dataset_dir = 'internal'
+    dataset_subdir = 'camera_tampering'
+
+    def __init__(self, root='', market1501_500k=False, **kwargs):
+        super(InternalCameraTampering, self).__init__(root, market1501_500k, **kwargs)
+
+
+class InternalGlobalMe(GlobalMe):
+    dataset_dir = 'internal'
+    dataset_subdir = 'globalme'
+
+    def __init__(self, root='', market1501_500k=False, **kwargs):
+        super(InternalGlobalMe, self).__init__(root, market1501_500k, **kwargs)
+
+
+class InternalMall(GlobalMe):
+    dataset_dir = 'internal'
+    dataset_subdir = 'mall'
+
+    def __init__(self, root='', market1501_500k=False, **kwargs):
+        super(InternalMall, self).__init__(root, market1501_500k, **kwargs)
+
+
+class InternalPSVIndoor(GlobalMe):
+    dataset_dir = 'internal'
+    dataset_subdir = 'psv_indoor'
+
+    def __init__(self, root='', market1501_500k=False, **kwargs):
+        super(InternalPSVIndoor, self).__init__(root, market1501_500k, **kwargs)
+
+
+class InternalPSVOutdoor(GlobalMe):
+    dataset_dir = 'internal'
+    dataset_subdir = 'psv_outdoor'
+
+    def __init__(self, root='', market1501_500k=False, **kwargs):
+        super(InternalPSVOutdoor, self).__init__(root, market1501_500k, **kwargs)
+
+
+class InternalSSPlatform(GlobalMe):
+    dataset_dir = 'internal'
+    dataset_subdir = 'ss_platform'
+
+    def __init__(self, root='', market1501_500k=False, **kwargs):
+        super(InternalSSPlatform, self).__init__(root, market1501_500k, **kwargs)
+
+
+class InternalSSStreet(GlobalMe):
+    dataset_dir = 'internal'
+    dataset_subdir = 'ss_street'
+
+    def __init__(self, root='', market1501_500k=False, **kwargs):
+        super(InternalSSStreet, self).__init__(root, market1501_500k, **kwargs)
+
+
+class InternalSSTicket(GlobalMe):
+    dataset_dir = 'internal'
+    dataset_subdir = 'ss_ticket'
+
+    def __init__(self, root='', market1501_500k=False, **kwargs):
+        super(InternalSSTicket, self).__init__(root, market1501_500k, **kwargs)
+
+
+class MarketTrainOnly(GlobalMe):
+    dataset_dir = 'market1501'
+    dataset_subdir = 'Train-only'
+
+    def __init__(self, root='', market1501_500k=False, **kwargs):
+        super(MarketTrainOnly, self).__init__(root, market1501_500k, **kwargs)
