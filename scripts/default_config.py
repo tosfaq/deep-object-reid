@@ -209,7 +209,7 @@ def get_default_config():
     cfg.data.transforms.random_erase.sh = 0.4
     cfg.data.transforms.random_erase.rl = 0.3
     cfg.data.transforms.random_erase.rh = 3.3
-    cfg.data.transforms.random_erase.fill_color = [125.307, 122.961, 113.8575]
+    cfg.data.transforms.random_erase.fill_color = (125.307, 122.961, 113.8575)
     cfg.data.transforms.random_erase.norm_image = True
 
     cfg.data.transforms.random_rotate = CN()
@@ -225,6 +225,7 @@ def get_default_config():
     cfg.data.transforms.random_figures.thicknesses = (1, 6)
     cfg.data.transforms.random_figures.circle_radiuses = (5, 64)
     cfg.data.transforms.random_figures.figure_prob = 0.5
+    cfg.data.transforms.random_figures.before_resize = True
 
     cfg.data.transforms.random_patch = CN()
     cfg.data.transforms.random_patch.enable = False
@@ -244,6 +245,7 @@ def get_default_config():
     cfg.data.transforms.random_grid.grid_size = (24, 64)
     cfg.data.transforms.random_grid.thickness = (1, 1)
     cfg.data.transforms.random_grid.angle = (0, 180)
+    cfg.data.transforms.random_grid.before_resize = True
 
     cfg.data.transforms.random_background_substitution = CN()
     cfg.data.transforms.random_background_substitution.enable = False

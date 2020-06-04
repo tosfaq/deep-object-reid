@@ -625,10 +625,10 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
 
     print('Building train transforms ...')
     transform_tr = []
-    if transforms.random_grid.enable:
+    if transforms.random_grid.enable and transforms.random_grid.before_resize:
         print('+ random_grid')
         transform_tr += [RandomGrid(**transforms.random_grid)]
-    if transforms.random_figures.enable:
+    if transforms.random_figures.enable and transforms.random_figures.before_resize:
         print('+ random_figures')
         transform_tr += [RandomFigures(**transforms.random_figures)]
     if transforms.random_crop.enable:
@@ -644,6 +644,12 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
         if aug_module.enable:
             print('+ random_background_substitution')
             transform_tr += [aug_module]
+    if transforms.random_grid.enable and not transforms.random_grid.before_resize:
+        print('+ random_grid')
+        transform_tr += [RandomGrid(**transforms.random_grid)]
+    if transforms.random_figures.enable and not transforms.random_figures.before_resize:
+        print('+ random_figures')
+        transform_tr += [RandomFigures(**transforms.random_figures)]
     if transforms.random_flip.enable:
         print('+ random flip')
         transform_tr += [RandomHorizontalFlip(p=transforms.random_flip.p)]

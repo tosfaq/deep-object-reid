@@ -204,6 +204,24 @@ class ResidualAttention(nn.Module):
             return out
 
 
+class AttributeAttention(nn.Module):
+    def __init__(self, main_num_features, attr_num_feature, out_num_features):
+        super(AttributeAttention, self).__init__()
+
+        self.gate = nn.Sequential(
+            nn.Linear(attr_num_feature, main_num_features),
+            nn.BatchNorm1d(main_num_features),
+            nn.Sigmoid()
+        )
+        self.fc = nn.Sequential(
+            nn.Linear(main_num_features, out_num_features),
+            nn.BatchNorm1d(out_num_features)
+        )
+
+    def forward(self, x, attr):
+        return self.fc(x * self.gate(attr))
+
+
 ##########
 # Building blocks for omni-scale feature learning
 ##########
@@ -458,22 +476,20 @@ class OSNet(nn.Module):
         self.conv4 = self._construct_layer(blocks[2], channels[2], channels[3])
         self.att4 = self._construct_attention_layer(channels[3], self.use_attentions[3])
 
-        out_num_channels = channels[3]
-        self.conv5 = Conv1x1(channels[3], out_num_channels)
-        self.att5 = self._construct_attention_layer(out_num_channels, self.use_attentions[4])
+        backbone_out_num_channels = channels[3]
+        self.conv5 = Conv1x1(channels[3], backbone_out_num_channels)
+        self.att5 = self._construct_attention_layer(backbone_out_num_channels, self.use_attentions[4])
 
-        self.head_att = self._construct_head_attention(out_num_channels, enable=head_attention)
+        self.head_att = self._construct_head_attention(backbone_out_num_channels, enable=head_attention)
 
         classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
-        self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
-        for trg_id, trg_num_classes in enumerate(self.num_classes):
-            self.fc.append(self._construct_fc_layer(out_num_channels, self.feature_dim, dropout=False))
-            if trg_num_classes > 0:
-                self.classifier.append(classifier_block(self.feature_dim, trg_num_classes))
 
         self.use_attr = attr_names is not None and attr_num_classes is not None
         if self.use_attr:
             assert len(attr_names) == len(attr_num_classes)
+
+            in_feature_dims = [2 * self.feature_dim] * len(self.num_classes)
+            out_feature_dims = [self.feature_dim] * len(self.num_classes)
 
             self.attr_names = []
             self.attr, self.attr_classifier = nn.ModuleDict(), nn.ModuleDict()
@@ -482,13 +498,32 @@ class OSNet(nn.Module):
                 if attr_size is None or attr_size <= 0:
                     continue
 
-                self.attr[attr_name] = self._construct_fc_layer(out_num_channels, attr_feature_dim, dropout=False)
+                self.attr[attr_name] = self._construct_fc_layer(backbone_out_num_channels, attr_feature_dim)
                 self.attr_classifier[attr_name] = classifier_block(attr_feature_dim, attr_size)
 
                 self.attr_names.append(attr_name)
 
-            if len(self.attr) == 0:
+            if len(self.attr) > 0:
+                mixed_hum_features = len(self.attr) * attr_feature_dim
+                self.attr_att = nn.ModuleList()
+                for trg_id in range(len(self.num_classes)):
+                    self.attr_att.append(AttributeAttention(
+                        in_feature_dims[trg_id], mixed_hum_features, out_feature_dims[trg_id]
+                    ))
+            else:
                 self.use_attr = False
+
+        if not self.use_attr:
+            in_feature_dims = [self.feature_dim] * len(self.num_classes)
+            out_feature_dims = [self.feature_dim] * len(self.num_classes)
+
+        self.out_feature_dims = out_feature_dims
+
+        self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
+        for trg_id, trg_num_classes in enumerate(self.num_classes):
+            self.fc.append(self._construct_fc_layer(backbone_out_num_channels, in_feature_dims[trg_id], dropout=False))
+            if trg_num_classes > 0:
+                self.classifier.append(classifier_block(out_feature_dims[trg_id], trg_num_classes))
 
         self._init_params()
 
@@ -627,8 +662,11 @@ class OSNet(nn.Module):
         if self.use_attr:
             attr_embeddings = {attr_name: attr_fc(glob_features) for attr_name, attr_fc in self.attr.items()}
 
+            attr_vector = torch.cat([attr_embeddings[attr_name] for attr_name in self.attr_names], dim=1)
+            embeddings = [att_module(e, attr_vector) for e, att_module in zip(embeddings, self.attr_att)]
+
         if not self.training:
-            return torch.cat(embeddings + [attr_embeddings[attr_name] for attr_name in self.attr_names], dim=1)
+            return torch.cat(embeddings, dim=1)
 
         logits = [classifier(embd) for embd, classifier in zip(embeddings, self.classifier)]
 

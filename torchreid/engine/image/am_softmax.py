@@ -97,9 +97,13 @@ class ImageAMSoftmaxEngine(Engine):
                 ))
 
             if self.enable_metric_losses:
+                feature_dim = self.model.module.feature_dim
+                if hasattr(self.model.module, 'out_feature_dims'):
+                    feature_dim = self.model.module.out_feature_dims[trg_id]
+
                 self.ml_losses.append(MetricLosses(
                     trg_num_classes,
-                    self.model.module.feature_dim,
+                    feature_dim,
                     metric_cfg.center_coeff,
                     metric_cfg.triplet_coeff,
                     metric_cfg.local_push_coeff,
