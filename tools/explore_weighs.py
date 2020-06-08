@@ -102,7 +102,7 @@ def show_stat(conv_layers, max_scale=5.0, max_similarity=0.5, sim_percentile=95)
 
         scales = max_norm / norms
         num_invalid = np.sum(scales > max_scale)
-        if num_invalid > 0:
+        if num_invalid > 0 or median_norm < 0.1:
             invalid_weight_scales.append((name, kernel_type, median_norm, scale, num_invalid, num_filters))
 
         bias_scores = np.abs(bias)

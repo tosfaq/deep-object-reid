@@ -137,7 +137,7 @@ class CentersPush(nn.Module):
 
         self.margin = margin
 
-    def forward(self, features, centers, labels):
+    def forward(self, centers, labels):
         centers = F.normalize(centers, p=2, dim=1)
 
         unique_labels = torch.unique(labels)
@@ -262,7 +262,7 @@ class MetricLosses:
             all_loss_values.append(center_loss_val)
             loss_summary['{}/center'.format(self.name)] = center_loss_val.item()
 
-            centers_push_loss_val = self.centers_push_loss(features, self.center_loss.get_centers(), labels)
+            centers_push_loss_val = self.centers_push_loss(self.center_loss.get_centers(), labels)
             all_loss_values.append(centers_push_loss_val)
             loss_summary['{}/push_center'.format(self.name)] = centers_push_loss_val.item()
 
