@@ -121,11 +121,12 @@ class HardDecorrelationRegularizer(nn.Module):
 
 
 class NormRegularizer(nn.Module):
-    def __init__(self, scale, max_ratio, eps=1e-5):
+    def __init__(self, scale, max_ratio, min_norm=0.5, eps=1e-5):
         super().__init__()
 
         self.max_ratio = max_ratio
         self.scale = scale
+        self.min_norm = min_norm
         self.eps = eps
 
     def forward(self, net):
@@ -134,7 +135,7 @@ class NormRegularizer(nn.Module):
         num_losses = 0
         accumulator = torch.tensor(0.0).cuda()
         for conv in conv_layers:
-            loss = self._loss(conv['weight'], self.max_ratio)
+            loss = self._loss(conv['weight'], self.max_ratio, self.min_norm)
             if loss > 0:
                 accumulator += loss
                 num_losses += 1
@@ -170,7 +171,7 @@ class NormRegularizer(nn.Module):
         return conv_layers
 
     @staticmethod
-    def _loss(W, max_ratio):
+    def _loss(W, max_ratio, min_norm):
         num_filters = W.size(0)
         if num_filters == 1:
             return 0.0
@@ -179,10 +180,11 @@ class NormRegularizer(nn.Module):
         norms = torch.sqrt(torch.sum(W ** 2, dim=-1))
 
         norm_ratio = torch.max(norms.detach()) / torch.min(norms.detach())
-        if norm_ratio < max_ratio:
+        median_norm = torch.median(norms.detach())
+        if norm_ratio < max_ratio and median_norm > min_norm:
             return 0.0
 
-        trg_norm = torch.median(norms.detach())
+        trg_norm = max(float(min_norm), median_norm)
         losses = (norms - trg_norm) ** 2
         loss = losses.mean()
 

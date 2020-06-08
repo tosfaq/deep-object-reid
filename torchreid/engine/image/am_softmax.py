@@ -145,6 +145,7 @@ class ImageAMSoftmaxEngine(Engine):
 
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx
+        self.optimizer.zero_grad()
 
         train_records = self.parse_data_for_train(data, True, self.enable_masks, self.use_gpu)
         imgs = train_records['img']
@@ -253,7 +254,6 @@ class ImageAMSoftmaxEngine(Engine):
 
         loss_summary['loss'] = total_loss.item()
 
-        self.optimizer.zero_grad()
         total_loss.backward()
         self.optimizer.step()
 

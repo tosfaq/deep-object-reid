@@ -238,8 +238,8 @@ class LCTGate(nn.Module):
         self.gate_activation = nn.Sigmoid()
 
     def init_params(self):
-        nn.init.ones_(self.gn.bias)
         nn.init.zeros_(self.gn.weight)
+        nn.init.ones_(self.gn.bias)
 
     def forward(self, x):
         y = self.global_avgpool(x)
@@ -312,7 +312,7 @@ class ChannelGate(nn.Module):
 class OSBlock(nn.Module):
     """Omni-scale feature learning block."""
 
-    def __init__(self, in_channels, out_channels, reduction=4, T=4, dropout_prob=None, **kwargs):
+    def __init__(self, in_channels, out_channels, channel_gate, reduction=4, T=4, dropout_prob=None, **kwargs):
         super(OSBlock, self).__init__()
         assert T >= 1
         assert out_channels >= reduction and out_channels % reduction == 0
@@ -322,7 +322,7 @@ class OSBlock(nn.Module):
         self.conv2 = nn.ModuleList()
         for t in range(1, T + 1):
             self.conv2 += [LightConvStream(mid_channels, mid_channels, t)]
-        self.gate = ChannelGate(mid_channels)
+        self.gate = channel_gate(mid_channels)
         self.conv3 = Conv1x1Linear(mid_channels, out_channels)
 
         self.downsample = None
@@ -357,7 +357,7 @@ class OSBlock(nn.Module):
 class OSBlockINin(nn.Module):
     """Omni-scale feature learning block with instance normalization."""
 
-    def __init__(self, in_channels, out_channels, reduction=4, T=4, dropout_prob=None, **kwargs):
+    def __init__(self, in_channels, out_channels, channel_gate, reduction=4, T=4, dropout_prob=None, **kwargs):
         super(OSBlockINin, self).__init__()
         assert T >= 1
         assert out_channels >= reduction and out_channels % reduction == 0
@@ -367,7 +367,7 @@ class OSBlockINin(nn.Module):
         self.conv2 = nn.ModuleList()
         for t in range(1, T + 1):
             self.conv2 += [LightConvStream(mid_channels, mid_channels, t)]
-        self.gate = ChannelGate(mid_channels)
+        self.gate = channel_gate(mid_channels)
         self.conv3 = Conv1x1Linear(mid_channels, out_channels, bn=False)
 
         self.downsample = None
@@ -432,6 +432,7 @@ class OSNet(nn.Module):
         bn_frozen=False,
         attr_names=None,
         attr_num_classes=None,
+        lct_gate=False,
         **kwargs
     ):
         super(OSNet, self).__init__()
@@ -463,17 +464,18 @@ class OSNet(nn.Module):
 
         self.input_lcn = LocalContrastNormalization(3, 5, affine=True) if input_lcn else None
         self.input_IN = nn.InstanceNorm2d(3, affine=True) if input_IN else None
+        self.channel_gate = LCTGate if lct_gate else ChannelGate
 
         self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=conv1_IN)
         self.att1 = self._construct_attention_layer(channels[0], self.use_attentions[0])
         self.pool1 = nn.MaxPool2d(3, stride=2, padding=1)
-        self.conv2 = self._construct_layer(blocks[0], channels[0], channels[1])
+        self.conv2 = self._construct_layer(blocks[0], channels[0], channels[1], self.channel_gate)
         self.att2 = self._construct_attention_layer(channels[1], self.use_attentions[1])
         self.pool2 = nn.Sequential(Conv1x1(channels[1], channels[1]), nn.AvgPool2d(2, stride=2))
-        self.conv3 = self._construct_layer(blocks[1], channels[1], channels[2])
+        self.conv3 = self._construct_layer(blocks[1], channels[1], channels[2], self.channel_gate)
         self.att3 = self._construct_attention_layer(channels[2], self.use_attentions[2])
         self.pool3 = nn.Sequential(Conv1x1(channels[2], channels[2]), nn.AvgPool2d(2, stride=2))
-        self.conv4 = self._construct_layer(blocks[2], channels[2], channels[3])
+        self.conv4 = self._construct_layer(blocks[2], channels[2], channels[3], self.channel_gate)
         self.att4 = self._construct_attention_layer(channels[3], self.use_attentions[3])
 
         backbone_out_num_channels = channels[3]
@@ -528,15 +530,15 @@ class OSNet(nn.Module):
         self._init_params()
 
     @staticmethod
-    def _construct_layer(blocks, in_channels, out_channels, dropout_probs=None):
+    def _construct_layer(blocks, in_channels, out_channels, channel_gate, dropout_probs=None):
         if dropout_probs is None:
             dropout_probs = [None] * len(blocks)
         assert len(dropout_probs) == len(blocks)
 
         layers = []
-        layers += [blocks[0](in_channels, out_channels, dropout_prob=dropout_probs[0])]
+        layers += [blocks[0](in_channels, out_channels, channel_gate, dropout_prob=dropout_probs[0])]
         for i in range(1, len(blocks)):
-            layers += [blocks[i](out_channels, out_channels, dropout_prob=dropout_probs[i])]
+            layers += [blocks[i](out_channels, out_channels, channel_gate, dropout_prob=dropout_probs[i])]
 
         return nn.Sequential(*layers)
 
@@ -663,7 +665,7 @@ class OSNet(nn.Module):
             attr_embeddings = {attr_name: attr_fc(glob_features) for attr_name, attr_fc in self.attr.items()}
 
             attr_vector = torch.cat([attr_embeddings[attr_name] for attr_name in self.attr_names], dim=1)
-            embeddings = [att_module(e, attr_vector) for e, att_module in zip(embeddings, self.attr_att)]
+            embeddings = [attr_module(e, attr_vector) for e, attr_module in zip(embeddings, self.attr_att)]
 
         if not self.training:
             return torch.cat(embeddings, dim=1)
