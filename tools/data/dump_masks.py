@@ -114,10 +114,10 @@ def get_main_mask(objects, img_size, min_area):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('config', help='test config file path')
-    parser.add_argument('checkpoint', help='checkpoint file')
-    parser.add_argument('input_dir', help='input dir')
-    parser.add_argument('output_dir', help='output dir')
+    parser.add_argument('--config', '-c', type=str, required=True, help='test config file path')
+    parser.add_argument('--checkpoint', '-m', type=str, required=True, help='checkpoint file')
+    parser.add_argument('--input-dir', 'i', type=str, required=True, help='input dir')
+    parser.add_argument('--output-dir', '-o', type=str, required=True, help='output dir')
     args = parser.parse_args()
 
     assert exists(args.input_dir)
