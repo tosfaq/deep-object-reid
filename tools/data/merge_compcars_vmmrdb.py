@@ -26,6 +26,9 @@ VMMRDB_COMPLEX_NAMES = 'alfa_romeo', 'aston_martin', 'am_general', 'can_am', 'me
 
 
 def create_dirs(dir_path, override=False):
+    if dir_path == '':
+        return
+
     if override:
         if exists(dir_path):
             rmtree(dir_path)
@@ -112,12 +115,18 @@ def parse_data_compcars(in_images_dir, in_masks_dir, makes_map, models_map):
 
             records = []
             for image_name in image_names:
-                mask_name = '{}.png'.format(image_name.split('.')[0])
-
                 image_full_path = join(root, image_name)
-                mask_full_path = join(in_masks_dir, relative_path, mask_name)
+                image_valid = exists(image_full_path)
 
-                if exists(image_full_path) and exists(mask_full_path):
+                if in_masks_dir != '':
+                    mask_name = '{}.png'.format(image_name.split('.')[0])
+                    mask_full_path = join(in_masks_dir, relative_path, mask_name)
+                    mask_valid = exists(mask_full_path)
+                else:
+                    mask_full_path = ''
+                    mask_valid = True
+
+                if image_valid and mask_valid:
                     records.append((image_full_path, mask_full_path))
 
             models_dict[year].extend(records)
@@ -159,12 +168,18 @@ def parse_data_vmmrdb(in_images_dir, in_masks_dir, complex_names_list):
 
             records = []
             for image_name in image_names:
-                mask_name = '{}.png'.format(image_name.split('.')[0])
-
                 image_full_path = join(root, image_name)
-                mask_full_path = join(in_masks_dir, relative_path, mask_name)
+                image_valid = exists(image_full_path)
 
-                if exists(image_full_path) and exists(mask_full_path):
+                if in_masks_dir != '':
+                    mask_name = '{}.png'.format(image_name.split('.')[0])
+                    mask_full_path = join(in_masks_dir, relative_path, mask_name)
+                    mask_valid = exists(mask_full_path)
+                else:
+                    mask_full_path = ''
+                    mask_valid = True
+
+                if image_valid and mask_valid:
                     records.append((image_full_path, mask_full_path))
 
             models_dict[year].extend(records)
@@ -212,30 +227,30 @@ def filter_data(data, min_num_records):
     return out_data
 
 
-def copy_data(data, out_dir):
+def copy_data(data, out_dir, need_masks=False):
     out_images_dir = join(out_dir, 'images')
-    out_masks_dir = join(out_dir, 'masks')
+    out_masks_dir = join(out_dir, 'masks') if need_masks else ''
 
     create_dirs(out_images_dir, override=True)
     create_dirs(out_masks_dir, override=True)
 
     for make, models in data.items():
         out_images_make_dir = join(out_images_dir, make)
-        out_masks_make_dir = join(out_masks_dir, make)
+        out_masks_make_dir = join(out_masks_dir, make) if need_masks else ''
 
         create_dirs(out_images_make_dir, override=False)
         create_dirs(out_masks_make_dir, override=False)
 
         for model, years in models.items():
             out_images_model_dir = join(out_images_make_dir, model)
-            out_masks_model_dir = join(out_masks_make_dir, model)
+            out_masks_model_dir = join(out_masks_make_dir, model) if need_masks else ''
 
             create_dirs(out_images_model_dir, override=False)
             create_dirs(out_masks_model_dir, override=False)
 
             for year, records in years.items():
                 out_images_year_dir = join(out_images_model_dir, str(year))
-                out_masks_year_dir = join(out_masks_model_dir, str(year))
+                out_masks_year_dir = join(out_masks_model_dir, str(year)) if need_masks else ''
 
                 create_dirs(out_images_year_dir, override=False)
                 create_dirs(out_masks_year_dir, override=False)
@@ -245,10 +260,11 @@ def copy_data(data, out_dir):
                     in_image_path, in_mask_path = record
 
                     out_image_path = join(out_images_year_dir, '{}.jpg'.format(name))
-                    out_mask_path = join(out_masks_year_dir, '{}.png'.format(name))
-
                     copyfile(in_image_path, out_image_path)
-                    copyfile(in_mask_path, out_mask_path)
+
+                    if need_masks and in_mask_path != '':
+                        out_mask_path = join(out_masks_year_dir, '{}.png'.format(name))
+                        copyfile(in_mask_path, out_mask_path)
 
 
 def main():
@@ -256,9 +272,9 @@ def main():
     parser.add_argument('--compcar-map', '-cmp', type=str, required=True)
     parser.add_argument('--compcar-makes', '-cmk', type=str, required=True)
     parser.add_argument('--compcar-images', '-ci', type=str, required=True)
-    parser.add_argument('--compcar-masks', '-cm', type=str, required=True)
+    parser.add_argument('--compcar-masks', '-cm', type=str, required=False, default='')
     parser.add_argument('--vmmrdb-images', '-vi', type=str, required=True)
-    parser.add_argument('--vmmrdb-masks', '-vm', type=str, required=True)
+    parser.add_argument('--vmmrdb-masks', '-vm', type=str, required=False, default='')
     parser.add_argument('--min-num-images', '-n', type=int, required=False, default=2)
     parser.add_argument('--output-dir', '-o', type=str, required=True)
     args = parser.parse_args()
@@ -266,9 +282,12 @@ def main():
     assert exists(args.compcar_map)
     assert exists(args.compcar_makes)
     assert exists(args.compcar_images)
-    assert exists(args.compcar_masks)
     assert exists(args.vmmrdb_images)
-    assert exists(args.vmmrdb_masks)
+
+    need_masks = args.compcar_masks != '' and args.vmmrdb_masks != ''
+    if need_masks:
+        assert exists(args.compcar_masks)
+        assert exists(args.vmmrdb_masks)
 
     compcars_makes_map = load_compcars_makes_map(args.compcar_makes)
     compcars_models_map = load_compcars_models_map(args.compcar_map)
@@ -284,7 +303,7 @@ def main():
     filtered_data = filter_data(merged_data, min_num_records=args.min_num_images)
     show_stat(filtered_data, 'Filtered')
 
-    copy_data(filtered_data, args.output_dir)
+    copy_data(filtered_data, args.output_dir, need_masks)
 
 
 if __name__ == '__main__':

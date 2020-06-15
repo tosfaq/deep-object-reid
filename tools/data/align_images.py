@@ -163,12 +163,12 @@ def process_tasks(tasks, min_non_zero_fraction, scale, min_side_size):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--in_images', '-ii', type=str, required=True)
-    parser.add_argument('--in_masks', '-im', type=str, required=True)
-    parser.add_argument('--out_images', '-oi', type=str, required=True)
-    parser.add_argument('--out_masks', '-om', type=str, required=True)
-    parser.add_argument('--non_zero_fraction', '-nz', type=float, required=False, default=0.2)
-    parser.add_argument('--crop_scale', '-cs', type=float, required=False, default=1.08)
+    parser.add_argument('--in-images', '-ii', type=str, required=True)
+    parser.add_argument('--in-masks', '-im', type=str, required=True)
+    parser.add_argument('--out-images', '-oi', type=str, required=True)
+    parser.add_argument('--out-masks', '-om', type=str, required=True)
+    parser.add_argument('--non-zero-fraction', '-nz', type=float, required=False, default=0.2)
+    parser.add_argument('--crop-scale', '-cs', type=float, required=False, default=1.08)
     parser.add_argument('--min-side-size', '-ms', type=int, required=False, default=240)
     args = parser.parse_args()
 

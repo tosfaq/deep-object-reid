@@ -96,33 +96,35 @@ def crop_image(image, bbox, scale):
     return image[ymin:ymax, xmin:xmax]
 
 
-def resize_image(image, max_size):
+def resize_image(image, min_side_size, min_valid_size=10):
     src_height, src_width = image.shape[:2]
-    if src_height < 10 or src_width < 10:
+    if src_height < min_valid_size or src_width < min_valid_size:
         return None
 
-    if max_size <= 0:
+    if min_side_size <= 0:
         return image
 
     ar = float(src_height) / float(src_width)
     if ar > 1.0:
-        trg_height = max_size
-        trg_width = int(trg_height / ar)
-    else:
-        trg_width = max_size
+        trg_width = min_side_size
         trg_height = int(trg_width * ar)
+    else:
+        trg_height = min_side_size
+        trg_width = int(trg_height / ar)
 
-    return cv2.resize(image, (trg_width, trg_height))
+    image = cv2.resize(image, (trg_width, trg_height), interpolation=cv2.INTER_LINEAR)
+
+    return image
 
 
-def process_tasks(tasks, crop_scale, max_image_size):
+def process_tasks(tasks, crop_scale, min_side_size):
     for image_path, label_path, output_path in tqdm(tasks):
         src_image = cv2.imread(image_path)
 
         bbox = read_bbox(label_path)
         cropped_image = crop_image(src_image, bbox, crop_scale)
 
-        trg_image = resize_image(cropped_image, max_image_size)
+        trg_image = resize_image(cropped_image, min_side_size)
         if trg_image is not None:
             cv2.imwrite(output_path, trg_image)
 
@@ -132,8 +134,8 @@ def main():
     parser.add_argument('--images-dir', '-i', type=str, required=True)
     parser.add_argument('--annot-dir', '-a', type=str, required=True)
     parser.add_argument('--output-dir', '-o', type=str, required=True)
-    parser.add_argument('--crop-scale', '-cs', type=float, required=False, default=1.2)
-    parser.add_argument('--max-image-size', '-ms', type=int, required=False, default=320)
+    parser.add_argument('--crop-scale', '-cs', type=float, required=False, default=1.08)
+    parser.add_argument('--min-side-size', '-ms', type=int, required=False, default=240)
     args = parser.parse_args()
 
     assert exists(args.images_dir)
@@ -147,7 +149,7 @@ def main():
     print('Prepared tasks: {}'.format(len(tasks)))
 
     print('Processing tasks ...')
-    process_tasks(tasks, args.crop_scale, args.max_image_size)
+    process_tasks(tasks, args.crop_scale, args.min_side_size)
 
 
 if __name__ == '__main__':
