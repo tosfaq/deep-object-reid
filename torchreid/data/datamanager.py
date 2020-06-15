@@ -248,51 +248,66 @@ class ImageDataManager(DataManager):
         self.test_dataset = {name: {'query': None, 'gallery': None} for name in self.targets}
 
         for name in self.targets:
-            # build query loader
-            query_dataset = init_image_dataset(
-                name,
-                transform=self.transform_te,
-                mode='query',
-                combineall=combineall,
-                root=root,
-                split_id=split_id,
-                cuhk03_labeled=cuhk03_labeled,
-                cuhk03_classic_split=cuhk03_classic_split,
-                market1501_500k=market1501_500k
-            )
-            self.test_loader[name]['query'] = torch.utils.data.DataLoader(
-                query_dataset,
-                batch_size=batch_size_test,
-                shuffle=False,
-                num_workers=workers,
-                pin_memory=self.use_gpu,
-                drop_last=False
-            )
+            if name == 'lfw':
+                lfw_data = init_image_dataset(
+                    name,
+                    transform=self.transform_te,
+                    root=root,
+                )
+                self.test_loader[name]['pairs'] = torch.utils.data.DataLoader(
+                    lfw_data,
+                    batch_size=batch_size_test,
+                    shuffle=False,
+                    num_workers=workers,
+                    pin_memory=self.use_gpu,
+                    drop_last=False
+                )
+            else:
+                # build query loader
+                query_dataset = init_image_dataset(
+                    name,
+                    transform=self.transform_te,
+                    mode='query',
+                    combineall=combineall,
+                    root=root,
+                    split_id=split_id,
+                    cuhk03_labeled=cuhk03_labeled,
+                    cuhk03_classic_split=cuhk03_classic_split,
+                    market1501_500k=market1501_500k
+                )
+                self.test_loader[name]['query'] = torch.utils.data.DataLoader(
+                    query_dataset,
+                    batch_size=batch_size_test,
+                    shuffle=False,
+                    num_workers=workers,
+                    pin_memory=self.use_gpu,
+                    drop_last=False
+                )
 
-            # build gallery loader
-            gallery_dataset = init_image_dataset(
-                name,
-                transform=self.transform_te,
-                mode='gallery',
-                combineall=combineall,
-                verbose=False,
-                root=root,
-                split_id=split_id,
-                cuhk03_labeled=cuhk03_labeled,
-                cuhk03_classic_split=cuhk03_classic_split,
-                market1501_500k=market1501_500k
-            )
-            self.test_loader[name]['gallery'] = torch.utils.data.DataLoader(
-                gallery_dataset,
-                batch_size=batch_size_test,
-                shuffle=False,
-                num_workers=workers,
-                pin_memory=self.use_gpu,
-                drop_last=False
-            )
+                # build gallery loader
+                gallery_dataset = init_image_dataset(
+                    name,
+                    transform=self.transform_te,
+                    mode='gallery',
+                    combineall=combineall,
+                    verbose=False,
+                    root=root,
+                    split_id=split_id,
+                    cuhk03_labeled=cuhk03_labeled,
+                    cuhk03_classic_split=cuhk03_classic_split,
+                    market1501_500k=market1501_500k
+                )
+                self.test_loader[name]['gallery'] = torch.utils.data.DataLoader(
+                    gallery_dataset,
+                    batch_size=batch_size_test,
+                    shuffle=False,
+                    num_workers=workers,
+                    pin_memory=self.use_gpu,
+                    drop_last=False
+                )
 
-            self.test_dataset[name]['query'] = query_dataset.query
-            self.test_dataset[name]['gallery'] = gallery_dataset.gallery
+                self.test_dataset[name]['query'] = query_dataset.query
+                self.test_dataset[name]['gallery'] = gallery_dataset.gallery
 
         print('\n')
         print('  **************** Summary ****************')
