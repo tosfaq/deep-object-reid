@@ -22,7 +22,6 @@ from torch.utils.data import DataLoader
 from torchvision import transforms as t
 
 from scipy.spatial.distance import cosine
-import glog as log
 from tqdm import tqdm
 import numpy as np
 

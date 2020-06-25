@@ -86,7 +86,7 @@ __model_factory = {
     'res2net101_v1b': res2net101_v1b_26w_4s,
     # face reid models
     'mobile_face_net_se_1x': mobile_face_net_se_1x,
-    'mobile_face_net_se_1_5x': mobile_face_net_se_1_5x
+    'mobile_face_net_se_2x': mobile_face_net_se_2x
 }
 
 

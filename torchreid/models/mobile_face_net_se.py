@@ -18,7 +18,7 @@ import torch.nn as nn
 from torchreid.losses import AngleSimpleLinear
 
 
-__all__ = ['mobile_face_net_se_1x', 'mobile_face_net_se_1_5x']
+__all__ = ['mobile_face_net_se_1x', 'mobile_face_net_se_2x']
 
 
 def init_block(in_channels, out_channels, stride, activation=nn.PReLU):
@@ -220,7 +220,7 @@ def mobile_face_net_se_1x(num_classes, pretrained=False, download_weights=False,
     return model
 
 
-def mobile_face_net_se_1_5x(num_classes, pretrained=False, download_weights=False, **kwargs):
+def mobile_face_net_se_2x(num_classes, pretrained=False, download_weights=False, **kwargs):
     model = MobileFaceNet(
         num_classes=num_classes,
         width_multiplier=1.5,
