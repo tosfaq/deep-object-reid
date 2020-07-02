@@ -217,6 +217,16 @@ def get_default_config():
     cfg.data.transforms.random_rotate.p = 0.5
     cfg.data.transforms.random_rotate.angle = (-5, 5)
 
+    cfg.data.transforms.cut_out_with_prior = CN()
+    cfg.data.transforms.cut_out_with_prior.enable = False
+    cfg.data.transforms.cut_out_with_prior.p = 0.5
+    cfg.data.transforms.cut_out_with_prior.max_area = 0.1
+
+    cfg.data.transforms.random_blur = CN()
+    cfg.data.transforms.random_blur.enable = False
+    cfg.data.transforms.random_blur.p = 0.5
+    cfg.data.transforms.random_blur.k = 5
+
     cfg.data.transforms.random_figures = CN()
     cfg.data.transforms.random_figures.enable = False
     cfg.data.transforms.random_figures.p = 0.5
@@ -417,5 +427,6 @@ def augmentation_kwargs(cfg):
         'random_erase': cfg.data.transforms.random_erase,
         'random_rotate': cfg.data.transforms.random_rotate,
         'random_figures': cfg.data.transforms.random_figures,
-        'random_grid': cfg.data.transforms.random_grid
+        'random_grid': cfg.data.transforms.random_grid,
+        'cut_out_with_prior': cfg.data.transforms.cut_out_with_prior
     }

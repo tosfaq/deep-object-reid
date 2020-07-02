@@ -23,6 +23,7 @@ from .resnet_ibn_a import *
 from .resnet_ibn_b import *
 from .shufflenetv2 import *
 from .inceptionresnetv2 import *
+from .mobile_face_net_se import *
 
 __model_factory = {
     # image classification models
@@ -82,7 +83,10 @@ __model_factory = {
     'fpn_osnet_x0_25': fpn_osnet_x0_25,
     'fpn_osnet_ibn_x1_0': fpn_osnet_ibn_x1_0,
     'res2net50_v1b': res2net50_v1b_26w_4s,
-    'res2net101_v1b': res2net101_v1b_26w_4s
+    'res2net101_v1b': res2net101_v1b_26w_4s,
+    # face reid models
+    'mobile_face_net_se_1x': mobile_face_net_se_1x,
+    'mobile_face_net_se_2x': mobile_face_net_se_2x
 }
 
 

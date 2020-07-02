@@ -324,24 +324,40 @@ class Engine:
         targets = list(self.test_loader.keys())
 
         for name in targets:
-            domain = 'source' if name in self.datamanager.sources else 'target'
-            print('##### Evaluating {} ({}) #####'.format(name, domain))
-            query_loader = self.test_loader[name]['query']
-            gallery_loader = self.test_loader[name]['gallery']
-            self._evaluate(
-                epoch,
-                dataset_name=name,
-                query_loader=query_loader,
-                gallery_loader=gallery_loader,
-                dist_metric=dist_metric,
-                normalize_feature=normalize_feature,
-                visrank=visrank,
-                visrank_topk=visrank_topk,
-                save_dir=save_dir,
-                use_metric_cuhk03=use_metric_cuhk03,
-                ranks=ranks,
-                rerank=rerank
-            )
+            if name == 'lfw':
+                print('Extracting features and computing LFW metric ...')
+                same_acc, diff_acc, overall_acc, auc, avg_optimal_thresh = metrics.evaluate_lfw(self.test_loader[name]['pairs'],
+                                                                                                self.model, verbose=False)
+                if self.writer is not None:
+                    self.writer.add_scalar('Val/LFW/same_accuracy', same_acc, epoch + 1)
+                    self.writer.add_scalar('Val/LFW/diff_accuracy', diff_acc, epoch + 1)
+                    self.writer.add_scalar('Val/LFW/accuracy', overall_acc, epoch + 1)
+                    self.writer.add_scalar('Val/LFW/AUC', auc, epoch + 1)
+
+                print('** Results **')
+                print('Accuracy: {:.2%}'.format(overall_acc))
+                print('Accuracy on positive pairs: {:.2%}'.format(same_acc))
+                print('Accuracy on negative pairs: {:.2%}'.format(diff_acc))
+                print('Average threshold: {:.2}'.format(avg_optimal_thresh))
+            else:
+                domain = 'source' if name in self.datamanager.sources else 'target'
+                print('##### Evaluating {} ({}) #####'.format(name, domain))
+                query_loader = self.test_loader[name]['query']
+                gallery_loader = self.test_loader[name]['gallery']
+                self._evaluate(
+                    epoch,
+                    dataset_name=name,
+                    query_loader=query_loader,
+                    gallery_loader=gallery_loader,
+                    dist_metric=dist_metric,
+                    normalize_feature=normalize_feature,
+                    visrank=visrank,
+                    visrank_topk=visrank_topk,
+                    save_dir=save_dir,
+                    use_metric_cuhk03=use_metric_cuhk03,
+                    ranks=ranks,
+                    rerank=rerank
+                )
 
     @torch.no_grad()
     def _evaluate(
