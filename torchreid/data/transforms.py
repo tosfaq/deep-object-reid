@@ -464,6 +464,26 @@ class CutOutWithPrior(object):
         return img, mask
 
 
+class GaussianBlur(object):
+    """Apply gaussian blur with random parameters
+    """
+
+    def __init__(self, p, k):
+        self.p = p
+        assert k % 2 == 1
+        self.k = k
+
+    def __call__(self, input_tuple, *args, **kwargs):
+        img, mask = input_tuple
+
+        img = np.array(img)
+        if float(torch.FloatTensor(1).uniform_()) < self.p:
+            img = cv2.blur(img, (self.k, self.k))
+
+        img = Image.fromarray(img)
+        return img, mask
+
+
 class MixUp(object):
     """MixUp augmentation
     """
@@ -701,6 +721,10 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
         print('+ cut out with prior')
         transform_tr += [CutOutWithPrior(p=transforms.cut_out_with_prior.p,
                                          max_area=transforms.cut_out_with_prior.max_area)]
+    if transforms.random_blur.enable:
+        print('+ random_blur')
+        transform_tr += [GaussianBlur(p=transforms.random_blur.p,
+                                         k=transforms.random_blur.k)]
     if transforms.mixup.enable:
         mixup_augmentor = MixUp(**transforms.mixup)
         print('+ mixup (with {} extra images)'.format(mixup_augmentor.get_num_images()))

@@ -222,6 +222,11 @@ def get_default_config():
     cfg.data.transforms.cut_out_with_prior.p = 0.5
     cfg.data.transforms.cut_out_with_prior.max_area = 0.1
 
+    cfg.data.transforms.random_blur = CN()
+    cfg.data.transforms.random_blur.enable = False
+    cfg.data.transforms.random_blur.p = 0.5
+    cfg.data.transforms.random_blur.k = 5
+
     cfg.data.transforms.random_figures = CN()
     cfg.data.transforms.random_figures.enable = False
     cfg.data.transforms.random_figures.p = 0.5

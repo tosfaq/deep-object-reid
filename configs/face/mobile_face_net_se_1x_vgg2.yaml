@@ -23,10 +23,13 @@ data:
       p: 0.05
       max_area: 0.1
     random_rotate:
+      enable: True
       p: 0.95
       angle: (-10, 10)
-
-
+    random_blur:
+      enable: True
+      p: 0.2
+      k: 5
 
 loss:
   name: 'am_softmax'
