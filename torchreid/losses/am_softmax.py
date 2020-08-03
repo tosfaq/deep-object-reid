@@ -93,7 +93,7 @@ class AMSoftmaxLoss(nn.Module):
             class_margins = (self.m / np.power(counts, 1. / 4.)).reshape((1, -1))
 
             self.register_buffer('class_margins', torch.from_numpy(class_margins).cuda())
-            print('[INFO] Enabled adaptive margins for AM-Softmax loss')
+            print('[INFO] Enabled adaptive margins for AM-Softmax loss, avg_m=' + str(round(np.mean(class_margins), 2)))
         else:
             self.class_margins = self.m
 

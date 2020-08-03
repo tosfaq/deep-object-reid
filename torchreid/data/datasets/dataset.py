@@ -51,12 +51,12 @@ class Dataset:
 
         self.num_train_pids = self.get_num_pids(self.train)
         self.num_train_cams = self.get_num_cams(self.train)
-        self.data_counts = self.get_data_counts(self.train)
 
         if self.combineall:
             self.combine_all()
 
         self._cut_train_ids(min_id_samples)
+        self.data_counts = self.get_data_counts(self.train)
 
         if self.mode == 'train':
             self.data = self.train
