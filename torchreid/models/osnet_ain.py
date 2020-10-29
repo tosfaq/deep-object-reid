@@ -443,6 +443,7 @@ class OSNet(nn.Module):
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
         self.classification = classification
+        self.contrastive = contrastive
         self.pool_method = pool_method
 
         num_blocks = len(blocks)

@@ -357,6 +357,8 @@ class Engine:
                         dataset_name=dataset_name,
                         ranks=ranks
                     )
+                elif model.module.contrastive:
+                    pass
                 elif dataset_name == 'lfw':
                     self._evaluate_pairwise(
                         model=model,
