@@ -72,12 +72,7 @@ class ImageTripletEngine(Engine):
         label_smooth=True,
         conf_penalty=0.0
     ):
-        super(ImageTripletEngine, self).__init__(datamanager, use_gpu)
-
-        self.model = model
-        self.optimizer = optimizer
-        self.scheduler = scheduler
-        self.register_model('model', model, optimizer, scheduler)
+        super(ImageTripletEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
 
         self.weight_t = weight_t
         self.weight_x = weight_x
@@ -88,6 +83,11 @@ class ImageTripletEngine(Engine):
             label_smooth=label_smooth,
             conf_penalty=conf_penalty
         )
+
+        assert len(self.models) == 1
+
+        self.model = self.models['model']
+        self.optimizer = self.optims['model']
 
     def forward_backward(self, data):
         imgs, pids = self.parse_data_for_train(data)

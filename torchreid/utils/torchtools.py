@@ -180,7 +180,7 @@ def open_all_layers(model):
         p.requires_grad = True
 
 
-def open_specified_layers(model, open_layers):
+def open_specified_layers(model, open_layers, strict=True):
     r"""Opens specified layers in model for training while keeping
     other layers frozen.
 
@@ -203,12 +203,10 @@ def open_specified_layers(model, open_layers):
     if isinstance(open_layers, str):
         open_layers = [open_layers]
 
-    for layer in open_layers:
-        assert hasattr(
-            model, layer
-        ), '"{}" is not an attribute of the model, please provide the correct name'.format(
-            layer
-        )
+    if strict:
+        for layer in open_layers:
+            if not hasattr(model, layer):
+                raise ValueError('"{}" is not an attribute of the model, please provide the correct name'.format(layer))
 
     for name, module in model.named_children():
         if name in open_layers:

@@ -1,6 +1,7 @@
 from torchreid.engine import (
     ImageAMSoftmaxEngine, VideoSoftmaxEngine,
-    ImageTripletEngine, VideoTripletEngine
+    ImageTripletEngine, VideoTripletEngine,
+    ImageContrastiveEngine
 )
 
 
@@ -28,8 +29,24 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 skip_steps_s=cfg.loss.softmax.skip_steps_s,
                 enable_masks=cfg.data.enable_masks,
                 adaptive_margins=cfg.loss.softmax.adaptive_margins,
+                class_weighting=cfg.loss.softmax.class_weighting,
                 attr_cfg=cfg.attr_loss,
                 base_num_classes=cfg.loss.softmax.base_num_classes,
+                symmetric_ce=cfg.loss.softmax.symmetric_ce,
+                mix_weight=cfg.mixing_loss.enable * cfg.mixing_loss.weight
+            )
+        elif cfg.loss.name == 'contrastive':
+            engine = ImageContrastiveEngine(
+                datamanager,
+                model,
+                optimizer=optimizer,
+                reg_cfg=cfg.reg,
+                scheduler=scheduler,
+                use_gpu=cfg.use_gpu,
+                s=cfg.loss.softmax.s,
+                end_s=cfg.loss.softmax.end_s,
+                duration_s=cfg.loss.softmax.duration_s,
+                skip_steps_s=cfg.loss.softmax.skip_steps_s,
             )
         else:
             engine = ImageTripletEngine(

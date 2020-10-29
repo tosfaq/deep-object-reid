@@ -25,43 +25,61 @@ class Engine:
         use_gpu (bool, optional): use gpu. Default is True.
     """
 
-    def __init__(self, datamanager, use_gpu=True):
+    def __init__(self, datamanager, models, optimizers, schedulers, use_gpu=True):
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
         self.test_loader = self.datamanager.test_loader
         self.use_gpu = (torch.cuda.is_available() and use_gpu)
         self.writer = None
 
-        self.model = None
-        self.optimizer = None
-        self.scheduler = None
+        self.start_epoch = 0
+        self.fixbase_epoch = 0
+        self.max_epoch = None
+        self.num_batches = None
+        self.epoch = None
 
-        self._models = OrderedDict()
-        self._optims = OrderedDict()
-        self._scheds = OrderedDict()
+        self.models = OrderedDict()
+        self.optims = OrderedDict()
+        self.scheds = OrderedDict()
+
+        if isinstance(models, (tuple, list)):
+            assert isinstance(optimizers, (tuple, list))
+            assert isinstance(schedulers, (tuple, list))
+
+            num_models = len(models)
+            assert len(optimizers) == num_models
+            assert len(schedulers) == num_models
+
+            for model_id, (model, optimizer, scheduler) in enumerate(zip(models, optimizers, schedulers)):
+                self.register_model(f'model_{model_id}', model, optimizer, scheduler)
+        else:
+            assert not isinstance(optimizers, (tuple, list))
+            assert not isinstance(schedulers, (tuple, list))
+
+            self.register_model('model', models, optimizers, schedulers)
 
     def register_model(self, name='model', model=None, optim=None, sched=None):
-        if self.__dict__.get('_models') is None:
+        if self.__dict__.get('models') is None:
             raise AttributeError(
                 'Cannot assign model before super().__init__() call'
             )
 
-        if self.__dict__.get('_optims') is None:
+        if self.__dict__.get('optims') is None:
             raise AttributeError(
                 'Cannot assign optim before super().__init__() call'
             )
 
-        if self.__dict__.get('_scheds') is None:
+        if self.__dict__.get('scheds') is None:
             raise AttributeError(
                 'Cannot assign sched before super().__init__() call'
             )
 
-        self._models[name] = model
-        self._optims[name] = optim
-        self._scheds[name] = sched
+        self.models[name] = model
+        self.optims[name] = optim
+        self.scheds[name] = sched
 
     def get_model_names(self, names=None):
-        names_real = list(self._models.keys())
+        names_real = list(self.models.keys())
         if names is not None:
             if not isinstance(names, list):
                 names = [names]
@@ -77,10 +95,10 @@ class Engine:
         for name in names:
             save_checkpoint(
                 {
-                    'state_dict': self._models[name].state_dict(),
+                    'state_dict': self.models[name].state_dict(),
                     'epoch': epoch + 1,
-                    'optimizer': self._optims[name].state_dict(),
-                    'scheduler': self._scheds[name].state_dict()
+                    'optimizer': self.optims[name].state_dict(),
+                    'scheduler': self.scheds[name].state_dict()
                 },
                 osp.join(save_dir, name),
                 is_best=is_best
@@ -92,21 +110,21 @@ class Engine:
 
         for name in names:
             if mode == 'train':
-                self._models[name].train()
+                self.models[name].train()
             else:
-                self._models[name].eval()
+                self.models[name].eval()
 
     def get_current_lr(self, names=None):
         names = self.get_model_names(names)
         name = names[0]
-        return self._optims[name].param_groups[0]['lr']
+        return self.optims[name].param_groups[0]['lr']
 
     def update_lr(self, names=None):
         names = self.get_model_names(names)
 
         for name in names:
-            if self._scheds[name] is not None:
-                self._scheds[name].step()
+            if self.scheds[name] is not None:
+                self.scheds[name].step()
 
     def run(
         self,
@@ -124,7 +142,7 @@ class Engine:
         visrank=False,
         visrank_topk=10,
         use_metric_cuhk03=False,
-        ranks=[1, 5, 10, 20],
+        ranks=(1, 5, 10, 20),
         rerank=False
     ):
         r"""A unified pipeline for training and evaluating a model.
@@ -248,8 +266,10 @@ class Engine:
         end = time.time()
         for self.batch_idx, data in enumerate(self.train_loader):
             data_time.update(time.time() - end)
+
             loss_summary, avg_acc = self.forward_backward(data)
             batch_time.update(time.time() - end)
+
             losses.update(loss_summary)
             accuracy.update(avg_acc)
 
@@ -304,7 +324,7 @@ class Engine:
         visrank_topk=10,
         save_dir='',
         use_metric_cuhk03=False,
-        ranks=[1, 5, 10, 20],
+        ranks=(1, 5, 10, 20),
         rerank=False
     ):
         r"""Tests model on target datasets.
@@ -323,45 +343,82 @@ class Engine:
         self.set_model_mode('eval')
         targets = list(self.test_loader.keys())
 
-        for name in targets:
-            if name == 'lfw':
-                print('Extracting features and computing LFW metric ...')
-                same_acc, diff_acc, overall_acc, auc, avg_optimal_thresh = metrics.evaluate_lfw(self.test_loader[name]['pairs'],
-                                                                                                self.model, verbose=False)
-                if self.writer is not None:
-                    self.writer.add_scalar('Val/LFW/same_accuracy', same_acc, epoch + 1)
-                    self.writer.add_scalar('Val/LFW/diff_accuracy', diff_acc, epoch + 1)
-                    self.writer.add_scalar('Val/LFW/accuracy', overall_acc, epoch + 1)
-                    self.writer.add_scalar('Val/LFW/AUC', auc, epoch + 1)
+        for dataset_name in targets:
+            domain = 'source' if dataset_name in self.datamanager.sources else 'target'
+            print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
 
-                print('** Results **')
-                print('Accuracy: {:.2%}'.format(overall_acc))
-                print('Accuracy on positive pairs: {:.2%}'.format(same_acc))
-                print('Accuracy on negative pairs: {:.2%}'.format(diff_acc))
-                print('Average threshold: {:.2}'.format(avg_optimal_thresh))
-            else:
-                domain = 'source' if name in self.datamanager.sources else 'target'
-                print('##### Evaluating {} ({}) #####'.format(name, domain))
-                query_loader = self.test_loader[name]['query']
-                gallery_loader = self.test_loader[name]['gallery']
-                self._evaluate(
-                    epoch,
-                    dataset_name=name,
-                    query_loader=query_loader,
-                    gallery_loader=gallery_loader,
-                    dist_metric=dist_metric,
-                    normalize_feature=normalize_feature,
-                    visrank=visrank,
-                    visrank_topk=visrank_topk,
-                    save_dir=save_dir,
-                    use_metric_cuhk03=use_metric_cuhk03,
-                    ranks=ranks,
-                    rerank=rerank
-                )
+            for model_name, model in self.models.items():
+                if model.module.classification:
+                    self._evaluate_classification(
+                        model=model,
+                        epoch=epoch,
+                        data_loader=self.test_loader[dataset_name]['gallery'],
+                        model_name=model_name,
+                        dataset_name=dataset_name,
+                        ranks=ranks
+                    )
+                elif dataset_name == 'lfw':
+                    self._evaluate_pairwise(
+                        model=model,
+                        epoch=epoch,
+                        data_loader=self.test_loader[dataset_name]['pairs'],
+                        model_name=model_name
+                    )
+                else:
+                    self._evaluate_reid(
+                        model=model,
+                        epoch=epoch,
+                        model_name=model_name,
+                        dataset_name=dataset_name,
+                        query_loader=self.test_loader[dataset_name]['query'],
+                        gallery_loader=self.test_loader[dataset_name]['gallery'],
+                        dist_metric=dist_metric,
+                        normalize_feature=normalize_feature,
+                        visrank=visrank,
+                        visrank_topk=visrank_topk,
+                        save_dir=save_dir,
+                        use_metric_cuhk03=use_metric_cuhk03,
+                        ranks=ranks,
+                        rerank=rerank
+                    )
 
     @torch.no_grad()
-    def _evaluate(
+    def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks):
+        cmc, mAP, norm_cm = metrics.evaluate_classification(data_loader, model, self.use_gpu, ranks)
+
+        if self.writer is not None:
+            self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
+            for r in ranks:
+                self.writer.add_scalar('Val/{}/{}/Rank-{}'.format(dataset_name, model_name, r), cmc[r - 1], epoch + 1)
+
+        print('** Results ({}) **'.format(model_name))
+        print('mAP: {:.2%}'.format(mAP))
+        for r in ranks:
+            print('Rank-{:<3}: {:.2%}'.format(r, cmc[r - 1]))
+        metrics.show_confusion_matrix(norm_cm)
+
+    @torch.no_grad()
+    def _evaluate_pairwise(self, model, epoch, data_loader, model_name):
+        same_acc, diff_acc, overall_acc, auc, avg_optimal_thresh = metrics.evaluate_lfw(
+            data_loader, model, verbose=False
+        )
+
+        if self.writer is not None:
+            self.writer.add_scalar('Val/LFW/{}/same_accuracy'.format(model_name), same_acc, epoch + 1)
+            self.writer.add_scalar('Val/LFW/{}/diff_accuracy'.format(model_name), diff_acc, epoch + 1)
+            self.writer.add_scalar('Val/LFW/{}/accuracy'.format(model_name), overall_acc, epoch + 1)
+            self.writer.add_scalar('Val/LFW/{}/AUC'.format(model_name), auc, epoch + 1)
+
+        print('\n** Results ({}) **'.format(model_name))
+        print('Accuracy: {:.2%}'.format(overall_acc))
+        print('Accuracy on positive pairs: {:.2%}'.format(same_acc))
+        print('Accuracy on negative pairs: {:.2%}'.format(diff_acc))
+        print('Average threshold: {:.2}'.format(avg_optimal_thresh))
+
+    @torch.no_grad()
+    def _evaluate_reid(
         self,
+        model,
         epoch,
         dataset_name='',
         query_loader=None,
@@ -372,55 +429,45 @@ class Engine:
         visrank_topk=10,
         save_dir='',
         use_metric_cuhk03=False,
-        ranks=[1, 5, 10, 20],
-        rerank=False
+        ranks=(1, 5, 10, 20),
+        rerank=False,
+        model_name=''
     ):
-        batch_time = AverageMeter()
-
         def _feature_extraction(data_loader):
             f_, pids_, camids_ = [], [], []
             for batch_idx, data in enumerate(data_loader):
                 imgs, pids, camids = self.parse_data_for_eval(data)
                 if self.use_gpu:
                     imgs = imgs.cuda()
-                end = time.time()
-                features = self.extract_features(imgs)
-                batch_time.update(time.time() - end)
+
+                features = model(imgs),
                 features = features.data.cpu()
+
                 f_.append(features)
                 pids_.extend(pids)
                 camids_.extend(camids)
+
             f_ = torch.cat(f_, 0)
             pids_ = np.asarray(pids_)
             camids_ = np.asarray(camids_)
+
             return f_, pids_, camids_
 
-        print('Extracting features from query set ...')
         qf, q_pids, q_camids = _feature_extraction(query_loader)
-        print('Done, obtained {}-by-{} matrix'.format(qf.size(0), qf.size(1)))
-
-        print('Extracting features from gallery set ...')
         gf, g_pids, g_camids = _feature_extraction(gallery_loader)
-        print('Done, obtained {}-by-{} matrix'.format(gf.size(0), gf.size(1)))
-
-        print('Speed: {:.4f} sec/batch'.format(batch_time.avg))
 
         if normalize_feature:
-            print('Normalzing features with L2 norm ...')
             qf = F.normalize(qf, p=2, dim=1)
             gf = F.normalize(gf, p=2, dim=1)
 
-        print('Computing distance matrix with metric={} ...'.format(dist_metric))
         distmat = metrics.compute_distance_matrix(qf, gf, dist_metric)
         distmat = distmat.numpy()
 
         if rerank:
-            print('Applying person re-ranking ...')
             distmat_qq = metrics.compute_distance_matrix(qf, qf, dist_metric)
             distmat_gg = metrics.compute_distance_matrix(gf, gf, dist_metric)
             distmat = re_ranking(distmat, distmat_qq, distmat_gg)
 
-        print('Computing CMC and mAP ...')
         cmc, mAP = metrics.evaluate_rank(
             distmat,
             q_pids,
@@ -431,11 +478,11 @@ class Engine:
         )
 
         if self.writer is not None:
-            self.writer.add_scalar('Val/{}/mAP'.format(dataset_name), mAP, epoch + 1)
+            self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
             for r in ranks:
-                self.writer.add_scalar('Val/{}/Rank-{}'.format(dataset_name, r), cmc[r - 1], epoch + 1)
+                self.writer.add_scalar('Val/{}/{}/Rank-{}'.format(dataset_name, model_name, r), cmc[r - 1], epoch + 1)
 
-        print('** Results **')
+        print('** Results ({}) **'.format(model_name))
         print('mAP: {:.2%}'.format(mAP))
         print('CMC curve')
         for r in ranks:
@@ -460,12 +507,10 @@ class Engine:
             loss = criterion(outputs, targets, **kwargs)
         return loss
 
-    def extract_features(self, input):
-        return self.model(input)
-
     @staticmethod
     def parse_data_for_train(data, output_dict=False, enable_masks=False, use_gpu=False):
         imgs = data[0]
+
         obj_ids = data[1]
         if use_gpu:
             imgs = imgs.cuda()
@@ -499,7 +544,7 @@ class Engine:
 
         return imgs, obj_ids, cam_ids
 
-    def two_stepped_transfer_learning(self, epoch, fixbase_epoch, open_layers, model=None):
+    def two_stepped_transfer_learning(self, epoch, fixbase_epoch, open_layers):
         """Two-stepped transfer learning.
 
         The idea is to freeze base layers for a certain number of epochs
@@ -507,16 +552,12 @@ class Engine:
 
         Reference: https://arxiv.org/abs/1611.05244
         """
-        model = self.model if model is None else model
-        if model is None:
-            return
 
         if (epoch + 1) <= fixbase_epoch and open_layers is not None:
-            print(
-                '* Only train {} (epoch: {}/{})'.format(
-                    open_layers, epoch + 1, fixbase_epoch
-                )
-            )
-            open_specified_layers(model, open_layers)
+            print('* Only train {} (epoch: {}/{})'.format(open_layers, epoch + 1, fixbase_epoch))
+
+            for model in self.models.values():
+                open_specified_layers(model, open_layers, strict=False)
         else:
-            open_all_layers(model)
+            for model in self.models.values():
+                open_all_layers(model)

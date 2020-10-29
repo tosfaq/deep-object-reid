@@ -52,7 +52,13 @@ def group_norm_symbolic(g, input, num_groups, weight, bias, eps, cudnn_enabled):
     return output
 
 
-def parse_num_classes(source_datasets):
+def parse_num_classes(source_datasets, classification=False, num_classes=None):
+    if classification:
+        assert num_classes is not None and len(num_classes) > 0
+
+    if num_classes is not None and len(num_classes) > 0:
+        return num_classes
+
     num_clustered = 0
     num_rest = 0
     for src in source_datasets:
@@ -82,12 +88,12 @@ def reset_config(cfg):
 
 
 def main():
-
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config-file', type=str, default='',
                         help='Path to config file')
     parser.add_argument('--output-name', type=str, default='model',
                         help='Path to save ONNX model')
+    parser.add_argument('--num-classes', type=int, nargs='+', default=None)
     parser.add_argument('--opset', type=int, default=9)
     parser.add_argument('--verbose', default=False, action='store_true',
                         help='Verbose mode for onnx.export')
@@ -103,7 +109,7 @@ def main():
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 
-    num_classes = parse_num_classes(cfg.data.sources)
+    num_classes = parse_num_classes(cfg.data.sources, cfg.model.classification, args.num_classes)
     model = build_model(**model_kwargs(cfg, num_classes))
     load_pretrained_weights(model, cfg.model.load_weights)
     model.eval()

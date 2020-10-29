@@ -39,6 +39,7 @@ class Dataset:
         combineall=False,
         verbose=True,
         min_id_samples=0,
+        num_sampled_packages=1,
         **kwargs
     ):
         self.train = train
@@ -48,6 +49,9 @@ class Dataset:
         self.mode = mode
         self.combineall = combineall
         self.verbose = verbose
+
+        self.num_sampled_packages = num_sampled_packages
+        assert self.num_sampled_packages >= 1
 
         self.num_train_pids = self.get_num_pids(self.train)
         self.num_train_cams = self.get_num_cams(self.train)
@@ -179,6 +183,9 @@ class Dataset:
             counts[dataset_id][obj_id] += 1
 
         return counts
+
+    def get_record(self, index):
+        return self.data[index]
 
     def show_summary(self):
         """Shows dataset statistics."""
@@ -380,15 +387,41 @@ class ImageDataset(Dataset):
             if input_record[4] != '':
                 mask = read_image(input_record[4], grayscale=True)
 
-            if self.transform is not None:
-                image, mask = self.transform((image, mask))
+            if self.mode == 'train' and self.num_sampled_packages > 1:
+                assert self.transform is not None
 
-            output_record = (image, obj_id, cam_id, dataset_id, mask) + input_record[5:]
+                transformed_image, transformed_mask = [], []
+                for _ in range(self.num_sampled_packages):
+                    gen_image, gen_mask = self.transform((image, mask))
+
+                    transformed_image.append(gen_image)
+                    transformed_mask.append(gen_mask)
+
+                transformed_image = torch.stack(transformed_image)
+                transformed_mask = torch.stack(transformed_mask) if mask != '' else ''
+            elif self.transform is not None:
+                transformed_image, transformed_mask = self.transform((image, mask))
+            else:
+                transformed_image, transformed_mask = image, mask
+
+            output_record = (transformed_image, obj_id, cam_id, dataset_id, transformed_mask) + input_record[5:]
         else:
-            if self.transform is not None:
-                image, _ = self.transform((image, ''))
+            if self.mode == 'train' and self.num_sampled_packages > 1:
+                assert self.transform is not None
 
-            output_record = image, obj_id, cam_id
+                transformed_image = []
+                for _ in range(self.num_sampled_packages):
+                    gen_image, _ = self.transform((image, ''))
+
+                    transformed_image.append(gen_image)
+
+                transformed_image = torch.stack(transformed_image)
+            elif self.transform is not None:
+                transformed_image, _ = self.transform((image, ''))
+            else:
+                transformed_image = image
+
+            output_record = transformed_image, obj_id, cam_id
 
         return output_record
 

@@ -5,7 +5,7 @@ from .image import (
     VRIC, VeRi, CompCars, VMMRdb, CityFlow, Vehicle1M, UniverseModels, VeRiWild,
     InternalWildtrack, InternalAirport, InternalCameraTampering, InternalGlobalMe,
     InternalMall, InternalPSVIndoor, InternalPSVOutdoor, InternalSSPlatform,
-    InternalSSStreet, InternalSSTicket, MarketTrainOnly, VGGFace2, LFW
+    InternalSSStreet, InternalSSTicket, MarketTrainOnly, VGGFace2, LFW, Classification
 )
 
 from .video import PRID2011, Mars, DukeMTMCVidReID, iLIDSVID
@@ -44,6 +44,7 @@ __image_datasets = {
     'int-wildtrack': InternalWildtrack,
     'vgg_face2': VGGFace2,
     'lfw': LFW,
+    'classification': Classification,
 }
 
 __video_datasets = {

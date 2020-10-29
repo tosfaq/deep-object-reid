@@ -206,7 +206,7 @@ class MetricLosses:
             self.losses_map['center'] = self.total_losses_num
             self.total_losses_num += 1
 
-            self.centers_push_loss = CentersPush(margin=0.1)
+            self.centers_push_loss = CentersPush(margin=0.9)
             self.losses_map['push_center'] = self.total_losses_num
             self.total_losses_num += 1
 

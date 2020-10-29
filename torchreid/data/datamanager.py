@@ -32,7 +32,7 @@ class DataManager(object):
         norm_mean=None,
         norm_std=None,
         use_gpu=False,
-        apply_masks_to_test=False,
+        apply_masks_to_test=False
     ):
         self.source_groups = sources
         if self.source_groups is None:
@@ -182,8 +182,11 @@ class ImageDataManager(DataManager):
         cuhk03_labeled=False,
         cuhk03_classic_split=False,
         market1501_500k=False,
+        cl_data_dir='cl',
+        cl_version='',
         apply_masks_to_test=False,
         min_samples_per_id=0,
+        num_sampled_packages=1
     ):
 
         super(ImageDataManager, self).__init__(
@@ -195,7 +198,7 @@ class ImageDataManager(DataManager):
             norm_mean=norm_mean,
             norm_std=norm_std,
             use_gpu=use_gpu,
-            apply_masks_to_test=apply_masks_to_test,
+            apply_masks_to_test=apply_masks_to_test
         )
 
         print('=> Loading train (source) dataset')
@@ -215,7 +218,10 @@ class ImageDataManager(DataManager):
                 cuhk03_labeled=cuhk03_labeled,
                 cuhk03_classic_split=cuhk03_classic_split,
                 market1501_500k=market1501_500k,
-                min_id_samples=min_samples_per_id
+                cl_data_dir=cl_data_dir,
+                cl_version=cl_version,
+                min_id_samples=min_samples_per_id,
+                num_sampled_packages=num_sampled_packages
             ))
         train_dataset = sum(train_dataset)
 
@@ -273,7 +279,9 @@ class ImageDataManager(DataManager):
                     split_id=split_id,
                     cuhk03_labeled=cuhk03_labeled,
                     cuhk03_classic_split=cuhk03_classic_split,
-                    market1501_500k=market1501_500k
+                    market1501_500k=market1501_500k,
+                    cl_data_dir=cl_data_dir,
+                    cl_version=cl_version,
                 )
                 self.test_loader[name]['query'] = torch.utils.data.DataLoader(
                     query_dataset,
@@ -295,7 +303,9 @@ class ImageDataManager(DataManager):
                     split_id=split_id,
                     cuhk03_labeled=cuhk03_labeled,
                     cuhk03_classic_split=cuhk03_classic_split,
-                    market1501_500k=market1501_500k
+                    market1501_500k=market1501_500k,
+                    cl_data_dir=cl_data_dir,
+                    cl_version=cl_version,
                 )
                 self.test_loader[name]['gallery'] = torch.utils.data.DataLoader(
                     gallery_dataset,

@@ -11,8 +11,11 @@ Original repository: https://github.com/d-li14/mobilenetv3.pytorch
 
 import math
 import warnings
+from collections import OrderedDict
 
+import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, HSigmoid, HSwish
@@ -69,10 +72,10 @@ class SELayer(nn.Module):
         return x * y
 
 
-def conv_3x3_bn(inp, oup, stride):
+def conv_3x3_bn(inp, oup, stride, instance_norm=False):
     return nn.Sequential(
         nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
-        nn.BatchNorm2d(oup),
+        nn.BatchNorm2d(oup) if not instance_norm else nn.InstanceNorm2d(oup, affine=True),
         HSwish()
     )
 
@@ -86,7 +89,7 @@ def conv_1x1_bn(inp, oup):
 
 
 class InvertedResidual(nn.Module):
-    def __init__(self, inplaces, hidden_dim, outplaces, kernel_size, stride, use_se, use_hs, dropout_prob=None):
+    def __init__(self, inplaces, hidden_dim, outplaces, kernel_size, stride, use_se, use_hs, dropout_cfg=None):
         super(InvertedResidual, self).__init__()
         assert stride in [1, 2]
 
@@ -129,8 +132,8 @@ class InvertedResidual(nn.Module):
             )
 
         self.dropout = None
-        if dropout_prob is not None and dropout_prob > 0.0:
-            self.dropout = Dropout(p=dropout_prob)
+        if dropout_cfg is not None:
+            self.dropout = Dropout(**dropout_cfg)
 
     def forward(self, x):
         y = self.conv(x)
@@ -177,83 +180,148 @@ class MobileNetV3(nn.Module):
         ]
     }
 
-    def __init__(self, mode, num_classes, width_mult=1.0, feature_dim=512, loss='softmax', input_instance_norm=False,
-                 dropout_prob=None, **kwargs):
+    def __init__(self,
+                 mode,
+                 num_classes,
+                 classification=False,
+                 contrastive=False,
+                 width_mult=1.0,
+                 feature_dim=256,
+                 loss='softmax',
+                 IN_first=False,
+                 IN_conv1=False,
+                 dropout_cfg=None,
+                 pool_method='avg',
+                 bn_eval=False,
+                 bn_frozen=False,
+                 **kwargs):
         super(MobileNetV3, self).__init__()
-
-        self.feature_dim = feature_dim
-        self.loss = loss
 
         # config definition
         assert mode in ['large', 'small']
         self.cfg = MobileNetV3.arch_settings[mode]
 
-        self.instance_norm_input = None
-        if input_instance_norm:
-            self.instance_norm_input = nn.InstanceNorm2d(3, affine=True)
+        self.bn_eval = bn_eval
+        self.bn_frozen = bn_frozen
+        self.classification = classification
+        self.pool_method = pool_method
+
+        self.loss = loss
+        self.feature_dim = feature_dim
+        assert self.feature_dim is not None and self.feature_dim > 0
+
+        if not isinstance(num_classes, (list, tuple)):
+            num_classes = [num_classes]
+        self.num_classes = num_classes
+        assert len(self.num_classes) > 0
+
+        self.input_IN = None
+        if IN_first:
+            self.input_IN = nn.InstanceNorm2d(3, affine=True)
 
         # building first layer
         input_channel = make_divisible(16 * width_mult, 8)
-        layers = [conv_3x3_bn(3, input_channel, 2)]
+        layers = [conv_3x3_bn(3, input_channel, 2, IN_conv1)]
 
         # building inverted residual blocks
         block = InvertedResidual
-        for k, exp_size, c, use_se, use_hs, s in self.cfg:
+        for block_id in range(len(self.cfg)):
+            k, exp_size, c, use_se, use_hs, s = self.cfg[block_id]
             output_channel = make_divisible(c * width_mult, 8)
-            layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs, dropout_prob))
+            layers.append(block(
+                input_channel, exp_size, output_channel, k, s, use_se, use_hs,
+                dropout_cfg
+            ))
             input_channel = output_channel
         self.features = nn.Sequential(*layers)
 
         # building last several layers
-        output_channel = make_divisible(exp_size * width_mult, 8)
+        backbone_out_num_channels = make_divisible(exp_size * width_mult, 8)
         self.conv = nn.Sequential(
-            conv_1x1_bn(input_channel, output_channel),
-            SELayer(output_channel) if mode == 'small' else nn.Sequential()
+            conv_1x1_bn(input_channel, backbone_out_num_channels),
+            SELayer(backbone_out_num_channels) if mode == 'small' else nn.Sequential()
         )
 
-        # building embedding layer
-        self.global_avgpool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Sequential(
-            nn.Linear(output_channel, feature_dim),
-            nn.BatchNorm1d(feature_dim)
-        )
+        classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
 
-        # building classifier layer
-        if loss not in ['am_softmax']:
-            self.classifier = nn.Linear(feature_dim, num_classes)
-        else:
-            self.classifier = AngleSimpleLinear(feature_dim, num_classes)
+        in_feature_dims = [self.feature_dim] * len(self.num_classes)
+        out_feature_dims = [self.feature_dim] * len(self.num_classes)
+        self.out_feature_dims = out_feature_dims
+
+        self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
+        for trg_id, trg_num_classes in enumerate(self.num_classes):
+            self.fc.append(self._construct_fc_layer(backbone_out_num_channels, in_feature_dims[trg_id]))
+            if not contrastive and trg_num_classes > 0:
+                self.classifier.append(classifier_block(out_feature_dims[trg_id], trg_num_classes))
 
         self._init_weights()
 
+    @staticmethod
+    def _construct_fc_layer(input_dim, output_dim, dropout=False):
+        layers = []
+
+        if dropout:
+            layers.append(Dropout(p=0.2, dist='gaussian'))
+
+        layers.extend([
+            nn.Linear(input_dim, output_dim),
+            nn.BatchNorm1d(output_dim)
+        ])
+
+        return nn.Sequential(*layers)
+
+    @staticmethod
+    def _glob_feature_vector(x, mode):
+        if mode == 'avg':
+            out = F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
+        elif mode == 'max':
+            out = F.adaptive_max_pool2d(x, 1).view(x.size(0), -1)
+        elif mode == 'avg+max':
+            avg_pool = F.adaptive_avg_pool2d(x, 1)
+            max_pool = F.adaptive_max_pool2d(x, 1)
+            out = (avg_pool + max_pool).view(x.size(0), -1)
+        else:
+            raise ValueError(f'Unknown pooling mode: {mode}')
+
+        return out
+
     def forward(self, x, return_featuremaps=False, get_embeddings=False):
-        if self.instance_norm_input is not None:
-            x = self.instance_norm_input(x)
+        if self.input_IN is not None:
+            x = self.input_IN(x)
 
         y = self.features(x)
         y = self.conv(y)
         if return_featuremaps:
             return y
 
-        v = self.global_avgpool(y)
-        v = v.view(v.size(0), -1)
-        if self.fc is not None:
-            v = self.fc(v)
+        glob_features = self._glob_feature_vector(y, self.pool_method)
+        embeddings = [fc(glob_features) for fc in self.fc]
 
-        if not self.training:
-            return v
+        if self.training and len(self.classifier) == 0:
+            return embeddings
+        elif not self.training and not self.classification:
+            return torch.cat(embeddings, dim=1)
 
-        y = self.classifier(v)
+        logits = [classifier(embd) for embd, classifier in zip(embeddings, self.classifier)]
+
+        if not self.training and self.classification:
+            return logits
+
+        if len(logits) == 1:
+            logits = logits[0]
+        if len(embeddings) == 1:
+            embeddings = embeddings[0]
 
         if get_embeddings:
-            return v, y
-
-        if self.loss in ['softmax', 'am_softmax']:
-            return y
+            out_data = [logits, embeddings]
+        elif self.loss in ['softmax', 'adacos', 'd_softmax', 'am_softmax']:
+            out_data = [logits]
         elif self.loss in ['triplet']:
-            return y, v
+            out_data = [logits, embeddings]
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
+
+        return tuple(out_data)
 
     def _init_weights(self):
         for m in self.modules():
@@ -275,26 +343,121 @@ class MobileNetV3(nn.Module):
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
+    def train(self, train_mode=True):
+        super(MobileNetV3, self).train(train_mode)
+
+        if self.bn_eval:
+            for m in self.modules():
+                if isinstance(m, nn.BatchNorm2d):
+                    m.eval()
+
+                    if self.bn_frozen:
+                        for params in m.parameters():
+                            params.requires_grad = False
+
+        return self
+
+    def load_pretrained_weights(self, pretrained_dict):
+        model_dict = self.state_dict()
+        new_state_dict = OrderedDict()
+        matched_layers, discarded_layers = [], []
+
+        for k, v in pretrained_dict.items():
+            if k.startswith('module.'):
+                k = k[7:]  # discard module.
+
+            if k in model_dict and model_dict[k].size() == v.size():
+                new_state_dict[k] = v
+                matched_layers.append(k)
+            else:
+                discarded_layers.append(k)
+
+        model_dict.update(new_state_dict)
+        self.load_state_dict(model_dict)
+
+        if len(matched_layers) == 0:
+            warnings.warn(
+                'The pretrained weights cannot be loaded, '
+                'please check the key names manually '
+                '(** ignored and continue **)'
+            )
+        else:
+            print('Successfully loaded pretrained weights')
+            if len(discarded_layers) > 0:
+                print(
+                    '** The following layers are discarded '
+                    'due to unmatched keys or layer size: {}'.
+                    format(discarded_layers)
+                )
+
+
+def init_pretrained_weights(model, key=''):
+    """Initializes model with pretrained weights.
+
+    Layers that don't match with pretrained layers in name or size are kept unchanged.
+    """
+    import os
+    import errno
+    import gdown
+
+    def _get_torch_home():
+        ENV_TORCH_HOME = 'TORCH_HOME'
+        ENV_XDG_CACHE_HOME = 'XDG_CACHE_HOME'
+        DEFAULT_CACHE_DIR = '~/.cache'
+        torch_home = os.path.expanduser(
+            os.getenv(
+                ENV_TORCH_HOME,
+                os.path.join(
+                    os.getenv(ENV_XDG_CACHE_HOME, DEFAULT_CACHE_DIR), 'torch'
+                )
+            )
+        )
+        return torch_home
+
+    torch_home = _get_torch_home()
+    model_dir = os.path.join(torch_home, 'checkpoints')
+    try:
+        os.makedirs(model_dir)
+    except OSError as e:
+        if e.errno == errno.EEXIST:
+            pass
+        else:
+            raise
+    filename = key + '_imagenet.pth'
+    cached_file = os.path.join(model_dir, filename)
+
+    if not os.path.exists(cached_file):
+        gdown.download(pretrained_urls[key], cached_file, quiet=False)
+
+    state_dict = torch.load(cached_file)
+    model.load_pretrained_weights(state_dict)
+
 
 ##########
 # Instantiation
 ##########
 
-def mobilenetv3_small(num_classes=1000, pretrained=True, **kwargs):
-    model = MobileNetV3('small', num_classes, input_instance_norm=True, dropout_prob=0.1, **kwargs)
+def mobilenetv3_small(num_classes=1000, pretrained=True, download_weights=False, **kwargs):
+    model = MobileNetV3(
+        'small',
+        num_classes,
+        **kwargs
+    )
 
-    if pretrained:
-        warnings.warn('The imagenet pretrained weights need to be manually downloaded from {}'
-                      .format(pretrained_urls['mobilenetv3_small']))
+    if pretrained and download_weights:
+        init_pretrained_weights(model, key='mobilenetv3_small')
 
     return model
 
 
-def mobilenetv3_large(num_classes=1000, pretrained=True, **kwargs):
-    model = MobileNetV3('large', num_classes, input_instance_norm=True, dropout_prob=0.1, **kwargs)
+def mobilenetv3_large(num_classes=1000, pretrained=True, download_weights=False, **kwargs):
+    model = MobileNetV3(
+        'large',
+        num_classes,
+        **kwargs
+    )
 
-    if pretrained:
-        warnings.warn('The imagenet pretrained weights need to be manually downloaded from {}'
-                      .format(pretrained_urls['mobilenetv3_large']))
+    if pretrained and download_weights:
+        init_pretrained_weights(model, key='mobilenetv3_large')
 
     return model
