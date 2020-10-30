@@ -312,7 +312,7 @@ class ChannelGate(nn.Module):
 class OSBlock(nn.Module):
     """Omni-scale feature learning block."""
 
-    def __init__(self, in_channels, out_channels, channel_gate, reduction=4, T=4, dropout_prob=None, **kwargs):
+    def __init__(self, in_channels, out_channels, channel_gate, reduction=4, T=4, dropout_cfg=None, **kwargs):
         super(OSBlock, self).__init__()
         assert T >= 1
         assert out_channels >= reduction and out_channels % reduction == 0
@@ -330,8 +330,8 @@ class OSBlock(nn.Module):
             self.downsample = Conv1x1Linear(in_channels, out_channels)
 
         self.dropout = None
-        if dropout_prob is not None and dropout_prob > 0.0:
-            self.dropout = Dropout(p=dropout_prob)
+        if dropout_cfg is not None:
+            self.dropout = Dropout(**dropout_cfg)
 
     def forward(self, x):
         identity = x
@@ -347,7 +347,7 @@ class OSBlock(nn.Module):
 
         x3 = self.conv3(x2)
         if self.dropout is not None:
-            x3 = self.dropout(x3)
+            x3 = self.dropout(x3, x)
 
         out = x3 + identity
 
@@ -357,7 +357,7 @@ class OSBlock(nn.Module):
 class OSBlockINin(nn.Module):
     """Omni-scale feature learning block with instance normalization."""
 
-    def __init__(self, in_channels, out_channels, channel_gate, reduction=4, T=4, dropout_prob=None, **kwargs):
+    def __init__(self, in_channels, out_channels, channel_gate, reduction=4, T=4, dropout_cfg=None, **kwargs):
         super(OSBlockINin, self).__init__()
         assert T >= 1
         assert out_channels >= reduction and out_channels % reduction == 0
@@ -377,8 +377,8 @@ class OSBlockINin(nn.Module):
         self.IN = nn.InstanceNorm2d(out_channels, affine=True)
 
         self.dropout = None
-        if dropout_prob is not None and dropout_prob > 0.0:
-            self.dropout = Dropout(p=dropout_prob)
+        if dropout_cfg is not None:
+            self.dropout = Dropout(**dropout_cfg)
 
     def forward(self, x):
         identity = x
@@ -395,7 +395,7 @@ class OSBlockINin(nn.Module):
         x3 = self.conv3(x2)
         x3 = self.IN(x3)  # IN inside residual
         if self.dropout is not None:
-            x3 = self.dropout(x3)
+            x3 = self.dropout(x3, x)
 
         out = x3 + identity
 
@@ -420,25 +420,31 @@ class OSNet(nn.Module):
         num_classes,
         blocks,
         channels,
+        classification=False,
+        contrastive=False,
         head_attention=False,
         attentions=None,
-        dropout_probs=None,
+        dropout_cfg=None,
         feature_dim=256,
         loss='softmax',
         input_lcn=False,
-        input_IN=False,
-        conv1_IN=False,
+        IN_first=False,
+        IN_conv1=False,
         bn_eval=False,
         bn_frozen=False,
         attr_names=None,
         attr_num_classes=None,
         lct_gate=False,
+        pooling_type='avg',
         **kwargs
     ):
         super(OSNet, self).__init__()
 
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
+        self.classification = classification
+        self.contrastive = contrastive
+        self.pooling_type = pooling_type
 
         num_blocks = len(blocks)
         assert num_blocks == len(channels) - 1
@@ -446,11 +452,6 @@ class OSNet(nn.Module):
         self.loss = loss
         self.feature_dim = feature_dim
         assert self.feature_dim is not None and self.feature_dim > 0
-
-        self.dropout_probs = dropout_probs
-        if self.dropout_probs is None:
-            self.dropout_probs = [None] * num_blocks
-        assert len(self.dropout_probs) == num_blocks
 
         self.use_attentions = attentions
         if self.use_attentions is None:
@@ -463,19 +464,19 @@ class OSNet(nn.Module):
         assert len(self.num_classes) > 0
 
         self.input_lcn = LocalContrastNormalization(3, 5, affine=True) if input_lcn else None
-        self.input_IN = nn.InstanceNorm2d(3, affine=True) if input_IN else None
-        self.channel_gate = LCTGate if lct_gate else ChannelGate
+        self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
+        channel_gate = LCTGate if lct_gate else ChannelGate
 
-        self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=conv1_IN)
+        self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=IN_conv1)
         self.att1 = self._construct_attention_layer(channels[0], self.use_attentions[0])
         self.pool1 = nn.MaxPool2d(3, stride=2, padding=1)
-        self.conv2 = self._construct_layer(blocks[0], channels[0], channels[1], self.channel_gate)
+        self.conv2 = self._construct_layer(blocks[0], channels[0], channels[1], channel_gate, dropout_cfg)
         self.att2 = self._construct_attention_layer(channels[1], self.use_attentions[1])
         self.pool2 = nn.Sequential(Conv1x1(channels[1], channels[1]), nn.AvgPool2d(2, stride=2))
-        self.conv3 = self._construct_layer(blocks[1], channels[1], channels[2], self.channel_gate)
+        self.conv3 = self._construct_layer(blocks[1], channels[1], channels[2], channel_gate, dropout_cfg)
         self.att3 = self._construct_attention_layer(channels[2], self.use_attentions[2])
         self.pool3 = nn.Sequential(Conv1x1(channels[2], channels[2]), nn.AvgPool2d(2, stride=2))
-        self.conv4 = self._construct_layer(blocks[2], channels[2], channels[3], self.channel_gate)
+        self.conv4 = self._construct_layer(blocks[2], channels[2], channels[3], channel_gate, dropout_cfg)
         self.att4 = self._construct_attention_layer(channels[3], self.use_attentions[3])
 
         backbone_out_num_channels = channels[3]
@@ -523,22 +524,18 @@ class OSNet(nn.Module):
 
         self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
         for trg_id, trg_num_classes in enumerate(self.num_classes):
-            self.fc.append(self._construct_fc_layer(backbone_out_num_channels, in_feature_dims[trg_id], dropout=False))
-            if trg_num_classes > 0:
+            self.fc.append(self._construct_fc_layer(backbone_out_num_channels, in_feature_dims[trg_id]))
+            if not contrastive and trg_num_classes > 0:
                 self.classifier.append(classifier_block(out_feature_dims[trg_id], trg_num_classes))
 
         self._init_params()
 
     @staticmethod
-    def _construct_layer(blocks, in_channels, out_channels, channel_gate, dropout_probs=None):
-        if dropout_probs is None:
-            dropout_probs = [None] * len(blocks)
-        assert len(dropout_probs) == len(blocks)
-
+    def _construct_layer(blocks, in_channels, out_channels, channel_gate, dropout_cfg=None):
         layers = []
-        layers += [blocks[0](in_channels, out_channels, channel_gate, dropout_prob=dropout_probs[0])]
+        layers += [blocks[0](in_channels, out_channels, channel_gate, dropout_cfg=dropout_cfg)]
         for i in range(1, len(blocks)):
-            layers += [blocks[i](out_channels, out_channels, channel_gate, dropout_prob=dropout_probs[i])]
+            layers += [blocks[i](out_channels, out_channels, channel_gate, dropout_cfg=dropout_cfg)]
 
         return nn.Sequential(*layers)
 
@@ -637,8 +634,11 @@ class OSNet(nn.Module):
         return y, att_maps
 
     @staticmethod
-    def _glob_feature_vector(x, head_att=None):
-        if head_att is not None:
+    def _glob_feature_vector(x, mode='avg', head_att=None):
+        att_map = None
+        if mode == 'head_att':
+            assert head_att is not None
+
             att_map = head_att(x)
             with torch.no_grad():
                 num_values = torch.sum(att_map, dim=(2, 3), keepdim=True)
@@ -646,9 +646,16 @@ class OSNet(nn.Module):
 
             y = scale * att_map * x
             out = torch.sum(y, dim=(2, 3))
-        else:
+        elif mode == 'avg':
             out = F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
-            att_map = None
+        elif mode == 'max':
+            out = F.adaptive_max_pool2d(x, 1).view(x.size(0), -1)
+        elif mode == 'avg+max':
+            avg_pool = F.adaptive_avg_pool2d(x, 1)
+            max_pool = F.adaptive_max_pool2d(x, 1)
+            out = (avg_pool + max_pool).view(x.size(0), -1)
+        else:
+            raise ValueError(f'Unknown pooling mode: {mode}')
 
         return out, att_map
 
@@ -657,8 +664,11 @@ class OSNet(nn.Module):
         if return_featuremaps:
             return feature_maps
 
-        glob_features, head_att_map = self._glob_feature_vector(feature_maps, self.head_att)
+        glob_features, head_att_map = self._glob_feature_vector(feature_maps, self.pooling_type, self.head_att)
         embeddings = [fc(glob_features) for fc in self.fc]
+
+        if self.training and len(self.classifier) == 0:
+            return embeddings
 
         attr_embeddings = {}
         if self.use_attr:
@@ -667,10 +677,13 @@ class OSNet(nn.Module):
             attr_vector = torch.cat([attr_embeddings[attr_name] for attr_name in self.attr_names], dim=1)
             embeddings = [attr_module(e, attr_vector) for e, attr_module in zip(embeddings, self.attr_att)]
 
-        if not self.training:
+        if not self.training and not self.classification:
             return torch.cat(embeddings, dim=1)
 
         logits = [classifier(embd) for embd, classifier in zip(embeddings, self.classifier)]
+
+        if not self.training and self.classification:
+            return logits
 
         if len(logits) == 1:
             logits = logits[0]
@@ -793,7 +806,8 @@ def init_pretrained_weights(model, key=''):
 # Instantiation
 ##########
 
-def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwargs):
+def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False,
+                   IN_first=False, IN_conv1=False, **kwargs):
     model = OSNet(
         num_classes,
         blocks=[
@@ -802,7 +816,7 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwar
             [OSBlockINin, OSBlock]
         ],
         channels=[64, 256, 384, 512],
-        conv1_IN=True,
+        IN_conv1=True,
         **kwargs
     )
 
@@ -813,7 +827,8 @@ def osnet_ain_x1_0(num_classes, pretrained=False, download_weights=False, **kwar
 
 
 def osnet_ain2_x1_0(num_classes, pretrained=False, download_weights=False,
-                    enable_attentions=False, **kwargs):
+                    enable_attentions=False, IN_first=False, IN_conv1=False,
+                    **kwargs):
     model = OSNet(
         num_classes,
         blocks=[
@@ -823,8 +838,8 @@ def osnet_ain2_x1_0(num_classes, pretrained=False, download_weights=False,
         ],
         channels=[64, 256, 384, 512],
         attentions=[False, True, True, False, False] if enable_attentions else None,
-        input_IN=True,
-        conv1_IN=True,
+        IN_first=True,
+        IN_conv1=True,
         **kwargs
     )
 

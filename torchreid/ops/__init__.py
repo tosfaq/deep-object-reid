@@ -5,3 +5,4 @@ from .non_local import NonLocalModule
 from .norm import LocalContrastNormalization
 from .fpn import FPN
 from .gmp import GeneralizedMeanPooling
+from .data_parallel import DataParallel

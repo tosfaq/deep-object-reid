@@ -193,8 +193,9 @@ class MetricLosses:
 
     def __init__(self, num_classes, embed_size,
                  center_coeff=1.0, triplet_coeff=1.0, local_push_coeff=1.0,
+                 center_margin=0.1, triplet_margin=0.35, local_push_margin=0.1,
                  loss_balancing=True, centers_lr=0.5, balancing_lr=0.01,
-                 name='ml', triplet='semihard'):
+                 smart_margin=True, triplet='semihard', name='ml'):
         self.name = name
         self.total_losses_num = 0
         self.losses_map = dict()
@@ -206,13 +207,13 @@ class MetricLosses:
             self.losses_map['center'] = self.total_losses_num
             self.total_losses_num += 1
 
-            self.centers_push_loss = CentersPush(margin=0.1)
+            self.centers_push_loss = CentersPush(margin=center_margin)
             self.losses_map['push_center'] = self.total_losses_num
             self.total_losses_num += 1
 
         self.local_push_coeff = local_push_coeff
         if self.local_push_coeff is not None and self.local_push_coeff > 0:
-            self.local_push_loss = LocalPushLoss(margin=0.1, smart_margin=True)
+            self.local_push_loss = LocalPushLoss(margin=local_push_margin, smart_margin=smart_margin)
             self.losses_map['local_push'] = self.total_losses_num
             self.total_losses_num += 1
 
@@ -220,7 +221,7 @@ class MetricLosses:
         if self.triplet_coeff is not None and self.triplet_coeff > 0:
             assert triplet in ['semihard', 'invdist']
             triplet_instance = SemiHardTripletLoss if triplet == 'semihard' else InvDistanceTripletLoss
-            self.triplet_loss = triplet_instance(margin=0.35)
+            self.triplet_loss = triplet_instance(margin=triplet_margin)
             self.losses_map['triplet'] = self.total_losses_num
             self.total_losses_num += 1
 

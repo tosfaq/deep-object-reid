@@ -11,7 +11,7 @@ import torch
 from torchvision.transforms import *
 from torchvision.transforms import functional as F
 from torchreid.utils.tools import read_image
-from PIL import Image
+from PIL import Image, ImageOps
 
 from ..data.datasets.image.lfw import FivePointsAligner
 
@@ -32,26 +32,89 @@ class RandomHorizontalFlip(object):
         return img, mask
 
 
+class CenterCrop(object):
+    def __init__(self, margin=0, **kwargs):
+        self.margin = margin
+
+    def __call__(self, input_tuple, *args, **kwargs):
+        if self.margin <= 0:
+            return input_tuple
+
+        img, mask = input_tuple
+        img_width, img_height = img.size
+
+        box = (self.margin, self.margin, img_width - self.margin, img_height - self.margin)
+        img = img.crop(box)
+        mask = mask.crop(box) if mask != '' else mask
+
+        return img, mask
+
+
 class RandomCrop(object):
-    def __init__(self, p=0.5, scale=0.9, **kwargs):
+    def __init__(self, p=0.5, scale=0.9, margin=None, target_ar=None, align_ar=False, align_center=False, **kwargs):
         self.p = p
-        assert 0.0 <= self.p <= 1.0
+        assert 0.0 <= self.p < 1.0
         self.scale = scale
         assert 0.0 < self.scale < 1.0
+        self.margin = margin
+        self.target_ar = target_ar
+        self.align_center = align_center
+        self.align_ar = align_ar
+        if self.align_ar:
+            assert self.target_ar is not None and self.target_ar > 0
 
     def __call__(self, input_tuple, *args, **kwargs):
         if random.uniform(0, 1) > self.p:
             return input_tuple
 
         img, mask = input_tuple
-
         img_width, img_height = img.size
-        crop_width, crop_height = int(round(img_width * self.scale)), int(round(img_height * self.scale))
 
-        x_max_range = img_width - crop_width
-        y_max_range = img_height - crop_height
-        x1 = int(round(random.uniform(0, x_max_range)))
-        y1 = int(round(random.uniform(0, y_max_range)))
+        if self.align_ar:
+            source_ar = float(img_height) / float(img_width)
+            target_ar = random.uniform(min(source_ar, self.target_ar), max(source_ar, self.target_ar))
+
+            if target_ar < source_ar:
+                max_crop_width = img_width
+                max_crop_height = target_ar * max_crop_width
+            else:
+                max_crop_height = img_height
+                max_crop_width = max_crop_height / target_ar
+        else:
+            max_crop_width = img_width
+            max_crop_height = img_height
+
+        if self.margin is None or self.margin <= 0:
+            min_scale = self.scale
+        else:
+            width_rest = max(1, img_width - 2 * self.margin)
+            height_rest = max(1, img_height - 2 * self.margin)
+
+            min_width_scale = float(width_rest) / float(img_width)
+            min_height_scale = float(height_rest) / float(img_height)
+            min_scale = max(min_width_scale, min_height_scale)
+
+        scale = random.uniform(min_scale, 1.0)
+        crop_width = int(round(scale * max_crop_width))
+        crop_height = int(round(scale * max_crop_height))
+
+        if self.align_center:
+            min_crop_width = min_scale * img_width
+            min_crop_height = min_scale * img_height
+
+            center_x = 0.5 * img_width
+            center_y = 0.5 * img_height
+
+            x_shift_range = (max(0, center_x + 0.5 * min_crop_width - crop_width),
+                             min(img_width - crop_width, center_x - 0.5 * min_crop_width))
+            y_shift_range = (max(0, center_y + 0.5 * min_crop_height - crop_height),
+                             min(img_height - crop_height, center_y - 0.5 * min_crop_height))
+        else:
+            x_shift_range = 0, img_width - crop_width
+            y_shift_range = 0, img_height - crop_height
+
+        x1 = int(round(random.uniform(*x_shift_range)))
+        y1 = int(round(random.uniform(*y_shift_range)))
 
         img = img.crop((x1, y1, x1 + crop_width, y1 + crop_height))
         mask = mask.crop((x1, y1, x1 + crop_width, y1 + crop_height)) if mask != '' else mask
@@ -269,6 +332,33 @@ class RandomGrayscale(object):
         return img, mask
 
 
+class RandomNegative(object):
+    def __init__(self, p=0.1, **kwargs):
+        self.p = p
+
+    def __call__(self, input_tuple):
+        if random.uniform(0, 1) > self.p:
+            return input_tuple
+
+        img, mask = input_tuple
+        img = ImageOps.invert(img)
+
+        return img, mask
+
+
+class ForceGrayscale(object):
+    def __init__(self):
+        pass
+
+    def __call__(self, input_tuple):
+        img, mask = input_tuple
+
+        num_output_channels = 1 if img.mode == 'L' else 3
+        img = F.to_grayscale(img, num_output_channels=num_output_channels)
+
+        return img, mask
+
+
 class RandomPadding(object):
     """Random padding
     """
@@ -296,9 +386,12 @@ class RandomRotate(object):
     """Random rotate
     """
 
-    def __init__(self, p=0.5, angle=(-5, 5), **kwargs):
+    def __init__(self, p=0.5, angle=(-5, 5), values=None, **kwargs):
         self.p = p
         self.angle = angle
+
+        self.discrete = values is not None and len([v for v in values if v != 0]) > 0
+        self.values = values
 
     def __call__(self, input_tuple, *args, **kwargs):
         if random.uniform(0, 1) > self.p:
@@ -306,7 +399,11 @@ class RandomRotate(object):
 
         img, mask = input_tuple
 
-        rnd_angle = random.randint(self.angle[0], self.angle[1])
+        if self.discrete:
+            rnd_angle = float(self.values[random.randint(0, len(self.values) - 1)])
+        else:
+            rnd_angle = random.randint(self.angle[0], self.angle[1])
+
         img = F.rotate(img, rnd_angle, resample=False, expand=False, center=None)
         if mask != '':
             rgb_mask = mask.convert('RGB')
@@ -381,14 +478,28 @@ class RandomFigures(object):
     """
 
     def __init__(self, p=0.5, random_color=True, always_single_figure=False,
-                 thicknesses=(1, 6), circle_radiuses=(5, 64), figure_prob=0.5, **kwargs):
+                 thicknesses=(1, 6), circle_radiuses=(5, 64), figure_prob=0.5,
+                 figures=None, **kwargs):
         self.p = p
         self.random_color = random_color
         self.always_single_figure = always_single_figure
-        self.figures = (cv2.line, cv2.rectangle, cv2.circle)
         self.thicknesses = thicknesses
         self.circle_radiuses = circle_radiuses
         self.figure_prob = figure_prob
+
+        if figures is None:
+            self.figures = [cv2.line, cv2.rectangle, cv2.circle]
+        else:
+            assert isinstance(figures, (tuple, list))
+
+            self.figures = []
+            for figure in figures:
+                assert isinstance(figure, str)
+
+                if hasattr(cv2, figure):
+                    self.figures.append(getattr(cv2, figure))
+                else:
+                    raise ValueError('Unknown figure: {}'.format(figure))
 
     def __call__(self, input_tuple):
         if random.uniform(0, 1) > self.p:
@@ -474,13 +585,49 @@ class GaussianBlur(object):
         self.k = k
 
     def __call__(self, input_tuple, *args, **kwargs):
+        if random.uniform(0, 1) > self.p:
+            return input_tuple
+
         img, mask = input_tuple
 
         img = np.array(img)
-        if float(torch.FloatTensor(1).uniform_()) < self.p:
-            img = cv2.blur(img, (self.k, self.k))
-
+        img = cv2.blur(img, (self.k, self.k))
         img = Image.fromarray(img)
+
+        return img, mask
+
+
+class GaussianNoise(object):
+    """Adds gaussian noise with random parameters
+    """
+
+    def __init__(self, p, sigma, grayscale):
+        self.p = p
+        self.sigma = sigma
+        self.grayscale = grayscale
+
+    def __call__(self, input_tuple, *args, **kwargs):
+        if random.uniform(0, 1) > self.p:
+            return input_tuple
+
+        img, mask = input_tuple
+
+        image_max_brightness = np.max(img)
+        image_min_brightness = np.min(img)
+        brightness_range = image_max_brightness - image_min_brightness
+        max_noise_sigma = self.sigma * float(brightness_range if brightness_range > 0 else 1)
+        noise_sigma = np.random.uniform(0, max_noise_sigma)
+
+        img = np.array(img, dtype=np.float32)
+
+        noise_shape = img.shape[:2] + (1,) if self.grayscale else img.shape
+        img += np.random.normal(loc=0.0, scale=noise_sigma, size=noise_shape)
+
+        img[img < 0.0] = 0.0
+        img[img > 255.0] = 255.0
+
+        img = Image.fromarray(img.astype(np.uint8))
+
         return img, mask
 
 
@@ -695,9 +842,17 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.random_figures.enable and transforms.random_figures.before_resize:
         print('+ random_figures')
         transform_tr += [RandomFigures(**transforms.random_figures)]
+    if transforms.center_crop.enable:
+        print('+ center_crop')
+        transform_tr += [CenterCrop(margin=transforms.random_crop.margin)]
     if transforms.random_crop.enable:
         print('+ random crop')
-        transform_tr += [RandomCrop(**transforms.random_crop)]
+        transform_tr += [RandomCrop(p=transforms.random_crop.p,
+                                    scale=transforms.random_crop.scale,
+                                    margin=transforms.random_crop.margin,
+                                    align_ar=transforms.random_crop.scale,
+                                    align_center=transforms.random_crop.align_center,
+                                    target_ar=float(height)/float(width))]
     if transforms.random_padding.enable:
         print('+ random_padding')
         transform_tr += [RandomPadding(**transforms.random_padding)]
@@ -724,7 +879,12 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.random_blur.enable:
         print('+ random_blur')
         transform_tr += [GaussianBlur(p=transforms.random_blur.p,
-                                         k=transforms.random_blur.k)]
+                                      k=transforms.random_blur.k)]
+    if transforms.random_noise.enable:
+        print('+ random_noise')
+        transform_tr += [GaussianNoise(p=transforms.random_noise.p,
+                                       sigma=transforms.random_noise.sigma,
+                                       grayscale=transforms.random_noise.grayscale)]
     if transforms.mixup.enable:
         mixup_augmentor = MixUp(**transforms.mixup)
         print('+ mixup (with {} extra images)'.format(mixup_augmentor.get_num_images()))
@@ -748,6 +908,12 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.random_erase.enable and not transforms.random_erase.norm_image:
         print('+ random erase')
         transform_tr += [RandomErasing(**transforms.random_erase)]
+    if transforms.random_negative.enable:
+        print('+ random negative')
+        transform_tr += [RandomNegative(**transforms.random_negative)]
+    if transforms.force_gray_scale.enable:
+        print('+ force_gray_scale')
+        transform_tr += [ForceGrayscale()]
     print('+ to torch tensor of range [0, 1]')
     transform_tr += [PairToTensor()]
     print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
@@ -757,20 +923,26 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
         transform_tr += [RandomErasing(**transforms.random_erase)]
     transform_tr = Compose(transform_tr)
 
-    transform_te = build_test_transform(height, width, norm_mean, norm_std, apply_masks_to_test)
+    transform_te = build_test_transform(height, width, norm_mean, norm_std, apply_masks_to_test, transforms)
 
     return transform_tr, transform_te
 
 
-def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406),
-                         norm_std=(0.229, 0.224, 0.225), apply_masks_to_test=False, **kwargs):
+def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_std=(0.229, 0.224, 0.225),
+                         apply_masks_to_test=False, transforms=None, **kwargs):
     print('Building test transforms ...')
     transform_te = []
+    if transforms.center_crop.enable:
+        print('+ center_crop')
+        transform_te.append(CenterCrop(margin=transforms.center_crop.margin))
     if apply_masks_to_test:
         print('+ background zeroing')
         transform_te.append(DisableBackground())
     print('+ resize to {}x{}'.format(height, width))
     transform_te.append(PairResize((height, width)))
+    if transforms is not None and transforms.force_gray_scale.enable:
+        print('+ force_gray_scale')
+        transform_te.append(ForceGrayscale())
     print('+ to torch tensor of range [0, 1]')
     transform_te.append(PairToTensor())
     print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))

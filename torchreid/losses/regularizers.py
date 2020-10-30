@@ -49,7 +49,7 @@ class ConvRegularizer(nn.Module):
 
             loss = self.reg_instance(module.weight)
             if loss > 0:
-                accumulator += loss
+                accumulator += loss.to(accumulator.device)
                 num_losses += 1
 
         return accumulator / float(max(1, num_losses))
@@ -137,7 +137,7 @@ class NormRegularizer(nn.Module):
         for conv in conv_layers:
             loss = self._loss(conv['weight'], self.max_ratio, self.min_norm)
             if loss > 0:
-                accumulator += loss
+                accumulator += loss.to(accumulator.device)
                 num_losses += 1
 
         return self.scale * accumulator / float(max(1, num_losses))
@@ -159,13 +159,10 @@ class NormRegularizer(nn.Module):
                 assert not last_conv['updated']
 
                 alpha = m.weight
-                # beta = m.bias
-                # running_mean = m.running_mean.detach()
                 running_var = m.running_var.detach()
 
                 scales = (alpha / torch.sqrt(running_var + eps)).view(-1, 1, 1, 1)
                 last_conv['weight'] = scales * last_conv['weight']
-                # last_conv['bias'] = scales * (last_conv['bias'] - running_mean) + beta
                 last_conv['updated'] = True
 
         return conv_layers

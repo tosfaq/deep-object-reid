@@ -15,6 +15,8 @@ def get_default_config():
     cfg.model.dropout.p = 0.0
     cfg.model.dropout.mu = 0.1
     cfg.model.dropout.sigma = 0.03
+    cfg.model.dropout.kernel = 3
+    cfg.model.dropout.temperature = 0.2
     cfg.model.dropout.dist = 'none'
     cfg.model.feature_dim = 512  # embedding size
     cfg.model.bn_eval = False
@@ -22,12 +24,15 @@ def get_default_config():
     cfg.model.enable_attentions = False
     cfg.model.pooling_type = 'avg'
     cfg.model.IN_first = False
+    cfg.model.IN_conv1 = False
     cfg.model.extra_blocks = False
     cfg.model.lct_gate = False
     cfg.model.fpn = CN()
     cfg.model.fpn.enable = True
     cfg.model.fpn.dim = 256
     cfg.model.fpn.process = 'concatenation'
+    cfg.model.classification = False
+    cfg.model.contrastive = False
 
     # data
     cfg.data = CN()
@@ -45,6 +50,7 @@ def get_default_config():
     cfg.data.norm_std = [0.229, 0.224, 0.225]  # default is imagenet std
     cfg.data.save_dir = 'log'  # path to save log
     cfg.data.min_samples_per_id = 1
+    cfg.data.num_sampled_packages = 1
     # specific datasets
     cfg.market1501 = CN()
     cfg.market1501.use_500k_distractors = False  # add 500k distractors to the gallery set for market1501
@@ -52,6 +58,9 @@ def get_default_config():
     cfg.cuhk03.labeled_images = False  # use labeled images, if False, use detected images
     cfg.cuhk03.classic_split = False  # use classic split by Li et al. CVPR14
     cfg.cuhk03.use_metric_cuhk03 = False  # use cuhk03's metric for evaluation
+    cfg.classification = CN()
+    cfg.classification.data_dir = 'cl'
+    cfg.classification.version = ''
 
     # sampler
     cfg.sampler = CN()
@@ -113,11 +122,18 @@ def get_default_config():
     cfg.loss.softmax.duration_s = -1
     cfg.loss.softmax.skip_steps_s = -1
     cfg.loss.softmax.adaptive_margins = False
+    cfg.loss.softmax.class_weighting = False
     cfg.loss.softmax.base_num_classes = -1
+    cfg.loss.softmax.symmetric_ce = False
     cfg.loss.triplet = CN()
     cfg.loss.triplet.margin = 0.3  # distance margin
     cfg.loss.triplet.weight_t = 1.  # weight to balance hard triplet loss
     cfg.loss.triplet.weight_x = 0.  # weight to balance cross entropy loss
+
+    # mixing loss
+    cfg.mixing_loss = CN()
+    cfg.mixing_loss.enable = False
+    cfg.mixing_loss.weight = 1.0
 
     # metric_losses
     cfg.metric_losses = CN()
@@ -125,6 +141,14 @@ def get_default_config():
     cfg.metric_losses.center_coeff = 0.0
     cfg.metric_losses.triplet_coeff = 0.0
     cfg.metric_losses.local_push_coeff = 1.0
+    cfg.metric_losses.center_margin = 0.1
+    cfg.metric_losses.triplet_margin = 0.35
+    cfg.metric_losses.local_push_margin = 0.1
+    cfg.metric_losses.smart_margin = True
+    cfg.metric_losses.triplet = 'semihard'
+    cfg.metric_losses.loss_balancing = True
+    cfg.metric_losses.centers_lr = 0.5
+    cfg.metric_losses.balancing_lr = 0.01
 
     # attribute loss
     cfg.attr_loss = CN()
@@ -179,10 +203,24 @@ def get_default_config():
     cfg.data.transforms.random_crop.enable = False
     cfg.data.transforms.random_crop.p = 0.5
     cfg.data.transforms.random_crop.scale = 0.9
+    cfg.data.transforms.random_crop.margin = 0
+    cfg.data.transforms.random_crop.align_ar = False
+    cfg.data.transforms.random_crop.align_center = False
+
+    cfg.data.transforms.center_crop = CN()
+    cfg.data.transforms.center_crop.enable = False
+    cfg.data.transforms.center_crop.margin = 0
 
     cfg.data.transforms.random_gray_scale = CN()
     cfg.data.transforms.random_gray_scale.enable = False
     cfg.data.transforms.random_gray_scale.p = 0.5
+
+    cfg.data.transforms.force_gray_scale = CN()
+    cfg.data.transforms.force_gray_scale.enable = False
+
+    cfg.data.transforms.random_negative = CN()
+    cfg.data.transforms.random_negative.enable = False
+    cfg.data.transforms.random_negative.p = 0.5
 
     cfg.data.transforms.random_padding = CN()
     cfg.data.transforms.random_padding.enable = False
@@ -216,6 +254,7 @@ def get_default_config():
     cfg.data.transforms.random_rotate.enable = False
     cfg.data.transforms.random_rotate.p = 0.5
     cfg.data.transforms.random_rotate.angle = (-5, 5)
+    cfg.data.transforms.random_rotate.values = (0, )
 
     cfg.data.transforms.cut_out_with_prior = CN()
     cfg.data.transforms.cut_out_with_prior.enable = False
@@ -227,6 +266,12 @@ def get_default_config():
     cfg.data.transforms.random_blur.p = 0.5
     cfg.data.transforms.random_blur.k = 5
 
+    cfg.data.transforms.random_noise = CN()
+    cfg.data.transforms.random_noise.enable = False
+    cfg.data.transforms.random_noise.p = 0.2
+    cfg.data.transforms.random_noise.sigma = 0.05
+    cfg.data.transforms.random_noise.grayscale = False
+
     cfg.data.transforms.random_figures = CN()
     cfg.data.transforms.random_figures.enable = False
     cfg.data.transforms.random_figures.p = 0.5
@@ -236,6 +281,7 @@ def get_default_config():
     cfg.data.transforms.random_figures.circle_radiuses = (5, 64)
     cfg.data.transforms.random_figures.figure_prob = 0.5
     cfg.data.transforms.random_figures.before_resize = True
+    cfg.data.transforms.random_figures.figures = ['line', 'rectangle', 'circle']
 
     cfg.data.transforms.random_patch = CN()
     cfg.data.transforms.random_patch.enable = False
@@ -300,10 +346,13 @@ def imagedata_kwargs(cfg):
         'fill_instances': cfg.sampler.fill_instances,
         'train_sampler': cfg.sampler.train_sampler,
         'enable_masks': cfg.data.enable_masks,
+        'num_sampled_packages': cfg.data.num_sampled_packages,
         # image
         'cuhk03_labeled': cfg.cuhk03.labeled_images,
         'cuhk03_classic_split': cfg.cuhk03.classic_split,
         'market1501_500k': cfg.market1501.use_500k_distractors,
+        'cl_data_dir': cfg.classification.data_dir,
+        'cl_version': cfg.classification.version,
         'apply_masks_to_test': cfg.test.apply_masks,
         'min_samples_per_id': cfg.data.min_samples_per_id,
     }
@@ -381,6 +430,7 @@ def model_kwargs(cfg, num_classes):
         'pooling_type': cfg.model.pooling_type,
         'input_size': (cfg.data.height, cfg.data.width),
         'IN_first': cfg.model.IN_first,
+        'IN_conv1': cfg.model.IN_conv1,
         'extra_blocks': cfg.model.extra_blocks,
         'lct_gate': cfg.model.lct_gate,
         'bn_eval': cfg.model.bn_eval,
@@ -388,6 +438,8 @@ def model_kwargs(cfg, num_classes):
         'enable_attentions': cfg.model.enable_attentions and cfg.data.enable_masks,
         'attr_names': cfg.attr_loss.names,
         'attr_num_classes': cfg.attr_loss.num_classes,
+        'classification': cfg.model.classification,
+        'contrastive': cfg.model.contrastive,
     }
 
 
@@ -419,8 +471,10 @@ def transforms(cfg):
 def augmentation_kwargs(cfg):
     return {
         'random_flip': cfg.data.transforms.random_flip,
+        'center_crop': cfg.data.transforms.center_crop,
         'random_crop': cfg.data.transforms.random_crop,
         'random_gray_scale': cfg.data.transforms.random_gray_scale,
+        'force_gray_scale': cfg.data.transforms.force_gray_scale,
         'random_padding': cfg.data.transforms.random_padding,
         'random_perspective': cfg.data.transforms.random_perspective,
         'color_jitter': cfg.data.transforms.color_jitter,
@@ -428,5 +482,6 @@ def augmentation_kwargs(cfg):
         'random_rotate': cfg.data.transforms.random_rotate,
         'random_figures': cfg.data.transforms.random_figures,
         'random_grid': cfg.data.transforms.random_grid,
+        'random_negative': cfg.data.transforms.random_negative,
         'cut_out_with_prior': cfg.data.transforms.cut_out_with_prior
     }

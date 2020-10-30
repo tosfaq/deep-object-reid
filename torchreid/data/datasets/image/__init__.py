@@ -20,7 +20,8 @@ from .universe_models import UniverseModels
 from .vehicle1m import Vehicle1M
 from .veriwild import VeRiWild
 from .globalme import (InternalWildtrack, InternalAirport, InternalCameraTampering, InternalGlobalMe,
-    InternalMall, InternalPSVIndoor, InternalPSVOutdoor, InternalSSPlatform,
-    InternalSSStreet, InternalSSTicket, MarketTrainOnly)
+                       InternalMall, InternalPSVIndoor, InternalPSVOutdoor, InternalSSPlatform,
+                       InternalSSStreet, InternalSSTicket, MarketTrainOnly)
 from .vgg_face2 import VGGFace2
 from .lfw import LFW
+from .classification import Classification

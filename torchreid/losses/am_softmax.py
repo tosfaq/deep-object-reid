@@ -55,10 +55,10 @@ def focal_loss(input_values, gamma):
 class AMSoftmaxLoss(nn.Module):
     margin_types = ['cos', 'arc']
 
-    def __init__(self, use_gpu=True, conf_penalty=0.0, margin_type='cos',
-                 gamma=0.0, m=0.5, s=30, t=1.0, label_smooth=False, epsilon=0.1,
-                 end_s=None, duration_s=None, skip_steps_s=None, pr_product=False,
-                 class_counts=None):
+    def __init__(self, use_gpu=True, margin_type='cos', gamma=0.0, m=0.5, t=1.0,
+                 s=30, end_s=None, duration_s=None, skip_steps_s=None, conf_penalty=0.0,
+                 label_smooth=False, epsilon=0.1, pr_product=False, symmetric_ce=False,
+                 class_counts=None, adaptive_margins=False, class_weighting=False):
         super(AMSoftmaxLoss, self).__init__()
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
@@ -84,18 +84,23 @@ class AMSoftmaxLoss(nn.Module):
         self.th = math.cos(math.pi - m)
         assert t >= 1
         self.t = t
+        self.symmetric_ce = symmetric_ce
 
-        if class_counts is not None:
-            class_ids = list(class_counts)
-            class_ids.sort()
+        if adaptive_margins and class_counts is not None:
+            class_ids = list(sorted(class_counts.keys()))
+            flat_class_counts = np.array([class_counts[class_id] for class_id in class_ids], dtype=np.float32)
 
-            counts = np.array([class_counts[class_id] for class_id in class_ids], dtype=np.float32)
-            class_margins = (self.m / np.power(counts, 1. / 4.)).reshape((1, -1))
-
-            self.register_buffer('class_margins', torch.from_numpy(class_margins).cuda())
-            print('[INFO] Enabled adaptive margins for AM-Softmax loss, avg_m=' + str(round(np.mean(class_margins), 2)))
+            margins = (self.m / np.power(flat_class_counts, 1. / 4.)).reshape((1, -1))
+            self.register_buffer('class_margins', torch.from_numpy(margins).cuda())
+            print('[INFO] Enabled adaptive margins for AM-Softmax loss, avg_m=' + str(round(np.mean(margins), 2)))
         else:
             self.class_margins = self.m
+
+        if class_weighting and class_counts is not None:
+            weights = self._estimate_class_weights(class_counts)
+            self.register_buffer('class_weights', torch.from_numpy(weights).cuda())
+        else:
+            self.class_weights = None
 
     @staticmethod
     def get_last_info():
@@ -105,7 +110,29 @@ class AMSoftmaxLoss(nn.Module):
         return self.last_scale
 
     @staticmethod
-    def get_scale(start_scale, end_scale, duration, skip_steps, iteration, power=1.2):
+    def _estimate_class_weights(class_sizes, num_steps=1000, num_samples=32, scale=1.0, eps=1e-4):
+        class_ids = np.array(list(class_sizes.keys()), dtype=np.int32)
+        counts = np.array(list(class_sizes.values()), dtype=np.float32)
+
+        frequencies = counts / np.sum(counts)
+        init_weights = np.reciprocal(frequencies + eps)
+
+        average_weights = list()
+        for _ in range(num_steps):
+            ids = np.random.choice(class_ids, num_samples, p=frequencies)
+            values = class_ids[ids]
+            average_weights.append(np.mean(values))
+
+        weights = scale / np.median(average_weights) * init_weights
+
+        out_weights = np.zeros([len(class_sizes)], dtype=np.float32)
+        for class_id, class_weight in zip(class_ids, weights):
+            out_weights[class_id] = class_weight
+
+        return out_weights
+
+    @staticmethod
+    def _get_scale(start_scale, end_scale, duration, skip_steps, iteration, power=1.2):
         def _invalid(_v):
             return _v is None or _v <= 0
 
@@ -128,6 +155,14 @@ class AMSoftmaxLoss(nn.Module):
             out_value = end_scale
 
         return out_value
+
+    def _reweight(self, losses, labels):
+        with torch.no_grad():
+            loss_weights = torch.gather(self.class_weights, 0, labels.view(-1))
+
+        weighted_losses = loss_weights * losses
+
+        return weighted_losses
 
     def forward(self, cos_theta, target, iteration=None):
         """
@@ -154,7 +189,7 @@ class AMSoftmaxLoss(nn.Module):
         index.scatter_(1, target.data.view(-1, 1), 1)
         output = torch.where(index, phi_theta, cos_theta)
 
-        self.last_scale = self.get_scale(self.start_s, self.end_s, self.duration_s, self.skip_steps_s, iteration)
+        self.last_scale = self._get_scale(self.start_s, self.end_s, self.duration_s, self.skip_steps_s, iteration)
 
         if self.gamma == 0.0 and self.t == 1.0:
             output *= self.last_scale
@@ -170,12 +205,23 @@ class AMSoftmaxLoss(nn.Module):
             else:
                 losses = F.cross_entropy(output, target, reduction='none')
 
+            if self.symmetric_ce:
+                all_probs = F.softmax(output, dim=-1)
+                target_probs = all_probs[torch.arange(target.size(0), device=target.device), target]
+                losses += 4.0 * (1.0 - target_probs)
+
             if self.conf_penalty > 0.0:
                 probs = F.softmax(output, dim=1)
                 log_probs = F.log_softmax(output, dim=1)
                 entropy = torch.sum(-probs * log_probs, dim=1)
 
                 losses = F.relu(losses - self.conf_penalty * entropy)
+
+            if self.class_weights is not None:
+                with torch.no_grad():
+                    loss_weights = torch.gather(self.class_weights, 0, target.view(-1))
+
+                losses = loss_weights * losses
 
             with torch.no_grad():
                 nonzero_count = max(losses.nonzero().size(0), 1)
