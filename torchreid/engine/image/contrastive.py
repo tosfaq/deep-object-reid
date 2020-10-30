@@ -1,8 +1,4 @@
 """
- MIT License
-
- Copyright (c) 2018 Kaiyang Zhou
-
  Copyright (c) 2020 Intel Corporation
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +27,7 @@ from torchreid.losses import get_regularizer, InfoNCELoss
 
 
 class ImageContrastiveEngine(Engine):
-    r"""AM-Softmax-loss engine for image-reid.
+    r"""InfoNCE-loss engine for image-classification.
     """
 
     def __init__(self, datamanager, model, optimizer, reg_cfg, scheduler=None, use_gpu=False,

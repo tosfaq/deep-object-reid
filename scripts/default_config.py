@@ -33,7 +33,6 @@ def get_default_config():
     cfg.model.fpn.process = 'concatenation'
     cfg.model.classification = False
     cfg.model.contrastive = False
-    cfg.model.pool_method = 'avg'
 
     # data
     cfg.data = CN()
@@ -142,6 +141,14 @@ def get_default_config():
     cfg.metric_losses.center_coeff = 0.0
     cfg.metric_losses.triplet_coeff = 0.0
     cfg.metric_losses.local_push_coeff = 1.0
+    cfg.metric_losses.center_margin = 0.1
+    cfg.metric_losses.triplet_margin = 0.35
+    cfg.metric_losses.local_push_margin = 0.1
+    cfg.metric_losses.smart_margin = True
+    cfg.metric_losses.triplet = 'semihard'
+    cfg.metric_losses.loss_balancing = True
+    cfg.metric_losses.centers_lr = 0.5
+    cfg.metric_losses.balancing_lr = 0.01
 
     # attribute loss
     cfg.attr_loss = CN()
@@ -433,7 +440,6 @@ def model_kwargs(cfg, num_classes):
         'attr_num_classes': cfg.attr_loss.num_classes,
         'classification': cfg.model.classification,
         'contrastive': cfg.model.contrastive,
-        'pool_method': cfg.model.pool_method,
     }
 
 

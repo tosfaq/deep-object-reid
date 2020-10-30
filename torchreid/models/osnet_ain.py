@@ -435,7 +435,7 @@ class OSNet(nn.Module):
         attr_names=None,
         attr_num_classes=None,
         lct_gate=False,
-        pool_method='avg',
+        pooling_type='avg',
         **kwargs
     ):
         super(OSNet, self).__init__()
@@ -444,7 +444,7 @@ class OSNet(nn.Module):
         self.bn_frozen = bn_frozen
         self.classification = classification
         self.contrastive = contrastive
-        self.pool_method = pool_method
+        self.pooling_type = pooling_type
 
         num_blocks = len(blocks)
         assert num_blocks == len(channels) - 1
@@ -664,7 +664,7 @@ class OSNet(nn.Module):
         if return_featuremaps:
             return feature_maps
 
-        glob_features, head_att_map = self._glob_feature_vector(feature_maps, self.pool_method, self.head_att)
+        glob_features, head_att_map = self._glob_feature_vector(feature_maps, self.pooling_type, self.head_att)
         embeddings = [fc(glob_features) for fc in self.fc]
 
         if self.training and len(self.classifier) == 0:

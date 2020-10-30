@@ -191,7 +191,7 @@ class MobileNetV3(nn.Module):
                  IN_first=False,
                  IN_conv1=False,
                  dropout_cfg=None,
-                 pool_method='avg',
+                 pooling_type='avg',
                  bn_eval=False,
                  bn_frozen=False,
                  **kwargs):
@@ -205,7 +205,7 @@ class MobileNetV3(nn.Module):
         self.bn_frozen = bn_frozen
         self.classification = classification
         self.contrastive = contrastive
-        self.pool_method = pool_method
+        self.pooling_type = pooling_type
 
         self.loss = loss
         self.feature_dim = feature_dim
@@ -295,7 +295,7 @@ class MobileNetV3(nn.Module):
         if return_featuremaps:
             return y
 
-        glob_features = self._glob_feature_vector(y, self.pool_method)
+        glob_features = self._glob_feature_vector(y, self.pooling_type)
         embeddings = [fc(glob_features) for fc in self.fc]
 
         if self.training and len(self.classifier) == 0:

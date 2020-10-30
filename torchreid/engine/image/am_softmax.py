@@ -22,6 +22,8 @@ from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
 
+import copy
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -103,14 +105,10 @@ class ImageAMSoftmaxEngine(Engine):
                     if hasattr(model.module, 'out_feature_dims'):
                         feature_dim = model.module.out_feature_dims[trg_id]
 
-                    trg_ml_losses[model_name] = MetricLosses(
-                        trg_num_classes,
-                        feature_dim,
-                        metric_cfg.center_coeff,
-                        metric_cfg.triplet_coeff,
-                        metric_cfg.local_push_coeff,
-                        name='ml_{}/{}'.format(trg_id, model_name)
-                    )
+                    ml_cfg = copy.deepcopy(metric_cfg)
+                    ml_cfg.pop('enable')
+                    ml_cfg['name'] = 'ml_{}/{}'.format(trg_id, model_name)
+                    trg_ml_losses[model_name] = MetricLosses(trg_num_classes, feature_dim, **ml_cfg)
 
                 self.ml_losses.append(trg_ml_losses)
 
