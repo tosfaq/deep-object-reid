@@ -24,6 +24,7 @@ from .resnet_ibn_b import *
 from .shufflenetv2 import *
 from .inceptionresnetv2 import *
 from .mobile_face_net_se import *
+from .ptcv_wrapper import *
 
 __model_factory = {
     # image classification models
@@ -88,6 +89,8 @@ __model_factory = {
     'mobile_face_net_se_1x': mobile_face_net_se_1x,
     'mobile_face_net_se_2x': mobile_face_net_se_2x
 }
+
+__model_factory = {**__model_factory, **wrapped_models}
 
 
 def show_avai_models():

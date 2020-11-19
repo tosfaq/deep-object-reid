@@ -16,3 +16,4 @@ isort
 asciitable
 scikit-learn
 lxml
+pytorchcv
