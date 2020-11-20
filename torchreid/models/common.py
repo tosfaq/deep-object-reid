@@ -30,18 +30,20 @@ class ModelInterface(nn.Module):
           self.pretrained = pretrained
 
      @staticmethod
-     def _glob_feature_vector(x, mode):
+     def _glob_feature_vector(x, mode, reduce_dims=True):
           if mode == 'avg':
-               out = F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
+               out = F.adaptive_avg_pool2d(x, 1)
           elif mode == 'max':
-               out = F.adaptive_max_pool2d(x, 1).view(x.size(0), -1)
+               out = F.adaptive_max_pool2d(x, 1)
           elif mode == 'avg+max':
                avg_pool = F.adaptive_avg_pool2d(x, 1)
                max_pool = F.adaptive_max_pool2d(x, 1)
-               out = (avg_pool + max_pool).view(x.size(0), -1)
+               out = avg_pool + max_pool
           else:
                raise ValueError(f'Unknown pooling mode: {mode}')
 
+          if reduce_dims:
+               return out.view(x.size(0), -1)
           return out
 
      @staticmethod

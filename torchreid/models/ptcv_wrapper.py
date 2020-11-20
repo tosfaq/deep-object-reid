@@ -36,6 +36,7 @@ class PTCVModel(ModelInterface):
         super().__init__(**kwargs)
         self.pooling_type = pooling_type
         assert loss == 'softmax' # can't handle other cases for now
+        self.loss = loss
         assert isinstance(num_classes, int)
 
         model = get_model(model_name, num_classes=num_classes, pretrained=self.pretrained)
@@ -54,9 +55,9 @@ class PTCVModel(ModelInterface):
         if return_featuremaps:
             return y
 
-        glob_features = self._glob_feature_vector(y, self.pooling_type)
+        glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
 
-        logits = self.output(glob_features)
+        logits = self.output(glob_features).view(x.shape[0], -1)
 
         if not self.training and self.classification:
             return logits
