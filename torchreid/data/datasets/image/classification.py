@@ -120,6 +120,6 @@ class ClassificationImageFolder(ImageDataset):
                         out_data.append((path, class_index, 0, dataset_id, '', -1, -1))\
 
         if not len(out_data):
-            print('Failed to locate images in folder ' + data_dir + )
+            print('Failed to locate images in folder ' + data_dir + f'fole with extensions {ALLOWED_EXTS}')
 
         return out_data
