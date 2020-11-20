@@ -250,7 +250,7 @@ class MobileNetV3(ModelInterface):
         self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
         for trg_id, trg_num_classes in enumerate(self.num_classes):
             self.fc.append(self._construct_fc_layer(backbone_out_num_channels, in_feature_dims[trg_id]))
-            if not contrastive and trg_num_classes > 0:
+            if not self.contrastive and trg_num_classes > 0:
                 self.classifier.append(classifier_block(out_feature_dims[trg_id], trg_num_classes))
 
         self._init_weights()

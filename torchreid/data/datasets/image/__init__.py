@@ -24,4 +24,4 @@ from .globalme import (InternalWildtrack, InternalAirport, InternalCameraTamperi
                        InternalSSStreet, InternalSSTicket, MarketTrainOnly)
 from .vgg_face2 import VGGFace2
 from .lfw import LFW
-from .classification import Classification
+from .classification import Classification, ClassificationImageFolder
