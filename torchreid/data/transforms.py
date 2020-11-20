@@ -8,7 +8,7 @@ from collections import deque
 import cv2
 import numpy as np
 import torch
-from torchvision.transforms import *
+from torchvision.transforms import Compose, Resize, ToTensor, Normalize, ColorJitter
 from torchvision.transforms import functional as F
 from torchreid.utils.tools import read_image
 from PIL import Image, ImageOps
@@ -223,7 +223,7 @@ class RandomPatch(object):
     """Random patch data augmentation.
 
     There is a patch pool that stores randomly extracted pathces from person images.
-    
+
     For each input image, RandomPatch
         1) extracts a random patch and stores the patch in the patch pool;
         2) randomly selects a patch from the patch pool and pastes it on the
