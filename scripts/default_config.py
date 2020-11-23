@@ -210,6 +210,7 @@ def get_default_config():
     cfg.data.transforms.center_crop = CN()
     cfg.data.transforms.center_crop.enable = False
     cfg.data.transforms.center_crop.margin = 0
+    cfg.data.transforms.center_crop.test_only = False
 
     cfg.data.transforms.random_gray_scale = CN()
     cfg.data.transforms.random_gray_scale.enable = False

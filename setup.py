@@ -12,7 +12,7 @@ def readme():
 
 
 def find_version():
-    version_file = 'torchreid/__init__.py'
+    version_file = 'torchreid/version.py'
     with open(version_file, 'r') as f:
         exec(compile(f.read(), version_file, 'exec'))
     return locals()['__version__']

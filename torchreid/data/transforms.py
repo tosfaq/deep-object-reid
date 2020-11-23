@@ -842,7 +842,7 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.random_figures.enable and transforms.random_figures.before_resize:
         print('+ random_figures')
         transform_tr += [RandomFigures(**transforms.random_figures)]
-    if transforms.center_crop.enable:
+    if transforms.center_crop.enable and not transforms.center_crop.test_only:
         print('+ center_crop')
         transform_tr += [CenterCrop(margin=transforms.center_crop.margin)]
     if transforms.random_crop.enable:
