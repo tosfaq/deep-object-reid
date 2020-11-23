@@ -60,7 +60,7 @@ class PTCVModel(ModelInterface):
         logits = self.output(glob_features).view(x.shape[0], -1)
 
         if not self.training and self.classification:
-            return logits
+            return [logits]
 
         if get_embeddings:
             out_data = [logits, glob_features]

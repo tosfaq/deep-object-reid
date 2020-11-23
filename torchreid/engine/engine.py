@@ -390,14 +390,15 @@ class Engine:
 
         if self.writer is not None:
             self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
-            for r in ranks:
-                self.writer.add_scalar('Val/{}/{}/Rank-{}'.format(dataset_name, model_name, r), cmc[r - 1], epoch + 1)
+            for i, r in enumerate(ranks):
+                self.writer.add_scalar('Val/{}/{}/Rank-{}'.format(dataset_name, model_name, r), cmc[i], epoch + 1)
 
         print('** Results ({}) **'.format(model_name))
         print('mAP: {:.2%}'.format(mAP))
-        for r in ranks:
-            print('Rank-{:<3}: {:.2%}'.format(r, cmc[r - 1]))
-        metrics.show_confusion_matrix(norm_cm)
+        for i, r in enumerate(ranks):
+            print('Rank-{:<3}: {:.2%}'.format(r, cmc[i]))
+        if norm_cm.shape[0] <= 20:
+            metrics.show_confusion_matrix(norm_cm)
 
     @torch.no_grad()
     def _evaluate_pairwise(self, model, epoch, data_loader, model_name):
