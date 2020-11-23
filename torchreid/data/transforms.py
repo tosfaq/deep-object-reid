@@ -844,7 +844,7 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
         transform_tr += [RandomFigures(**transforms.random_figures)]
     if transforms.center_crop.enable:
         print('+ center_crop')
-        transform_tr += [CenterCrop(margin=transforms.random_crop.margin)]
+        transform_tr += [CenterCrop(margin=transforms.center_crop.margin)]
     if transforms.random_crop.enable:
         print('+ random crop')
         transform_tr += [RandomCrop(p=transforms.random_crop.p,
@@ -930,16 +930,22 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
 
 def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_std=(0.229, 0.224, 0.225),
                          apply_masks_to_test=False, transforms=None, **kwargs):
+    def get_resize(h, w, scale):
+        t_h, t_w = int(h * scale), int(w * scale)
+        print('+ resize to {}x{}'.format(t_h, t_w))
+        return PairResize((t_h, t_w))
     print('Building test transforms ...')
     transform_te = []
+    if transforms.test.resize_first:
+        transform_te.append(get_resize(height, width, transforms.test.resize_scale))
     if transforms.center_crop.enable:
         print('+ center_crop')
         transform_te.append(CenterCrop(margin=transforms.center_crop.margin))
     if apply_masks_to_test:
         print('+ background zeroing')
         transform_te.append(DisableBackground())
-    print('+ resize to {}x{}'.format(height, width))
-    transform_te.append(PairResize((height, width)))
+    if not transforms.test.resize_first:
+        transform_te.append(get_resize(height, width, transforms.test.resize_scale))
     if transforms is not None and transforms.force_gray_scale.enable:
         print('+ force_gray_scale')
         transform_te.append(ForceGrayscale())
