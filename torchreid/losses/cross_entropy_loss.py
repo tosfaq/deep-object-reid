@@ -73,6 +73,9 @@ class CrossEntropyLoss(nn.Module):
 
         return sm_loss.mean()
 
+    def get_last_scale(self):
+        return 1.
+
 
 class PseudoCrossEntropyLoss(nn.Module):
     def __init__(self, scale=1.0, epsilon=0.1, use_gpu=True, label_smooth=True, conf_penalty=None):

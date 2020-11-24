@@ -2,7 +2,8 @@ from __future__ import print_function, absolute_import
 
 from torchreid import data, optim, utils, engine, losses, models, metrics, ops
 
-__version__ = '1.2.3'
+from .version import __version__
+
 __author__ = 'Kaiyang Zhou'
 __homepage__ = 'https://kaiyangzhou.github.io/'
 __description__ = 'Deep learning person re-identification in PyTorch'

@@ -210,6 +210,7 @@ def get_default_config():
     cfg.data.transforms.center_crop = CN()
     cfg.data.transforms.center_crop.enable = False
     cfg.data.transforms.center_crop.margin = 0
+    cfg.data.transforms.center_crop.test_only = False
 
     cfg.data.transforms.random_gray_scale = CN()
     cfg.data.transforms.random_gray_scale.enable = False
@@ -321,6 +322,10 @@ def get_default_config():
     cfg.data.transforms.batch_transform.type = 'Pairing'
     cfg.data.transforms.batch_transform.alpha = 1.
     cfg.data.transforms.batch_transform.anchor_bias = 0.8
+
+    cfg.data.transforms.test = CN()
+    cfg.data.transforms.test.resize_first = False
+    cfg.data.transforms.test.resize_scale = 1.0
 
     return cfg
 

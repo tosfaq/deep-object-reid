@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, HSwish, GumbelSigmoid, LocalContrastNormalization
+from .common import ModelInterface
 
 
 __all__ = ['osnet_ain_x1_0', 'osnet_ain2_x1_0']
@@ -406,9 +407,8 @@ class OSBlockINin(nn.Module):
 # Network architecture
 ##########
 
-class OSNet(nn.Module):
+class OSNet(ModelInterface):
     """Omni-Scale Network.
-    
     Reference:
         - Zhou et al. Omni-Scale Feature Learning for Person Re-Identification. ICCV, 2019.
         - Zhou et al. Learning Generalisable Omni-Scale Representations
@@ -420,8 +420,6 @@ class OSNet(nn.Module):
         num_classes,
         blocks,
         channels,
-        classification=False,
-        contrastive=False,
         head_attention=False,
         attentions=None,
         dropout_cfg=None,
@@ -438,7 +436,7 @@ class OSNet(nn.Module):
         pooling_type='avg',
         **kwargs
     ):
-        super(OSNet, self).__init__()
+        super().__init__(**kwargs)
 
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
@@ -558,20 +556,6 @@ class OSNet(nn.Module):
             Conv1x1(internal_num_channels, 1, out_fn=None),
             GumbelSigmoid(scale=gumbel_scale) if gumbel else nn.Sigmoid()
         ]
-
-        return nn.Sequential(*layers)
-
-    @staticmethod
-    def _construct_fc_layer(input_dim, output_dim, dropout=False):
-        layers = []
-
-        if dropout:
-            layers.append(Dropout(p=0.2, dist='gaussian'))
-
-        layers.extend([
-            nn.Linear(input_dim, output_dim),
-            nn.BatchNorm1d(output_dim)
-        ])
 
         return nn.Sequential(*layers)
 
@@ -762,7 +746,6 @@ class OSNet(nn.Module):
 
 def init_pretrained_weights(model, key=''):
     """Initializes model with pretrained weights.
-    
     Layers that don't match with pretrained layers in name or size are kept unchanged.
     """
     import os

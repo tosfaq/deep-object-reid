@@ -13,3 +13,7 @@ gdown
 flake8
 yapf
 isort
+asciitable
+scikit-learn
+lxml
+pytorchcv

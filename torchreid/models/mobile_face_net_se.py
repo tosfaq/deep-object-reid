@@ -16,6 +16,7 @@ import math
 import torch.nn as nn
 
 from torchreid.losses import AngleSimpleLinear
+from .common import ModelInterface
 
 
 __all__ = ['mobile_face_net_se_1x', 'mobile_face_net_se_2x']
@@ -94,7 +95,7 @@ class InvertedResidual(nn.Module):
         return self.inv_block(x)
 
 
-class MobileFaceNet(nn.Module):
+class MobileFaceNet(ModelInterface):
     """Implements modified MobileFaceNet from https://arxiv.org/abs/1804.07573"""
     def __init__(self,
                  num_classes,
@@ -104,14 +105,13 @@ class MobileFaceNet(nn.Module):
                  loss='softmax',
                  input_size=(128, 128),
                  **kwargs):
-        super(MobileFaceNet, self).__init__()
+        super().__init__(**kwargs)
         assert feature_dim > 0
         assert num_classes > 0
         assert width_multiplier > 0
         self.feature = feature
         self.loss = loss
         self.input_size = input_size
-        print(loss, num_classes, input_size)
 
         # Set up of inverted residual blocks
         inverted_residual_setting = [

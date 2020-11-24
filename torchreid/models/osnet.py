@@ -7,6 +7,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from .common import ModelInterface
+
 __all__ = [
     'osnet_x1_0', 'osnet_x0_75', 'osnet_x0_5', 'osnet_x0_25', 'osnet_ibn_x1_0'
 ]
@@ -280,7 +282,7 @@ class OSBlock(nn.Module):
 # Network architecture
 ##########
 
-class OSNet(nn.Module):
+class OSNet(ModelInterface):
     """Omni-Scale Network.
 
     Reference:
@@ -300,7 +302,7 @@ class OSNet(nn.Module):
             IN=False,
             **kwargs
     ):
-        super(OSNet, self).__init__()
+        super().__init__(**kwargs)
         num_blocks = len(blocks)
         assert num_blocks == len(layers)
         assert num_blocks == len(channels) - 1

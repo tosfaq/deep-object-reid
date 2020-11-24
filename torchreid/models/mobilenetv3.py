@@ -20,6 +20,8 @@ import torch.nn.functional as F
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, HSigmoid, HSwish
 
+from .common import ModelInterface
+
 __all__ = ['mobilenetv3_small', 'mobilenetv3_large']
 
 pretrained_urls = {
@@ -144,7 +146,7 @@ class InvertedResidual(nn.Module):
         return x + y if self.identity else y
 
 
-class MobileNetV3(nn.Module):
+class MobileNetV3(ModelInterface):
     arch_settings = {
         'large': [
             # k,  t,  c, SE, NL, s
@@ -183,8 +185,6 @@ class MobileNetV3(nn.Module):
     def __init__(self,
                  mode,
                  num_classes,
-                 classification=False,
-                 contrastive=False,
                  width_mult=1.0,
                  feature_dim=256,
                  loss='softmax',
@@ -195,7 +195,7 @@ class MobileNetV3(nn.Module):
                  bn_eval=False,
                  bn_frozen=False,
                  **kwargs):
-        super(MobileNetV3, self).__init__()
+        super().__init__(**kwargs)
 
         # config definition
         assert mode in ['large', 'small']
@@ -203,8 +203,6 @@ class MobileNetV3(nn.Module):
 
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
-        self.classification = classification
-        self.contrastive = contrastive
         self.pooling_type = pooling_type
 
         self.loss = loss
@@ -252,39 +250,10 @@ class MobileNetV3(nn.Module):
         self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
         for trg_id, trg_num_classes in enumerate(self.num_classes):
             self.fc.append(self._construct_fc_layer(backbone_out_num_channels, in_feature_dims[trg_id]))
-            if not contrastive and trg_num_classes > 0:
+            if not self.contrastive and trg_num_classes > 0:
                 self.classifier.append(classifier_block(out_feature_dims[trg_id], trg_num_classes))
 
         self._init_weights()
-
-    @staticmethod
-    def _construct_fc_layer(input_dim, output_dim, dropout=False):
-        layers = []
-
-        if dropout:
-            layers.append(Dropout(p=0.2, dist='gaussian'))
-
-        layers.extend([
-            nn.Linear(input_dim, output_dim),
-            nn.BatchNorm1d(output_dim)
-        ])
-
-        return nn.Sequential(*layers)
-
-    @staticmethod
-    def _glob_feature_vector(x, mode):
-        if mode == 'avg':
-            out = F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
-        elif mode == 'max':
-            out = F.adaptive_max_pool2d(x, 1).view(x.size(0), -1)
-        elif mode == 'avg+max':
-            avg_pool = F.adaptive_avg_pool2d(x, 1)
-            max_pool = F.adaptive_max_pool2d(x, 1)
-            out = (avg_pool + max_pool).view(x.size(0), -1)
-        else:
-            raise ValueError(f'Unknown pooling mode: {mode}')
-
-        return out
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False):
         if self.input_IN is not None:
