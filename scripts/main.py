@@ -34,9 +34,9 @@ def reset_config(cfg, args):
         cfg.data.targets = args.targets
 
 
-def build_auxiliary_model(config_file, num_classes, device_ids=None, weights=None):
+def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, weights=None):
     cfg = get_default_config()
-    cfg.use_gpu = torch.cuda.is_available()
+    cfg.use_gpu = use_gpu
     cfg.merge_from_file(config_file)
 
     model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
@@ -158,7 +158,7 @@ def main():
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
         for config_file, model_weights, device_ids in zip(args.extra_config_files, weights, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                config_file, num_train_classes, device_ids, model_weights
+                config_file, num_train_classes, cfg.use_gpu, device_ids, model_weights
             )
 
             models.append(aux_model)
