@@ -17,3 +17,5 @@ asciitable
 scikit-learn
 lxml
 pytorchcv
+torch
+torchvision
