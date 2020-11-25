@@ -129,6 +129,7 @@ class Engine:
     def run(
         self,
         save_dir='log',
+        tb_log_dir='',
         max_epoch=0,
         start_epoch=0,
         print_freq=10,
@@ -194,7 +195,8 @@ class Engine:
             return
 
         if self.writer is None:
-            self.writer = SummaryWriter(log_dir=save_dir)
+            log_dir = tb_log_dir if len(tb_log_dir) else save_dir
+            self.writer = SummaryWriter(log_dir=log_dir)
 
         # Save zeroth checkpoint
         self.save_model(-1, save_dir)
