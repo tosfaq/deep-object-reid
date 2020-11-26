@@ -25,6 +25,7 @@ from .shufflenetv2 import *
 from .inceptionresnetv2 import *
 from .mobile_face_net_se import *
 from .ptcv_wrapper import *
+from .mobilenetv3_spoof import mobilenetv3_large_spoof
 
 __model_factory = {
     # image classification models
@@ -87,7 +88,8 @@ __model_factory = {
     'res2net101_v1b': res2net101_v1b_26w_4s,
     # face reid models
     'mobile_face_net_se_1x': mobile_face_net_se_1x,
-    'mobile_face_net_se_2x': mobile_face_net_se_2x
+    'mobile_face_net_se_2x': mobile_face_net_se_2x,
+    'mobilenetv3_spoof': mobilenetv3_large_spoof,
 }
 
 __model_factory = {**__model_factory, **wrapped_models}
