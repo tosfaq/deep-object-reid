@@ -143,7 +143,7 @@ def main():
             export_params=True,
             input_names=input_names,
             output_names=output_names,
-            dynamic_axes=dynamic_axes,
+            #dynamic_axes=dynamic_axes,
             opset_version=args.opset,
             operator_export_type=torch.onnx.OperatorExportTypes.ONNX
         )
