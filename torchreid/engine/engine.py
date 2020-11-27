@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchreid import metrics
 from torchreid.utils import (
     MetricMeter, AverageMeter, re_ranking, open_all_layers, save_checkpoint,
-    open_specified_layers, visualize_ranked_results
+    open_specified_layers, visualize_ranked_results, get_model_attr
 )
 from torchreid.losses import DeepSupervision
 
@@ -129,6 +129,7 @@ class Engine:
     def run(
         self,
         save_dir='log',
+        tb_log_dir='',
         max_epoch=0,
         start_epoch=0,
         print_freq=10,
@@ -194,7 +195,8 @@ class Engine:
             return
 
         if self.writer is None:
-            self.writer = SummaryWriter(log_dir=save_dir)
+            log_dir = tb_log_dir if len(tb_log_dir) else save_dir
+            self.writer = SummaryWriter(log_dir=log_dir)
 
         # Save zeroth checkpoint
         self.save_model(-1, save_dir)
@@ -348,7 +350,7 @@ class Engine:
             print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
 
             for model_name, model in self.models.items():
-                if model.module.classification:
+                if get_model_attr(model, 'classification'):
                     self._evaluate_classification(
                         model=model,
                         epoch=epoch,
@@ -357,7 +359,7 @@ class Engine:
                         dataset_name=dataset_name,
                         ranks=ranks
                     )
-                elif model.module.contrastive:
+                elif get_model_attr(model, 'contrastive'):
                     pass
                 elif dataset_name == 'lfw':
                     self._evaluate_pairwise(

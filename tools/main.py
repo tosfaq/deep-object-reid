@@ -34,9 +34,9 @@ def reset_config(cfg, args):
         cfg.data.targets = args.targets
 
 
-def build_auxiliary_model(config_file, num_classes, device_ids=None, weights=None):
+def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, weights=None):
     cfg = get_default_config()
-    cfg.use_gpu = torch.cuda.is_available()
+    cfg.use_gpu = use_gpu
     cfg.merge_from_file(config_file)
 
     model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
@@ -71,12 +71,14 @@ def main():
                         help='target datasets (delimited by space)')
     parser.add_argument('--root', type=str, default='',
                         help='path to data root')
+    parser.add_argument('--gpu-num', type=int, default=1,
+                        help='Number of GPUs for training. 0 is for CPU mode')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help='Modify config options using the command-line')
     args = parser.parse_args()
 
     cfg = get_default_config()
-    cfg.use_gpu = torch.cuda.is_available()
+    cfg.use_gpu = torch.cuda.is_available() and args.gpu_num > 0
     if args.config_file:
         cfg.merge_from_file(args.config_file)
     reset_config(cfg, args)
@@ -112,7 +114,7 @@ def main():
             load_pretrained_weights(model, cfg.model.load_weights)
 
     if cfg.use_gpu:
-        num_devices = torch.cuda.device_count()
+        num_devices = min(torch.cuda.device_count(), args.gpu_num)
         if enable_mutual_learning and args.split_models:
             num_models = len(args.extra_config_files) + 1
             assert num_devices >= num_models
@@ -156,7 +158,7 @@ def main():
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
         for config_file, model_weights, device_ids in zip(args.extra_config_files, weights, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                config_file, num_train_classes, device_ids, model_weights
+                config_file, num_train_classes, cfg.use_gpu, device_ids, model_weights
             )
 
             models.append(aux_model)

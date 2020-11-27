@@ -14,7 +14,8 @@ from PIL import Image
 
 __all__ = [
     'mkdir_if_missing', 'check_isfile', 'read_json', 'write_json',
-    'set_random_seed', 'download_url', 'read_image', 'collect_env_info'
+    'set_random_seed', 'download_url', 'read_image', 'collect_env_info',
+    'get_model_attr'
 ]
 
 
@@ -128,3 +129,10 @@ def collect_env_info():
     env_str = get_pretty_env_info()
     env_str += '\n        Pillow ({})'.format(PIL.__version__)
     return env_str
+
+
+def get_model_attr(model, attr):
+    if hasattr(model, 'module'):
+        return getattr(model.module, attr)
+    else:
+        return getattr(model, attr)

@@ -97,6 +97,7 @@ def main():
     parser.add_argument('--opset', type=int, default=9)
     parser.add_argument('--verbose', default=False, action='store_true',
                         help='Verbose mode for onnx.export')
+    parser.add_argument('--disable-dyn-axes', default=False, action='store_true')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help='Modify config options using the command-line')
     args = parser.parse_args()
@@ -126,8 +127,11 @@ def main():
 
     input_names = ['data']
     output_names = ['reid_embedding']
-    dynamic_axes = {'data': {0: 'batch_size', 1: 'channels', 2: 'height', 3: 'width'},
-                    'reid_embedding': {0: 'batch_size', 1: 'dim'}}
+    if not args.disable_dyn_axes:
+        dynamic_axes = {'data': {0: 'batch_size', 1: 'channels', 2: 'height', 3: 'width'},
+                        'reid_embedding': {0: 'batch_size', 1: 'dim'}}
+    else:
+        dynamic_axes = {}
 
     output_file_path = args.output_name
     if not args.output_name.endswith('.onnx'):
