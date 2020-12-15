@@ -44,7 +44,7 @@ class ImageAMSoftmaxEngine(Engine):
                  reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, s=10, end_s=None,
                  duration_s=None, skip_steps_s=None, enable_masks=False,
                  adaptive_margins=False, class_weighting=False, attr_cfg=None, base_num_classes=-1,
-                 symmetric_ce=False, mix_weight=1.0):
+                 symmetric_ce=False, mix_weight=1.0, enable_rsc=False):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt)
 
         assert softmax_type in ['stock', 'am']
@@ -56,6 +56,7 @@ class ImageAMSoftmaxEngine(Engine):
         self.enable_metric_losses = metric_cfg.enable
         self.enable_masks = enable_masks
         self.mix_weight = mix_weight
+        self.enable_rsc = enable_rsc
         self.aug_type = aug_type
         self.aug_prob = aug_prob
         self.aug_index = None
@@ -231,10 +232,10 @@ class ImageAMSoftmaxEngine(Engine):
         return loss_summary, avg_acc
 
     def _single_model_losses(self, model, train_records, imgs, obj_ids, n_iter, model_name, num_packages):
-        run_kwargs = self._prepare_run_kwargs()
+        run_kwargs = self._prepare_run_kwargs(obj_ids)
 
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
+        # mean = [0.485, 0.456, 0.406]
+        # std = [0.229, 0.224, 0.225]
         # for im in imgs:
         #     z = im * torch.tensor(std).to(imgs.device).view(3, 1, 1)
         #     z = z + torch.tensor(mean).to(imgs.device).view(3, 1, 1)
@@ -363,12 +364,15 @@ class ImageAMSoftmaxEngine(Engine):
 
         return total_loss, loss_summary, avg_acc, out_logits
 
-    def _prepare_run_kwargs(self):
+    def _prepare_run_kwargs(self, gt_labels):
         run_kwargs = dict()
         if self.enable_metric_losses:
             run_kwargs['get_embeddings'] = True
         if self.enable_attr or self.enable_masks:
             run_kwargs['get_extra_data'] = True
+        if self.enable_rsc:
+            run_kwargs['gt_labels'] = gt_labels
+
 
         return run_kwargs
 

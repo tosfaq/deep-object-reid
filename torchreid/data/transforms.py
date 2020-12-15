@@ -933,6 +933,7 @@ class AugMix(object):
         self.random_flip = None
         self.random_crop = None
         self.center_crop = None
+        self.coarse_dropout = None
         self.train_transforms = []
         for aug in self.transforms:
             if aug.__class__.__name__ == 'PairResize':
@@ -947,6 +948,8 @@ class AugMix(object):
                 self.random_crop = aug
             elif aug.__class__.__name__ == 'CenterCrop':
                 self.center_crop = aug
+            elif aug.__class__.__name__ == 'CoarseDropout':
+                self.coarse_dropout = aug
             else:
                 self.train_transforms.append(aug)
 
@@ -958,8 +961,9 @@ class AugMix(object):
         # resize image always
         input_tuple = self.resize(input_tuple)
         # do flip augmentation if it's avaible
-        image, mask = self.random_flip(input_tuple) if self.random_flip else input_tuple
-
+        input_tuple = self.random_flip(input_tuple) if self.random_flip else input_tuple
+        input_tuple = self.coarse_dropout(input_tuple) if self.coarse_dropout else input_tuple
+        image, mask = input_tuple
         if self.train_transforms:
             # run augmix pipeline
             ws = np.float32(np.random.dirichlet([self.alpha] * self.width))

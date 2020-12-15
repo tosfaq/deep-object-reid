@@ -6,3 +6,5 @@ from .norm import LocalContrastNormalization
 from .fpn import FPN
 from .gmp import GeneralizedMeanPooling
 from .data_parallel import DataParallel
+from .self_challenging import RSC, rsc
+from .utils import EvalModeSetter
