@@ -51,7 +51,6 @@ def main():
         if key in to_skip:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
-        num_exp = cfg['num_exp']
         if key in {'CIFAR100', 'FOOD101', 'pets', 'SUN397'}:
             cfg['train']['lr'] = 0.01
         elif key in {'DTD', 'Xray', 'birdsnap', 'caltech101', 'fashionMNIST'}:
@@ -74,7 +73,6 @@ def main():
         cfg['data']['width'] = params['resolution'][1]
         cfg['train']['max_epoch'] = params['epochs']
         cfg['train']['batch_size'] = params['batch_size']
-        cfg['data']['save_dir'] = f"outputs/classification_out/exp_{num_exp}/{key}"
         source = params['source']
         cfg['data']['sources'] = [source]
         cfg['data']['targets'] = [source]
