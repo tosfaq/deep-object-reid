@@ -27,24 +27,25 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.transforms import ToPILImage
 import numpy as np
 
 from torchreid.engine import Engine
-from torchreid.losses import get_regularizer, AMSoftmaxLoss, CrossEntropyLoss, MetricLosses
+from torchreid.losses import get_regularizer, AMSoftmaxLoss, CrossEntropyLoss, MetricLosses, sample_mask
 from torchreid import metrics
-
 
 class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
 
     def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, batch_transform_cfg,
-                 scheduler=None, use_gpu=False, softmax_type='stock', label_smooth=False,
-                 conf_penalty=False, pr_product=False, m=0.35, s=10, end_s=None,
+                 scheduler=None, use_gpu=False, save_chkpt=True, softmax_type='stock', label_smooth=False,
+                 epsilon=0.1, aug_type=None, decay_power=3, alpha=1., size=(224, 224), max_soft=0.0,
+                 reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, s=10, end_s=None,
                  duration_s=None, skip_steps_s=None, enable_masks=False,
-                 adaptive_margins=False, class_weighting=False,
-                 attr_cfg=None, base_num_classes=-1, symmetric_ce=False, mix_weight=1.0):
-        super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
+                 adaptive_margins=False, class_weighting=False, attr_cfg=None, base_num_classes=-1,
+                 symmetric_ce=False, mix_weight=1.0):
+        super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt)
 
         assert softmax_type in ['stock', 'am']
         assert s > 0.0
@@ -55,6 +56,15 @@ class ImageAMSoftmaxEngine(Engine):
         self.enable_metric_losses = metric_cfg.enable
         self.enable_masks = enable_masks
         self.mix_weight = mix_weight
+        self.aug_type = aug_type
+        self.aug_prob = aug_prob
+        self.aug_index = None
+        self.lam = None
+        self.alpha = alpha
+        self.decay_power = decay_power
+        self.size =  size
+        self.max_soft = max_soft
+        self.reformulate = reformulate
 
         num_batches = len(self.train_loader)
         num_classes = self.datamanager.num_train_pids
@@ -65,6 +75,7 @@ class ImageAMSoftmaxEngine(Engine):
 
         self.main_losses = nn.ModuleList()
         self.ml_losses = list()
+
         for trg_id, trg_num_classes in enumerate(self.num_classes):
             if base_num_classes <= 1:
                 scale_factor = 1.0
@@ -75,6 +86,8 @@ class ImageAMSoftmaxEngine(Engine):
                 self.main_losses.append(CrossEntropyLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
+                    epsilon=epsilon,
+                    augmentations=self.aug_type,
                     conf_penalty=conf_penalty,
                     scale=scale_factor * s
                 ))
@@ -85,6 +98,8 @@ class ImageAMSoftmaxEngine(Engine):
                 self.main_losses.append(AMSoftmaxLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
+                    epsilon=epsilon,
+                    aug_type=aug_type,
                     conf_penalty=conf_penalty,
                     m=m,
                     s=scale_factor * s,
@@ -217,6 +232,16 @@ class ImageAMSoftmaxEngine(Engine):
 
     def _single_model_losses(self, model, train_records, imgs, obj_ids, n_iter, model_name, num_packages):
         run_kwargs = self._prepare_run_kwargs()
+
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
+        # for im in imgs:
+        #     z = im * torch.tensor(std).to(imgs.device).view(3, 1, 1)
+        #     z = z + torch.tensor(mean).to(imgs.device).view(3, 1, 1)
+
+        #     img2 = ToPILImage(mode='RGB')(z)
+        #     img2.save(f'/home/prokofiev/deep-person-reid/test_images/{torch.rand(1)}.jpg')
+        # exit()
         model_output = model(imgs, **run_kwargs)
         all_logits, all_embeddings, extra_data = self._parse_model_output(model_output)
 
@@ -237,7 +262,8 @@ class ImageAMSoftmaxEngine(Engine):
 
             trg_logits = all_logits[trg_id][trg_mask]
 
-            main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, iteration=n_iter)
+            main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, aug_index=self.aug_index,
+                                                lam=self.lam, iteration=n_iter)
 
             avg_acc += metrics.accuracy(trg_logits, trg_obj_ids)[0].item()
             loss_summary['main_{}/{}'.format(trg_id, model_name)] = main_loss.item()
@@ -373,4 +399,60 @@ class ImageAMSoftmaxEngine(Engine):
             permuted_idx = torch.randperm(imgs.shape[0])
             imgs = lambd * imgs + (1 - lambd) * imgs[permuted_idx]
 
+        if self.aug_type == 'fmix':
+            r = np.random.rand(1)
+            if self.alpha > 0 and r <= self.aug_prob:
+                lam, fmask = sample_mask(self.alpha, self.decay_power, self.size,
+                                        self.max_soft, self.reformulate)
+                index = torch.randperm(imgs.size(0)).to(imgs.device)
+                fmask = torch.from_numpy(fmask).float().to(imgs.device)
+                # Mix the images
+                x1 = fmask * imgs
+                x2 = (1 - fmask) * imgs[index]
+                self.aug_index = index
+                self.lam = lam
+                imgs = x1 + x2
+
+        elif self.aug_type == 'mixup':
+            r = np.random.rand(1)
+            if self.alpha > 0 and r <= self.aug_prob:
+                lam = np.random.beta(self.alpha, self.alpha)
+                index = torch.randperm(imgs.size(0)).to(imgs.device)
+
+                imgs = lam * imgs + (1 - lam) * imgs[index, :]
+                self.lam = lam
+                self.aug_index = index
+
+        elif self.aug_type == 'cutmix':
+            r = np.random.rand(1)
+            if self.alpha > 0 and r <= self.aug_prob:
+                # generate mixed sample
+                lam = np.random.beta(self.alpha, self.alpha)
+                rand_index = torch.randperm(imgs.size(0)).to(imgs.device)
+                bbx1, bby1, bbx2, bby2 = self.rand_bbox(imgs.size(), lam)
+                imgs[:, :, bbx1:bbx2, bby1:bby2] = imgs[rand_index, :, bbx1:bbx2, bby1:bby2]
+                # adjust lambda to exactly match pixel ratio
+                lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (imgs.size()[-1] * imgs.size()[-2]))
+                self.lam = lam
+                self.aug_index = rand_index
+
         return imgs, obj_ids
+
+    @staticmethod
+    def rand_bbox(size, lam):
+        W = size[2]
+        H = size[3]
+        cut_rat = np.sqrt(1. - lam)
+        cut_w = np.int(W * cut_rat)
+        cut_h = np.int(H * cut_rat)
+
+        # uniform
+        cx = np.random.randint(W)
+        cy = np.random.randint(H)
+
+        bbx1 = np.clip(cx - cut_w // 2, 0, W)
+        bby1 = np.clip(cy - cut_h // 2, 0, H)
+        bbx2 = np.clip(cx + cut_w // 2, 0, W)
+        bby2 = np.clip(cy + cut_h // 2, 0, H)
+
+        return bbx1, bby1, bbx2, bby2

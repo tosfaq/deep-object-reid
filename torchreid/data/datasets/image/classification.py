@@ -14,10 +14,10 @@ class Classification(ImageDataset):
             raise NotImplementedError
 
         self.root = osp.abspath(osp.expanduser(root))
-        self.dataset_dir = osp.join(self.root, f'{cl_data_dir}_{cl_version}')
+        self.dataset_dir = osp.join(self.root, f'{cl_data_dir}')
         self.data_dir = self.dataset_dir
 
-        self.images_dir = osp.join(self.data_dir, 'images')
+        self.images_dir = self.data_dir
         self.train_annot = osp.join(self.data_dir, 'train.txt')
         self.test_annot = osp.join(self.data_dir, 'val.txt')
 
@@ -46,17 +46,16 @@ class Classification(ImageDataset):
         for line in open(annot_path):
             parts = line.strip().split(' ')
             if len(parts) != 2:
+                print("line doesn't fits pattern. Expected: 'relative_path/to/image label'")
                 continue
-
             rel_image_path, label_str = parts
-
             full_image_path = osp.join(data_dir, rel_image_path)
             if not osp.exists(full_image_path):
+                print(f"{full_image_path}: doesn't exist. Please check path or file")
                 continue
 
             label = int(label_str)
             out_data.append((full_image_path, label, 0, dataset_id, '', -1, -1))
-
         return out_data
 
 
@@ -95,7 +94,7 @@ class ClassificationImageFolder(ImageDataset):
 
     @staticmethod
     def load_annotation(data_dir, dataset_id=0):
-        ALLOWED_EXTS = ('.jpg', '.jpeg', '.png')
+        ALLOWED_EXTS = ('.jpg', '.jpeg', '.png', '.gif')
         def is_valid(filename):
             return not filename.startswith('.') and filename.lower().endswith(ALLOWED_EXTS)
 

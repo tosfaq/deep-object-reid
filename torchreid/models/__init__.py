@@ -26,7 +26,9 @@ from .inceptionresnetv2 import *
 from .mobile_face_net_se import *
 from .ptcv_wrapper import *
 from .mobilenetv3_spoof import mobilenetv3_large_spoof
-
+from .mobilenetv3_pytcv import *
+from .inceptionv4_pytcv import *
+from .efficient_net_pytcv import *
 __model_factory = {
     # image classification models
     'resnet18': resnet18,
@@ -48,6 +50,7 @@ __model_factory = {
     'densenet161': densenet161,
     'inceptionresnetv2': inceptionresnetv2,
     'inceptionv4': inceptionv4,
+    'inceptionv4_pytcv': inceptionv4_pytcv,
     'xception': xception,
     'resnet50_ibn_a': resnet50_ibn_a,
     'resnet50_ibn_b': resnet50_ibn_b,
@@ -57,6 +60,8 @@ __model_factory = {
     'mobilenetv2_x1_4': mobilenetv2_x1_4,
     'mobilenetv3_small': mobilenetv3_small,
     'mobilenetv3_large': mobilenetv3_large,
+    'mobilenetv3_large_w1': mobilenetv3_large_w1,
+    'mobilenetv3_small_w1': mobilenetv3_small_w1,
     'shufflenet': shufflenet,
     'squeezenet1_0': squeezenet1_0,
     'squeezenet1_0_fc512': squeezenet1_0_fc512,
@@ -90,6 +95,14 @@ __model_factory = {
     'mobile_face_net_se_1x': mobile_face_net_se_1x,
     'mobile_face_net_se_2x': mobile_face_net_se_2x,
     'mobilenetv3_spoof': mobilenetv3_large_spoof,
+    'efficientnet_b0': efficientnet_b0,
+    'efficientnet_b1': efficientnet_b1,
+    'efficientnet_b2': efficientnet_b2,
+    'efficientnet_b3': efficientnet_b3,
+    'efficientnet_b4': efficientnet_b4,
+    'efficientnet_b5': efficientnet_b5,
+    'efficientnet_b6': efficientnet_b6,
+    'efficientnet_b7': efficientnet_b7,
 }
 
 __model_factory = {**__model_factory, **wrapped_models}

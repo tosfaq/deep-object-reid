@@ -8,7 +8,7 @@ from collections import deque
 import cv2
 import numpy as np
 import torch
-from torchvision.transforms import Compose, Resize, ToTensor, Normalize, ColorJitter
+from torchvision.transforms import Compose, Resize, ToTensor, Normalize, ColorJitter, ToPILImage
 from torchvision.transforms import functional as F
 from torchreid.utils.tools import read_image
 from PIL import Image, ImageOps
@@ -51,14 +51,15 @@ class CenterCrop(object):
 
 
 class RandomCrop(object):
-    def __init__(self, p=0.5, scale=0.9, margin=None, target_ar=None, align_ar=False, align_center=False, **kwargs):
+    def __init__(self, p=0.5, scale=0.9, static=False, margin=None, target_ar=None, align_ar=False, align_center=False, **kwargs):
         self.p = p
-        assert 0.0 <= self.p < 1.0
+        assert 0.0 <= self.p <= 1.0
         self.scale = scale
         assert 0.0 < self.scale < 1.0
         self.margin = margin
         self.target_ar = target_ar
         self.align_center = align_center
+        self.static = static
         self.align_ar = align_ar
         if self.align_ar:
             assert self.target_ar is not None and self.target_ar > 0
@@ -94,7 +95,10 @@ class RandomCrop(object):
             min_height_scale = float(height_rest) / float(img_height)
             min_scale = max(min_width_scale, min_height_scale)
 
-        scale = random.uniform(min_scale, 1.0)
+        if self.static:
+            scale = min_scale
+        else:
+            scale = random.uniform(min_scale, 1.0)
         crop_width = int(round(scale * max_crop_width))
         crop_height = int(round(scale * max_crop_height))
 
@@ -118,7 +122,6 @@ class RandomCrop(object):
 
         img = img.crop((x1, y1, x1 + crop_width, y1 + crop_height))
         mask = mask.crop((x1, y1, x1 + crop_width, y1 + crop_height)) if mask != '' else mask
-
         return img, mask
 
 
@@ -331,6 +334,33 @@ class RandomGrayscale(object):
 
         return img, mask
 
+class Equalize(object):
+    def __init__(self, p=0.5, **kwargs):
+        self.p = p
+
+    def __call__(self, input_tuple):
+        if random.uniform(0, 1) > self.p:
+            return input_tuple
+
+        img, mask = input_tuple
+        img = ImageOps.equalize(img)
+
+        return img, mask
+
+class Posterize(object):
+    def __init__(self, p=0.5, bits=1, **kwargs):
+        self.p = p
+        self.bits = bits
+
+    def __call__(self, input_tuple):
+        if random.uniform(0, 1) > self.p:
+            return input_tuple
+        bit = random.randint(self.bits, 6)
+
+        img, mask = input_tuple
+        img = ImageOps.posterize(img, bit)
+
+        return img, mask
 
 class RandomNegative(object):
     def __init__(self, p=0.1, **kwargs):
@@ -412,6 +442,86 @@ class RandomRotate(object):
 
         return img, mask
 
+class CoarseDropout(object):
+    """CoarseDropout of the rectangular regions in the image.
+    Args:
+        max_holes (int): Maximum number of regions to zero out.
+        max_height (int): Maximum height of the hole.
+        max_width (int): Maximum width of the hole.
+        min_holes (int): Minimum number of regions to zero out. If `None`,
+            `min_holes` is be set to `max_holes`. Default: `None`.
+        min_height (int): Minimum height of the hole. Default: None. If `None`,
+            `min_height` is set to `max_height`. Default: `None`.
+        min_width (int): Minimum width of the hole. If `None`, `min_height` is
+            set to `max_width`. Default: `None`.
+        fill_value (int, float, lisf of int, list of float): value for dropped pixels.
+        mask_fill_value (int, float, lisf of int, list of float): fill value for dropped pixels
+            in mask. If None - mask is not affected.
+    Targets:
+        image, mask
+    """
+
+    def __init__(
+        self,
+        max_holes=8,
+        max_height=8,
+        max_width=8,
+        min_holes=None,
+        min_height=None,
+        min_width=None,
+        fill_value=0,
+        mask_fill_value=None,
+        p=0.5,
+        **kwargs
+    ):
+        self.p = p
+        self.max_holes = max_holes
+        self.max_height = max_height
+        self.max_width = max_width
+        self.min_holes = min_holes if min_holes is not None else max_holes
+        self.min_height = min_height if min_height is not None else max_height
+        self.min_width = min_width if min_width is not None else max_width
+        self.fill_value = fill_value
+        self.mask_fill_value = mask_fill_value
+        if not 0 < self.min_holes <= self.max_holes:
+            raise ValueError("Invalid combination of min_holes and max_holes. Got: {}".format([min_holes, max_holes]))
+        if not 0 < self.min_height <= self.max_height:
+            raise ValueError(
+                "Invalid combination of min_height and max_height. Got: {}".format([min_height, max_height])
+            )
+        if not 0 < self.min_width <= self.max_width:
+            raise ValueError("Invalid combination of min_width and max_width. Got: {}".format([min_width, max_width]))
+
+    def __call__(self, input_tuple):
+
+        if random.uniform(0, 1) > self.p:
+            return input_tuple
+
+        img, mask = input_tuple
+        height, width = img.size
+
+        holes = []
+        for _n in range(random.randint(self.min_holes, self.max_holes)):
+            hole_height = random.randint(self.min_height, self.max_height)
+            hole_width = random.randint(self.min_width, self.max_width)
+
+            y1 = random.randint(0, height - hole_height)
+            x1 = random.randint(0, width - hole_width)
+            y2 = y1 + hole_height
+            x2 = x1 + hole_width
+            holes.append((x1, y1, x2, y2))
+
+        img = self.cutout(img, holes, self.fill_value)
+        return img, mask
+
+    @staticmethod
+    def cutout(image, holes, fill_value):
+        # Make a copy of the input image since we don't want to modify it directly
+        image = np.array(image)
+        for x1, y1, x2, y2 in holes:
+            image[y1:y2, x1:x2] = fill_value
+
+        return Image.fromarray(image)
 
 class RandomGrid(object):
     """Random grid
@@ -813,6 +923,76 @@ class PairToTensor(object):
 
         return image, mask
 
+class AugMix(object):
+    def __init__(self, transforms: list, width=3, depth=-1, alpha=1., p=1., **kwargs):
+        self.transforms = transforms
+        self.width = width
+        self.depth = depth
+        self.alpha = alpha
+        self.p = p
+        self.random_flip = None
+        self.random_crop = None
+        self.center_crop = None
+        self.train_transforms = []
+        for aug in self.transforms:
+            if aug.__class__.__name__ == 'PairResize':
+                self.resize = aug
+            elif aug.__class__.__name__ == 'PairToTensor':
+                self.to_tensor = aug
+            elif aug.__class__.__name__ == 'PairNormalize':
+                self.normalize = aug
+            elif aug.__class__.__name__ == 'RandomHorizontalFlip':
+                self.random_flip = aug
+            elif aug.__class__.__name__ == 'RandomCrop':
+                self.random_crop = aug
+            elif aug.__class__.__name__ == 'CenterCrop':
+                self.center_crop = aug
+            else:
+                self.train_transforms.append(aug)
+
+    def __call__(self, input_tuple):
+        # do augmentation before resize
+        for augment in [self.random_crop, self.center_crop]:
+            if augment != None:
+                input_tuple = augment(input_tuple)
+        # resize image always
+        input_tuple = self.resize(input_tuple)
+        # do flip augmentation if it's avaible
+        image, mask = self.random_flip(input_tuple) if self.random_flip else input_tuple
+
+        if self.train_transforms:
+            # run augmix pipeline
+            ws = np.float32(np.random.dirichlet([self.alpha] * self.width))
+            m = np.float32(np.random.beta(self.alpha, self.alpha))
+
+            mix_img = torch.zeros_like(F.to_tensor(image))
+            mix_mask = torch.zeros_like(F.to_tensor(mask)) if mask != '' else mask
+            for i in range(self.width):
+                image_aug = image.copy()
+                mask_aug = mask.copy() if mask != '' else mask
+                depth = self.depth if self.depth > 0 else np.random.randint(1, 4)
+                # filter operations that have already been used
+                # operations = set()
+                for _ in range(depth):
+                    op = np.random.choice(self.train_transforms)
+                    # if op not in operations:
+                    image_aug, mask_aug = op((image_aug, mask_aug))
+                    # operations.add(op)
+                # Preprocessing commutes since all coefficients are convex
+                image_aug, mask_aug = self.normalize(self.to_tensor((image_aug, mask_aug)))
+                mix_img = mix_img + ws[i] * image_aug
+                mix_mask = mix_mask + ws[i] * mask_aug if mask != '' else mask
+            prob = np.random.rand(1)[0]
+            if prob <= self.p:
+                image, mask = self.normalize(self.to_tensor((image, mask)))
+                mixed_image = (1 - m) * image + m * mix_img
+                mixed_mask = (1 - m) * mask + m * mix_mask if mask != '' else mask
+                mixed_mask = Image.fromarray(mixed_mask) if mask != '' else mask
+                return mixed_image, mixed_mask
+
+        assert not self.transforms or p > self.p
+        image, mask = self.normalize(self.to_tensor((image, mask)))
+        return image, mask
 
 def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.406),
                      norm_std=(0.229, 0.224, 0.225), apply_masks_to_test=False, **kwargs):
@@ -845,6 +1025,9 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.center_crop.enable and not transforms.center_crop.test_only:
         print('+ center_crop')
         transform_tr += [CenterCrop(margin=transforms.center_crop.margin)]
+    if transforms.random_padding.enable:
+        print('+ random_padding')
+        transform_tr += [RandomPadding(**transforms.random_padding)]
     if transforms.random_crop.enable:
         print('+ random crop')
         transform_tr += [RandomCrop(p=transforms.random_crop.p,
@@ -853,9 +1036,6 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
                                     align_ar=transforms.random_crop.scale,
                                     align_center=transforms.random_crop.align_center,
                                     target_ar=float(height)/float(width))]
-    if transforms.random_padding.enable:
-        print('+ random_padding')
-        transform_tr += [RandomPadding(**transforms.random_padding)]
     print('+ resize to {}x{}'.format(height, width))
     transform_tr += [PairResize((height, width))]
     if transforms.random_background_substitution.enable:
@@ -905,6 +1085,12 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.random_rotate.enable:
         print('+ random_rotate')
         transform_tr += [RandomRotate(**transforms.random_rotate)]
+    if transforms.equalize.enable:
+        print('+ equalize')
+        transform_tr += [Equalize(**transforms.equalize)]
+    if transforms.posterize.enable:
+        print('+ posterize')
+        transform_tr += [Posterize(**transforms.posterize)]
     if transforms.random_erase.enable and not transforms.random_erase.norm_image:
         print('+ random erase')
         transform_tr += [RandomErasing(**transforms.random_erase)]
@@ -914,6 +1100,9 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.force_gray_scale.enable:
         print('+ force_gray_scale')
         transform_tr += [ForceGrayscale()]
+    if transforms.coarse_dropout.enable:
+        print('+ coarse_dropout')
+        transform_tr += [CoarseDropout(**transforms.coarse_dropout)]
     print('+ to torch tensor of range [0, 1]')
     transform_tr += [PairToTensor()]
     print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
@@ -921,10 +1110,13 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.random_erase.enable and transforms.random_erase.norm_image:
         print('+ random erase')
         transform_tr += [RandomErasing(**transforms.random_erase)]
+    # if augmix is on - all of the above augmentations will be applyed in augmix maner
+    if transforms.augmix.enable:
+        print('all of the above augmentations will be applyed in augmix pipeline')
+        transform_tr = [AugMix(transform_tr, **transforms.augmix)]
+
     transform_tr = Compose(transform_tr)
-
     transform_te = build_test_transform(height, width, norm_mean, norm_std, apply_masks_to_test, transforms)
-
     return transform_tr, transform_te
 
 

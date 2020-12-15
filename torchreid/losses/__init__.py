@@ -8,7 +8,7 @@ from .hard_mine_triplet_loss import TripletLoss
 from .entropy import entropy, MaxEntropyLoss, MinEntropyLoss
 from .kullback_leibler_div import kl_div, symmetric_kl_div, set_kl_div
 from .info_nce import InfoNCELoss
-
+from .fmix import sample_mask, FMixBase
 
 def DeepSupervision(criterion, xs, y, **kwargs):
     """DeepSupervision

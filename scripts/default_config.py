@@ -3,12 +3,15 @@ from yacs.config import CfgNode as CN
 
 def get_default_config():
     cfg = CN()
-
+    # number of the experinent
+    cfg.num_exp = 0
     # model
     cfg.model = CN()
     cfg.model.name = 'resnet50'
     cfg.model.pretrained = False
     cfg.model.download_weights = True
+    cfg.model.save_chkpt = True
+    cfg.model.in_size = (224,224)
     cfg.model.load_weights = ''  # path to model weights
     cfg.model.resume = ''  # path to checkpoint for resume training
     cfg.model.dropout = CN()
@@ -18,6 +21,13 @@ def get_default_config():
     cfg.model.dropout.kernel = 3
     cfg.model.dropout.temperature = 0.2
     cfg.model.dropout.dist = 'none'
+    cfg.model.dropout_cls = CN()
+    cfg.model.dropout_cls.p = 0.0
+    cfg.model.dropout_cls.mu = 0.1
+    cfg.model.dropout_cls.sigma = 0.03
+    cfg.model.dropout_cls.kernel = 3
+    cfg.model.dropout_cls.temperature = 0.2
+    cfg.model.dropout_cls.dist = 'none'
     cfg.model.feature_dim = 512  # embedding size
     cfg.model.bn_eval = False
     cfg.model.bn_frozen = False
@@ -114,6 +124,14 @@ def get_default_config():
     cfg.loss.name = 'softmax'
     cfg.loss.softmax = CN()
     cfg.loss.softmax.label_smooth = False  # use label smoothing regularizer
+    cfg.loss.softmax.augmentations = CN()
+    cfg.loss.softmax.augmentations.aug_type = '' # use advanced augmentations like fmix, cutmix and mixup
+    cfg.loss.softmax.augmentations.alpha = 1.0
+    cfg.loss.softmax.augmentations.aug_prob = 1.0
+    cfg.loss.softmax.augmentations.fmix = CN()
+    cfg.loss.softmax.augmentations.fmix.decay_power = 3
+    cfg.loss.softmax.augmentations.fmix.max_soft = 0.0
+    cfg.loss.softmax.augmentations.fmix.reformulate = False
     cfg.loss.softmax.conf_penalty = 0.0
     cfg.loss.softmax.pr_product = False
     cfg.loss.softmax.m = 0.35
@@ -204,6 +222,7 @@ def get_default_config():
     cfg.data.transforms.random_crop.p = 0.5
     cfg.data.transforms.random_crop.scale = 0.9
     cfg.data.transforms.random_crop.margin = 0
+    cfg.data.transforms.random_crop.static = False
     cfg.data.transforms.random_crop.align_ar = False
     cfg.data.transforms.random_crop.align_center = False
 
@@ -223,6 +242,15 @@ def get_default_config():
     cfg.data.transforms.random_negative.enable = False
     cfg.data.transforms.random_negative.p = 0.5
 
+    cfg.data.transforms.posterize = CN()
+    cfg.data.transforms.posterize.enable = False
+    cfg.data.transforms.posterize.p = 0.5
+    cfg.data.transforms.posterize.bits = 1
+
+    cfg.data.transforms.equalize = CN()
+    cfg.data.transforms.equalize.enable = False
+    cfg.data.transforms.equalize.p = 0.5
+
     cfg.data.transforms.random_padding = CN()
     cfg.data.transforms.random_padding.enable = False
     cfg.data.transforms.random_padding.p = 0.5
@@ -237,9 +265,9 @@ def get_default_config():
     cfg.data.transforms.color_jitter.enable = False
     cfg.data.transforms.color_jitter.p = 0.5
     cfg.data.transforms.color_jitter.brightness = 0.2
-    cfg.data.transforms.color_jitter.contrast = 0.15
-    cfg.data.transforms.color_jitter.saturation = 0.0
-    cfg.data.transforms.color_jitter.hue = 0.0
+    cfg.data.transforms.color_jitter.contrast = 0.2
+    cfg.data.transforms.color_jitter.saturation = 0.1
+    cfg.data.transforms.color_jitter.hue = 0.1
 
     cfg.data.transforms.random_erase = CN()
     cfg.data.transforms.random_erase.enable = False
@@ -250,6 +278,17 @@ def get_default_config():
     cfg.data.transforms.random_erase.rh = 3.3
     cfg.data.transforms.random_erase.fill_color = (125.307, 122.961, 113.8575)
     cfg.data.transforms.random_erase.norm_image = True
+
+    cfg.data.transforms.coarse_dropout = CN()
+    cfg.data.transforms.coarse_dropout.enable = False
+    cfg.data.transforms.coarse_dropout.p = 0.5
+    cfg.data.transforms.coarse_dropout.max_height = 8
+    cfg.data.transforms.coarse_dropout.max_width = 8
+    cfg.data.transforms.coarse_dropout.max_holes = 8
+    cfg.data.transforms.coarse_dropout.min_holes = None
+    cfg.data.transforms.coarse_dropout.min_height = None
+    cfg.data.transforms.coarse_dropout.fill_value = 0
+    cfg.data.transforms.coarse_dropout.mask_fill_value = None
 
     cfg.data.transforms.random_rotate = CN()
     cfg.data.transforms.random_rotate.enable = False
@@ -272,6 +311,13 @@ def get_default_config():
     cfg.data.transforms.random_noise.p = 0.2
     cfg.data.transforms.random_noise.sigma = 0.05
     cfg.data.transforms.random_noise.grayscale = False
+
+    cfg.data.transforms.augmix = CN()
+    cfg.data.transforms.augmix.enable = False
+    cfg.data.transforms.augmix.p = 1.
+    cfg.data.transforms.augmix.width = 3
+    cfg.data.transforms.augmix.depth = -1
+    cfg.data.transforms.augmix.alpha = 1.
 
     cfg.data.transforms.random_figures = CN()
     cfg.data.transforms.random_figures.enable = False
@@ -430,12 +476,14 @@ def model_kwargs(cfg, num_classes):
         'download_weights': cfg.model.download_weights,
         'use_gpu': cfg.use_gpu,
         'dropout_cfg': cfg.model.dropout,
+        'dropout_cls': cfg.model.dropout_cls,
         'feature_dim': cfg.model.feature_dim,
         'fpn_cfg': cfg.model.fpn,
         'pooling_type': cfg.model.pooling_type,
         'input_size': (cfg.data.height, cfg.data.width),
         'IN_first': cfg.model.IN_first,
         'IN_conv1': cfg.model.IN_conv1,
+        'in_size': cfg.model.in_size,
         'extra_blocks': cfg.model.extra_blocks,
         'lct_gate': cfg.model.lct_gate,
         'bn_eval': cfg.model.bn_eval,
@@ -488,5 +536,9 @@ def augmentation_kwargs(cfg):
         'random_figures': cfg.data.transforms.random_figures,
         'random_grid': cfg.data.transforms.random_grid,
         'random_negative': cfg.data.transforms.random_negative,
-        'cut_out_with_prior': cfg.data.transforms.cut_out_with_prior
+        'cut_out_with_prior': cfg.data.transforms.cut_out_with_prior,
+        'coarse_dropout': cfg.data.transforms.coarse_dropout,
+        'equalize': cfg.data.transforms.equalize,
+        'posterize': cfg.data.transforms.posterize,
+        'augmix': cfg.data.transforms.augmix
     }

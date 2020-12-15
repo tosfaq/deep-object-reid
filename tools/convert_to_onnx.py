@@ -18,7 +18,9 @@ import argparse
 from PIL import Image
 
 import numpy as np
+import os.path as osp
 import onnx
+from onnx import numpy_helper
 import torch
 from torch.onnx.symbolic_registry import register_op
 from torch.onnx.symbolic_helper import parse_args
@@ -28,6 +30,40 @@ from torchreid.utils import load_pretrained_weights
 from torchreid.data.transforms import build_inference_transform
 from scripts.default_config import get_default_config, model_kwargs
 
+def load_checkpoint(fpath):
+    r"""Loads checkpoint.
+
+    ``UnicodeDecodeError`` can be well handled, which means
+    python2-saved files can be read from python3.
+
+    Args:
+        fpath (str): path to checkpoint.
+
+    Returns:
+        dict
+
+    Examples::
+        >>> from torchreid.utils import load_checkpoint
+        >>> fpath = 'log/my_model/model.pth.tar-10'
+        >>> checkpoint = load_checkpoint(fpath)
+    """
+    if fpath is None:
+        raise ValueError('File path is None')
+    if not osp.exists(fpath):
+        raise FileNotFoundError('File is not found at "{}"'.format(fpath))
+    map_location = None if torch.cuda.is_available() else 'cpu'
+    try:
+        checkpoint = torch.load(fpath, map_location=map_location)
+    except UnicodeDecodeError:
+        pickle.load = partial(pickle.load, encoding="latin1")
+        pickle.Unpickler = partial(pickle.Unpickler, encoding="latin1")
+        checkpoint = torch.load(
+            fpath, pickle_module=pickle, map_location=map_location
+        )
+    except Exception:
+        print('Unable to load checkpoint from "{}"'.format(fpath))
+        raise
+    return checkpoint
 
 @parse_args('v', 'i', 'v', 'v', 'f', 'i')
 def group_norm_symbolic(g, input, num_groups, weight, bias, eps, cudnn_enabled):
@@ -132,8 +168,8 @@ def main():
     output_file_path = args.output_name
     if not args.output_name.endswith('.onnx'):
         output_file_path += '.onnx'
-
     register_op("group_norm", group_norm_symbolic, "", args.opset)
+
     with torch.no_grad():
         torch.onnx.export(
             model,
@@ -143,12 +179,30 @@ def main():
             export_params=True,
             input_names=input_names,
             output_names=output_names,
-            dynamic_axes=dynamic_axes,
+            # dynamic_axes=dynamic_axes,
             opset_version=args.opset,
             operator_export_type=torch.onnx.OperatorExportTypes.ONNX
         )
 
     net_from_onnx = onnx.load(output_file_path)
+    weights = net_from_onnx.graph.initializer
+    # [weights] = [t for t in net_from_onnx.graph.initializer]
+    abs_w = dict()
+    for w in weights:
+        abs_w[w.name] = numpy_helper.to_array(w)
+    checkpoint = load_checkpoint('/home/prokofiev/deep-person-reid/reid/Mobilenet_se_focal_121000.pt')
+    if 'state_dict' in checkpoint:
+        state_dict = checkpoint['state_dict']
+    else:
+        state_dict = checkpoint
+    # for k, d in state_dict.items():
+    #     if k == 'module.features.0.0.weight':
+    for k, v in state_dict.items():
+        if k.startswith('module.'):
+            k = k[7:]
+        if k in abs_w:
+            print(k, torch.tensor(abs_w[k]) - v)
+
     try:
         onnx.checker.check_model(net_from_onnx)
         print('ONNX check passed.')

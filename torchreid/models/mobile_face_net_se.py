@@ -163,7 +163,7 @@ class MobileFaceNet(ModelInterface):
 
         if not self.feature:
             classifier_block = nn.Linear if self.loss not in ['am_softmax'] else AngleSimpleLinear
-            self.classifier = classifier_block(feature_dim, num_classes)
+            self.fc_angular = classifier_block(feature_dim, num_classes)
 
         self.init_weights()
 
@@ -178,7 +178,7 @@ class MobileFaceNet(ModelInterface):
             return x
 
         x = x.view(x.size(0), -1)
-        y = self.classifier(x)
+        y = self.fc_angular(x)
 
         if get_embeddings:
             return y, x

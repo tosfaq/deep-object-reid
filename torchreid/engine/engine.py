@@ -25,11 +25,12 @@ class Engine:
         use_gpu (bool, optional): use gpu. Default is True.
     """
 
-    def __init__(self, datamanager, models, optimizers, schedulers, use_gpu=True):
+    def __init__(self, datamanager, models, optimizers, schedulers, use_gpu=True, save_chkpt=True):
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
         self.test_loader = self.datamanager.test_loader
         self.use_gpu = (torch.cuda.is_available() and use_gpu)
+        self.save_chkpt = save_chkpt
         self.writer = None
 
         self.start_epoch = 0
@@ -197,7 +198,8 @@ class Engine:
             self.writer = SummaryWriter(log_dir=save_dir)
 
         # Save zeroth checkpoint
-        self.save_model(-1, save_dir)
+        if self.save_chkpt:
+            self.save_model(-1, save_dir)
 
         time_start = time.time()
         self.start_epoch = start_epoch
@@ -227,7 +229,8 @@ class Engine:
                     use_metric_cuhk03=use_metric_cuhk03,
                     ranks=ranks
                 )
-                self.save_model(self.epoch, save_dir)
+                if self.save_chkpt:
+                    self.save_model(self.epoch, save_dir)
 
         if self.max_epoch > 0:
             print('=> Final test')
@@ -241,7 +244,8 @@ class Engine:
                 use_metric_cuhk03=use_metric_cuhk03,
                 ranks=ranks
             )
-            self.save_model(self.epoch, save_dir)
+            if self.save_chkpt:
+                self.save_model(self.epoch, save_dir)
 
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))

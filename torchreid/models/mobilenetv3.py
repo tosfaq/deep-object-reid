@@ -26,9 +26,9 @@ __all__ = ['mobilenetv3_small', 'mobilenetv3_large']
 
 pretrained_urls = {
     'mobilenetv3_small':
-    'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-small-c7eb32fe.pth',
+    'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-small-55df8e1f.pth',
     'mobilenetv3_large':
-    'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-large-657e7b3d.pth',
+    'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-large-1cd25616.pth',
 }
 
 
@@ -145,27 +145,26 @@ class InvertedResidual(nn.Module):
 
         return x + y if self.identity else y
 
-
 class MobileNetV3(ModelInterface):
     arch_settings = {
         'large': [
-            # k,  t,  c, SE, NL, s
-            [3,  16,  16, 0, 0, 1],  # 0
-            [3,  64,  24, 0, 0, 2],  # 1
-            [3,  72,  24, 0, 0, 1],  # 2
-            [5,  72,  40, 1, 0, 2],  # 3
-            [5, 120,  40, 1, 0, 1],  # 4
-            [5, 120,  40, 1, 0, 1],  # 5
-            [3, 240,  80, 0, 1, 2],  # 6
-            [3, 200,  80, 0, 1, 1],  # 7
-            [3, 184,  80, 0, 1, 1],  # 8
-            [3, 184,  80, 0, 1, 1],  # 9
-            [3, 480, 112, 1, 1, 1],  # 10
-            [3, 672, 112, 1, 1, 1],  # 11
-            [5, 672, 160, 1, 1, 1],  # 12
-            [5, 672, 160, 1, 1, 2],  # 13
-            [5, 960, 160, 1, 1, 1]   # 14
-        ],
+        # k, t, c, SE, HS, s
+        [3,   1,  16, 0, 0, 1],
+        [3,   4,  24, 0, 0, 1],
+        [3,   3,  24, 0, 0, 1],
+        [5,   3,  40, 1, 0, 2],
+        [5,   3,  40, 1, 0, 1],
+        [5,   3,  40, 1, 0, 1],
+        [3,   6,  80, 0, 1, 2],
+        [3, 2.5,  80, 0, 1, 1],
+        [3, 2.3,  80, 0, 1, 1],
+        [3, 2.3,  80, 0, 1, 1],
+        [3,   6, 112, 1, 1, 1],
+        [3,   6, 112, 1, 1, 1],
+        [5,   6, 160, 1, 1, 2],
+        [5,   6, 160, 1, 1, 1],
+        [5,   6, 160, 1, 1, 1]
+    ],
         'small': [
             # k, t,   c, SE, NL, s
             [3,  16,  16, 1, 0, 2],  # 0
@@ -220,18 +219,16 @@ class MobileNetV3(ModelInterface):
 
         # building first layer
         input_channel = make_divisible(16 * width_mult, 8)
-        layers = [conv_3x3_bn(3, input_channel, 2, IN_conv1)]
+        layers = [conv_3x3_bn(3, input_channel, 1, IN_conv1)]
 
         # building inverted residual blocks
         block = InvertedResidual
-        for block_id in range(len(self.cfg)):
-            k, exp_size, c, use_se, use_hs, s = self.cfg[block_id]
+        for k, t, c, use_se, use_hs, s in self.cfg:
             output_channel = make_divisible(c * width_mult, 8)
-            layers.append(block(
-                input_channel, exp_size, output_channel, k, s, use_se, use_hs,
-                dropout_cfg
-            ))
+            exp_size = make_divisible(input_channel * t, 8)
+            layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs, dropout_cfg))
             input_channel = output_channel
+
         self.features = nn.Sequential(*layers)
 
         # building last several layers
@@ -331,7 +328,6 @@ class MobileNetV3(ModelInterface):
         model_dict = self.state_dict()
         new_state_dict = OrderedDict()
         matched_layers, discarded_layers = [], []
-
         for k, v in pretrained_dict.items():
             if k.startswith('module.'):
                 k = k[7:]  # discard module.
@@ -395,11 +391,9 @@ def init_pretrained_weights(model, key=''):
             raise
     filename = key + '_imagenet.pth'
     cached_file = os.path.join(model_dir, filename)
-
     if not os.path.exists(cached_file):
         gdown.download(pretrained_urls[key], cached_file, quiet=False)
-
-    state_dict = torch.load(cached_file)
+    state_dict = torch.load('/home/prokofiev/deep-person-reid/mobilenetv3-large-1cd25616.pth')
     model.load_pretrained_weights(state_dict)
 
 

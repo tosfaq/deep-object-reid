@@ -1,6 +1,7 @@
 model:
   name: 'mobile_face_net_se_1x'
   feature_dim: 256
+  load_weights: '/home/prokofiev/deep-person-reid/reid/Mobilenet_se_focal_121000.pt'
 
 data:
   root: './'
@@ -62,7 +63,7 @@ test:
   batch_size: 64
   dist_metric: 'cosine'
   normalize_feature: True
-  evaluate: False
+  evaluate: True
   eval_freq: 1
   rerank: False
   visactmap: False
