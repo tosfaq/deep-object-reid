@@ -59,13 +59,13 @@ def main():
             cfg['train']['lr'] = 0.02
         path_to_exp_folder = cfg['data']['save_dir']
         # create new configuration file related to current dataset
-        if key in ['CIFAR100', 'fashionMNIST', 'SVHN']:
-            cfg['data']['transforms']['coarse_dropout']['max_holes'] = 6 if key == 'fashionMNIST' else 8
-            cfg['data']['transforms']['coarse_dropout']['min_holes'] = 6 if key == 'fashionMNIST' else 8
-            cfg['data']['transforms']['coarse_dropout']['max_height'] = 4
-            cfg['data']['transforms']['coarse_dropout']['max_width'] = 4
-            cfg['data']['transforms']['random_crop']['p'] = 1.0
-            cfg['data']['transforms']['random_crop']['static'] = True
+        # if key in ['CIFAR100', 'fashionMNIST', 'SVHN']:
+        #     cfg['data']['transforms']['coarse_dropout']['max_holes'] = 6 if key == 'fashionMNIST' else 8
+        #     cfg['data']['transforms']['coarse_dropout']['min_holes'] = 6 if key == 'fashionMNIST' else 8
+        #     cfg['data']['transforms']['coarse_dropout']['max_height'] = 4
+        #     cfg['data']['transforms']['coarse_dropout']['max_width'] = 4
+        #     cfg['data']['transforms']['random_crop']['p'] = 1.0
+        #     cfg['data']['transforms']['random_crop']['static'] = True
 
         cfg['model']['in_size'] = params['resolution']
         cfg['classification']['data_dir'] = key
