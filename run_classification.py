@@ -72,6 +72,8 @@ def main():
         cfg['data']['height'] = params['resolution'][0]
         cfg['data']['width'] = params['resolution'][1]
         cfg['train']['max_epoch'] = params['epochs']
+        cfg['data']['save_dir'] = cfg['data']['save_dir'] + f'{key}'
+
         cfg['train']['batch_size'] = params['batch_size']
         source = params['source']
         cfg['data']['sources'] = [source]
