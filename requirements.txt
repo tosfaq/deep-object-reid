@@ -20,3 +20,5 @@ pytorchcv
 torch
 torchvision
 onnx
+ruamel.yaml
+torch-lr-finder
