@@ -26,6 +26,8 @@ import numpy as np
 import torch.nn.functional as F
 from torch.nn import Parameter
 
+from .fmix import sample_mask, FMixBase
+
 
 class AngleSimpleLinear(nn.Module):
     """Computes cos of angles between input vectors and weights vectors"""
@@ -57,13 +59,15 @@ class AMSoftmaxLoss(nn.Module):
 
     def __init__(self, use_gpu=True, margin_type='cos', gamma=0.0, m=0.5, t=1.0,
                  s=30, end_s=None, duration_s=None, skip_steps_s=None, conf_penalty=0.0,
-                 label_smooth=False, epsilon=0.1, pr_product=False, symmetric_ce=False,
-                 class_counts=None, adaptive_margins=False, class_weighting=False):
+                 label_smooth=False, epsilon=0.1, aug_type=False, pr_product=False,
+                 symmetric_ce=False, class_counts=None, adaptive_margins=False,
+                 class_weighting=False):
         super(AMSoftmaxLoss, self).__init__()
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
         self.label_smooth = label_smooth
         self.epsilon = epsilon
+        self.aug_type = aug_type
         self.pr_product = pr_product
 
         assert margin_type in AMSoftmaxLoss.margin_types
@@ -164,7 +168,7 @@ class AMSoftmaxLoss(nn.Module):
 
         return weighted_losses
 
-    def forward(self, cos_theta, target, iteration=None):
+    def forward(self, cos_theta, target, aug_index=None, lam=None, iteration=None):
         """
         Args:
             cos_theta (torch.Tensor): prediction matrix (before softmax) with
@@ -204,6 +208,13 @@ class AMSoftmaxLoss(nn.Module):
                 losses = (- targets * F.log_softmax(output, dim=1)).sum(dim=1)
             else:
                 losses = F.cross_entropy(output, target, reduction='none')
+
+            if self.aug_type:
+                assert aug_index is not None and lam is not None
+                targets1 = torch.zeros(output.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
+                targets2 = targets1[aug_index]
+                new_targets = targets1 * lam + targets2 * (1 - lam)
+                losses = (- new_targets * F.log_softmax(output, dim=1)).sum(dim=1)
 
             if self.symmetric_ce:
                 all_probs = F.softmax(output, dim=-1)

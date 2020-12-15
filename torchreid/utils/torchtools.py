@@ -284,10 +284,9 @@ def load_pretrained_weights(model, weight_path):
     new_state_dict = OrderedDict()
     matched_layers, discarded_layers = [], []
 
-    for k, v in state_dict.items():
+    for i, (k, v) in enumerate(state_dict.items()):
         if k.startswith('module.'):
             k = k[7:]  # discard module.
-
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
             matched_layers.append(k)

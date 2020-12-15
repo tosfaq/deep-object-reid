@@ -23,6 +23,34 @@ from .common import ModelInterface
 
 __all__ = ['wrapped_models']
 
+def conv1x1(in_channels,
+            out_channels,
+            stride=1,
+            groups=1,
+            bias=False):
+    """
+    Convolution 1x1 layer.
+    Parameters:
+    ----------
+    in_channels : int
+        Number of input channels.
+    out_channels : int
+        Number of output channels.
+    stride : int or tuple/list of 2 int, default 1
+        Strides of the convolution.
+    groups : int, default 1
+        Number of groups.
+    bias : bool, default False
+        Whether the layer uses a bias vector.
+    """
+    return nn.Conv2d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=1,
+        stride=stride,
+        groups=groups,
+        bias=bias)
+
 
 class PTCVModel(ModelInterface):
     def __init__(
@@ -43,12 +71,21 @@ class PTCVModel(ModelInterface):
         assert hasattr(model, 'features') and isinstance(model.features, nn.Sequential)
         self.features = model.features
         self.features = self.features[:-1] # remove pooling, since it can have a fixed size
+<<<<<<< HEAD
         if self.loss not in ['am_softmax']:
             self.output_conv = nn.Conv2d(in_channels=model.output.in_channels, out_channels=num_classes, kernel_size=1, stride=1, bias=False)
         else:
             self.output_conv = AngleSimpleLinear(model.output.in_channels, num_classes)
             self.feature_dim = model.output.in_channels
 
+=======
+        self.output = model.output
+        # change last layer for appropriate number of classes
+        self.output.conv2 = conv1x1(
+            in_channels=1280,
+            out_channels=num_classes,
+            bias=True)
+>>>>>>> new backbones, augmentations, classification pipeline
         self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False):

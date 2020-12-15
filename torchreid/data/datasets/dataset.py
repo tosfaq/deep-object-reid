@@ -422,7 +422,6 @@ class ImageDataset(Dataset):
                 transformed_image = image
 
             output_record = transformed_image, obj_id, cam_id
-
         return output_record
 
     def show_summary(self):
