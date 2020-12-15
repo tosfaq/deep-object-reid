@@ -1,8 +1,8 @@
 #!/bin/bash
 
 work_dir=$(realpath "$(dirname $0)")
-exp_folder=${work_dir}/outputs/classification_out/exp_$1
-test_file_path=${work_dir}/outputs/classification_out/exp_$1/combine_all.txt
+exp_folder=${work_dir}/$1
+test_file_path=${work_dir}/$1/combine_all.txt
 for dir in ${exp_folder}/*     # list directories in the form "/tmp/dirname/"
 do
     # dir=${dir%}

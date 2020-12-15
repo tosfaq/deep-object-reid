@@ -13,7 +13,7 @@ import torch.nn.init as init
 from .common import (ModelInterface, round_channels, conv1x1, conv1x1_block, conv3x3_block,
                     dwconv3x3_block, dwconv5x5_block, SEBlock, HSwish)
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout
+from torchreid.ops import Dropout, rsc
 
 class MobileNetV3Unit(nn.Module):
     """
@@ -232,6 +232,7 @@ class MobileNetV3(ModelInterface):
                  loss='softmax',
                  IN_first=False,
                  IN_conv1=False,
+                 self_challenging_cfg=False,
                  **kwargs):
         super().__init__(**kwargs)
         self.in_size = in_size
@@ -241,6 +242,7 @@ class MobileNetV3(ModelInterface):
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
         self.pooling_type = pooling_type
+        self.self_challenging_cfg = self_challenging_cfg
 
         self.loss = loss
         self.feature_dim = feature_dim
@@ -322,6 +324,18 @@ class MobileNetV3(ModelInterface):
         glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
 
         logits = self.output(glob_features).view(x.shape[0], -1)
+
+        if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
+
+            glob_features = rsc(
+                glob_features,
+                logits[0],
+                gt_labels,
+                1.0 - self.self_challenging_cfg.drop_p
+            )
+
+            with EvalModeSetter([self.fc, self.classifier], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
+                logits = self.output(glob_features).view(x.shape[0], -1)
 
         if not self.training and self.classification:
             return [logits]

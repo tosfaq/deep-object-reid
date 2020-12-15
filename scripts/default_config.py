@@ -5,6 +5,7 @@ def get_default_config():
     cfg = CN()
     # number of the experinent
     cfg.num_exp = 0
+
     # model
     cfg.model = CN()
     cfg.model.name = 'resnet50'
@@ -43,6 +44,9 @@ def get_default_config():
     cfg.model.fpn.process = 'concatenation'
     cfg.model.classification = False
     cfg.model.contrastive = False
+    cfg.model.self_challenging_cfg = CN()
+    cfg.model.self_challenging_cfg.enable = False
+    cfg.model.self_challenging_cfg.drop_p = 0.33
 
     # data
     cfg.data = CN()
@@ -62,6 +66,7 @@ def get_default_config():
     cfg.data.tb_log_dir = ''  # path to save tensorboard log. If empty, log will be saved to data.save_dir
     cfg.data.min_samples_per_id = 1
     cfg.data.num_sampled_packages = 1
+
     # specific datasets
     cfg.market1501 = CN()
     cfg.market1501.use_500k_distractors = False  # add 500k distractors to the gallery set for market1501
@@ -494,6 +499,7 @@ def model_kwargs(cfg, num_classes):
         'attr_num_classes': cfg.attr_loss.num_classes,
         'classification': cfg.model.classification,
         'contrastive': cfg.model.contrastive,
+        'self_challenging_cfg': cfg.model.self_challenging_cfg,
     }
 
 
