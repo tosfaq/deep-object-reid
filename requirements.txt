@@ -17,3 +17,4 @@ asciitable
 scikit-learn
 lxml
 pytorchcv
+ruamel.yaml
