@@ -66,11 +66,15 @@ def build_optimizer(
         >>>     new_layers=['fc', 'classifier'], base_lr_mult=0.1
         >>> )
     """
-    kwargs =  dict(optim=optim, base_optim=base_optim, lr=lr, weight_decay=weight_decay,
-                    momentum=momentum, sgd_dampening=sgd_dampening, sgd_nesterov=sgd_nesterov,
-                    rmsprop_alpha=rmsprop_alpha, adam_beta1=adam_beta1, adam_beta2=adam_beta2,
-                    staged_lr=staged_lr, new_layers=new_layers, base_lr_mult=base_lr_mult,
-                    sam_rho=sam_rho)
+    kwargs =  dict(
+                  sgd=dict(base_class=torch.optim.SGD, params=dict(lr=lr, weight_decay=weight_decay, momentum=momentum,
+                            sgd_dampening=sgd_dampening, sgd_nesterov=sgd_nesterov)),
+                  adam=dict(base_class=torch.optim.Adam, params=dict(lr=lr, weight_decay=weight_decay, betas=(adam_beta1, adam_beta2))),
+                  amsgrad=dict(base_class=torch.optim.Adam, params=dict(lr=lr, weight_decay=weight_decay, betas=(adam_beta1, adam_beta2), amsgrad=True)),
+                  rmsprop=dict(base_class=torch.optim.RMSprop, params=dict(lr=lr, weight_decay=weight_decay, alpha=rmsprop_alpha, momentum=momentum)),
+                  radam=dict(base_class=RAdam, params=dict(lr=lr, weight_decay=weight_decay, betas=(adam_beta1, adam_beta2)))
+                  )
+
 
     if optim not in AVAI_OPTIMS:
         raise ValueError(
@@ -118,23 +122,6 @@ def build_optimizer(
 
     else:
         param_groups = model.parameters()
-
-    if optim == 'sam':
-        base_optimizer = build_base_optimizer(**kwargs)
-        optimizer = SAM(
-            params=param_groups,
-            base_optimizer=base_optimizer,
-            rho=sam_rho
-        )
-    else:
-        optimizer = build_base_optimizer(**kwargs)
-
-    return optimizer
-
-def build_base_optimizer(optim, param_groups, lr, weight_decay,
-                        adam_beta1, adam_beta2, momentum, sgd_dampening,
-                        sgd_nesterov, rmsprop_alpha, **kwargs):
-
     if optim == 'adam':
         optimizer = torch.optim.Adam(
             param_groups,
@@ -178,4 +165,14 @@ def build_base_optimizer(optim, param_groups, lr, weight_decay,
             weight_decay=weight_decay,
             betas=(adam_beta1, adam_beta2)
         )
+
+    if optim == 'sam':
+        optimizer = SAM(
+            params=param_groups,
+            base_optimizer=kwargs[base_optim]['base_class'],
+            rho=sam_rho,
+            **kwargs[base_optim]['params']
+        )
+
     return optimizer
+

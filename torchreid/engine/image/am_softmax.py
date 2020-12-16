@@ -231,12 +231,15 @@ class ImageAMSoftmaxEngine(Engine):
 
             loss_summary['loss'] = total_loss.item()
 
+            out_logits = [[] for _ in range(self.num_targets)]
+            total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
             for model_name in model_names:
                 self.optims[model_name].zero_grad()
 
                 model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
                     self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name, num_packages
                 )
+                total_loss += model_loss / float(num_models)
 
                 for trg_id in range(self.num_targets):
                     if model_logits[trg_id] is not None:
