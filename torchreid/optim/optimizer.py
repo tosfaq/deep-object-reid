@@ -4,13 +4,15 @@ import torch
 import torch.nn as nn
 
 from .radam import RAdam
+from .sam import SAM
 
-AVAI_OPTIMS = ['adam', 'amsgrad', 'sgd', 'rmsprop', 'radam']
+AVAI_OPTIMS = ['adam', 'amsgrad', 'sgd', 'rmsprop', 'radam', 'sam']
 
 
 def build_optimizer(
     model,
     optim='adam',
+    base_optim = 'sgd',
     lr=0.0003,
     weight_decay=5e-04,
     momentum=0.9,
@@ -21,7 +23,8 @@ def build_optimizer(
     adam_beta2=0.99,
     staged_lr=False,
     new_layers='',
-    base_lr_mult=0.1
+    base_lr_mult=0.1,
+    sam_rho = 0.5
 ):
     """A function wrapper for building an optimizer.
 
@@ -63,6 +66,12 @@ def build_optimizer(
         >>>     new_layers=['fc', 'classifier'], base_lr_mult=0.1
         >>> )
     """
+    kwargs =  dict(optim=optim, base_optim=base_optim, lr=lr, weight_decay=weight_decay,
+                    momentum=momentum, sgd_dampening=sgd_dampening, sgd_nesterov=sgd_nesterov,
+                    rmsprop_alpha=rmsprop_alpha, adam_beta1=adam_beta1, adam_beta2=adam_beta2,
+                    staged_lr=staged_lr, new_layers=new_layers, base_lr_mult=base_lr_mult,
+                    sam_rho=sam_rho)
+
     if optim not in AVAI_OPTIMS:
         raise ValueError(
             'Unsupported optim: {}. Must be one of {}'.format(
@@ -110,6 +119,22 @@ def build_optimizer(
     else:
         param_groups = model.parameters()
 
+    if optim == 'sam':
+        base_optimizer = build_base_optimizer(**kwargs)
+        optimizer = SAM(
+            params=param_groups,
+            base_optimizer=base_optimizer,
+            rho=sam_rho
+        )
+    else:
+        optimizer = build_base_optimizer(**kwargs)
+
+    return optimizer
+
+def build_base_optimizer(optim, param_groups, lr, weight_decay,
+                        adam_beta1, adam_beta2, momentum, sgd_dampening,
+                        sgd_nesterov, rmsprop_alpha, **kwargs):
+
     if optim == 'adam':
         optimizer = torch.optim.Adam(
             param_groups,
@@ -153,5 +178,4 @@ def build_optimizer(
             weight_decay=weight_decay,
             betas=(adam_beta1, adam_beta2)
         )
-
     return optimizer
