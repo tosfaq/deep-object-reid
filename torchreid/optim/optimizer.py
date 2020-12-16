@@ -24,7 +24,7 @@ def build_optimizer(
     staged_lr=False,
     new_layers='',
     base_lr_mult=0.1,
-    sam_rho = 0.5
+    sam_rho = 0.05
 ):
     """A function wrapper for building an optimizer.
 
@@ -68,7 +68,7 @@ def build_optimizer(
     """
     kwargs =  dict(
                   sgd=dict(base_class=torch.optim.SGD, params=dict(lr=lr, weight_decay=weight_decay, momentum=momentum,
-                            sgd_dampening=sgd_dampening, sgd_nesterov=sgd_nesterov)),
+                            dampening=sgd_dampening, nesterov=sgd_nesterov)),
                   adam=dict(base_class=torch.optim.Adam, params=dict(lr=lr, weight_decay=weight_decay, betas=(adam_beta1, adam_beta2))),
                   amsgrad=dict(base_class=torch.optim.Adam, params=dict(lr=lr, weight_decay=weight_decay, betas=(adam_beta1, adam_beta2), amsgrad=True)),
                   rmsprop=dict(base_class=torch.optim.RMSprop, params=dict(lr=lr, weight_decay=weight_decay, alpha=rmsprop_alpha, momentum=momentum)),

@@ -43,7 +43,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 symmetric_ce=cfg.loss.softmax.symmetric_ce,
                 mix_weight=cfg.mixing_loss.enable * cfg.mixing_loss.weight,
                 enable_rsc=cfg.model.self_challenging_cfg.enable,
-                enable_sam=cfg.model.sam.enable,
+                enable_sam=cfg.sam.enable,
             )
         elif cfg.loss.name == 'contrastive':
             engine = ImageContrastiveEngine(
