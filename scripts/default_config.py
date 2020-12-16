@@ -47,6 +47,9 @@ def get_default_config():
     cfg.model.self_challenging_cfg = CN()
     cfg.model.self_challenging_cfg.enable = False
     cfg.model.self_challenging_cfg.drop_p = 0.33
+    cfg.model.sam = CN()
+    cfg.model.sam.enable = False
+    cfg.model.sam.rho = 0.5
 
     # data
     cfg.data = CN()
@@ -451,7 +454,8 @@ def optimizer_kwargs(cfg):
         'adam_beta2': cfg.adam.beta2,
         'staged_lr': cfg.train.staged_lr,
         'new_layers': cfg.train.new_layers,
-        'base_lr_mult': cfg.train.base_lr_mult
+        'base_lr_mult': cfg.train.base_lr_mult,
+        'sam_rho': cfg.model.same.rho
     }
 
 
