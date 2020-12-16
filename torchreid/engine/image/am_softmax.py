@@ -183,93 +183,15 @@ class ImageAMSoftmaxEngine(Engine):
         model_names = self.get_model_names()
         num_models = len(model_names)
 
-        avg_acc = 0.0
-        out_logits = [[] for _ in range(self.num_targets)]
-        total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-        loss_summary = dict()
-
-        if self.enable_sam:
-            for model_name in model_names:
-                self.optims[model_name].zero_grad()
-
-                model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
-                    self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name, num_packages
-                )
-
-                avg_acc += model_avg_acc / float(num_models)
-                total_loss += model_loss / float(num_models)
-                loss_summary.update(model_loss_summary)
-
-                for trg_id in range(self.num_targets):
-                    if model_logits[trg_id] is not None:
-                        out_logits[trg_id].append(model_logits[trg_id])
-
-            if len(model_names) > 1:
-                num_mutual_losses = 0
-                mutual_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-                for trg_id in range(self.num_targets):
-                    if len(out_logits[trg_id]) <= 1:
-                        continue
-
-                    with torch.no_grad():
-                        trg_probs = torch.softmax(torch.stack(out_logits[trg_id]), dim=2).mean(dim=0)
-
-                    for model_id, logits in enumerate(out_logits[trg_id]):
-                        log_probs = torch.log_softmax(logits, dim=1)
-                        m_loss = (trg_probs * log_probs).sum(dim=1).mean().neg()
-
-                        mutual_loss += m_loss
-                        loss_summary['mutual_{}/{}'.format(trg_id, model_names[model_id])] = m_loss.item()
-                        num_mutual_losses += 1
-
-                total_loss += mutual_loss / float(num_mutual_losses)
-
-            total_loss.backward()
-
-            for model_name in model_names:
-                self.optims[model_name].first_step()
-
-            loss_summary['loss'] = total_loss.item()
-
+        steps = [1,2] if self.enable_sam else [1]
+        for step in steps:
+            # is sam anabled then statistics will be written each step, but saved only the second time
+            # this is made just for convinience
+            avg_acc = 0.0
             out_logits = [[] for _ in range(self.num_targets)]
             total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-            for model_name in model_names:
-                self.optims[model_name].zero_grad()
+            loss_summary = dict()
 
-                model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
-                    self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name, num_packages
-                )
-                total_loss += model_loss / float(num_models)
-
-                for trg_id in range(self.num_targets):
-                    if model_logits[trg_id] is not None:
-                        out_logits[trg_id].append(model_logits[trg_id])
-
-            if len(model_names) > 1:
-                num_mutual_losses = 0
-                mutual_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-                for trg_id in range(self.num_targets):
-                    if len(out_logits[trg_id]) <= 1:
-                        continue
-
-                    with torch.no_grad():
-                        trg_probs = torch.softmax(torch.stack(out_logits[trg_id]), dim=2).mean(dim=0)
-
-                    for model_id, logits in enumerate(out_logits[trg_id]):
-                        log_probs = torch.log_softmax(logits, dim=1)
-                        m_loss = (trg_probs * log_probs).sum(dim=1).mean().neg()
-
-                        mutual_loss += m_loss
-                        num_mutual_losses += 1
-
-                total_loss += mutual_loss / float(num_mutual_losses)
-
-            total_loss.backward()
-
-            for model_name in model_names:
-                self.optims[model_name].second_step()
-        else:
-            assert not self.enable_sam
             for model_name in model_names:
                 self.optims[model_name].zero_grad()
 
@@ -307,13 +229,18 @@ class ImageAMSoftmaxEngine(Engine):
 
             total_loss.backward()
 
-        for model_name in model_names:
-            for trg_id in range(self.num_targets):
-                if self.enable_metric_losses:
-                    ml_loss_module = self.ml_losses[trg_id][model_name]
-                    ml_loss_module.end_iteration(do_backward=False)
-
-            self.optims[model_name].step()
+            for model_name in model_names:
+                for trg_id in range(self.num_targets):
+                    if self.enable_metric_losses:
+                        ml_loss_module = self.ml_losses[trg_id][model_name]
+                        ml_loss_module.end_iteration(do_backward=False)
+                if self.enable_sam and step == 1:
+                    self.optims[model_name].first_step()
+                elif self.enable_sam and step == 2:
+                    self.optims[model_name].second_step()
+                else:
+                    assert not self.enable_sam
+                    self.optims[model_name].step()
 
             loss_summary['loss'] = total_loss.item()
 

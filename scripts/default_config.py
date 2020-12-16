@@ -48,8 +48,6 @@ def get_default_config():
     cfg.model.self_challenging_cfg.enable = False
     cfg.model.self_challenging_cfg.drop_p = 0.33
     cfg.model.sam = CN()
-    cfg.model.sam.enable = False
-    cfg.model.sam.rho = 0.5
 
     # data
     cfg.data = CN()
@@ -128,6 +126,9 @@ def get_default_config():
     cfg.adam = CN()
     cfg.adam.beta1 = 0.9  # exponential decay rate for first moment
     cfg.adam.beta2 = 0.999  # exponential decay rate for second moment
+    cfg.sam = CN() # new way for optimization
+    cfg.sam.enable = False
+    cfg.sam.rho = 0.5
 
     # loss
     cfg.loss = CN()
@@ -458,7 +459,7 @@ def optimizer_kwargs(cfg):
         'staged_lr': cfg.train.staged_lr,
         'new_layers': cfg.train.new_layers,
         'base_lr_mult': cfg.train.base_lr_mult,
-        'sam_rho': cfg.model.sam.rho
+        'sam_rho': cfg.sam.rho
     }
 
 
