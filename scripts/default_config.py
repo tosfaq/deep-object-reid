@@ -97,6 +97,7 @@ def get_default_config():
     # train
     cfg.train = CN()
     cfg.train.optim = 'adam'
+    cfg.train.base_optim = 'sgd'
     cfg.train.lr = 0.0003
     cfg.train.weight_decay = 5e-4
     cfg.train.max_epoch = 60
@@ -445,6 +446,7 @@ def videodata_kwargs(cfg):
 def optimizer_kwargs(cfg):
     return {
         'optim': cfg.train.optim,
+        'base_optim': cfg.train.base_optim,
         'lr': cfg.train.lr,
         'weight_decay': cfg.train.weight_decay,
         'momentum': cfg.sgd.momentum,
@@ -456,7 +458,7 @@ def optimizer_kwargs(cfg):
         'staged_lr': cfg.train.staged_lr,
         'new_layers': cfg.train.new_layers,
         'base_lr_mult': cfg.train.base_lr_mult,
-        'sam_rho': cfg.model.same.rho
+        'sam_rho': cfg.model.sam.rho
     }
 
 
