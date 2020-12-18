@@ -47,7 +47,6 @@ def get_default_config():
     cfg.model.self_challenging_cfg = CN()
     cfg.model.self_challenging_cfg.enable = False
     cfg.model.self_challenging_cfg.drop_p = 0.33
-    cfg.model.sam = CN()
 
     # data
     cfg.data = CN()
@@ -127,7 +126,7 @@ def get_default_config():
     cfg.adam.beta2 = 0.999  # exponential decay rate for second moment
     cfg.sam = CN() # new way for optimization
     cfg.sam.enable = False
-    cfg.sam.rho = 0.5
+    cfg.sam.rho = 0.05
 
     # loss
     cfg.loss = CN()
