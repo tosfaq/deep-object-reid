@@ -127,7 +127,6 @@ def sample_mask(alpha, decay_power, shape, max_soft=0.0, reformulate=False):
     """
     if isinstance(shape, int):
         shape = (shape,)
-    print(shape)
     # Choose lambda
     lam = sample_lam(alpha, reformulate)
 

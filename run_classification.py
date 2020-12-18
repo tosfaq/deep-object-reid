@@ -30,27 +30,28 @@ def main():
     yaml = YAML()
 
     datasets = dict(
-                    flowers = dict(resolution = (224,224), epochs = 50, source = 'classification', batch_size=64),
-                    CIFAR100 = dict(resolution = (32,32), epochs = 200, source = 'classification_image_folder', batch_size=64),
-                    fashionMNIST = dict(resolution = (28,28), epochs = 200, source = 'classification_image_folder', batch_size=512),
-                    SVHN = dict(resolution = (32,32), epochs = 200, source = 'classification', batch_size=512),
-                    cars = dict(resolution = (224,224), epochs = 53, source = 'classification', batch_size=64),
-                    DTD = dict(resolution = (224,224), epochs = 63, source = 'classification_image_folder', batch_size=128),
-                    pets = dict(resolution = (224,224), epochs = 45, source = 'classification', batch_size=128),
+                    flowers = dict(resolution = (224,224), epochs = 60, source = 'classification', batch_size=128),
+                    CIFAR100 = dict(resolution = (32,32), epochs = 37, source = 'classification_image_folder', batch_size=128),
+                    fashionMNIST = dict(resolution = (28,28), epochs = 37, source = 'classification_image_folder', batch_size=128),
+                    SVHN = dict(resolution = (32,32), epochs = 60, source = 'classification', batch_size=128),
+                    cars = dict(resolution = (224,224), epochs = 90, source = 'classification', batch_size=128),
+                    DTD = dict(resolution = (224,224), epochs = 70, source = 'classification_image_folder', batch_size=128),
+                    pets = dict(resolution = (224,224), epochs = 40, source = 'classification', batch_size=128),
                     Xray = dict(resolution = (224,224), epochs = 35, source = 'classification_image_folder', batch_size=128),
                     SUN397 = dict(resolution = (224,224), epochs = 1, source = 'classification', batch_size=128),
-                    birdsnap = dict(resolution = (224,224), epochs = 100, source = 'classification', batch_size=128),
-                    caltech101 = dict(resolution = (224,224), epochs = 35, source = 'classification', batch_size=128),
-                    FOOD101 = dict(resolution = (224,224), epochs = 60, source = 'classification', batch_size=128)
+                    birdsnap = dict(resolution = (224,224), epochs = 45, source = 'classification', batch_size=128),
+                    caltech101 = dict(resolution = (224,224), epochs = 40, source = 'classification', batch_size=128),
+                    FOOD101 = dict(resolution = (224,224), epochs = 37, source = 'classification', batch_size=128)
                     )
 
     path_to_base_cfg = args.config
-    # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101'}
+    # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
     to_skip = {'SUN397'}
     for key, params in datasets.items():
         if key in to_skip:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
+        num_exp = cfg['num_exp']
         if key in {'CIFAR100', 'FOOD101', 'pets', 'SUN397'}:
             cfg['train']['lr'] = 0.01
         elif key in {'DTD', 'Xray', 'birdsnap', 'caltech101', 'fashionMNIST'}:
@@ -72,7 +73,8 @@ def main():
         cfg['data']['height'] = params['resolution'][0]
         cfg['data']['width'] = params['resolution'][1]
         cfg['train']['max_epoch'] = params['epochs']
-        cfg['data']['save_dir'] = cfg['data']['save_dir'] + f'/{key}'
+        cfg['data']['save_dir'] = path_to_exp_folder + f"/{key}"
+
 
         cfg['train']['batch_size'] = params['batch_size']
         source = params['source']
@@ -97,6 +99,7 @@ def main():
         finally:
             os.remove(tmp_path_to_cfg)
     # after training combine all outputs in one file
+    # path_to_class_folder = f"outputs/classification_out/exp_{num_exp}"
     path_to_bash = str(Path.cwd() / 'parse_output.sh')
     run(f'bash {path_to_bash} {path_to_exp_folder}', shell=True)
     saver = dict()
