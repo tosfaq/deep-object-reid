@@ -48,6 +48,9 @@ def main():
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
     to_skip = {'SUN397'}
     for key, params in datasets.items():
+        cfg = read_config(yaml, path_to_base_cfg)
+        path_to_exp_folder = cfg['data']['save_dir']
+
         if key in to_skip:
             continue
         cfg = read_config(yaml, path_to_base_cfg)

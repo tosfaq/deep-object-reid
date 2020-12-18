@@ -4,13 +4,15 @@ import torch
 import torch.nn as nn
 
 from .radam import RAdam
+from .sam import SAM
 
-AVAI_OPTIMS = ['adam', 'amsgrad', 'sgd', 'rmsprop', 'radam']
+AVAI_OPTIMS = ['adam', 'amsgrad', 'sgd', 'rmsprop', 'radam', 'sam']
 
 
 def build_optimizer(
     model,
     optim='adam',
+    base_optim = 'sgd',
     lr=0.0003,
     weight_decay=5e-04,
     momentum=0.9,
@@ -21,7 +23,8 @@ def build_optimizer(
     adam_beta2=0.99,
     staged_lr=False,
     new_layers='',
-    base_lr_mult=0.1
+    base_lr_mult=0.1,
+    sam_rho = 0.05
 ):
     """A function wrapper for building an optimizer.
 
@@ -63,6 +66,16 @@ def build_optimizer(
         >>>     new_layers=['fc', 'classifier'], base_lr_mult=0.1
         >>> )
     """
+    kwargs =  dict(
+                  sgd=dict(base_class=torch.optim.SGD, params=dict(lr=lr, weight_decay=weight_decay, momentum=momentum,
+                            dampening=sgd_dampening, nesterov=sgd_nesterov)),
+                  adam=dict(base_class=torch.optim.Adam, params=dict(lr=lr, weight_decay=weight_decay, betas=(adam_beta1, adam_beta2))),
+                  amsgrad=dict(base_class=torch.optim.Adam, params=dict(lr=lr, weight_decay=weight_decay, betas=(adam_beta1, adam_beta2), amsgrad=True)),
+                  rmsprop=dict(base_class=torch.optim.RMSprop, params=dict(lr=lr, weight_decay=weight_decay, alpha=rmsprop_alpha, momentum=momentum)),
+                  radam=dict(base_class=RAdam, params=dict(lr=lr, weight_decay=weight_decay, betas=(adam_beta1, adam_beta2)))
+                  )
+
+
     if optim not in AVAI_OPTIMS:
         raise ValueError(
             'Unsupported optim: {}. Must be one of {}'.format(
@@ -109,7 +122,6 @@ def build_optimizer(
 
     else:
         param_groups = model.parameters()
-
     if optim == 'adam':
         optimizer = torch.optim.Adam(
             param_groups,
@@ -154,4 +166,13 @@ def build_optimizer(
             betas=(adam_beta1, adam_beta2)
         )
 
+    if optim == 'sam':
+        optimizer = SAM(
+            params=param_groups,
+            base_optimizer=kwargs[base_optim]['base_class'],
+            rho=sam_rho,
+            **kwargs[base_optim]['params']
+        )
+
     return optimizer
+
