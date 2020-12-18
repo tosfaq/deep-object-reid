@@ -31,10 +31,10 @@ def main():
 
     datasets = dict(
                     flowers = dict(resolution = (224,224), epochs = 50, source = 'classification', batch_size=64),
-                    CIFAR100 = dict(resolution = (32,32), epochs = 200, source = 'classification_image_folder', batch_size=64),
-                    fashionMNIST = dict(resolution = (28,28), epochs = 200, source = 'classification_image_folder', batch_size=512),
-                    SVHN = dict(resolution = (32,32), epochs = 200, source = 'classification', batch_size=512),
-                    cars = dict(resolution = (224,224), epochs = 53, source = 'classification', batch_size=64),
+                    CIFAR100 = dict(resolution = (32,32), epochs = 200, source = 'classification_image_folder', batch_size=128),
+                    fashionMNIST = dict(resolution = (28,28), epochs = 200, source = 'classification_image_folder', batch_size=128),
+                    SVHN = dict(resolution = (32,32), epochs = 200, source = 'classification', batch_size=128),
+                    cars = dict(resolution = (224,224), epochs = 53, source = 'classification', batch_size=128),
                     DTD = dict(resolution = (224,224), epochs = 63, source = 'classification_image_folder', batch_size=128),
                     pets = dict(resolution = (224,224), epochs = 45, source = 'classification', batch_size=128),
                     Xray = dict(resolution = (224,224), epochs = 35, source = 'classification_image_folder', batch_size=128),
@@ -45,9 +45,12 @@ def main():
                     )
 
     path_to_base_cfg = args.config
-    # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101'}
-    to_skip = {'SUN397'}
+    to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
+    # to_skip = {'SUN397', 'flowers'}
     for key, params in datasets.items():
+        cfg = read_config(yaml, path_to_base_cfg)
+        path_to_exp_folder = cfg['data']['save_dir']
+
         if key in to_skip:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
@@ -97,6 +100,7 @@ def main():
         finally:
             os.remove(tmp_path_to_cfg)
     # after training combine all outputs in one file
+    print(path_to_exp_folder)
     path_to_bash = str(Path.cwd() / 'parse_output.sh')
     run(f'bash {path_to_bash} {path_to_exp_folder}', shell=True)
     saver = dict()
