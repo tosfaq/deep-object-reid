@@ -321,11 +321,9 @@ class MobileNetV3(ModelInterface):
             return y
 
         glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
-
         logits = self.output(glob_features).view(x.shape[0], -1)
 
         if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
-
             glob_features = rsc(
                 glob_features,
                 logits,
@@ -333,8 +331,8 @@ class MobileNetV3(ModelInterface):
                 1.0 - self.self_challenging_cfg.drop_p
             )
 
-            with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
-                logits = self.output(glob_features).view(x.shape[0], -1)
+            # with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
+            logits = self.output(glob_features).view(x.shape[0], -1)
 
         if not self.training and self.classification:
             return [logits]

@@ -190,29 +190,29 @@ def main():
             export_params=True,
             input_names=input_names,
             output_names=output_names,
-            # dynamic_axes=dynamic_axes,
+            dynamic_axes=dynamic_axes,
             opset_version=args.opset,
             operator_export_type=torch.onnx.OperatorExportTypes.ONNX
         )
 
     net_from_onnx = onnx.load(output_file_path)
-    weights = net_from_onnx.graph.initializer
-    # [weights] = [t for t in net_from_onnx.graph.initializer]
-    abs_w = dict()
-    for w in weights:
-        abs_w[w.name] = numpy_helper.to_array(w)
-    checkpoint = load_checkpoint('/home/prokofiev/deep-person-reid/reid/Mobilenet_se_focal_121000.pt')
-    if 'state_dict' in checkpoint:
-        state_dict = checkpoint['state_dict']
-    else:
-        state_dict = checkpoint
-    # for k, d in state_dict.items():
-    #     if k == 'module.features.0.0.weight':
-    for k, v in state_dict.items():
-        if k.startswith('module.'):
-            k = k[7:]
-        if k in abs_w:
-            print(k, torch.tensor(abs_w[k]) - v)
+    # weights = net_from_onnx.graph.initializer
+    # # [weights] = [t for t in net_from_onnx.graph.initializer]
+    # abs_w = dict()
+    # for w in weights:
+    #     abs_w[w.name] = numpy_helper.to_array(w)
+    # checkpoint = load_checkpoint('/home/prokofiev/deep-person-reid/reid/Mobilenet_se_focal_121000.pt')
+    # if 'state_dict' in checkpoint:
+    #     state_dict = checkpoint['state_dict']
+    # else:
+    #     state_dict = checkpoint
+    # # for k, d in state_dict.items():
+    # #     if k == 'module.features.0.0.weight':
+    # for k, v in state_dict.items():
+    #     if k.startswith('module.'):
+    #         k = k[7:]
+    #     if k in abs_w:
+    #         print(k, torch.tensor(abs_w[k]) - v)
 
     try:
         onnx.checker.check_model(net_from_onnx)
