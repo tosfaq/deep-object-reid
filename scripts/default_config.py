@@ -47,6 +47,7 @@ def get_default_config():
     cfg.model.self_challenging_cfg = CN()
     cfg.model.self_challenging_cfg.enable = False
     cfg.model.self_challenging_cfg.drop_p = 0.33
+    cfg.model.self_challenging_cfg.drop_batch_p = 0.33
 
     # data
     cfg.data = CN()
