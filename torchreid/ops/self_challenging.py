@@ -15,7 +15,7 @@ class RSC(nn.Module):
         return rsc(features, scores, labels, self.retain_p)
 
 
-def rsc(features, scores, labels, retain_p=0.77):
+def rsc(features, scores, labels, retain_p=0.67, retain_batch=0.67):
     """Representation Self-Challenging module (RSC).
        Based on the paper: https://arxiv.org/abs/2007.02454
     """
@@ -39,5 +39,9 @@ def rsc(features, scores, labels, retain_p=0.77):
     scale = 1.0 / float(retain_p)
     filtered_features = scale * torch.where(zero_mask, torch.zeros_like(features), features)
     out_features = torch.where(unchanged_mask, features, filtered_features)
+    # filter batch
+    random_uniform = torch.rand(size=(features.size(0), 1, 1, 1), device=features.device)
+    random_mask = random_uniform >= retain_batch
+    out_features = torch.where(random_mask, out_features, features)
 
     return out_features

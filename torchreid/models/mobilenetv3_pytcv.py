@@ -325,10 +325,11 @@ class MobileNetV3(ModelInterface):
 
         if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
             glob_features = rsc(
-                glob_features,
-                logits,
-                gt_labels,
-                1.0 - self.self_challenging_cfg.drop_p
+                features = glob_features,
+                scores = logits,
+                labels = gt_labels,
+                retain_p = 1.0 - self.self_challenging_cfg.drop_p,
+                retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
             )
 
             # with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
