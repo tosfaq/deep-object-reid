@@ -22,92 +22,92 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--data_root', type=str, default='/home/prokofiev/datasets', required=False,
                         help='path to folder with datasets')
-    parser.add_argument('--config', type=str, required=True, help='path to config file')
+    parser.add_argument('--config', type=str, required=False, help='path to config file')
     args = parser.parse_args()
 
     path_to_main = './scripts/main.py'
     data_root = args.data_root
     yaml = YAML()
 
-     datasets = dict(
-                    flowers = dict(resolution = (224,224), epochs = 35, source = 'classification', batch_size=64),
-                    CIFAR100 = dict(resolution = (224,224), epochs = 50, source = 'classification_image_folder', batch_size=64),
-                    fashionMNIST = dict(resolution = (224,224), epochs = 50, source = 'classification_image_folder', batch_size=64),
-                    SVHN = dict(resolution = (224,224), epochs = 55, source = 'classification', batch_size=64),
-                    cars = dict(resolution = (224,224), epochs = 110, source = 'classification', batch_size=64),
-                    DTD = dict(resolution = (224,224), epochs = 75, source = 'classification_image_folder', batch_size=64),
-                    pets = dict(resolution = (224,224), epochs = 30, source = 'classification', batch_size=64),
-                    Xray = dict(resolution = (224,224), epochs = 35, source = 'classification_image_folder', batch_size=64),
-                    SUN397 = dict(resolution = (224,224), epochs = 60, source = 'classification', batch_size=64),
-                    birdsnap = dict(resolution = (224,224), epochs = 40, source = 'classification', batch_size=64),
-                    caltech101 = dict(resolution = (224,224), epochs = 60, source = 'classification', batch_size=64),
-                    FOOD101 = dict(resolution = (224,224), epochs = 35, source = 'classification', batch_size=64)
+    datasets = dict(
+                    flowers = dict(resolution = (260,260), epochs = 55, source = 'classification', batch_size=64),
+                    CIFAR100 = dict(resolution = (260,260), epochs = 35, source = 'classification_image_folder', batch_size=64),
+                    fashionMNIST = dict(resolution = (260,260), epochs = 35, source = 'classification_image_folder', batch_size=64),
+                    SVHN = dict(resolution = (260,260), epochs = 50, source = 'classification', batch_size=64),
+                    cars = dict(resolution = (260,260), epochs = 110, source = 'classification', batch_size=64),
+                    DTD = dict(resolution = (260,260), epochs = 75, source = 'classification_image_folder', batch_size=64),
+                    pets = dict(resolution = (260,260), epochs = 25, source = 'classification', batch_size=64),
+                    Xray = dict(resolution = (260,260), epochs = 35, source = 'classification_image_folder', batch_size=64),
+                    SUN397 = dict(resolution = (260,260), epochs = 60, source = 'classification', batch_size=64),
+                    birdsnap = dict(resolution = (260,260), epochs = 40, source = 'classification', batch_size=64),
+                    caltech101 = dict(resolution = (260,260), epochs = 55, source = 'classification', batch_size=64),
+                    FOOD101 = dict(resolution = (260,260), epochs = 35, source = 'classification', batch_size=64)
                     )
 
     path_to_base_cfg = args.config
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
     to_skip = {'SUN397'}
-    for path_to_base_cfg in [
-                            '/home/prokofiev/deep-person-reid/configs/classification/base_config_2.yml',
-                            '/home/prokofiev/deep-person-reid/configs/classification/base_config_3.yml',
-                            ]:
+    # for path_to_base_cfg in [
+    #                         '/home/prokofiev/deep-person-reid/configs/classification/base_config_2.yml',
+    #                         '/home/prokofiev/deep-person-reid/configs/classification/base_config_3.yml',
+    #                         ]:
 
-        for key, params in datasets.items():
-            if key in to_skip:
-                continue
-            cfg = read_config(yaml, path_to_base_cfg)
-            num_exp = cfg['num_exp']
-            if key in {'CIFAR100', 'pets', 'caltech101', 'DTD', 'flowers', 'SUN397'}:
-                cfg['train']['lr'] = 0.003
-            elif key in {'SVHN', 'birdsnap'}:
-                cfg['train']['lr'] = 0.006
-            elif key == 'Xray':
-                cfg['train']['lr'] = 0.01
-            elif key == 'cars':
-                cfg['train']['lr'] = 0.008
-            else:
-                cfg['train']['lr'] = 0.005
+    for key, params in datasets.items():
+        if key in to_skip:
+            continue
+        cfg = read_config(yaml, path_to_base_cfg)
+        num_exp = cfg['num_exp']
+        if key in {'CIFAR100', 'caltech101', 'DTD', 'flowers', 'SUN397'}:
+            cfg['train']['lr'] = 0.003
+        elif key == 'pets':
+            cfg['train']['lr'] = 0.002
+        elif key == 'Xray':
+            cfg['train']['lr'] = 0.01
+        elif key == 'cars':
+            cfg['train']['lr'] = 0.007
+        else:
+            cfg['train']['lr'] = 0.005
 
-            path_to_exp_folder = cfg['data']['save_dir']
-            # create new configuration file related to current dataset
-            # if key in ['CIFAR100', 'fashionMNIST', 'SVHN']:
-            #     cfg['data']['transforms']['coarse_dropout']['max_holes'] = 6 if key == 'fashionMNIST' else 8
-            #     cfg['data']['transforms']['coarse_dropout']['min_holes'] = 6 if key == 'fashionMNIST' else 8
-            #     cfg['data']['transforms']['coarse_dropout']['max_height'] = 4
-            #     cfg['data']['transforms']['coarse_dropout']['max_width'] = 4
-            #     cfg['data']['transforms']['random_crop']['p'] = 1.0
-            #     cfg['data']['transforms']['random_crop']['static'] = True
+        path_to_exp_folder = cfg['data']['save_dir']
+        # create new configuration file related to current dataset
+        # if key in ['CIFAR100', 'fashionMNIST', 'SVHN']:
+        #     cfg['data']['transforms']['coarse_dropout']['max_holes'] = 6 if key == 'fashionMNIST' else 8
+        #     cfg['data']['transforms']['coarse_dropout']['min_holes'] = 6 if key == 'fashionMNIST' else 8
+        #     cfg['data']['transforms']['coarse_dropout']['max_height'] = 4
+        #     cfg['data']['transforms']['coarse_dropout']['max_width'] = 4
+        #     cfg['data']['transforms']['random_crop']['p'] = 1.0
+        #     cfg['data']['transforms']['random_crop']['static'] = True
 
-            cfg['model']['in_size'] = params['resolution']
-            cfg['classification']['data_dir'] = key
-            cfg['data']['height'] = params['resolution'][0]
-            cfg['data']['width'] = params['resolution'][1]
-            cfg['train']['max_epoch'] = params['epochs']
-            cfg['data']['save_dir'] = path_to_exp_folder + f"/{key}"
+        cfg['model']['in_size'] = params['resolution']
+        cfg['classification']['data_dir'] = key
+        cfg['data']['height'] = params['resolution'][0]
+        cfg['data']['width'] = params['resolution'][1]
+        cfg['train']['max_epoch'] = params['epochs']
+        cfg['data']['save_dir'] = path_to_exp_folder + f"/{key}"
 
 
-            cfg['train']['batch_size'] = params['batch_size']
-            source = params['source']
-            cfg['data']['sources'] = [source]
-            cfg['data']['targets'] = [source]
-            # dump it
-            # config_path = str(Path.cwd() / 'configs'/ 'classification' / f'{key}.yml')
-            fd, tmp_path_to_cfg = tempfile.mkstemp()
-            try:
-                with os.fdopen(fd, 'w') as tmp:
-                    # do stuff with temp file
-                    yaml.default_flow_style = True
-                    yaml.dump(cfg, tmp)
-                    tmp.close()
+        cfg['train']['batch_size'] = params['batch_size']
+        source = params['source']
+        cfg['data']['sources'] = [source]
+        cfg['data']['targets'] = [source]
+        # dump it
+        # config_path = str(Path.cwd() / 'configs'/ 'classification' / f'{key}.yml')
+        fd, tmp_path_to_cfg = tempfile.mkstemp()
+        try:
+            with os.fdopen(fd, 'w') as tmp:
+                # do stuff with temp file
+                yaml.default_flow_style = True
+                yaml.dump(cfg, tmp)
+                tmp.close()
 
-                # run training
-                run(
-                    f'python {str(path_to_main)}'
-                    f' --config {tmp_path_to_cfg}'
-                    f' --root {data_root}', shell=True
-                    )
-            finally:
-                os.remove(tmp_path_to_cfg)
+            # run training
+            run(
+                f'python {str(path_to_main)}'
+                f' --config {tmp_path_to_cfg}'
+                f' --root {data_root}', shell=True
+                )
+        finally:
+            os.remove(tmp_path_to_cfg)
         # after training combine all outputs in one file
         # path_to_class_folder = f"outputs/classification_out/exp_"
         path_to_bash = str(Path.cwd() / 'parse_output.sh')
