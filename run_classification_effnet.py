@@ -108,44 +108,44 @@ def main():
                 )
         finally:
             os.remove(tmp_path_to_cfg)
-        # after training combine all outputs in one file
-        # path_to_class_folder = f"outputs/classification_out/exp_"
-        path_to_bash = str(Path.cwd() / 'parse_output.sh')
-        run(f'bash {path_to_bash} {path_to_exp_folder}', shell=True)
-        saver = dict()
-        path_to_file = f"{path_to_exp_folder}/combine_all.txt"
-        # parse output file from bash script
-        with open(path_to_file,'r') as f:
-            for line in f:
-                if line.strip() in datasets.keys():
-                    next_dataset = line.strip()
-                    saver[next_dataset] = dict()
-                    continue
-                else:
-                    for metric in ['mAP', 'Rank-1', 'Rank-5']:
-                        if line.strip().startswith(metric):
-                            if not metric in saver[next_dataset]:
-                                saver[next_dataset][metric] = []
-                            pattern = re.search('\d+\.\d+', line.strip())
-                            if pattern:
-                                saver[next_dataset][metric].append(float(pattern.group(0)))
+    # after training combine all outputs in one file
+    # path_to_class_folder = f"outputs/classification_out/exp_"
+    path_to_bash = str(Path.cwd() / 'parse_output.sh')
+    run(f'bash {path_to_bash} {path_to_exp_folder}', shell=True)
+    saver = dict()
+    path_to_file = f"{path_to_exp_folder}/combine_all.txt"
+    # parse output file from bash script
+    with open(path_to_file,'r') as f:
+        for line in f:
+            if line.strip() in datasets.keys():
+                next_dataset = line.strip()
+                saver[next_dataset] = dict()
+                continue
+            else:
+                for metric in ['mAP', 'Rank-1', 'Rank-5']:
+                    if line.strip().startswith(metric):
+                        if not metric in saver[next_dataset]:
+                            saver[next_dataset][metric] = []
+                        pattern = re.search('\d+\.\d+', line.strip())
+                        if pattern:
+                            saver[next_dataset][metric].append(float(pattern.group(0)))
 
-        # dump in appropriate patern
-        names = ''; values = ''
-        with open(path_to_file,'a') as f:
-            for key in sorted(datasets.keys()):
-                names += key + ' '
-                if key in saver:
-                    best_top_1_idx = np.argmax(saver[key]['Rank-1'])
-                    top1 = str(saver[key]['Rank-1'][best_top_1_idx])
-                    mAP = str(saver[key]['mAP'][best_top_1_idx])
-                    top5 = str(saver[key]['Rank-5'][best_top_1_idx])
-                    snapshot = str(best_top_1_idx)
-                    values += mAP + ';' + top1 + ';' + top5 + ';' + snapshot + ';'
-                else:
-                    values += '-1;-1;-1;-1;'
+    # dump in appropriate patern
+    names = ''; values = ''
+    with open(path_to_file,'a') as f:
+        for key in sorted(datasets.keys()):
+            names += key + ' '
+            if key in saver:
+                best_top_1_idx = np.argmax(saver[key]['Rank-1'])
+                top1 = str(saver[key]['Rank-1'][best_top_1_idx])
+                mAP = str(saver[key]['mAP'][best_top_1_idx])
+                top5 = str(saver[key]['Rank-5'][best_top_1_idx])
+                snapshot = str(best_top_1_idx)
+                values += mAP + ';' + top1 + ';' + top5 + ';' + snapshot + ';'
+            else:
+                values += '-1;-1;-1;-1;'
 
-            f.write(f"\n{names}\n{values}")
+        f.write(f"\n{names}\n{values}")
 
 if __name__ == "__main__":
     main()
