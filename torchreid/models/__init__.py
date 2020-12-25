@@ -97,12 +97,12 @@ __model_factory = {
     'mobilenetv3_spoof': mobilenetv3_large_spoof,
     'efficientnet_b0': efficientnet_b0,
     'efficientnet_b1': efficientnet_b1,
-    'efficientnet_b2': efficientnet_b2,
-    'efficientnet_b3': efficientnet_b3,
-    'efficientnet_b4': efficientnet_b4,
-    'efficientnet_b5': efficientnet_b5,
-    'efficientnet_b6': efficientnet_b6,
-    'efficientnet_b7': efficientnet_b7,
+    'efficientnet_b2': efficientnet_b2b,
+    'efficientnet_b3': efficientnet_b3b,
+    'efficientnet_b4': efficientnet_b4b,
+    'efficientnet_b5': efficientnet_b5b,
+    'efficientnet_b6': efficientnet_b6b,
+    'efficientnet_b7': efficientnet_b7b,
 }
 
 __model_factory = {**__model_factory, **wrapped_models}
