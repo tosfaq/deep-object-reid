@@ -63,8 +63,7 @@ class CrossEntropyLoss(nn.Module):
         if self.label_smooth:
             targets = (1.0 - self.epsilon) * targets + self.epsilon / float(num_classes)
 
-        if self.aug:
-            assert aug_index is not None and lam is not None
+        if (self.aug and aug_index is not None and lam is not None):
             targets2 = targets[aug_index]
             targets = targets * lam + targets2 * (1 - lam)
 

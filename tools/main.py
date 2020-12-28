@@ -41,7 +41,7 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
 
     model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
 
-    if check_isfile(weights):
+    if (weights is not None) and (check_isfile(weights)):
         load_pretrained_weights(model, weights)
 
     if cfg.use_gpu:

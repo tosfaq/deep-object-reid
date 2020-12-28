@@ -266,7 +266,7 @@ def load_model(net,
                 'due to unmatched keys or layer size: {}'.
                 format(discarded_layers)
             )
-
+    return net
 
 def download_model(net,
                    model_name,
@@ -284,12 +284,13 @@ def download_model(net,
     ignore_extra : bool, default True
         Whether to silently ignore parameters from the file that are not present in this Module.
     """
-    load_model(
+    net = load_model(
         net=net,
         file_path=get_model_file(
             model_name=model_name,
             local_model_store_dir_path=local_model_store_dir_path))
 
+    return net
 
 def calc_num_params(net):
     """

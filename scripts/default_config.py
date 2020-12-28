@@ -4,7 +4,7 @@ from yacs.config import CfgNode as CN
 def get_default_config():
     cfg = CN()
     # number of the experinent
-    cfg.num_exp = 0
+    cfg.num_exp = 'whatever'
 
     # model
     cfg.model = CN()
