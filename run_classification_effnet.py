@@ -30,18 +30,18 @@ def main():
     yaml = YAML()
 
     datasets = dict(
-                    flowers = dict(resolution = (380,380), epochs = 50, source = 'classification', batch_size=32),
-                    CIFAR100 = dict(resolution = (380,380), epochs = 35, source = 'classification_image_folder', batch_size=32),
-                    fashionMNIST = dict(resolution = (380,380), epochs = 35, source = 'classification_image_folder', batch_size=32),
-                    SVHN = dict(resolution = (380,380), epochs = 50, source = 'classification', batch_size=32),
-                    cars = dict(resolution = (380,380), epochs = 110, source = 'classification', batch_size=32),
-                    DTD = dict(resolution = (380,380), epochs = 70, source = 'classification_image_folder', batch_size=32),
-                    pets = dict(resolution = (380,380), epochs = 25, source = 'classification', batch_size=32),
-                    Xray = dict(resolution = (380,380), epochs = 35, source = 'classification_image_folder', batch_size=32),
-                    SUN397 = dict(resolution = (380,380), epochs = 60, source = 'classification', batch_size=32),
-                    birdsnap = dict(resolution = (380,380), epochs = 40, source = 'classification', batch_size=32),
-                    caltech101 = dict(resolution = (380,380), epochs = 55, source = 'classification', batch_size=32),
-                    FOOD101 = dict(resolution = (380,380), epochs = 35, source = 'classification', batch_size=32)
+                    flowers = dict(resolution = (380,380), epochs = 50, source = 'classification', batch_size=16),
+                    CIFAR100 = dict(resolution = (380,380), epochs = 35, source = 'classification_image_folder', batch_size=16),
+                    fashionMNIST = dict(resolution = (380,380), epochs = 35, source = 'classification_image_folder', batch_size=16),
+                    SVHN = dict(resolution = (380,380), epochs = 50, source = 'classification', batch_size=16),
+                    cars = dict(resolution = (380,380), epochs = 110, source = 'classification', batch_size=16),
+                    DTD = dict(resolution = (380,380), epochs = 70, source = 'classification_image_folder', batch_size=16),
+                    pets = dict(resolution = (380,380), epochs = 25, source = 'classification', batch_size=16),
+                    Xray = dict(resolution = (380,380), epochs = 35, source = 'classification_image_folder', batch_size=16),
+                    SUN397 = dict(resolution = (380,380), epochs = 60, source = 'classification', batch_size=16),
+                    birdsnap = dict(resolution = (380,380), epochs = 40, source = 'classification', batch_size=16),
+                    caltech101 = dict(resolution = (380,380), epochs = 55, source = 'classification', batch_size=16),
+                    FOOD101 = dict(resolution = (380,380), epochs = 35, source = 'classification', batch_size=16)
                     )
 
     path_to_base_cfg = args.config
