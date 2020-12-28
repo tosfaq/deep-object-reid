@@ -332,8 +332,8 @@ class MobileNetV3(ModelInterface):
                 retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
             )
 
-            # with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
-            logits = self.output(glob_features).view(x.shape[0], -1)
+            with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
+                logits = self.output(glob_features).view(x.shape[0], -1)
 
         if not self.training and self.classification:
             return [logits]
@@ -418,7 +418,7 @@ def get_mobilenetv3(version,
         if (model_name is None) or (not model_name):
             raise ValueError("Parameter `model_name` should be properly initialized for loading pretrained model.")
         from .model_store import download_model
-        download_model(
+        net = download_model(
             net=net,
             model_name=model_name,
             local_model_store_dir_path=root)

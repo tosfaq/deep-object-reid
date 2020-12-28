@@ -29,28 +29,29 @@ def main():
     data_root = args.data_root
     yaml = YAML()
 
-  datasets = dict(
-                    flowers = dict(resolution = (299,299), epochs = 35, source = 'classification', batch_size=32),
-                    CIFAR100 = dict(resolution = (299,299), epochs = 50, source = 'classification_image_folder', batch_size=32),
-                    fashionMNIST = dict(resolution = (299,299), epochs = 50, source = 'classification_image_folder', batch_size=32),
-                    SVHN = dict(resolution = (299,299), epochs = 55, source = 'classification', batch_size=32),
+    datasets = dict(
+                    flowers = dict(resolution = (299,299), epochs = 55, source = 'classification', batch_size=32),
+                    CIFAR100 = dict(resolution = (299,299), epochs = 35, source = 'classification_image_folder', batch_size=32),
+                    fashionMNIST = dict(resolution = (299,299), epochs = 35, source = 'classification_image_folder', batch_size=32),
+                    SVHN = dict(resolution = (299,299), epochs = 50, source = 'classification', batch_size=32),
                     cars = dict(resolution = (299,299), epochs = 110, source = 'classification', batch_size=32),
-                    DTD = dict(resolution = (299,299), epochs = 75, source = 'classification_image_folder', batch_size=32),
+                    DTD = dict(resolution = (299,299), epochs = 70, source = 'classification_image_folder', batch_size=32),
                     pets = dict(resolution = (299,299), epochs = 30, source = 'classification', batch_size=32),
                     Xray = dict(resolution = (299,299), epochs = 35, source = 'classification_image_folder', batch_size=32),
                     SUN397 = dict(resolution = (299,299), epochs = 60, source = 'classification', batch_size=32),
                     birdsnap = dict(resolution = (299,299), epochs = 40, source = 'classification', batch_size=32),
                     caltech101 = dict(resolution = (299,299), epochs = 60, source = 'classification', batch_size=32),
-                    FOOD101 = dict(resolution = (299,299), epochs = 35, source = 'classification', batch_size=32)
+                    FOOD101 = dict(resolution = (299,299), epochs = 43, source = 'classification', batch_size=32)
                     )
 
     # path_to_base_cfg = args.config
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
-    to_skip = {'SUN397', 'birdsnap', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
-    # to_skip = {'SUN397'}
+    # to_skip = {'SUN397', 'birdsnap', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
+    to_skip = {'SUN397'}
     for path_to_base_cfg in [
-                            '/home/prokofiev/deep-person-reid/configs/classification/base_config1v4.yml',
+                            '/home/prokofiev/deep-person-reid/configs/classification/base_config4v4.yml',
                             '/home/prokofiev/deep-person-reid/configs/classification/base_config2v4.yml',
+                            '/home/prokofiev/deep-person-reid/configs/classification/base_config3v4.yml',
                             ]:
 
         for key, params in datasets.items():

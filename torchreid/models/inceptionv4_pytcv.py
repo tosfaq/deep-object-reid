@@ -13,7 +13,7 @@ import torch.nn.init as init
 
 from .common import Concurrent, ModelInterface
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout
+from torchreid.ops import Dropout, rsc, EvalModeSetter
 
 
 class InceptConv(nn.Module):
@@ -600,6 +600,7 @@ class InceptionV4(ModelInterface):
                  loss='softmax',
                  IN_first=False,
                  IN_conv1=False,
+                 self_challenging_cfg=False,
                  **kwargs):
 
         super().__init__(**kwargs)
@@ -611,6 +612,7 @@ class InceptionV4(ModelInterface):
         self.pooling_type = pooling_type
         self.loss = loss
         self.feature_dim = feature_dim
+        self.self_challenging_cfg = self_challenging_cfg
 
         layers = [4, 8, 4]
         normal_units = [InceptionAUnit, InceptionBUnit, InceptionCUnit]
@@ -630,10 +632,6 @@ class InceptionV4(ModelInterface):
                 stage.add_module("unit{}".format(j + 1), unit())
             self.features.add_module("stage{}".format(i + 1), stage)
 
-        # self.features.add_module("final_pool", nn.AvgPool2d(
-        #     kernel_size=8,
-        #     stride=1))
-
         self.output = nn.Sequential()
         if dropout_cls:
             self.output.add_module("dropout", Dropout(**dropout_cls))
@@ -650,7 +648,7 @@ class InceptionV4(ModelInterface):
                 if module.bias is not None:
                     init.constant_(module.bias, 0)
 
-    def forward(self, x, return_featuremaps=False, get_embeddings=False):
+    def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None):
         if self.input_IN is not None:
             x = self.input_IN(x)
 
@@ -661,6 +659,19 @@ class InceptionV4(ModelInterface):
         glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
 
         logits = self.output(glob_features.view(x.shape[0], -1))
+
+        if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
+            glob_features = rsc(
+                features = glob_features,
+                scores = logits,
+                labels = gt_labels,
+                retain_p = 1.0 - self.self_challenging_cfg.drop_p,
+                retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
+            )
+
+            with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
+                logits = self.output(glob_features.view(x.shape[0], -1))
+
         if not self.training and self.classification:
             return [logits]
 

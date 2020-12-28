@@ -416,7 +416,7 @@ class ImageAMSoftmaxEngine(Engine):
 
         if self.aug_type == 'fmix':
             r = np.random.rand(1)
-            if self.alpha > 0 and r <= self.aug_prob:
+            if self.alpha > 0 and r[0] <= self.aug_prob:
                 lam, fmask = sample_mask(self.alpha, self.decay_power, self.size,
                                         self.max_soft, self.reformulate)
                 index = torch.randperm(imgs.size(0)).to(imgs.device)
