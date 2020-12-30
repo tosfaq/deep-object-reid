@@ -1,6 +1,7 @@
 from __future__ import division, print_function, absolute_import
 import time
 import numpy as np
+import os
 import os.path as osp
 import datetime
 from collections import OrderedDict
@@ -93,6 +94,7 @@ class Engine:
         names = self.get_model_names()
 
         for name in names:
+            ckpt_name = osp.join(save_dir, name)
             save_checkpoint(
                 {
                     'state_dict': self.models[name].state_dict(),
@@ -100,9 +102,13 @@ class Engine:
                     'optimizer': self.optims[name].state_dict(),
                     'scheduler': self.scheds[name].state_dict()
                 },
-                osp.join(save_dir, name),
+                ckpt_name,
                 is_best=is_best
             )
+            latest_name = osp.join(save_dir, 'latest.pth')
+            if osp.lexists(latest_name):
+                os.remove(latest_name)
+            os.symlink(ckpt_name, latest_name)
 
     def set_model_mode(self, mode='train', names=None):
         assert mode in ['train', 'eval', 'test']
