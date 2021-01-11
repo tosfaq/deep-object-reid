@@ -30,23 +30,23 @@ def main():
     yaml = YAML()
 
     datasets = dict(
-                    flowers = dict(resolution = (240, 240), epochs = 50, source = 'classification', batch_size=64),
-                    CIFAR100 = dict(resolution = (240, 240), epochs = 35, source = 'classification_image_folder', batch_size=64),
-                    fashionMNIST = dict(resolution = (240, 240), epochs = 35, source = 'classification_image_folder', batch_size=64),
-                    SVHN = dict(resolution = (240, 240), epochs = 50, source = 'classification', batch_size=64),
-                    cars = dict(resolution = (240, 240), epochs = 110, source = 'classification', batch_size=64),
-                    DTD = dict(resolution = (240, 240), epochs = 70, source = 'classification_image_folder', batch_size=64),
-                    pets = dict(resolution = (240, 240), epochs = 25, source = 'classification', batch_size=64),
-                    Xray = dict(resolution = (240, 240), epochs = 35, source = 'classification_image_folder', batch_size=64),
-                    SUN397 = dict(resolution = (240, 240), epochs = 60, source = 'classification', batch_size=64),
-                    birdsnap = dict(resolution = (240, 240), epochs = 40, source = 'classification', batch_size=64),
-                    caltech101 = dict(resolution = (240, 240), epochs = 55, source = 'classification', batch_size=64),
-                    FOOD101 = dict(resolution = (240, 240), epochs = 35, source = 'classification', batch_size=64)
+                    flowers = dict(resolution = (380, 380), epochs = 50, source = 'classification', batch_size=16),
+                    CIFAR100 = dict(resolution = (380, 380), epochs = 35, source = 'classification_image_folder', batch_size=16),
+                    fashionMNIST = dict(resolution = (380, 380), epochs = 35, source = 'classification_image_folder', batch_size=16),
+                    SVHN = dict(resolution = (380, 380), epochs = 50, source = 'classification', batch_size=16),
+                    cars = dict(resolution = (380, 380), epochs = 110, source = 'classification', batch_size=16),
+                    DTD = dict(resolution = (380, 380), epochs = 70, source = 'classification_image_folder', batch_size=16),
+                    pets = dict(resolution = (380, 380), epochs = 25, source = 'classification', batch_size=16),
+                    Xray = dict(resolution = (380, 380), epochs = 35, source = 'classification_image_folder', batch_size=16),
+                    SUN397 = dict(resolution = (380, 380), epochs = 60, source = 'classification', batch_size=16),
+                    birdsnap = dict(resolution = (380, 380), epochs = 40, source = 'classification', batch_size=16),
+                    caltech101 = dict(resolution = (380, 380), epochs = 55, source = 'classification', batch_size=16),
+                    FOOD101 = dict(resolution = (380, 380), epochs = 35, source = 'classification', batch_size=16)
                     )
 
     path_to_base_cfg = args.config
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
-    to_skip = {'SUN397'}
+    to_skip = {'SUN397','fashionMNIST', 'SVHN'}
     # for path_to_base_cfg in [
     #                         '/home/prokofiev/deep-person-reid/configs/classification/base_config_2.yml',
     #                         '/home/prokofiev/deep-person-reid/configs/classification/base_config_3.yml',
@@ -58,15 +58,15 @@ def main():
         cfg = read_config(yaml, path_to_base_cfg)
         num_exp = cfg['num_exp']
         if key in {'CIFAR100', 'caltech101', 'DTD', 'flowers', 'SUN397'}:
-            cfg['train']['lr'] = 0.003
+            cfg['train']['lr'] = 0.0015
         elif key == 'pets':
-            cfg['train']['lr'] = 0.002
+            cfg['train']['lr'] = 0.001
         elif key == 'Xray':
-            cfg['train']['lr'] = 0.01
-        elif key == 'cars':
             cfg['train']['lr'] = 0.007
-        else:
+        elif key == 'cars':
             cfg['train']['lr'] = 0.005
+        else:
+            cfg['train']['lr'] = 0.003
 
         path_to_exp_folder = cfg['data']['save_dir']
         # create new configuration file related to current dataset
