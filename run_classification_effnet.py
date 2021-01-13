@@ -18,6 +18,9 @@ def dump_config(yaml: YAML, config_path: str, cfg: dict):
         yaml.default_flow_style = True
         yaml.dump(cfg, f)
 
+def compute_s(num_class: int):
+    return max(np.sqrt(2)*np.log(num_class - 1), 3)
+
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--data_root', type=str, default='/home/prokofiev/datasets', required=False,
@@ -30,23 +33,23 @@ def main():
     yaml = YAML()
 
     datasets = dict(
-                    flowers = dict(resolution = (300, 300), epochs = 50, source = 'classification', batch_size=16),
-                    CIFAR100 = dict(resolution = (300, 300), epochs = 35, source = 'classification_image_folder', batch_size=16),
-                    fashionMNIST = dict(resolution = (300, 300), epochs = 35, source = 'classification_image_folder', batch_size=16),
-                    SVHN = dict(resolution = (300, 300), epochs = 50, source = 'classification', batch_size=16),
-                    cars = dict(resolution = (300, 300), epochs = 110, source = 'classification', batch_size=16),
-                    DTD = dict(resolution = (300, 300), epochs = 70, source = 'classification_image_folder', batch_size=16),
-                    pets = dict(resolution = (300, 300), epochs = 25, source = 'classification', batch_size=16),
-                    Xray = dict(resolution = (300, 300), epochs = 35, source = 'classification_image_folder', batch_size=16),
-                    SUN397 = dict(resolution = (300, 300), epochs = 60, source = 'classification', batch_size=16),
-                    birdsnap = dict(resolution = (300, 300), epochs = 40, source = 'classification', batch_size=16),
-                    caltech101 = dict(resolution = (300, 300), epochs = 55, source = 'classification', batch_size=16),
-                    FOOD101 = dict(resolution = (300, 300), epochs = 35, source = 'classification', batch_size=16)
+                    flowers = dict(resolution = (260, 260), epochs = 50, source = 'classification', batch_size=32, num_C = 102),
+                    CIFAR100 = dict(resolution = (260, 260), epochs = 35, source = 'classification_image_folder', batch_size=32, num_C = 100),
+                    fashionMNIST = dict(resolution = (260, 260), epochs = 35, source = 'classification_image_folder', batch_size=32, num_C = 10),
+                    SVHN = dict(resolution = (260, 260), epochs = 50, source = 'classification', batch_size=32, num_C = 10),
+                    cars = dict(resolution = (260, 260), epochs = 110, source = 'classification', batch_size=32, num_C = 196),
+                    DTD = dict(resolution = (260, 260), epochs = 70, source = 'classification_image_folder', batch_size=32, num_C = 47),
+                    pets = dict(resolution = (260, 260), epochs = 25, source = 'classification', batch_size=32, num_C = 37),
+                    Xray = dict(resolution = (260, 260), epochs = 35, source = 'classification_image_folder', batch_size=48, num_C = 2),
+                    SUN397 = dict(resolution = (260, 260), epochs = 60, source = 'classification', batch_size=32, num_C = 397),
+                    birdsnap = dict(resolution = (260, 260), epochs = 40, source = 'classification', batch_size=32, num_C = 500),
+                    caltech101 = dict(resolution = (260, 260), epochs = 55, source = 'classification', batch_size=32, num_C = 101),
+                    FOOD101 = dict(resolution = (260, 260), epochs = 35, source = 'classification', batch_size=32, num_C = 101)
                     )
 
     path_to_base_cfg = args.config
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
-    to_skip = {'SUN397'}
+    to_skip = {'SUN397', 'fashionMNIST', 'SVHN'}
     # for path_to_base_cfg in [
     #                         '/home/prokofiev/deep-person-reid/configs/classification/base_config_2.yml',
     #                         '/home/prokofiev/deep-person-reid/configs/classification/base_config_3.yml',
@@ -57,18 +60,17 @@ def main():
             continue
         cfg = read_config(yaml, path_to_base_cfg)
         num_exp = cfg['num_exp']
-        if key in {'CIFAR100', 'caltech101', 'DTD', 'flowers', 'SUN397'}:
+        if key in {'CIFAR100', 'caltech101', 'DTD', 'flowers', 'SUN397', 'SVHN'}:
             cfg['train']['lr'] = 0.003
-        elif key == 'pets':
+        elif key in {'pets', 'FOOD101'}:
             cfg['train']['lr'] = 0.002
-        elif key == 'Xray':
-            cfg['train']['lr'] = 0.01
-        elif key == 'cars':
+        elif key in {'Xray'}:
             cfg['train']['lr'] = 0.007
         else:
             cfg['train']['lr'] = 0.005
 
         path_to_exp_folder = cfg['data']['save_dir']
+
         # create new configuration file related to current dataset
         # if key in ['CIFAR100', 'fashionMNIST', 'SVHN']:
         #     cfg['data']['transforms']['coarse_dropout']['max_holes'] = 6 if key == 'fashionMNIST' else 8
@@ -77,7 +79,9 @@ def main():
         #     cfg['data']['transforms']['coarse_dropout']['max_width'] = 4
         #     cfg['data']['transforms']['random_crop']['p'] = 1.0
         #     cfg['data']['transforms']['random_crop']['static'] = True
-
+        # margin = compute_s(params['num_C'])
+        # print(margin)
+        # cfg['loss']['softmax']['s'] = float(margin)
         cfg['model']['in_size'] = params['resolution']
         cfg['classification']['data_dir'] = key
         cfg['data']['height'] = params['resolution'][0]
