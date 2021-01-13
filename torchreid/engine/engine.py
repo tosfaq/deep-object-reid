@@ -100,7 +100,8 @@ class Engine:
                     'state_dict': self.models[name].state_dict(),
                     'epoch': epoch + 1,
                     'optimizer': self.optims[name].state_dict(),
-                    'scheduler': self.scheds[name].state_dict()
+                    'scheduler': self.scheds[name].state_dict(),
+                    'num_classes': self.datamanager.num_train_pids
                 },
                 ckpt_name,
                 is_best=is_best
