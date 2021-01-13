@@ -24,7 +24,7 @@ from torch.onnx.symbolic_registry import register_op
 from torch.onnx.symbolic_helper import parse_args
 
 from torchreid.models import build_model
-from torchreid.utils import load_pretrained_weights
+from torchreid.utils import load_pretrained_weights, load_checkpoint
 from torchreid.data.transforms import build_inference_transform
 from scripts.default_config import get_default_config, model_kwargs
 
@@ -52,8 +52,15 @@ def group_norm_symbolic(g, input, num_groups, weight, bias, eps, cudnn_enabled):
     return output
 
 
-def parse_num_classes(source_datasets, classification=False, num_classes=None):
+def parse_num_classes(source_datasets, classification=False, num_classes=None, snap_path=None):
     if classification:
+        if snap_path is not None:
+            chkpt = load_checkpoint(snap_path)
+            num_classes_from_snap = chkpt['num_classes'] if 'num_classes' in chkpt else None
+            if num_classes is None:
+                num_classes = num_classes_from_snap
+            else:
+                print('Warning: number of classes in model was overriden via command line')
         assert num_classes is not None and len(num_classes) > 0
 
     if num_classes is not None and len(num_classes) > 0:
@@ -110,7 +117,7 @@ def main():
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 
-    num_classes = parse_num_classes(cfg.data.sources, cfg.model.classification, args.num_classes)
+    num_classes = parse_num_classes(cfg.data.sources, cfg.model.classification, args.num_classes, cfg.model.load_weights)
     model = build_model(**model_kwargs(cfg, num_classes))
     load_pretrained_weights(model, cfg.model.load_weights)
     model.eval()
