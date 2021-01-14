@@ -276,6 +276,7 @@ class Engine:
 
         self.num_batches = len(self.train_loader)
         end = time.time()
+        # print(self.num_batches, self.train_loader)
         for self.batch_idx, data in enumerate(self.train_loader):
             data_time.update(time.time() - end)
 
