@@ -118,7 +118,10 @@ def resume_from_checkpoint(fpath, model, optimizer=None, scheduler=None):
     """
     print('Loading checkpoint from "{}"'.format(fpath))
     checkpoint = load_checkpoint(fpath)
-    model.load_state_dict(checkpoint['state_dict'])
+    if 'state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['state_dict'], strict=False)
+    else:
+        model.load_state_dict(checkpoint, strict=False)
     print('Loaded model weights')
     if optimizer is not None and 'optimizer' in checkpoint.keys():
         optimizer.load_state_dict(checkpoint['optimizer'])
@@ -126,7 +129,10 @@ def resume_from_checkpoint(fpath, model, optimizer=None, scheduler=None):
     if scheduler is not None and 'scheduler' in checkpoint.keys():
         scheduler.load_state_dict(checkpoint['scheduler'])
         print('Loaded scheduler')
-    start_epoch = checkpoint['epoch']
+    if 'epoch' in checkpoint:
+        start_epoch = checkpoint['epoch']
+    else:
+        start_epoch = 0
     print('Last epoch = {}'.format(start_epoch))
     if 'rank1' in checkpoint.keys():
         print('Last rank1 = {:.1%}'.format(checkpoint['rank1']))

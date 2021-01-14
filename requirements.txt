@@ -13,9 +13,10 @@ gdown
 flake8
 yapf
 isort
-asciitable
+terminaltables
 scikit-learn
 lxml
 pytorchcv
 terminaltables
 ruamel.yaml
+onnx

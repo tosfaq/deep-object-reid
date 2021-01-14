@@ -42,6 +42,8 @@ class CenterCrop(object):
 
         img, mask = input_tuple
         img_width, img_height = img.size
+        if img_width - 2 * self.margin < 2 or img_height - 2 * self.margin < 2:
+            return input_tuple
 
         box = (self.margin, self.margin, img_width - self.margin, img_height - self.margin)
         img = img.crop(box)

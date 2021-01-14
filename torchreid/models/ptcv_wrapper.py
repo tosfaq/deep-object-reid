@@ -71,12 +71,17 @@ class PTCVModel(ModelInterface):
         assert hasattr(model, 'features') and isinstance(model.features, nn.Sequential)
         self.features = model.features
         self.features = self.features[:-1] # remove pooling, since it can have a fixed size
+<<<<<<< HEAD
         self.output = model.output
         # change last layer for appropriate number of classes
         self.output.conv2 = conv1x1(
             in_channels=1280,
             out_channels=num_classes,
             bias=True)
+=======
+        self.output_conv = nn.Conv2d(in_channels=model.output.in_channels, out_channels=num_classes, kernel_size=1, stride=1, bias=False)
+
+>>>>>>> 44688ca5fe7eb3c2b29622ba29e3461ff176d3af
         self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False):
@@ -89,7 +94,7 @@ class PTCVModel(ModelInterface):
 
         glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
 
-        logits = self.output(glob_features).view(x.shape[0], -1)
+        logits = self.output_conv(glob_features).view(x.shape[0], -1)
 
         if not self.training and self.classification:
             return [logits]

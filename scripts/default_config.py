@@ -64,6 +64,7 @@ def get_default_config():
     cfg.data.norm_mean = [0.485, 0.456, 0.406]  # default is imagenet mean
     cfg.data.norm_std = [0.229, 0.224, 0.225]  # default is imagenet std
     cfg.data.save_dir = 'log'  # path to save log
+    cfg.data.tb_log_dir = ''  # path to save tensorboard log. If empty, log will be saved to data.save_dir
     cfg.data.min_samples_per_id = 1
     cfg.data.num_sampled_packages = 1
 
@@ -512,6 +513,7 @@ def model_kwargs(cfg, num_classes):
 def engine_run_kwargs(cfg):
     return {
         'save_dir': cfg.data.save_dir,
+        'tb_log_dir': cfg.data.tb_log_dir,
         'max_epoch': cfg.train.max_epoch,
         'start_epoch': cfg.train.start_epoch,
         'fixbase_epoch': cfg.train.fixbase_epoch,
