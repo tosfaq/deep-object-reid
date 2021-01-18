@@ -94,22 +94,21 @@ class Engine:
         names = self.get_model_names()
 
         for name in names:
-            ckpt_name = osp.join(save_dir, name)
-            save_checkpoint(
-                {
-                    'state_dict': self.models[name].state_dict(),
-                    'epoch': epoch + 1,
-                    'optimizer': self.optims[name].state_dict(),
-                    'scheduler': self.scheds[name].state_dict(),
-                    'num_classes': self.datamanager.num_train_pids
-                },
-                ckpt_name,
-                is_best=is_best
-            )
+            ckpt_path = save_checkpoint(
+                            {
+                                'state_dict': self.models[name].state_dict(),
+                                'epoch': epoch + 1,
+                                'optimizer': self.optims[name].state_dict(),
+                                'scheduler': self.scheds[name].state_dict(),
+                                'num_classes': self.datamanager.num_train_pids
+                            },
+                            osp.join(save_dir, name),
+                            is_best=is_best
+                        )
             latest_name = osp.join(save_dir, 'latest.pth')
             if osp.lexists(latest_name):
                 os.remove(latest_name)
-            os.symlink(ckpt_name, latest_name)
+            os.symlink(ckpt_path, latest_name)
 
     def set_model_mode(self, mode='train', names=None):
         assert mode in ['train', 'eval', 'test']

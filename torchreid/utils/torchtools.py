@@ -56,6 +56,7 @@ def save_checkpoint(
     print('Checkpoint saved to "{}"'.format(fpath))
     if is_best:
         shutil.copy(fpath, osp.join(osp.dirname(fpath), 'model-best.pth.tar'))
+    return fpath
 
 
 def load_checkpoint(fpath):
