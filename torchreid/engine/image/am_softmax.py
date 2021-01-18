@@ -206,9 +206,14 @@ class ImageAMSoftmaxEngine(Engine):
 
             total_loss += mutual_loss / float(num_mutual_losses)
 
-        total_loss.backward()
+        total_loss.backward(retain_graph=self.enable_metric_losses)
 
         for model_name in model_names:
+            for trg_id in range(self.num_targets):
+                if self.enable_metric_losses:
+                    ml_loss_module = self.ml_losses[trg_id][model_name]
+                    ml_loss_module.end_iteration()
+
             self.optims[model_name].step()
 
         loss_summary['loss'] = total_loss.item()
@@ -252,7 +257,7 @@ class ImageAMSoftmaxEngine(Engine):
 
                 ml_loss_module.init_iteration()
                 ml_loss, ml_loss_summary = ml_loss_module(embd, trg_logits, trg_obj_ids, n_iter)
-                ml_loss_module.end_iteration()
+                #ml_loss_module.end_iteration()
 
                 loss_summary['ml_{}/{}'.format(trg_id, model_name)] = ml_loss.item()
                 loss_summary.update(ml_loss_summary)

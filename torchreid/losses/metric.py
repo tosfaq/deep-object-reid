@@ -301,7 +301,7 @@ class MetricLosses:
     def end_iteration(self):
         """Finalizes a training iteration"""
 
-        self.last_loss_value.backward(retain_graph=True)
+        self.last_loss_value.backward()
 
         if self.center_coeff > 0.:
             self.center_optimizer.step()
