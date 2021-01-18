@@ -17,6 +17,7 @@ from functools import partial
 
 import torch.nn as nn
 from pytorchcv.model_provider import get_model, _models
+from torchreid.losses import AngleSimpleLinear
 
 from .common import ModelInterface
 
@@ -35,7 +36,6 @@ class PTCVModel(ModelInterface):
     ):
         super().__init__(**kwargs)
         self.pooling_type = pooling_type
-        assert loss == 'softmax' # can't handle other cases for now
         self.loss = loss
         assert isinstance(num_classes, int)
 
@@ -43,7 +43,11 @@ class PTCVModel(ModelInterface):
         assert hasattr(model, 'features') and isinstance(model.features, nn.Sequential)
         self.features = model.features
         self.features = self.features[:-1] # remove pooling, since it can have a fixed size
-        self.output_conv = nn.Conv2d(in_channels=model.output.in_channels, out_channels=num_classes, kernel_size=1, stride=1, bias=False)
+        if self.loss not in ['am_softmax']:
+            self.output_conv = nn.Conv2d(in_channels=model.output.in_channels, out_channels=num_classes, kernel_size=1, stride=1, bias=False)
+        else:
+            self.output_conv = AngleSimpleLinear(model.output.in_channels, num_classes)
+            self.feature_dim = model.output.in_channels
 
         self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
 
@@ -63,11 +67,11 @@ class PTCVModel(ModelInterface):
             return [logits]
 
         if get_embeddings:
-            out_data = [logits, glob_features]
+            out_data = [logits, glob_features.view(x.size(0), -1)]
         elif self.loss in ['softmax', 'am_softmax']:
             out_data = [logits]
         elif self.loss in ['triplet']:
-            out_data = [logits, glob_features]
+            out_data = [logits, glob_features.view(x.size(0), -1)]
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 

@@ -38,7 +38,7 @@ class AngleSimpleLinear(nn.Module):
         self.weight.data.normal_().renorm_(2, 1, 1e-5).mul_(1e5)
 
     def forward(self, x):
-        cos_theta = F.normalize(x, dim=1).mm(F.normalize(self.weight, p=2, dim=0))
+        cos_theta = F.normalize(x.view(x.shape[0], -1), dim=1).mm(F.normalize(self.weight, p=2, dim=0))
         return cos_theta.clamp(-1, 1)
 
     def get_centers(self):
