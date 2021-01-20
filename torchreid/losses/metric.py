@@ -298,10 +298,11 @@ class MetricLosses:
         if self.loss_balancing:
             self.balancing_optimizer.zero_grad()
 
-    def end_iteration(self):
+    def end_iteration(self, do_backward=True):
         """Finalizes a training iteration"""
 
-        self.last_loss_value.backward()
+        if do_backward:
+            self.last_loss_value.backward()
 
         if self.center_coeff > 0.:
             self.center_optimizer.step()
