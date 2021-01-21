@@ -18,6 +18,9 @@ def dump_config(yaml: YAML, config_path: str, cfg: dict):
         yaml.default_flow_style = True
         yaml.dump(cfg, f)
 
+def compute_s(num_class: int):
+    return max(np.sqrt(2)*np.log(num_class - 1), 3)
+
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--data_root', type=str, default='/home/prokofiev/datasets', required=False,
@@ -25,29 +28,30 @@ def main():
     parser.add_argument('--config', type=str, required=False, help='path to config file')
     args = parser.parse_args()
 
-    path_to_main = './scripts/main.py'
+    path_to_main = './tools/main.py'
     data_root = args.data_root
     yaml = YAML()
 
     datasets = dict(
-                    flowers = dict(resolution = (224,224), epochs = 55, source = 'classification', batch_size=64),
-                    CIFAR100 = dict(resolution = (224,224), epochs = 35, source = 'classification_image_folder', batch_size=64),
-                    fashionMNIST = dict(resolution = (28,28), epochs = 40, source = 'classification_image_folder', batch_size=64),
-                    SVHN = dict(resolution = (32,32), epochs = 50, source = 'classification', batch_size=64),
-                    cars = dict(resolution = (224,224), epochs = 110, source = 'classification', batch_size=64),
-                    DTD = dict(resolution = (224,224), epochs = 75, source = 'classification_image_folder', batch_size=64),
-                    pets = dict(resolution = (224,224), epochs = 30, source = 'classification', batch_size=64),
-                    Xray = dict(resolution = (224,224), epochs = 35, source = 'classification_image_folder', batch_size=64),
-                    SUN397 = dict(resolution = (224,224), epochs = 60, source = 'classification', batch_size=64),
-                    birdsnap = dict(resolution = (224,224), epochs = 40, source = 'classification', batch_size=64),
-                    caltech101 = dict(resolution = (224,224), epochs = 60, source = 'classification', batch_size=64),
-                    FOOD101 = dict(resolution = (224,224), epochs = 35, source = 'classification', batch_size=64)
+                    flowers = dict(resolution = (224,224), epochs = 50, source = 'classification', batch_size=128, num_C = 102),
+                    CIFAR100 = dict(resolution = (224,224), epochs = 35, source = 'classification_image_folder', batch_size=128, num_C = 100),
+                    fashionMNIST = dict(resolution = (28,28), epochs = 35, source = 'classification_image_folder', batch_size=128, num_C = 10),
+                    SVHN = dict(resolution = (32,32), epochs = 50, source = 'classification', batch_size=128, num_C = 10),
+                    cars = dict(resolution = (224,224), epochs = 110, source = 'classification', batch_size=128, num_C = 196),
+                    DTD = dict(resolution = (224,224), epochs = 70, source = 'classification_image_folder', batch_size=128, num_C = 47),
+                    pets = dict(resolution = (224,224), epochs = 25, source = 'classification', batch_size=128, num_C = 37),
+                    Xray = dict(resolution = (224,224), epochs = 35, source = 'classification_image_folder', batch_size=128, num_C = 2),
+                    SUN397 = dict(resolution = (224,224), epochs = 60, source = 'classification', batch_size=128, num_C = 397),
+                    birdsnap = dict(resolution = (224,224), epochs = 40, source = 'classification', batch_size=128, num_C = 500),
+                    caltech101 = dict(resolution = (224,224), epochs = 55, source = 'classification', batch_size=128, num_C = 101),
+                    FOOD101 = dict(resolution = (224,224), epochs = 35, source = 'classification', batch_size=128, num_C = 101)
                     )
 
     path_to_base_cfg = args.config
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
     # to_skip = {'SUN397', 'birdsnap', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
     to_skip = {'SUN397'}
+    # to_skip = {'pets'}
     # for path_to_base_cfg in [
     #                         '/home/prokofiev/deep-person-reid/configs/classification/base_config22.yml',
     #                         ]:
@@ -58,7 +62,7 @@ def main():
         cfg = read_config(yaml, path_to_base_cfg)
         num_exp = cfg['num_exp']
         if key in {'CIFAR100', 'FOOD101', 'pets', 'SUN397'}:
-            cfg['train']['lr'] = 0.01
+            cfg['train']['lr'] = 0.013
         elif key in {'DTD', 'Xray', 'birdsnap', 'caltech101', 'fashionMNIST'}:
             cfg['train']['lr'] = 0.016
         else:
@@ -72,7 +76,9 @@ def main():
         #     cfg['data']['transforms']['coarse_dropout']['max_width'] = 8
             # cfg['data']['transforms']['random_crop']['p'] = 1.0
             # cfg['data']['transforms']['random_crop']['static'] = True
-
+        margin = compute_s(params['num_C'])
+        print(margin)
+        cfg['loss']['softmax']['s'] = float(margin)
         cfg['model']['in_size'] = params['resolution']
         cfg['classification']['data_dir'] = key
         cfg['data']['height'] = params['resolution'][0]

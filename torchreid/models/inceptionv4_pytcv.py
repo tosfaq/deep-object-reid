@@ -596,11 +596,12 @@ class InceptionV4(ModelInterface):
                  pooling_type='avg',
                  bn_eval=False,
                  bn_frozen=False,
-                 feature_dim=256,
+                 feature_dim=1536,
                  loss='softmax',
                  IN_first=False,
                  IN_conv1=False,
                  self_challenging_cfg=False,
+                 lr_finder = None,
                  **kwargs):
 
         super().__init__(**kwargs)
@@ -613,6 +614,7 @@ class InceptionV4(ModelInterface):
         self.loss = loss
         self.feature_dim = feature_dim
         self.self_challenging_cfg = self_challenging_cfg
+        self.lr_finder = lr_finder
 
         layers = [4, 8, 4]
         normal_units = [InceptionAUnit, InceptionBUnit, InceptionCUnit]
@@ -635,9 +637,15 @@ class InceptionV4(ModelInterface):
         self.output = nn.Sequential()
         if dropout_cls:
             self.output.add_module("dropout", Dropout(**dropout_cls))
-        self.output.add_module("fc", nn.Linear(
-            in_features=self.feature_dim,
-            out_features=num_classes))
+        if self.loss == 'softmax':
+            self.output.add_module("fc", nn.Linear(
+                in_features=self.feature_dim,
+                out_features=num_classes))
+        else:
+            assert self.loss == 'am_softmax'
+            self.output.add_module("asl", AngleSimpleLinear(
+                in_features=self.feature_dim,
+                out_features=num_classes))
 
         self._init_params()
 
@@ -678,12 +686,17 @@ class InceptionV4(ModelInterface):
         if get_embeddings:
             out_data = [logits, glob_features]
         elif self.loss in ['softmax', 'am_softmax']:
-            out_data = [logits]
+            if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
+                out_data = logits
+            else:
+                out_data = [logits]
         elif self.loss in ['triplet']:
             out_data = [logits, glob_features]
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
+        if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
+            return out_data
         return tuple(out_data)
 
 

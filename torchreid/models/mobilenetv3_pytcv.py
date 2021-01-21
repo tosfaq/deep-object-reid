@@ -82,20 +82,21 @@ class MobileNetV3Unit(nn.Module):
             self.dropout = Dropout(**dropout_cfg)
         else:
             self.dropout = None
+
     def forward(self, x):
         if self.residual:
             identity = x
         if self.use_exp_conv:
             x = self.exp_conv(x)
-        x = self.conv1(x)
+        x1 = self.conv1(x)
         if self.use_se:
-            x = self.se(x)
-        x = self.conv2(x)
+            x1 = self.se(x1)
+        x2 = self.conv2(x1)
         if self.dropout is not None:
-            x = self.dropout(x)
+            x2 = self.dropout(x2, x)
         if self.residual:
-            x = x + identity
-        return x
+            x2 = x2 + identity
+        return x2
 
 
 class MobileNetV3FinalBlock(nn.Module):
@@ -113,14 +114,16 @@ class MobileNetV3FinalBlock(nn.Module):
     def __init__(self,
                  in_channels,
                  out_channels,
-                 use_se):
+                 use_se,
+                 loss):
         super(MobileNetV3FinalBlock, self).__init__()
         self.use_se = use_se
 
         self.conv = conv1x1_block(
             in_channels=in_channels,
             out_channels=out_channels,
-            activation="hswish")
+            activation="hswish" if loss=='softmax' else 'prelu')
+
         if self.use_se:
             self.se = SEBlock(
                 channels=out_channels,
@@ -169,12 +172,12 @@ class MobileNetV3Classifier(nn.Module):
             bias=True)
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.activ(x)
+        x1 = self.conv1(x)
+        x2= self.activ(x1)
         if self.use_dropout:
-            x = self.dropout(x)
-        x = self.conv2(x)
-        return x
+            x2 = self.dropout(x2, x)
+        x3 = self.conv2(x2)
+        return x3
 
 
 class MobileNetV3(ModelInterface):
@@ -233,6 +236,7 @@ class MobileNetV3(ModelInterface):
                  IN_first=False,
                  IN_conv1=False,
                  self_challenging_cfg=False,
+                 lr_finder=None,
                  **kwargs):
         super().__init__(**kwargs)
         self.in_size = in_size
@@ -242,6 +246,7 @@ class MobileNetV3(ModelInterface):
         self.bn_frozen = bn_frozen
         self.pooling_type = pooling_type
         self.self_challenging_cfg = self_challenging_cfg
+        self.lr_finder = lr_finder
 
         self.loss = loss
         self.feature_dim = feature_dim
@@ -281,14 +286,22 @@ class MobileNetV3(ModelInterface):
         self.features.add_module("final_block", MobileNetV3FinalBlock(
             in_channels=in_channels,
             out_channels=final_block_channels,
-            use_se=final_use_se))
+            use_se=final_use_se,
+            loss=self.loss))
         in_channels = final_block_channels
+        if self.loss == 'softmax':
+             self.output = MobileNetV3Classifier(
+                            in_channels=in_channels,
+                            out_channels=num_classes,
+                            mid_channels=classifier_mid_channels,
+                            dropout_cls=dropout_cls)
+        else:
+            assert self.loss == 'am_softmax'
+            self.output = nn.Sequential()
+            self.output.add_module("asl", AngleSimpleLinear(
+                in_features=in_channels,
+                out_features=num_classes))
 
-        self.output = MobileNetV3Classifier(
-            in_channels=in_channels,
-            out_channels=num_classes,
-            mid_channels=classifier_mid_channels,
-            dropout_cls=dropout_cls)
 
         self._init_params()
     def _init_params(self):
@@ -321,7 +334,10 @@ class MobileNetV3(ModelInterface):
             return y
 
         glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
-        logits = self.output(glob_features).view(x.shape[0], -1)
+        if self.loss == "am_softmax":
+            logits = self.output(glob_features.view(x.shape[0], -1))
+        else:
+            logits = self.output(glob_features).view(x.shape[0], -1)
 
         if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
             glob_features = rsc(
@@ -333,7 +349,10 @@ class MobileNetV3(ModelInterface):
             )
 
             with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
-                logits = self.output(glob_features).view(x.shape[0], -1)
+                if self.loss == "am_softmax":
+                    logits = self.output(glob_features.view(x.shape[0], -1))
+                else:
+                    logits = self.output(glob_features).view(x.shape[0], -1)
 
         if not self.training and self.classification:
             return [logits]
@@ -341,12 +360,17 @@ class MobileNetV3(ModelInterface):
         if get_embeddings:
             out_data = [logits, glob_features]
         elif self.loss in ['softmax', 'am_softmax']:
-            out_data = [logits]
+            if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
+                out_data = logits
+            else:
+                out_data = [logits]
         elif self.loss in ['triplet']:
             out_data = [logits, glob_features]
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
+        if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
+            return out_data
         return tuple(out_data)
 
 def get_mobilenetv3(version,
