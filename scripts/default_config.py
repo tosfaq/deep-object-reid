@@ -2,7 +2,18 @@ from yacs.config import CfgNode as CN
 
 
 def get_default_config():
+
     cfg = CN()
+    # lr finder
+    cfg.lr_finder = CN()
+    cfg.lr_finder.enable = False
+    cfg.lr_finder.lr_find_mode = 'automatic'
+    cfg.lr_finder.max_lr = 0.01
+    cfg.lr_finder.min_lr = 0.001
+    cfg.lr_finder.num_iter = 10
+    cfg.lr_finder.num_epoch = 3
+    cfg.lr_finder.stop_after = False
+
     # number of the experinent
     cfg.num_exp = 'whatever'
 
@@ -417,6 +428,7 @@ def imagedata_kwargs(cfg):
         'cl_version': cfg.classification.version,
         'apply_masks_to_test': cfg.test.apply_masks,
         'min_samples_per_id': cfg.data.min_samples_per_id,
+        'seed': cfg.train.seed
     }
 
 
@@ -486,6 +498,7 @@ def model_kwargs(cfg, num_classes):
         'num_classes': num_classes,
         'loss': cfg.loss.name,
         'pretrained': cfg.model.pretrained,
+        'lr_finder': cfg.lr_finder,
         'download_weights': cfg.model.download_weights,
         'use_gpu': cfg.use_gpu,
         'dropout_cfg': cfg.model.dropout,
@@ -515,6 +528,12 @@ def engine_run_kwargs(cfg):
         'save_dir': cfg.data.save_dir,
         'tb_log_dir': cfg.data.tb_log_dir,
         'max_epoch': cfg.train.max_epoch,
+        'lr_find_mode': cfg.lr_finder.lr_find_mode,
+        'max_lr': cfg.lr_finder.max_lr,
+        'min_lr': cfg.lr_finder.min_lr,
+        'num_iter': cfg.lr_finder.num_iter,
+        'num_epoch': cfg.lr_finder.num_epoch,
+        'pretrained': cfg.model.pretrained,
         'start_epoch': cfg.train.start_epoch,
         'fixbase_epoch': cfg.train.fixbase_epoch,
         'open_layers': cfg.train.open_layers,

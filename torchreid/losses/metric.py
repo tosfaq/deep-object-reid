@@ -139,7 +139,6 @@ class CentersPush(nn.Module):
 
     def forward(self, centers, labels):
         centers = F.normalize(centers, p=2, dim=1)
-
         unique_labels = torch.unique(labels)
         unique_centers = centers[unique_labels, :]
 
@@ -188,17 +187,40 @@ class LocalPushLoss(nn.Module):
         return losses.mean()
 
 
+class SphericalConstraintLoss(nn.Module):
+    """Implementation of SEC from https://arxiv.org/abs/2011.02785"""
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, features):
+        norms = torch.sqrt(torch.sum(features ** 2, dim=1))
+
+        with torch.no_grad():
+            trg_norm = norms.mean()
+
+        losses = (norms - trg_norm) ** 2
+        loss = losses.mean()
+
+        return loss
+
 class MetricLosses:
     """Class-aggregator for metric-learning losses"""
 
     def __init__(self, num_classes, embed_size,
                  center_coeff=1.0, triplet_coeff=1.0, local_push_coeff=1.0,
                  center_margin=0.1, triplet_margin=0.35, local_push_margin=0.1,
-                 loss_balancing=True, centers_lr=0.5, balancing_lr=0.01,
-                 smart_margin=True, triplet='semihard', name='ml'):
+                 norm_constraint_coeff=1.0, loss_balancing=True, smart_margin=True,
+                 centers_lr=0.5, balancing_lr=0.01, triplet='semihard', name='ml'):
         self.name = name
         self.total_losses_num = 0
         self.losses_map = dict()
+
+        self.norm_constraint_coeff = norm_constraint_coeff
+        if self.norm_constraint_coeff is not None and self.norm_constraint_coeff > 0:
+            self.norm_constraint_loss = SphericalConstraintLoss()
+            self.losses_map['norm'] = self.total_losses_num
+            self.total_losses_num += 1
 
         self.center_coeff = center_coeff
         if self.center_coeff is not None and self.center_coeff > 0:
@@ -256,6 +278,12 @@ class MetricLosses:
         all_loss_values = []
         loss_summary = dict()
 
+        norm_constraint_loss_val = 0
+        if self.norm_constraint_coeff > 0.0:
+            norm_constraint_loss_val = self.norm_constraint_loss(features)
+            all_loss_values.append(norm_constraint_loss_val)
+            loss_summary['{}/norm'.format(self.name)] = norm_constraint_loss_val.item()
+
         center_loss_val = 0
         centers_push_loss_val = 0
         if self.center_coeff > 0.:
@@ -284,7 +312,8 @@ class MetricLosses:
         else:
             loss_value = self.center_coeff * (center_loss_val + centers_push_loss_val) + \
                          self.triplet_coeff * triplet_loss_val +\
-                         self.local_push_coeff * local_push_loss_val
+                         self.local_push_coeff * local_push_loss_val + \
+                         self.norm_constraint_coeff * norm_constraint_loss_val
         self.last_loss_value = loss_value
 
         return loss_value, loss_summary
@@ -301,7 +330,7 @@ class MetricLosses:
     def end_iteration(self):
         """Finalizes a training iteration"""
 
-        self.last_loss_value.backward(retain_graph=True)
+        self.last_loss_value.backward()
 
         if self.center_coeff > 0.:
             self.center_optimizer.step()

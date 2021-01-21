@@ -1,5 +1,6 @@
 from __future__ import division, print_function, absolute_import
 import torch
+import numpy as np
 
 from torchreid.data.sampler import build_train_sampler
 from torchreid.data.datasets import init_image_dataset, init_video_dataset
@@ -186,7 +187,8 @@ class ImageDataManager(DataManager):
         cl_version='',
         apply_masks_to_test=False,
         min_samples_per_id=0,
-        num_sampled_packages=1
+        num_sampled_packages=1,
+        seed = 1
     ):
 
         super(ImageDataManager, self).__init__(
@@ -245,6 +247,7 @@ class ImageDataManager(DataManager):
             batch_size=batch_size_train,
             shuffle=False,
             num_workers=workers,
+            worker_init_fn=lambda worker_id: np.random.seed(seed + worker_id),
             pin_memory=self.use_gpu,
             drop_last=True
         )
@@ -266,6 +269,7 @@ class ImageDataManager(DataManager):
                     shuffle=False,
                     num_workers=workers,
                     pin_memory=self.use_gpu,
+                    worker_init_fn=lambda worker_id: np.random.seed(seed + worker_id),
                     drop_last=False
                 )
             else:
@@ -289,6 +293,7 @@ class ImageDataManager(DataManager):
                     shuffle=False,
                     num_workers=workers,
                     pin_memory=self.use_gpu,
+                    worker_init_fn=lambda worker_id: np.random.seed(seed + worker_id),
                     drop_last=False
                 )
 
@@ -313,6 +318,7 @@ class ImageDataManager(DataManager):
                     shuffle=False,
                     num_workers=workers,
                     pin_memory=self.use_gpu,
+                    worker_init_fn=lambda worker_id: np.random.seed(seed + worker_id),
                     drop_last=False
                 )
 

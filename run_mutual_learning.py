@@ -1,0 +1,172 @@
+from subprocess import run
+from pathlib import Path
+from ruamel.yaml import YAML
+import os
+import argparse
+import re
+import numpy as np
+import tempfile
+
+def read_config(yaml: YAML, config_path: str):
+    yaml.default_flow_style = True
+    with open(config_path, 'r') as f:
+        cfg = yaml.load(f)
+    return cfg
+
+def compute_s(num_class: int):
+    return max(np.sqrt(2)*np.log(num_class - 1), 3)
+
+def dump_config(yaml: YAML, config_path: str, cfg: dict):
+    with open(config_path, 'w') as f:
+        yaml.default_flow_style = True
+        yaml.dump(cfg, f)
+
+def build_config(cfg, dataset, main=True):
+    key, params = dataset
+    if main:
+        if key in {'caltech101', 'DTD', 'flowers', 'SUN397', 'SVHN', 'birdsnap'}:
+            cfg['train']['lr'] = 0.003
+        elif key in {'CIFAR100', 'pets', 'FOOD101'}:
+            cfg['train']['lr'] = 0.002
+        elif key in {'Xray'}:
+            cfg['train']['lr'] = 0.007
+        else:
+            cfg['train']['lr'] = 0.005
+    else:
+        if key in {'caltech101', 'DTD', 'flowers', 'SUN397', 'SVHN', 'birdsnap'}:
+            cfg['train']['lr'] = 0.003
+        elif key in {'CIFAR100', 'pets', 'FOOD101'}:
+            cfg['train']['lr'] = 0.002
+        elif key in {'Xray'}:
+            cfg['train']['lr'] = 0.007
+        else:
+            cfg['train']['lr'] = 0.005
+
+    path_to_exp_folder = cfg['data']['save_dir']
+    # create new configuration file related to current dataset
+    margin = compute_s(params['num_C'])
+    cfg['loss']['softmax']['s'] = float(margin)
+    cfg['model']['in_size'] = params['resolution']
+    cfg['classification']['data_dir'] = key
+    cfg['data']['height'] = params['resolution'][0]
+    cfg['data']['width'] = params['resolution'][1]
+    cfg['train']['max_epoch'] = params['epochs']
+    cfg['data']['save_dir'] = path_to_exp_folder + f"/{key}"
+
+
+    cfg['train']['batch_size'] = params['batch_size']
+    source = params['source']
+    cfg['data']['sources'] = [source]
+    cfg['data']['targets'] = [source]
+
+    return cfg
+
+def main():
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--data_root', type=str, default='/home/prokofiev/datasets', required=False,
+                        help='path to folder with datasets')
+    parser.add_argument('--config', type=str, required=True, help='path to config file')
+    parser.add_argument('--add_config', type=str, required=True, help='path to config file for second model')
+    args = parser.parse_args()
+
+    path_to_main = './tools/main.py'
+    path_to_base_cfg = args.config
+    path_to_add_cfg = args.add_config
+    data_root = args.data_root
+    yaml = YAML()
+
+    datasets = dict(
+                    flowers = dict(resolution = (224,224), epochs = 50, source = 'classification', batch_size=32, num_C = 102),
+                    CIFAR100 = dict(resolution = (224,224), epochs = 35, source = 'classification_image_folder', batch_size=32, num_C = 100),
+                    fashionMNIST = dict(resolution = (224,224), epochs = 35, source = 'classification_image_folder', batch_size=32, num_C = 10),
+                    SVHN = dict(resolution = (224,224), epochs = 50, source = 'classification', batch_size=32, num_C = 10),
+                    cars = dict(resolution = (224,224), epochs = 110, source = 'classification', batch_size=32, num_C = 196),
+                    DTD = dict(resolution = (224,224), epochs = 70, source = 'classification_image_folder', batch_size=32, num_C = 47),
+                    pets = dict(resolution = (224,224), epochs = 25, source = 'classification', batch_size=32, num_C = 37),
+                    Xray = dict(resolution = (224,224), epochs = 35, source = 'classification_image_folder', batch_size=48, num_C = 2),
+                    SUN397 = dict(resolution = (224,224), epochs = 60, source = 'classification', batch_size=32, num_C = 397),
+                    birdsnap = dict(resolution = (224,224), epochs = 40, source = 'classification', batch_size=32, num_C = 500),
+                    caltech101 = dict(resolution = (224,224), epochs = 55, source = 'classification', batch_size=32, num_C = 101),
+                    FOOD101 = dict(resolution = (224,224), epochs = 35, source = 'classification', batch_size=32, num_C = 101)
+                    )
+
+    # path_to_base_cfg = args.config
+    # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
+    to_skip = {'SUN397', 'CIFAR100', 'fashionMNIST', 'SVHN', 'flowers'}
+    # to_run = {'flowers', 'cars'}
+
+    for key, params in datasets.items():
+        if key in to_skip:
+            continue
+        cfg = read_config(yaml, path_to_base_cfg)
+        cfg2 = read_config(yaml, path_to_add_cfg)
+        path_to_exp_folder = cfg['data']['save_dir']
+        break
+        cfg_main = build_config(cfg, (key, params), main=True)
+        cfg_add = build_config(cfg2, (key, params), main=False)
+        # dump it
+        # config_path = str(Path.cwd() / 'configs'/ 'classification' / f'{key}.yml')
+        fd, tmp_path_to_cfg = tempfile.mkstemp()
+        fd2, tmp_path_to_add_cfg = tempfile.mkstemp()
+        try:
+            with os.fdopen(fd, 'w') as tmp1:
+                # do stuff with temp file
+                yaml.default_flow_style = True
+                yaml.dump(cfg_main, tmp1)
+
+            with os.fdopen(fd2, 'w') as tmp2:
+                # do stuff with temp file
+                yaml.default_flow_style = True
+                yaml.dump(cfg_add, tmp2)
+
+            # run training
+            run(
+                f'python {str(path_to_main)}'
+                f' --config {tmp_path_to_cfg}'
+                f' --root {data_root}'
+                f' --extra-config-files {tmp_path_to_add_cfg}', shell=True
+                )
+        finally:
+            os.remove(tmp_path_to_cfg)
+            os.remove(tmp_path_to_add_cfg)
+    # after training combine all outputs in one file
+    # path_to_class_folder = f"outputs/classification_out/exp_{num_exp}"
+    path_to_bash = str(Path.cwd() / 'parse_output.sh')
+    run(f'bash {path_to_bash} {path_to_exp_folder}', shell=True)
+    saver = dict()
+    path_to_file = f"{path_to_exp_folder}/combine_all.txt"
+    # parse output file from bash script
+    with open(path_to_file,'r') as f:
+        for line in f:
+            if line.strip() in datasets.keys():
+                next_dataset = line.strip()
+                saver[next_dataset] = dict()
+                continue
+            else:
+                for metric in ['mAP', 'Rank-1', 'Rank-5']:
+                    if line.strip().startswith(metric):
+                        if not metric in saver[next_dataset]:
+                            saver[next_dataset][metric] = []
+                        pattern = re.search('\d+\.\d+', line.strip())
+                        if pattern:
+                            saver[next_dataset][metric].append(float(pattern.group(0)))
+
+    # dump in appropriate patern
+    names = ''; values = ''
+    with open(path_to_file,'a') as f:
+        for key in sorted(datasets.keys()):
+            names += key + ' '
+            if key in saver:
+                best_top_1_idx = np.argmax(saver[key]['Rank-1'])
+                top1 = str(saver[key]['Rank-1'][best_top_1_idx])
+                mAP = str(saver[key]['mAP'][best_top_1_idx])
+                top5 = str(saver[key]['Rank-5'][best_top_1_idx])
+                snapshot = str(best_top_1_idx)
+                values += mAP + ';' + top1 + ';' + top5 + ';' + snapshot + ';'
+            else:
+                values += '-1;-1;-1;-1;'
+
+        f.write(f"\n{names}\n{values}")
+
+if __name__ == "__main__":
+    main()

@@ -209,9 +209,11 @@ class AMSoftmaxLoss(nn.Module):
             else:
                 losses = F.cross_entropy(output, target, reduction='none')
 
-            if self.aug_type:
-                assert aug_index is not None and lam is not None
+            if (self.aug_type and aug_index is not None and lam is not None):
                 targets1 = torch.zeros(output.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
+                if self.use_gpu:
+                    targets1 = targets1.cuda()
+
                 targets2 = targets1[aug_index]
                 new_targets = targets1 * lam + targets2 * (1 - lam)
                 losses = (- new_targets * F.log_softmax(output, dim=1)).sum(dim=1)

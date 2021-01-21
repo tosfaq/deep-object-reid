@@ -27,10 +27,13 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_lr_finder import LRFinder
 from torchvision.transforms import ToPILImage
 import numpy as np
+import os
 
 from torchreid.engine import Engine
+from torchreid.utils import StateCacher, clip
 from torchreid.losses import get_regularizer, AMSoftmaxLoss, CrossEntropyLoss, MetricLosses, sample_mask
 from torchreid import metrics
 
@@ -227,9 +230,14 @@ class ImageAMSoftmaxEngine(Engine):
 
                 total_loss += mutual_loss / float(num_mutual_losses)
 
-            total_loss.backward()
+            total_loss.backward(retain_graph=self.enable_metric_losses)
 
             for model_name in model_names:
+                for trg_id in range(self.num_targets):
+                    if self.enable_metric_losses:
+                        ml_loss_module = self.ml_losses[trg_id][model_name]
+                        ml_loss_module.end_iteration()
+
                 if self.enable_sam and step == 1:
                     self.optims[model_name].first_step()
                 elif self.enable_sam and step == 2:
@@ -290,7 +298,7 @@ class ImageAMSoftmaxEngine(Engine):
 
                 ml_loss_module.init_iteration()
                 ml_loss, ml_loss_summary = ml_loss_module(embd, trg_logits, trg_obj_ids, n_iter)
-                ml_loss_module.end_iteration()
+                # ml_loss_module.end_iteration()
 
                 loss_summary['ml_{}/{}'.format(trg_id, model_name)] = ml_loss.item()
                 loss_summary.update(ml_loss_summary)
@@ -471,3 +479,153 @@ class ImageAMSoftmaxEngine(Engine):
         bby2 = np.clip(cy + cut_h // 2, 0, H)
 
         return bbx1, bby1, bbx2, bby2
+
+    def find_lr(
+        self,
+        lr_find_mode='automatic',
+        max_lr=0.01,
+        min_lr=0.001,
+        num_iter=10,
+        num_epoch = 3,
+        pretrained = True,
+        save_dir='log',
+        print_freq=10,
+        fixbase_epoch=0,
+        open_layers=None,
+        start_eval=0,
+        eval_freq=-1,
+        test_only=False,
+        dist_metric='euclidean',
+        normalize_feature=False,
+        visrank=False,
+        visrank_topk=10,
+        use_metric_cuhk03=False,
+        ranks=(1, 5, 10, 20),
+        rerank=False,
+        **kwargs):
+        r"""A  pipeline for learning rate search.
+
+        Args:
+            lr_find_mode (str, optional): mode for learning rate finder, "automatic" or "brute_force".
+                Default is "automatic".
+            max_lr (float): upper bound for leaning rate
+            min_lr (float): lower bound for leaning rate
+            num_iter (int, optional): number of iterations for searching space. Default is 10.
+            pretrained (bool): whether or not the model is pretrained
+            save_dir (str): directory to save model.
+            max_epoch (int): maximum epoch.
+            start_epoch (int, optional): starting epoch. Default is 0.
+            print_freq (int, optional): print_frequency. Default is 10.
+            fixbase_epoch (int, optional): number of epochs to train ``open_layers`` (new layers)
+                while keeping base layers frozen. Default is 0. ``fixbase_epoch`` is counted
+                in ``max_epoch``.
+            open_layers (str or list, optional): layers (attribute names) open for training.
+            start_eval (int, optional): from which epoch to start evaluation. Default is 0.
+            eval_freq (int, optional): evaluation frequency. Default is -1 (meaning evaluation
+                is only performed at the end of training).
+            test_only (bool, optional): if True, only runs evaluation on test datasets.
+                Default is False.
+            dist_metric (str, optional): distance metric used to compute distance matrix
+                between query and gallery. Default is "euclidean".
+            normalize_feature (bool, optional): performs L2 normalization on feature vectors before
+                computing feature distance. Default is False.
+            visrank (bool, optional): visualizes ranked results. Default is False. It is recommended to
+                enable ``visrank`` when ``test_only`` is True. The ranked images will be saved to
+                "save_dir/visrank_dataset", e.g. "save_dir/visrank_market1501".
+            visrank_topk (int, optional): top-k ranked images to be visualized. Default is 10.
+            use_metric_cuhk03 (bool, optional): use single-gallery-shot setting for cuhk03.
+                Default is False. This should be enabled when using cuhk03 classic split.
+            ranks (list, optional): cmc ranks to be computed. Default is [1, 5, 10, 20].
+            rerank (bool, optional): uses person re-ranking (by Zhong et al. CVPR'17).
+                Default is False. This is only enabled when test_only=True.
+        """
+        print('=> Start learning rate search')
+
+        self.num_batches = len(self.train_loader)
+
+        names = self.get_model_names(None)
+        name = names[0]
+        wd = self.optims[name].param_groups[0]['weight_decay']
+        lower_bound_lr = 1e-5
+        upper_bound_lr = 0.1
+        model = self.models[name]
+        model_device = next(model.parameters()).device
+
+        if lr_find_mode == 'automatic':
+            criterion = self.main_losses[0]
+            if self.optims[name].__class__.__name__ == 'SAM':
+                optimizer = torch.optim.SGD(model.parameters(), lr=lower_bound_lr, weight_decay=wd)
+            else:
+                optimizer = self.optims[name]
+                for param_group in optimizer.param_groups:
+                    param_group["lr"] = lower_bound_lr
+
+            lr_finder = LRFinder(model, optimizer, criterion, device="cuda")
+            lr_finder.range_test(self.train_loader, end_lr=upper_bound_lr, num_iter=self.num_batches, step_mode='exp')
+            ax, optim_lr = lr_finder.plot()
+            fig = ax.get_figure()
+            fig.savefig('/home/prokofiev/deep-person-reid/test_images/plot3.png')
+            lr_finder.reset()
+
+            return clip(optim_lr, pretrained=pretrained, backbone_name=model.module.__class__.__name__)
+
+        assert lr_find_mode == 'brute_force'
+        acc_store = dict()
+        self.start_epoch = 0
+        self.max_epoch = num_epoch
+        self.fixbase_epoch = fixbase_epoch
+        state_cacher = StateCacher(in_memory=True, cache_dir=None)
+        state_cacher.store("model", self.models[name].module.state_dict())
+        state_cacher.store("optimizer", self.optims[name].state_dict())
+        range_lr = np.linspace(min_lr, max_lr, num_iter)
+        best_acc = 0.0
+
+        for lr in range_lr:
+            for param_group in self.optims[name].param_groups:
+                param_group["lr"] = round(lr,6)
+            for self.epoch in range(self.start_epoch, self.max_epoch):
+                cur_top1 = 0.
+                self.train(
+                        print_freq=print_freq,
+                        fixbase_epoch=fixbase_epoch,
+                        open_layers=open_layers,
+                        lr_finder=True
+                        )
+
+                top1 = self.test(
+                        self.epoch,
+                        dist_metric=dist_metric,
+                        normalize_feature=normalize_feature,
+                        visrank=visrank,
+                        visrank_topk=visrank_topk,
+                        save_dir=save_dir,
+                        use_metric_cuhk03=use_metric_cuhk03,
+                        ranks=ranks,
+                        lr_finder=True
+                    )
+                top1 = round(top1, 4)
+                if (self.max_epoch < 5) and (self.epoch == self.max_epoch - 1):
+                    acc_store[lr] = top1
+
+                elif (self.max_epoch >= 5) and (self.epoch == self.max_epoch - 1):
+                    acc_store[lr] = max(cur_top1, top1)
+
+                cur_top1 = top1
+
+            self.models[name].module.load_state_dict(state_cacher.retrieve("model"))
+            self.optims[name].load_state_dict(state_cacher.retrieve("optimizer"))
+            self.models[name].to(model_device)
+
+            # break if the results got worse
+            cur_acc = acc_store[lr]
+            if (best_acc - cur_acc) >= 0.02:
+                break
+            best_acc = max(best_acc, cur_acc)
+
+        max_acc = 0
+        for lr, acc in sorted(acc_store.items()):
+            if acc >= (max_acc-0.002):
+                max_acc = acc
+                opt_lr = lr
+
+        return opt_lr

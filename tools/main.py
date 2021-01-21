@@ -139,7 +139,10 @@ def main():
         extra_device_ids = [None for _ in range(len(args.extra_config_files))]
 
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+    if cfg.lr_finder.enable and cfg.lr_finder.lr_find_mode == 'automatic':
+        scheduler = None
+    else:
+        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 
     if cfg.model.resume and check_isfile(cfg.model.resume):
         cfg.train.start_epoch = resume_from_checkpoint(
@@ -164,11 +167,32 @@ def main():
             models.append(aux_model)
             optimizers.append(aux_optimizer)
             schedulers.append(aux_scheduler)
+    # elif cfg.lr_finder.enable and cfg.lr_finder.lr_find_mode == 'automatic':
+    #     new_optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
+    #     models, optimizers, schedulers = model, new_optimizer, scheduler
     else:
         models, optimizers, schedulers = model, optimizer, scheduler
 
     print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers)
+
+    if cfg.lr_finder.enable:
+        assert not enable_mutual_learning
+
+        lr = engine.find_lr(**engine_run_kwargs(cfg))
+        cfg.train.lr = 0.01
+        # reload random seeds, opimizer with new lr and scheduler for it
+        set_random_seed(cfg.train.seed)
+        optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
+        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+        models, optimizers, schedulers = model, optimizer, scheduler
+        # build new engine
+        engine = build_engine(cfg, datamanager, models, optimizers, schedulers)
+
+        print("Choosed lr by LR Finder: ", lr)
+        if cfg.lr_finder.stop_after:
+            exit()
+
     engine.run(**engine_run_kwargs(cfg))
 
 

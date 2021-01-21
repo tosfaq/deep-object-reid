@@ -287,6 +287,7 @@ class EfficientNet(ModelInterface):
                  loss='softmax',
                  IN_first=False,
                  IN_conv1=False,
+                 lr_finder = None,
                  **kwargs):
 
         super().__init__(**kwargs)
@@ -296,6 +297,7 @@ class EfficientNet(ModelInterface):
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
         self.pooling_type = pooling_type
+        self.lr_finder = lr_finder
 
         self.loss = loss
         self.feature_dim = feature_dim
@@ -340,20 +342,26 @@ class EfficientNet(ModelInterface):
                         tf_mode=tf_mode))
                 in_channels = out_channels
             self.features.add_module("stage{}".format(i + 1), stage)
+        activation = activation if self.loss == 'softmax' else lambda: nn.PReLU(init=0.25)
         self.features.add_module("final_block", conv1x1_block(
             in_channels=in_channels,
             out_channels=final_block_channels,
             bn_eps=bn_eps,
             activation=activation))
         in_channels = final_block_channels
-        self.features.add_module("final_pool", nn.AdaptiveAvgPool2d(output_size=1))
 
         self.output = nn.Sequential()
         if dropout_cls:
             self.output.add_module("dropout", Dropout(**dropout_cls))
-        self.output.add_module("fc", nn.Linear(
-            in_features=in_channels,
-            out_features=num_classes))
+        if self.loss == 'softmax':
+            self.output.add_module("fc", nn.Linear(
+                in_features=in_channels,
+                out_features=num_classes))
+        else:
+            assert self.loss == 'am_softmax'
+            self.output.add_module("asl", AngleSimpleLinear(
+                in_features=in_channels,
+                out_features=num_classes))
 
         self._init_params()
 
@@ -380,14 +388,20 @@ class EfficientNet(ModelInterface):
             return [logits]
 
         if get_embeddings:
-            out_data = [logits, glob_features]
+            out_data = [logits, glob_features.view(x.shape[0], -1)]
         elif self.loss in ['softmax', 'am_softmax']:
-            out_data = [logits]
+            if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
+                out_data = logits
+            else:
+                out_data = [logits]
+
         elif self.loss in ['triplet']:
             out_data = [logits, glob_features]
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
+        if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
+            return out_data
         return tuple(out_data)
 
 
