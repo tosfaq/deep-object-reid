@@ -52,19 +52,19 @@ def main():
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101'}
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'flowers'}
     # to_skip = {'SUN397', 'fashionMNIST', 'SVHN'}
-    to_skip = {'birdsnap'}
+    to_skip = {'SUN397'}
     # for path_to_base_cfg in [
     #                         '/home/prokofiev/deep-person-reid/configs/classification/base_config_2.yml',
     #                         '/home/prokofiev/deep-person-reid/configs/classification/base_config_3.yml',
     #                         ]:
 
     for key, params in datasets.items():
-        if key not in to_skip:
+        if key in to_skip:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
         num_exp = cfg['num_exp']
         if key in {'caltech101', 'DTD', 'flowers', 'SUN397', 'SVHN', 'birdsnap'}:
-            cfg['train']['lr'] = 0.003755
+            cfg['train']['lr'] = 0.003
         elif key in {'CIFAR100', 'pets', 'FOOD101'}:
             cfg['train']['lr'] = 0.002
         elif key in {'Xray'}:

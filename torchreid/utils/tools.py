@@ -28,7 +28,6 @@ def mkdir_if_missing(dirname):
             if e.errno != errno.EEXIST:
                 raise
 
-
 def check_isfile(fpath):
     """Checks if the given path is a file.
 
@@ -43,13 +42,11 @@ def check_isfile(fpath):
         warnings.warn('No file found at "{}"'.format(fpath))
     return isfile
 
-
 def read_json(fpath):
     """Reads json file from a path."""
     with open(fpath, 'r') as f:
         obj = json.load(f)
     return obj
-
 
 def write_json(obj, fpath):
     """Writes to a json file."""
@@ -57,14 +54,12 @@ def write_json(obj, fpath):
     with open(fpath, 'w') as f:
         json.dump(obj, f, indent=4, separators=(',', ': '))
 
-
 def set_random_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
     torch.backends.cudnn.deterministic=True
-
 
 def download_url(url, dst):
     """Downloads file from a url to a destination.
@@ -152,8 +147,8 @@ def clip(lr, pretrained, backbone_name):
         elif (exponent(lr) == 3) and (lr > 0.0035):
             clipped_lr = round(lr / 2, 6)
         elif (exponent(lr) >= 4) and (exponent(lr) <= 1):
-            print("Fail to find lr automaticaly. LR Finder gave either too high ot too low learning rate"
-                  "set lr to average one for EfficientNet: {}".format(0.003))
+            print("Fail to find lr automaticaly. LR Finder gave either too high ot too low learning rate. "
+                  "Set lr to average one for EfficientNet: {}".format(0.003))
             return 0.003
         else:
             clipped_lr = lr / 19.6
@@ -161,14 +156,24 @@ def clip(lr, pretrained, backbone_name):
     elif backbone_name == "MobileNetV3":
         if (lr <= 0.1 and lr > 0.02):
             k = -180.2548*(lr**2) + 104.5253*lr - 1.0182
-            print(lr, k)
             clipped_lr = lr / k
         elif (lr < 0.01 or lr > 0.1):
-            print("Fail to find lr automaticaly. LR Finder gave either too high ot too low learning rate"
-                  "set lr to average one for MobileNetV3: {}".format(0.013))
+            print("Fail to find lr automaticaly. LR Finder gave either too high ot too low learning rate. "
+                  "Set lr to average one for MobileNetV3: {}".format(0.013))
             return 0.013
         else:
             clipped_lr = lr
+
+    elif backbone_name == "InceptionV4":
+        if (lr <= 0.001 and lr > 0.1):
+            print("Fail to find lr automaticaly. LR Finder gave either too high ot too low learning rate. "
+                  "Set lr to average one for InceptionV4: {}".format(0.0035))
+            return 0.0035
+        elif (lr <= 0.03):
+            clipped_lr = lr / 3
+        elif (lr <= 0.1):
+            clipped_lr = lr / 20
+
     else:
         print("Unknown backbone, the results could be wrong. LR found by ")
         return lr
