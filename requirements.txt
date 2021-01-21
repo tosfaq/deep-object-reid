@@ -19,4 +19,5 @@ lxml
 pytorchcv
 terminaltables
 ruamel.yaml
+torch_lr_finder
 onnx
