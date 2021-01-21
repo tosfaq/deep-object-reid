@@ -175,7 +175,7 @@ def clip(lr, pretrained, backbone_name):
             clipped_lr = lr / 20
 
     else:
-        print("Unknown backbone, the results could be wrong. LR found by ")
+        print("Unknown backbone, the results could be wrong. LR found by LR Finder ")
         return lr
 
     print("Finished searching learning rate. Choosed {} as the best proposed.".format(clipped_lr))
