@@ -545,7 +545,7 @@ class ImageAMSoftmaxEngine(Engine):
         name = names[0]
         wd = self.optims[name].param_groups[0]['weight_decay']
         lower_bound_lr = 1e-5
-        upper_bound_lr = 0.1
+        upper_bound_lr = 0.1 if pretrained else 1.
         model = self.models[name]
         model_device = next(model.parameters()).device
 
@@ -560,9 +560,7 @@ class ImageAMSoftmaxEngine(Engine):
 
             lr_finder = LRFinder(model, optimizer, criterion, device="cuda")
             lr_finder.range_test(self.train_loader, end_lr=upper_bound_lr, num_iter=self.num_batches, step_mode='exp')
-            ax, optim_lr = lr_finder.plot()
-            fig = ax.get_figure()
-            fig.savefig('/home/prokofiev/deep-person-reid/test_images/plot3.png')
+            _, optim_lr = lr_finder.plot()
             lr_finder.reset()
 
             return clip(optim_lr, pretrained=pretrained, backbone_name=model.module.__class__.__name__)

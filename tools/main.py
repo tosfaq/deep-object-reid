@@ -180,7 +180,7 @@ def main():
         assert not enable_mutual_learning
 
         lr = engine.find_lr(**engine_run_kwargs(cfg))
-        cfg.train.lr = 0.01
+        cfg.train.lr = lr
         # reload random seeds, opimizer with new lr and scheduler for it
         set_random_seed(cfg.train.seed)
         optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))

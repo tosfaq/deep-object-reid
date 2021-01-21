@@ -247,7 +247,6 @@ class ImageDataManager(DataManager):
             batch_size=batch_size_train,
             shuffle=False,
             num_workers=workers,
-            worker_init_fn=lambda worker_id: np.random.seed(seed + worker_id),
             pin_memory=self.use_gpu,
             drop_last=True
         )
@@ -269,7 +268,6 @@ class ImageDataManager(DataManager):
                     shuffle=False,
                     num_workers=workers,
                     pin_memory=self.use_gpu,
-                    worker_init_fn=lambda worker_id: np.random.seed(seed + worker_id),
                     drop_last=False
                 )
             else:
@@ -293,7 +291,6 @@ class ImageDataManager(DataManager):
                     shuffle=False,
                     num_workers=workers,
                     pin_memory=self.use_gpu,
-                    worker_init_fn=lambda worker_id: np.random.seed(seed + worker_id),
                     drop_last=False
                 )
 
@@ -318,7 +315,6 @@ class ImageDataManager(DataManager):
                     shuffle=False,
                     num_workers=workers,
                     pin_memory=self.use_gpu,
-                    worker_init_fn=lambda worker_id: np.random.seed(seed + worker_id),
                     drop_last=False
                 )
 
