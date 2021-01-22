@@ -17,8 +17,9 @@ terminaltables
 scikit-learn
 lxml
 pytorchcv
-torch
-torchvision
+terminaltables
+ruamel.yaml
+torch_lr_finder
 onnx
 torch-lr-finder
 terminaltables
