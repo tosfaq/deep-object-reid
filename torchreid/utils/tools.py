@@ -10,6 +10,7 @@ import os.path as osp
 import warnings
 import PIL
 import torch
+import copy
 from PIL import Image
 
 __all__ = [
