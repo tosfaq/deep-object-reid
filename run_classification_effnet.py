@@ -51,8 +51,8 @@ def main():
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101'}
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'flowers'}
-    # to_skip = {'SUN397', 'fashionMNIST', 'SVHN'}
-    to_skip = {'SUN397'}
+    to_skip = {'SUN397', 'fashionMNIST', 'SVHN'}
+    # to_skip = {'SUN397'}
     # for path_to_base_cfg in [
     #                         '/home/prokofiev/deep-person-reid/configs/classification/base_config_2.yml',
     #                         '/home/prokofiev/deep-person-reid/configs/classification/base_config_3.yml',
@@ -82,9 +82,10 @@ def main():
         #     cfg['data']['transforms']['coarse_dropout']['max_width'] = 4
         #     cfg['data']['transforms']['random_crop']['p'] = 1.0
         #     cfg['data']['transforms']['random_crop']['static'] = True
-        margin = compute_s(params['num_C'])
-        print(margin)
-        cfg['loss']['softmax']['s'] = float(margin)
+        if cgf.loss.name == "am_softmax":
+            margin = compute_s(params['num_C'])
+            print(margin)
+            cfg['loss']['softmax']['s'] = float(margin)
         cfg['model']['in_size'] = params['resolution']
         cfg['classification']['data_dir'] = key
         cfg['data']['height'] = params['resolution'][0]
@@ -93,7 +94,6 @@ def main():
         cfg['data']['save_dir'] = path_to_exp_folder + f"/{key}"
 
 
-        cfg['train']['batch_size'] = params['batch_size']
         source = params['source']
         cfg['data']['sources'] = [source]
         cfg['data']['targets'] = [source]

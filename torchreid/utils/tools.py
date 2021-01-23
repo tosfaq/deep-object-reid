@@ -60,7 +60,7 @@ def set_random_seed(seed):
     torch.cuda.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-    torch.backends.cudnn.deterministic=True
+    torch.backends.cudnn.deterministic=False
 
 def download_url(url, dst):
     """Downloads file from a url to a destination.

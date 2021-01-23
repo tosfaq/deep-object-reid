@@ -62,7 +62,7 @@ def main():
         cfg = read_config(yaml, path_to_base_cfg)
         num_exp = cfg['num_exp']
         if key in {'CIFAR100', 'FOOD101', 'pets', 'SUN397'}:
-            cfg['train']['lr'] = 0.013
+            cfg['train']['lr'] = 0.01
         elif key in {'DTD', 'Xray', 'birdsnap', 'caltech101', 'fashionMNIST'}:
             cfg['train']['lr'] = 0.016
         else:
@@ -76,9 +76,10 @@ def main():
         #     cfg['data']['transforms']['coarse_dropout']['max_width'] = 8
             # cfg['data']['transforms']['random_crop']['p'] = 1.0
             # cfg['data']['transforms']['random_crop']['static'] = True
-        margin = compute_s(params['num_C'])
-        print(margin)
-        cfg['loss']['softmax']['s'] = float(margin)
+        if cgf.loss.name == "am_softmax":
+            margin = compute_s(params['num_C'])
+            print(margin)
+            cfg['loss']['softmax']['s'] = float(margin)
         cfg['model']['in_size'] = params['resolution']
         cfg['classification']['data_dir'] = key
         cfg['data']['height'] = params['resolution'][0]
@@ -86,8 +87,6 @@ def main():
         cfg['train']['max_epoch'] = params['epochs']
         cfg['data']['save_dir'] = path_to_exp_folder + f"/{key}"
 
-
-        cfg['train']['batch_size'] = params['batch_size']
         source = params['source']
         cfg['data']['sources'] = [source]
         cfg['data']['targets'] = [source]
@@ -109,6 +108,7 @@ def main():
                 )
         finally:
             os.remove(tmp_path_to_cfg)
+        exit()
     # after training combine all outputs in one file
     # path_to_class_folder = f"outputs/classification_out/exp_{num_exp}"
     path_to_bash = str(Path.cwd() / 'parse_output.sh')

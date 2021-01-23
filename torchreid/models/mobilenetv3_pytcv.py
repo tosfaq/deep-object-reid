@@ -231,7 +231,7 @@ class MobileNetV3(ModelInterface):
                  pooling_type='avg',
                  bn_eval=False,
                  bn_frozen=False,
-                 feature_dim=256,
+                 feature_dim=1280,
                  loss='softmax',
                  IN_first=False,
                  IN_conv1=False,
@@ -330,6 +330,7 @@ class MobileNetV3(ModelInterface):
             x = self.input_IN(x)
 
         y = self.features(x)
+
         if return_featuremaps:
             return y
 
@@ -358,6 +359,7 @@ class MobileNetV3(ModelInterface):
             return [logits]
 
         if get_embeddings:
+            print(logits.shape, glob_features.shape)
             out_data = [logits, glob_features]
         elif self.loss in ['softmax', 'am_softmax']:
             if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
