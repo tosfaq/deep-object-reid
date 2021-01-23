@@ -82,7 +82,7 @@ def main():
         #     cfg['data']['transforms']['coarse_dropout']['max_width'] = 4
         #     cfg['data']['transforms']['random_crop']['p'] = 1.0
         #     cfg['data']['transforms']['random_crop']['static'] = True
-        if cfg.loss.name == "am_softmax":
+        if cfg['loss']['name'] == "am_softmax":
             margin = compute_s(params['num_C'])
             print(margin)
             cfg['loss']['softmax']['s'] = float(margin)

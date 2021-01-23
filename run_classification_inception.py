@@ -33,18 +33,18 @@ def main():
     yaml = YAML()
 
     datasets = dict(
-                    flowers = dict(resolution = (299,299), epochs = 55, source = 'classification'),
-                    CIFAR100 = dict(resolution = (299,299), epochs = 35, source = 'classification_image_folder'),
-                    fashionMNIST = dict(resolution = (299,299), epochs = 35, source = 'classification_image_folder'),
-                    SVHN = dict(resolution = (299,299), epochs = 50, source = 'classification'),
-                    cars = dict(resolution = (299,299), epochs = 110, source = 'classification'),
-                    DTD = dict(resolution = (299,299), epochs = 70, source = 'classification_image_folder'),
-                    pets = dict(resolution = (299,299), epochs = 30, source = 'classification'),
-                    Xray = dict(resolution = (299,299), epochs = 35, source = 'classification_image_folder'),
-                    SUN397 = dict(resolution = (299,299), epochs = 60, source = 'classification'),
-                    birdsnap = dict(resolution = (299,299), epochs = 40, source = 'classification'),
-                    caltech101 = dict(resolution = (299,299), epochs = 60, source = 'classification'),
-                    FOOD101 = dict(resolution = (299,299), epochs = 43, source = 'classification')
+                    flowers = dict(resolution = (299,299), epochs = 55, source = 'classification', num_C = 102),
+                    CIFAR100 = dict(resolution = (299,299), epochs = 35, source = 'classification_image_folder', num_C = 100),
+                    fashionMNIST = dict(resolution = (299,299), epochs = 35, source = 'classification_image_folder', num_C = 10),
+                    SVHN = dict(resolution = (299,299), epochs = 50, source = 'classification', num_C = 10),
+                    cars = dict(resolution = (299,299), epochs = 110, source = 'classification', num_C = 196),
+                    DTD = dict(resolution = (299,299), epochs = 70, source = 'classification_image_folder', num_C = 47),
+                    pets = dict(resolution = (299,299), epochs = 30, source = 'classification', num_C = 37),
+                    Xray = dict(resolution = (299,299), epochs = 35, source = 'classification_image_folder', num_C = 2),
+                    SUN397 = dict(resolution = (299,299), epochs = 60, source = 'classification', num_C = 397),
+                    birdsnap = dict(resolution = (299,299), epochs = 40, source = 'classification', num_C = 500),
+                    caltech101 = dict(resolution = (299,299), epochs = 60, source = 'classification', num_C = 101),
+                    FOOD101 = dict(resolution = (299,299), epochs = 43, source = 'classification', num_C = 101)
                     )
 
     path_to_base_cfg = args.config
@@ -61,16 +61,16 @@ def main():
         if key in to_skip:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
-        if cfg.loss.name == "am_softmax":
+        if cfg['loss']['name'] == "am_softmax":
             margin = compute_s(params['num_C'])
             print(margin)
             cfg['loss']['softmax']['s'] = float(margin)
         if key in {'CIFAR100', 'fashionMNIST', 'pets', 'SUN397'}:
-            cfg['train']['lr'] = 0.001
+            cfg['train']['lr'] = 0.002
         elif key in {'DTD', 'FOOD101'}:
             cfg['train']['lr'] = 0.003
         elif key in {'birdsnap', 'caltech101', 'SVHN'}:
-            cfg['train']['lr'] = 0.0025
+            cfg['train']['lr'] = 0.004
         else:
             cfg['train']['lr'] = 0.01
         path_to_exp_folder = cfg['data']['save_dir']
