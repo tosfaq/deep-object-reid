@@ -98,21 +98,22 @@ class Engine:
         names = self.get_model_names()
 
         for name in names:
-            ckpt_path = save_checkpoint(
-                            {
-                                'state_dict': self.models[name].state_dict(),
-                                'epoch': epoch + 1,
-                                'optimizer': self.optims[name].state_dict(),
-                                'scheduler': self.scheds[name].state_dict(),
-                                'num_classes': self.datamanager.num_train_pids
-                            },
-                            osp.join(save_dir, name),
-                            is_best=is_best
-                        )
+            ckpt_name = osp.join(save_dir, name)
+            save_checkpoint(
+                {
+                    'state_dict': self.models[name].state_dict(),
+                    'epoch': epoch + 1,
+                    'optimizer': self.optims[name].state_dict(),
+                    'scheduler': self.scheds[name].state_dict(),
+                    'num_classes': self.datamanager.num_train_pids
+                },
+                ckpt_name,
+                is_best=is_best
+            )
             latest_name = osp.join(save_dir, 'latest.pth')
             if osp.lexists(latest_name):
                 os.remove(latest_name)
-            os.symlink(ckpt_path, latest_name)
+            os.symlink(ckpt_name, latest_name)
 
     def set_model_mode(self, mode='train', names=None):
         assert mode in ['train', 'eval', 'test']
@@ -135,183 +136,6 @@ class Engine:
         for name in names:
             if self.scheds[name] is not None:
                 self.scheds[name].step()
-
-    def plot_loss_lr(self, losses, lrs):
-        plt.figure()
-        plt.ylabel("loss")
-        plt.xlabel("learning rate")
-        plt.plot(lrs, losses)
-        # plt.xscale('log')
-        plt.savefig('/home/prokofiev/deep-person-reid/test_images/plot1.png')
-
-    def plot_loss_change(self, losses, lrs, sma=1, n_skip=20, y_lim=(-0.01,0.01)):
-        """
-        Plots rate of change of the loss function.
-        Parameters:
-            sched - learning rate scheduler, an instance of LR_Finder class.
-            sma - number of batches for simple moving average to smooth out the curve.
-            n_skip - number of batches to skip on the left.
-            y_lim - limits for the y axis.
-        """
-        plt.figure()
-        derivatives = [0] * (sma + 1)
-        for i in range(1 + sma, len(lrs)):
-            derivative = (losses[i] - losses[i - sma]) / sma
-            derivatives.append(derivative)
-
-        plt.ylabel("d/loss")
-        plt.xlabel("learning rate (log scale)")
-        i = np.argmin(derivatives[n_skip:])
-        print(lrs[i])
-        plt.plot(lrs[n_skip:], derivatives[n_skip:])
-        # plt.xscale('log')
-        # plt.ylim(y_lim)
-        plt.savefig('/home/prokofiev/deep-person-reid/test_images/plot2.png')
-
-    def find_lr(
-        self,
-        lr_find_mode='automatic',
-        max_lr=0.01,
-        min_lr=0.001,
-        num_iter=10,
-        num_epoch = 3,
-        pretrained = True,
-        save_dir='log',
-        print_freq=10,
-        fixbase_epoch=0,
-        open_layers=None,
-        start_eval=0,
-        eval_freq=-1,
-        test_only=False,
-        dist_metric='euclidean',
-        normalize_feature=False,
-        visrank=False,
-        visrank_topk=10,
-        use_metric_cuhk03=False,
-        ranks=(1, 5, 10, 20),
-        rerank=False,
-        **kwargs):
-        r"""A  pipeline for learning rate search.
-
-        Args:
-            lr_find_mode (str, optional): mode for learning rate finder, "automatic" or "brute_force".
-                Default is "automatic".
-            max_lr (float): upper bound for leaning rate
-            min_lr (float): lower bound for leaning rate
-            num_iter (int, optional): number of iterations for searching space. Default is 10.
-            pretrained (bool): whether or not the model is pretrained
-            save_dir (str): directory to save model.
-            max_epoch (int): maximum epoch.
-            start_epoch (int, optional): starting epoch. Default is 0.
-            print_freq (int, optional): print_frequency. Default is 10.
-            fixbase_epoch (int, optional): number of epochs to train ``open_layers`` (new layers)
-                while keeping base layers frozen. Default is 0. ``fixbase_epoch`` is counted
-                in ``max_epoch``.
-            open_layers (str or list, optional): layers (attribute names) open for training.
-            start_eval (int, optional): from which epoch to start evaluation. Default is 0.
-            eval_freq (int, optional): evaluation frequency. Default is -1 (meaning evaluation
-                is only performed at the end of training).
-            test_only (bool, optional): if True, only runs evaluation on test datasets.
-                Default is False.
-            dist_metric (str, optional): distance metric used to compute distance matrix
-                between query and gallery. Default is "euclidean".
-            normalize_feature (bool, optional): performs L2 normalization on feature vectors before
-                computing feature distance. Default is False.
-            visrank (bool, optional): visualizes ranked results. Default is False. It is recommended to
-                enable ``visrank`` when ``test_only`` is True. The ranked images will be saved to
-                "save_dir/visrank_dataset", e.g. "save_dir/visrank_market1501".
-            visrank_topk (int, optional): top-k ranked images to be visualized. Default is 10.
-            use_metric_cuhk03 (bool, optional): use single-gallery-shot setting for cuhk03.
-                Default is False. This should be enabled when using cuhk03 classic split.
-            ranks (list, optional): cmc ranks to be computed. Default is [1, 5, 10, 20].
-            rerank (bool, optional): uses person re-ranking (by Zhong et al. CVPR'17).
-                Default is False. This is only enabled when test_only=True.
-        """
-        print('=> Start learning rate search')
-
-        self.num_batches = len(self.train_loader)
-
-        names = self.get_model_names(None)
-        name = names[0]
-        current_optimizer = self.optims[name]
-        wd = current_optimizer.param_groups[0]['weight_decay']
-        model = self.models[name]
-        model_device = next(model.parameters()).device
-        optimizer = current_optimizer.__class__(model.parameters(), lr=1e-5, weight_decay=wd)
-
-        if lr_find_mode == 'automatic':
-            criterion = torch.nn.CrossEntropyLoss()
-            lr_finder = LRFinder(model, optimizer, criterion, device="cuda")
-            lr_finder.range_test(self.train_loader, end_lr=1., num_iter=self.num_batches, step_mode='exp')
-            ax, optim_lr = lr_finder.plot()
-            fig = ax.get_figure()
-            fig.savefig('/home/prokofiev/deep-person-reid/test_images/plot3.png')
-            lr_finder.reset()
-
-            return clip(optim_lr, pretrained=pretrained, backbone_name=model.module.__class__.__name__)
-
-        assert lr_find_mode == 'brute_force'
-        acc_store = dict()
-        self.start_epoch = 0
-        self.max_epoch = num_epoch
-        self.fixbase_epoch = fixbase_epoch
-        state_cacher = StateCacher(in_memory=True, cache_dir=None)
-        state_cacher.store("model", self.models[name].module.state_dict())
-        state_cacher.store("optimizer", self.optims[name].state_dict())
-        old_model = self.models[name].module.state_dict()
-        old_optim = self.optims[name].state_dict()
-        range_lr = np.linspace(min_lr, max_lr, num_iter)
-        best_acc = 0.0
-
-        for lr in range_lr:
-            for param_group in self.optims[name].param_groups:
-                param_group["lr"] = round(lr,6)
-            for self.epoch in range(self.start_epoch, self.max_epoch):
-                cur_top1 = 0.
-                self.train(
-                        print_freq=print_freq,
-                        fixbase_epoch=fixbase_epoch,
-                        open_layers=open_layers,
-                        lr_finder=True
-                        )
-
-                top1 = self.test(
-                        self.epoch,
-                        dist_metric=dist_metric,
-                        normalize_feature=normalize_feature,
-                        visrank=visrank,
-                        visrank_topk=visrank_topk,
-                        save_dir=save_dir,
-                        use_metric_cuhk03=use_metric_cuhk03,
-                        ranks=ranks,
-                        lr_finder=True
-                    )
-                top1 = round(top1, 4)
-                if (self.max_epoch < 5) and (self.epoch == self.max_epoch - 1):
-                    acc_store[lr] = top1
-
-                elif (self.max_epoch >= 5) and (self.epoch == self.max_epoch - 1):
-                    acc_store[lr] = max(cur_top1, top1)
-
-                cur_top1 = top1
-
-            self.models[name].module.load_state_dict(state_cacher.retrieve("model"))
-            self.optims[name].load_state_dict(state_cacher.retrieve("optimizer"))
-            self.models[name].to(model_device)
-
-            # break if the results got worse
-            cur_acc = acc_store[lr]
-            if round((best_acc - cur_acc), 6) >= 2.:
-                break
-            best_acc = max(best_acc, cur_acc)
-
-        max_acc = 0
-        for lr, acc in sorted(acc_store.items()):
-            if acc >= (max_acc-0.0005):
-                max_acc = acc
-                opt_lr = lr
-
-        return opt_lr
 
     def run(
         self,
@@ -767,93 +591,3 @@ class Engine:
         else:
             for model in self.models.values():
                 open_all_layers(model)
-
-def clip(lr, pretrained, backbone_name):
-    if not pretrained:
-        if (lr >= 1.) or (lr <= 1e-4):
-            print("Fail to find lr automaticaly. Lr finder gave either too high ot too low learning rate"
-                  "set lr to standart one.")
-            return 0.01
-        return lr
-    print(lr, pretrained, backbone_name)
-    if backbone_name == "EfficientNet":
-        if (exponent(lr) == 3) and (lr <= 0.0035):
-            clipped_lr = lr
-        elif (exponent(lr) == 3) and (lr > 0.0035):
-            clipped_lr = round(lr / 2, 6)
-        elif (exponent(lr) >= 4) and (exponent(lr) <= 1):
-            print("Fail to find lr automaticaly. LR Finder gave either too high ot too low learning rate"
-                  "set lr to average one for EfficientNet: {}".format(0.003))
-            return 0.003
-        else:
-            clipped_lr = lr / 19.6
-
-    elif backbone_name == "MobileNetV3":
-        if (lr <= 0.1 and lr > 0.02):
-            k = -843.9371*(lr**2) + 168.3795*lr - 2.1338
-            clipped_lr = lr / k
-        elif (lr < 0.01 or lr > 0.1):
-            print("Fail to find lr automaticaly. LR Finder gave either too high ot too low learning rate"
-                  "set lr to average one for MobileNetV3: {}".format(0.013))
-            return 0.013
-        else:
-            clipped_lr = lr
-    else:
-        print("Unknown backbone, the results could be wrong. LR found by ")
-        return lr
-
-    print("Finished searching learning rate. Choosed {} as the best proposed.".format(clipped_lr))
-    return clipped_lr
-
-def exponent(n):
-    s = '{:.16f}'.format(n).split('.')[1]
-    return len(s) - len(s.lstrip('0')) + 1
-
-class StateCacher(object):
-    def __init__(self, in_memory, cache_dir=None):
-        self.in_memory = in_memory
-        self.cache_dir = cache_dir
-
-        if self.cache_dir is None:
-            import tempfile
-
-            self.cache_dir = tempfile.gettempdir()
-        else:
-            if not os.path.isdir(self.cache_dir):
-                raise ValueError("Given `cache_dir` is not a valid directory.")
-
-        self.cached = {}
-
-    def store(self, key, state_dict):
-        if self.in_memory:
-            self.cached.update({key: copy.deepcopy(state_dict)})
-        else:
-            fn = os.path.join(self.cache_dir, "state_{}_{}.pt".format(key, id(self)))
-            self.cached.update({key: fn})
-            torch.save(state_dict, fn)
-
-    def retrieve(self, key):
-        if key not in self.cached:
-            raise KeyError("Target {} was not cached.".format(key))
-
-        if self.in_memory:
-            return self.cached.get(key)
-        else:
-            fn = self.cached.get(key)
-            if not os.path.exists(fn):
-                raise RuntimeError(
-                    "Failed to load state in {}. File doesn't exist anymore.".format(fn)
-                )
-            state_dict = torch.load(fn, map_location=lambda storage, location: storage)
-            return state_dict
-
-    def __del__(self):
-        """Check whether there are unused cached files existing in `cache_dir` before
-        this instance being destroyed."""
-
-        if self.in_memory:
-            return
-
-        for k in self.cached:
-            if os.path.exists(self.cached[k]):
-                os.remove(self.cached[k])
