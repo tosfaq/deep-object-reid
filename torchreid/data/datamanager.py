@@ -182,8 +182,9 @@ class ImageDataManager(DataManager):
         cuhk03_labeled=False,
         cuhk03_classic_split=False,
         market1501_500k=False,
-        cl_data_dir='cl',
-        cl_version='',
+        custom_dataset_names=[''],
+        custom_dataset_roots=[''],
+        custom_dataset_types=[''],
         apply_masks_to_test=False,
         min_samples_per_id=0,
         num_sampled_packages=1
@@ -218,8 +219,9 @@ class ImageDataManager(DataManager):
                 cuhk03_labeled=cuhk03_labeled,
                 cuhk03_classic_split=cuhk03_classic_split,
                 market1501_500k=market1501_500k,
-                cl_data_dir=cl_data_dir,
-                cl_version=cl_version,
+                custom_dataset_names=custom_dataset_names,
+                custom_dataset_roots=custom_dataset_roots,
+                custom_dataset_types=custom_dataset_types,
                 min_id_samples=min_samples_per_id,
                 num_sampled_packages=num_sampled_packages
             ))
@@ -280,8 +282,9 @@ class ImageDataManager(DataManager):
                     cuhk03_labeled=cuhk03_labeled,
                     cuhk03_classic_split=cuhk03_classic_split,
                     market1501_500k=market1501_500k,
-                    cl_data_dir=cl_data_dir,
-                    cl_version=cl_version,
+                    custom_dataset_names=custom_dataset_names,
+                    custom_dataset_roots=custom_dataset_roots,
+                    custom_dataset_types=custom_dataset_types,
                 )
                 self.test_loader[name]['query'] = torch.utils.data.DataLoader(
                     query_dataset,
@@ -304,8 +307,9 @@ class ImageDataManager(DataManager):
                     cuhk03_labeled=cuhk03_labeled,
                     cuhk03_classic_split=cuhk03_classic_split,
                     market1501_500k=market1501_500k,
-                    cl_data_dir=cl_data_dir,
-                    cl_version=cl_version,
+                    custom_dataset_names=custom_dataset_names,
+                    custom_dataset_roots=custom_dataset_roots,
+                    custom_dataset_types=custom_dataset_types,
                 )
                 self.test_loader[name]['gallery'] = torch.utils.data.DataLoader(
                     gallery_dataset,
