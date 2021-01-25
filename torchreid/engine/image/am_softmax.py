@@ -28,6 +28,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_lr_finder import LRFinder
+
 from torchvision.transforms import ToPILImage
 import numpy as np
 import os
@@ -544,25 +545,24 @@ class ImageAMSoftmaxEngine(Engine):
         names = self.get_model_names(None)
         name = names[0]
         wd = self.optims[name].param_groups[0]['weight_decay']
-        lower_bound_lr = 1e-5
+        lower_bound_lr = 3e-4
         upper_bound_lr = 0.1 if pretrained else 1.
         model = self.models[name]
         model_device = next(model.parameters()).device
 
         if lr_find_mode == 'automatic':
+
             criterion = self.main_losses[0]
             if self.optims[name].__class__.__name__ == 'SAM':
                 optimizer = torch.optim.SGD(model.parameters(), lr=lower_bound_lr, weight_decay=wd)
             else:
                 optimizer = self.optims[name]
-                for param_group in optimizer.param_groups:
-                    param_group["lr"] = lower_bound_lr
 
             lr_finder = LRFinder(model, optimizer, criterion, device="cuda")
-            lr_finder.range_test(self.train_loader, end_lr=upper_bound_lr, num_iter=self.num_batches, step_mode='exp')
+            lr_finder.range_test(self.train_loader, start_lr = lower_bound_lr, end_lr = upper_bound_lr, num_iter=self.num_batches, step_mode='exp')
             _, optim_lr = lr_finder.plot()
             lr_finder.reset()
-
+            print(optim_lr)
             return clip(optim_lr, pretrained=pretrained, backbone_name=model.module.__class__.__name__)
 
         assert lr_find_mode == 'brute_force'

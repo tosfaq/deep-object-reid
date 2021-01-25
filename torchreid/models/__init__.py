@@ -18,7 +18,7 @@ from .shufflenet import *
 from .squeezenet import *
 from .inceptionv4 import *
 from .mobilenetv2 import *
-from .mobilenetv3 import *
+from .mobilenetv3_2 import *
 from .resnet_ibn_a import *
 from .resnet_ibn_b import *
 from .shufflenetv2 import *

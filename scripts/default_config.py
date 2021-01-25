@@ -122,7 +122,7 @@ def get_default_config():
     cfg.train.gamma = 0.1  # learning rate decay multiplier
     cfg.train.lr_scales = []
     cfg.train.print_freq = 20  # print frequency
-    cfg.train.seed = 1  # random seed
+    cfg.train.seed = 5  # random seed
     cfg.train.warmup = 1  # After fixbase_epoch
     cfg.train.warmup_factor_base = 0.1
     cfg.train.frozen_factor_base = 1.0
