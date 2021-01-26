@@ -32,6 +32,12 @@ def reset_config(cfg, args):
         cfg.data.sources = args.sources
     if args.targets:
         cfg.data.targets = args.targets
+    if args.custom_roots:
+        cfg.custom_datasets.roots = args.custom_roots
+    if args.custom_types:
+        cfg.custom_datasets.types = args.custom_types
+    if args.custom_names:
+        cfg.custom_datasets.names = args.custom_names
 
 
 def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, weights=None):
@@ -71,6 +77,12 @@ def main():
                         help='target datasets (delimited by space)')
     parser.add_argument('--root', type=str, default='',
                         help='path to data root')
+    parser.add_argument('--custom-roots', type=str, nargs='+',
+                        help='types or paths to annotation of custom datasets (delimited by space)')
+    parser.add_argument('--custom-types', type=str, nargs='+',
+                        help='path of custom datasets (delimited by space)')
+    parser.add_argument('--custom-names', type=str, nargs='+',
+                        help='names of custom datasets (delimited by space)')
     parser.add_argument('--gpu-num', type=int, default=1,
                         help='Number of GPUs for training. 0 is for CPU mode')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,

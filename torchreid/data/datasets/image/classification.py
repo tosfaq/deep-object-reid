@@ -9,36 +9,40 @@ class Classification(ImageDataset):
     """Classification dataset.
     """
 
-    def __init__(self, root='', dataset_id=0, load_masks=False, cl_data_dir='cl', cl_version='v1', **kwargs):
+    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, **kwargs):
         if load_masks:
             raise NotImplementedError
 
         self.root = osp.abspath(osp.expanduser(root))
-        self.dataset_dir = osp.join(self.root, f'{cl_data_dir}_{cl_version}')
-        self.data_dir = self.dataset_dir
-
-        self.images_dir = osp.join(self.data_dir, 'images')
-        self.train_annot = osp.join(self.data_dir, 'train.txt')
-        self.test_annot = osp.join(self.data_dir, 'val.txt')
+        self.data_dir = osp.dirname(self.root)
+        self.annot = self.root
 
         required_files = [
-            self.data_dir, self.images_dir, self.train_annot, self.test_annot
+            self.data_dir, self.annot
         ]
         self.check_before_run(required_files)
 
-        train = self.load_annotation(
-            self.train_annot,
-            self.images_dir,
-            dataset_id=dataset_id
-        )
-        gallery = self.load_annotation(
-            self.test_annot,
-            self.images_dir,
-            dataset_id=dataset_id
-        )
-        query = []
+        if mode == 'train':
+            train = self.load_annotation(
+                self.annot,
+                self.data_dir,
+                dataset_id=dataset_id
+            )
+        else:
+            train = []
 
-        super(Classification, self).__init__(train, query, gallery, **kwargs)
+        if mode == 'query':
+            query = self.load_annotation(
+                self.annot,
+                self.data_dir,
+                dataset_id=dataset_id
+            )
+        else:
+            query = []
+
+        gallery = []
+
+        super(Classification, self).__init__(train, query, gallery, mode=mode, **kwargs)
 
     @staticmethod
     def load_annotation(annot_path, data_dir, dataset_id=0):
@@ -46,17 +50,16 @@ class Classification(ImageDataset):
         for line in open(annot_path):
             parts = line.strip().split(' ')
             if len(parts) != 2:
+                print("line doesn't fits pattern. Expected: 'relative_path/to/image label'")
                 continue
-
             rel_image_path, label_str = parts
-
             full_image_path = osp.join(data_dir, rel_image_path)
             if not osp.exists(full_image_path):
+                print(f"{full_image_path}: doesn't exist. Please check path or file")
                 continue
 
             label = int(label_str)
             out_data.append((full_image_path, label, 0, dataset_id, '', -1, -1))
-
         return out_data
 
 
@@ -64,33 +67,36 @@ class ClassificationImageFolder(ImageDataset):
     """Classification dataset representing raw folders without annotation files.
     """
 
-    def __init__(self, root='', dataset_id=0, load_masks=False, cl_data_dir='cl', **kwargs):
+    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, **kwargs):
         if load_masks:
             raise NotImplementedError
 
         self.root = osp.abspath(osp.expanduser(root))
-        self.dataset_dir = osp.join(self.root, cl_data_dir)
-        self.data_dir = self.dataset_dir
-
-        self.train_images_dir = osp.join(self.data_dir, 'train')
-        self.val_images_dir = osp.join(self.data_dir, 'val')
 
         required_files = [
-            self.data_dir, self.train_images_dir, self.val_images_dir
+            self.root
         ]
         self.check_before_run(required_files)
 
-        train = self.load_annotation(
-            self.train_images_dir,
-            dataset_id=dataset_id
-        )
-        gallery = self.load_annotation(
-            self.val_images_dir,
-            dataset_id=dataset_id
-        )
-        query = []
+        if mode == 'train':
+            train = self.load_annotation(
+                self.root,
+                dataset_id=dataset_id
+            )
+        else:
+            train = []
 
-        super().__init__(train, query, gallery, **kwargs)
+        if mode == 'query':
+            query = self.load_annotation(
+                self.root,
+                dataset_id=dataset_id
+            )
+        else:
+            query = []
+
+        gallery = []
+
+        super().__init__(train, query, gallery, mode=mode, **kwargs)
 
 
     @staticmethod
