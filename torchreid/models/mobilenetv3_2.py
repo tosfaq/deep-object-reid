@@ -169,10 +169,16 @@ class MobileNetV3(ModelInterface):
         assert mode in ['large', 'small']
         # building first layer
         input_channel = _make_divisible(16 * width_mult, 8)
-        layers = [conv_3x3_bn(3, input_channel, 2)]
+        stride = 1 if in_size[0] < 100 else 2
+        layers = [conv_3x3_bn(3, input_channel, stride)]
         # building inverted residual blocks
         block = InvertedResidual
+        flag = True
         for k, t, c, use_se, use_hs, s in self.cfgs:
+            if (in_size[0] < 100) and (s == 2) and flag:
+                s = 1
+                flag = False
+            print(s)
             output_channel = _make_divisible(c * width_mult, 8)
             exp_size = _make_divisible(input_channel * t, 8)
             layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs))

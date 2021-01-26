@@ -54,7 +54,7 @@ def main():
     # to_skip = {'pets'}
 
     for key, params in datasets.items():
-        if key in to_skip:
+        if key not in to_skip:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
         num_exp = cfg['num_exp']
