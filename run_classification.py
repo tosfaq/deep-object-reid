@@ -50,7 +50,7 @@ def main():
     path_to_base_cfg = args.config
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
     # to_skip = {'SUN397', 'birdsnap', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
-    to_skip = {'birdsnap', 'caltech101', 'FOOD101'}
+    to_skip = {'birdsnap', 'caltech101'}
     # to_skip = {'pets'}
 
     for key, params in datasets.items():
