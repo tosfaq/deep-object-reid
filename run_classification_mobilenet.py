@@ -50,7 +50,7 @@ def main():
     # path_to_base_cfg = args.config
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
     # to_skip = {'SUN397', 'birdsnap', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
-    to_skip = {'SUN397'}
+    to_skip = {'fashionMNIST', 'SVHN'}
     # to_skip = {'pets'}
     for path_to_base_cfg in [
                             '/home/prokofiev/deep-person-reid/configs/classification/base_config_final_large.yml',
@@ -58,7 +58,7 @@ def main():
                             ]:
 
         for key, params in datasets.items():
-            if key in to_skip:
+            if key not in to_skip:
                 continue
             cfg = read_config(yaml, path_to_base_cfg)
             num_exp = cfg['num_exp']
