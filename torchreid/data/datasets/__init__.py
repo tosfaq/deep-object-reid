@@ -1,5 +1,7 @@
 from __future__ import print_function, absolute_import
 
+from copy import copy
+
 from .image import (
     GRID, PRID, CUHK01, CUHK02, CUHK03, MSMT17, VIPeR, SenseReID, Market1501, DukeMTMCreID, iLIDS,
     VRIC, VeRi, CompCars, VMMRdb, CityFlow, Vehicle1M, UniverseModels, VeRiWild,
@@ -73,8 +75,9 @@ def init_image_dataset(name, custom_dataset_names=[''],
         assert len(custom_dataset_names) == len(custom_dataset_types)
         assert len(custom_dataset_names) == len(custom_dataset_roots)
         i = custom_dataset_names.index(name)
-        kwargs['root'] = custom_dataset_roots[i]
-        return __image_datasets[custom_dataset_types[i]](**kwargs)
+        new_kwargs = copy(kwargs)
+        new_kwargs['root'] = custom_dataset_roots[i]
+        return __image_datasets[custom_dataset_types[i]](**new_kwargs)
 
     return __image_datasets[name](**kwargs)
 
