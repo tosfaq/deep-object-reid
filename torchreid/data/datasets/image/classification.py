@@ -68,7 +68,7 @@ class ClassificationImageFolder(ImageDataset):
             raise NotImplementedError
 
         self.root = osp.abspath(osp.expanduser(root))
-        self.dataset_dir = osp.join(self.root, cl_data_dir)
+        self.dataset_dir = osp.join(self.root)
         self.data_dir = self.dataset_dir
 
         self.train_images_dir = osp.join(self.data_dir, 'train')
