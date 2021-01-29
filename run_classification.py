@@ -39,7 +39,7 @@ def main():
                     SVHN = dict(resolution = (32,32), epochs = 50, source = 'classification', batch_size=128, num_C = 10),
                     cars = dict(resolution = (224,224), epochs = 110, source = 'classification', batch_size=128, num_C = 196),
                     DTD = dict(resolution = (224,224), epochs = 70, source = 'classification_image_folder', batch_size=128, num_C = 47),
-                    pets = dict(resolution = (224,224), epochs = 30, source = 'classification', batch_size=128, num_C = 37),
+                    pets = dict(resolution = (224,224), epochs = 60, source = 'classification', batch_size=128, num_C = 37),
                     Xray = dict(resolution = (224,224), epochs = 70, source = 'classification_image_folder', batch_size=128, num_C = 2),
                     SUN397 = dict(resolution = (224,224), epochs = 60, source = 'classification', batch_size=128, num_C = 397),
                     birdsnap = dict(resolution = (224,224), epochs = 35, source = 'classification', batch_size=128, num_C = 500),
@@ -50,11 +50,11 @@ def main():
     path_to_base_cfg = args.config
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
     # to_skip = {'SUN397', 'birdsnap', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
-    to_skip = {'birdsnap', 'caltech101'}
+    to_skip = {'SUN397'}
     # to_skip = {'pets'}
 
     for key, params in datasets.items():
-        if key not in to_skip:
+        if key in to_skip:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
         num_exp = cfg['num_exp']
@@ -82,7 +82,7 @@ def main():
         cfg['classification']['data_dir'] = key
         cfg['data']['height'] = params['resolution'][0]
         cfg['data']['width'] = params['resolution'][1]
-        cfg['train']['max_epoch'] = params['epochs']
+        # cfg['train']['max_epoch'] = params['epochs']
         cfg['data']['save_dir'] = path_to_exp_folder + f"/{key}"
 
         source = params['source']

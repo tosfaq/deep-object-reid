@@ -59,7 +59,7 @@ class AMSoftmaxLoss(nn.Module):
 
     def __init__(self, use_gpu=True, margin_type='cos', gamma=0.0, m=0.5, t=1.0,
                  s=30, end_s=None, duration_s=None, skip_steps_s=None, conf_penalty=0.0,
-                 label_smooth=False, epsilon=0.1, aug_type=False, pr_product=False,
+                 label_smooth=False, epsilon=0.1, aug_type='', pr_product=False,
                  symmetric_ce=False, class_counts=None, adaptive_margins=False,
                  class_weighting=False):
         super(AMSoftmaxLoss, self).__init__()

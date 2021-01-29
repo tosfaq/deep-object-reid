@@ -112,6 +112,8 @@ def get_default_config():
     cfg.train.max_epoch = 60
     cfg.train.start_epoch = 0
     cfg.train.batch_size = 32
+    cfg.train.early_stoping = False # switch on exit on metric plataeu method
+    cfg.train.train_patience = 10 # define how much epochs to wait after scheduler process
     cfg.train.fixbase_epoch = 0  # number of epochs to fix base layers
     cfg.train.open_layers = ['classifier']  # layers for training while keeping others frozen
     cfg.train.staged_lr = False  # set different lr to different layers
@@ -121,6 +123,12 @@ def get_default_config():
     cfg.train.stepsize = [20]  # stepsize to decay learning rate
     cfg.train.gamma = 0.1  # learning rate decay multiplier
     cfg.train.lr_scales = []
+    cfg.train.first_cycle_steps = 5
+    cfg.train.cycle_mult = 1.
+    cfg.train.min_lr = 1e-5
+    cfg.train.max_lr = 0.1
+    cfg.train.patience = 5
+    cfg.train.multiplier = 10
     cfg.train.print_freq = 20  # print frequency
     cfg.train.seed = 5  # random seed
     cfg.train.warmup = 1  # After fixbase_epoch
@@ -483,6 +491,12 @@ def lr_scheduler_kwargs(cfg):
         'lr_scales': cfg.train.lr_scales,
         'max_epoch': cfg.train.max_epoch,
         'warmup': cfg.train.warmup,
+        'multiplier': cfg.train.multiplier,
+        'first_cycle_steps': cfg.train.first_cycle_steps,
+        'cycle_mult': cfg.train.cycle_mult,
+        'min_lr': cfg.train.min_lr,
+        'max_lr': cfg.train.max_lr,
+        'patience': cfg.train.patience,
         'frozen': cfg.train.fixbase_epoch,
         'warmup_factor_base': cfg.train.warmup_factor_base,
         'frozen_factor_base': cfg.train.frozen_factor_base

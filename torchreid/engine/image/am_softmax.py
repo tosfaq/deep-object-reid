@@ -43,13 +43,14 @@ class ImageAMSoftmaxEngine(Engine):
     """
 
     def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, batch_transform_cfg,
-                 scheduler=None, use_gpu=False, save_chkpt=True, softmax_type='stock', label_smooth=False,
-                 epsilon=0.1, aug_type=None, decay_power=3, alpha=1., size=(224, 224), max_soft=0.0,
-                 reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, s=10, end_s=None,
-                 duration_s=None, skip_steps_s=None, enable_masks=False,
+                 scheduler=None, use_gpu=False, save_chkpt=True, train_patience=10, early_stoping = False,
+                 lb_lr = 1e-5, softmax_type='stock', label_smooth=False, epsilon=0.1, aug_type=None, decay_power=3,
+                 alpha=1., size=(224, 224), max_soft=0.0, reformulate=False, aug_prob=1., conf_penalty=False,
+                 pr_product=False, m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None, enable_masks=False,
                  adaptive_margins=False, class_weighting=False, attr_cfg=None, base_num_classes=-1,
                  symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False):
-        super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt)
+        super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt,
+                                                    train_patience, lb_lr, early_stoping)
 
         assert softmax_type in ['stock', 'am']
         assert s > 0.0
@@ -434,6 +435,9 @@ class ImageAMSoftmaxEngine(Engine):
                 self.aug_index = index
                 self.lam = lam
                 imgs = x1 + x2
+            else:
+                self.aug_index = None
+                self.lam = None
 
         elif self.aug_type == 'mixup':
             r = np.random.rand(1)
@@ -444,6 +448,9 @@ class ImageAMSoftmaxEngine(Engine):
                 imgs = lam * imgs + (1 - lam) * imgs[index, :]
                 self.lam = lam
                 self.aug_index = index
+            else:
+                self.aug_index = None
+                self.lam = None
 
         elif self.aug_type == 'cutmix':
             r = np.random.rand(1)
@@ -457,6 +464,9 @@ class ImageAMSoftmaxEngine(Engine):
                 lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (imgs.size()[-1] * imgs.size()[-2]))
                 self.lam = lam
                 self.aug_index = rand_index
+            else:
+                self.aug_index = None
+                self.lam = None
 
         return imgs, obj_ids
 

@@ -29,7 +29,9 @@ class Engine:
         use_gpu (bool, optional): use gpu. Default is True.
     """
 
-    def __init__(self, datamanager, models, optimizers, schedulers, use_gpu=True, save_chkpt=True):
+    def __init__(self, datamanager, models, optimizers, schedulers,
+                 use_gpu=True, save_chkpt=True, train_patience = 10, lb_lr = 1e-5, early_stoping=False):
+
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
         self.test_loader = self.datamanager.test_loader
@@ -39,9 +41,14 @@ class Engine:
 
         self.start_epoch = 0
         self.fixbase_epoch = 0
+        self.iter_to_wait = 0
+        self.best_metric = 0.0
         self.max_epoch = None
         self.num_batches = None
         self.epoch = None
+        self.lb_lr = lb_lr
+        self.train_patience = train_patience
+        self.early_stoping = early_stoping
 
         self.models = OrderedDict()
         self.optims = OrderedDict()
@@ -130,12 +137,34 @@ class Engine:
         name = names[0]
         return self.optims[name].param_groups[0]['lr']
 
-    def update_lr(self, names=None):
+    def update_lr(self, names=None, output_avg_metric=None):
         names = self.get_model_names(names)
 
         for name in names:
             if self.scheds[name] is not None:
-                self.scheds[name].step()
+                if self.scheds[name].__class__.__name__ == 'ReduceLROnPlateau':
+                    self.scheds[name].step(output_avg_metric)
+                else:
+                    self.scheds[name].step()
+
+    def exit_on_plataeu(self, top1, top5, mAP):
+            name = self.get_model_names()[0]
+            current_lr = self.get_current_lr()
+
+            if current_lr == self.lb_lr:
+                current_metric = np.round(top1, 4)
+                print(self.best_metric, current_metric)
+                if (self.best_metric >= current_metric):
+                    self.iter_to_wait += 1
+                    print(f'best metric >= current metric! iter to wait: {self.iter_to_wait}')
+                    if self.iter_to_wait >= self.train_patience:
+                        print("The training stopped due to no improvements for {} epochs".format(self.train_patience))
+                        return True
+                else:
+                    self.best_metric = current_metric
+                    self.iter_to_wait = 0
+
+            return False
 
     def run(
         self,
@@ -221,7 +250,7 @@ class Engine:
 
         for self.epoch in range(self.start_epoch, self.max_epoch):
 
-            self.train(
+            avg_loss = self.train(
                 print_freq=print_freq,
                 fixbase_epoch=fixbase_epoch,
                 open_layers=open_layers
@@ -232,7 +261,7 @@ class Engine:
                and (self.epoch+1) % eval_freq == 0 \
                and (self.epoch + 1) != self.max_epoch:
 
-                self.test(
+                top1, top5, mAP = self.test(
                     self.epoch,
                     dist_metric=dist_metric,
                     normalize_feature=normalize_feature,
@@ -244,6 +273,10 @@ class Engine:
                 )
                 if self.save_chkpt:
                     self.save_model(self.epoch, save_dir)
+
+            if self.early_stoping:
+                if self.exit_on_plataeu(top1, top5, mAP):
+                    break
 
         if self.max_epoch > 0:
             print('=> Final test')
@@ -328,7 +361,8 @@ class Engine:
 
             end = time.time()
 
-        self.update_lr()
+        self.update_lr(output_avg_metric = losses.meters['loss'].avg)
+        return losses.meters['loss'].avg
 
     def forward_backward(self, data):
         raise NotImplementedError
@@ -361,14 +395,14 @@ class Engine:
         """
         self.set_model_mode('eval')
         targets = list(self.test_loader.keys())
-        top1 = None
+        top1, mAP, top5 = [None]*3
         for dataset_name in targets:
             domain = 'source' if dataset_name in self.datamanager.sources else 'target'
             print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
 
             for model_name, model in self.models.items():
                 if get_model_attr(model, 'classification'):
-                    top1 = self._evaluate_classification(
+                    top1, top5, mAP = self._evaluate_classification(
                         model=model,
                         epoch=epoch,
                         data_loader=self.test_loader[dataset_name]['gallery'],
@@ -387,7 +421,7 @@ class Engine:
                         model_name=model_name
                     )
                 else:
-                    top1 = self._evaluate_reid(
+                    top1, top5, mAP = self._evaluate_reid(
                         model=model,
                         epoch=epoch,
                         model_name=model_name,
@@ -404,7 +438,7 @@ class Engine:
                         rerank=rerank,
                         lr_finder = lr_finder
                     )
-        return top1
+        return  top1, top5, mAP
 
     @torch.no_grad()
     def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks, lr_finder=False):
@@ -422,7 +456,7 @@ class Engine:
         if norm_cm.shape[0] <= 20:
             metrics.show_confusion_matrix(norm_cm)
 
-        return cmc[0]
+        return cmc[0], cmc[1], mAP
 
     @torch.no_grad()
     def _evaluate_pairwise(self, model, epoch, data_loader, model_name):
@@ -527,7 +561,7 @@ class Engine:
                 topk=visrank_topk
             )
 
-        return cmc[0]
+        return cmc[0], cmc[1], mAP
 
     @staticmethod
     def compute_loss(criterion, outputs, targets, **kwargs):

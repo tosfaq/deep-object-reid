@@ -48,11 +48,11 @@ class ModelInterface(nn.Module):
           return out
 
      @staticmethod
-     def _construct_fc_layer(input_dim, output_dim, dropout=False):
+     def _construct_fc_layer(input_dim, output_dim, dropout=None):
           layers = []
 
           if dropout:
-               layers.append(Dropout(p=0.2, dist='gaussian'))
+               layers.append(Dropout(**dropout))
 
           layers.extend([
                nn.Linear(input_dim, output_dim),

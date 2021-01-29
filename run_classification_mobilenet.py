@@ -50,11 +50,10 @@ def main():
     # path_to_base_cfg = args.config
     # to_skip = {'SUN397', 'birdsnap', 'CIFAR100', 'fashionMNIST', 'SVHN', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
     # to_skip = {'SUN397', 'birdsnap', 'cars', 'DTD', 'pets', 'Xray', 'caltech101', 'FOOD101', 'flowers'}
-    to_skip = {'fashionMNIST', 'SVHN'}
+    to_skip = {'pets', 'caltech101', 'DTD', 'cars'}
     # to_skip = {'pets'}
     for path_to_base_cfg in [
-                            '/home/prokofiev/deep-person-reid/configs/classification/base_config_final_large.yml',
-                            '/home/prokofiev/deep-person-reid/configs/classification/base_config_final_large_SM.yml'
+                            '/home/prokofiev/deep-person-reid/configs/classification/lr_scheduler_cosine.yml'
                             ]:
 
         for key, params in datasets.items():

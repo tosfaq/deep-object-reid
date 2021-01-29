@@ -7,12 +7,14 @@ from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, rsc, EvalModeSetter
 
 
-__all__ = ['mobilenetv3_large', 'mobilenetv3_small']
+__all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small']
 
 pretrained_urls = {
     'mobilenetv3_small':
     'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-small-55df8e1f.pth?raw=true',
     'mobilenetv3_large':
+    'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-large-1cd25616.pth?raw=true',
+    'mobilenetv3_large_075':
     'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-large-0.75-9632d2a8.pth?raw=true',
 }
 
@@ -85,6 +87,7 @@ def conv_1x1_bn(inp, oup):
         nn.Conv2d(inp, oup, 1, 1, 0, bias=False),
         nn.BatchNorm2d(oup),
         h_swish()
+        # h_swish() if self.loss == 'softmax' else nn.PReLU()
     )
 
 
@@ -129,6 +132,45 @@ class InvertedResidual(nn.Module):
             return x + self.conv(x)
         else:
             return self.conv(x)
+
+class MobileNetV3PreClassifier(nn.Module):
+    """
+    MobileNetV3 classifier.
+    Parameters:
+    ----------
+    in_channels : int
+        Number of input channels.
+    out_channels : int
+        Number of output channels.
+    mid_channels : int
+        Number of middle channels.
+    dropout_cls : dict
+        Parameter of Dropout layer. Faction of the input units to drop.
+    """
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 mid_channels,
+                 loss = 'softmax',
+                 dropout_cls=None):
+        super().__init__()
+        self.use_dropout = (dropout_cls != None)
+
+        self.conv1 = conv1x1(
+            in_channels=in_channels,
+            out_channels=mid_channels)
+        self.activ = (h_swish(inplace=True)
+                      if loss == 'softmax'
+                      else nn.PReLU())
+        if self.use_dropout:
+            self.dropout = Dropout(**dropout_cls)
+
+    def forward(self, x):
+        x1 = self.conv1(x)
+        x2= self.activ(x1)
+        if self.use_dropout:
+            x2 = self.dropout(x2, x)
+        return x2
 
 class MobileNetV3(ModelInterface):
     def __init__(self,
@@ -178,7 +220,6 @@ class MobileNetV3(ModelInterface):
             if (in_size[0] < 100) and (s == 2) and flag:
                 s = 1
                 flag = False
-            print(s)
             output_channel = _make_divisible(c * width_mult, 8)
             exp_size = _make_divisible(input_channel * t, 8)
             layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs))
@@ -188,21 +229,53 @@ class MobileNetV3(ModelInterface):
         self.conv = conv_1x1_bn(input_channel, exp_size)
         output_channel = {'large': 1280, 'small': 1024}
         output_channel = _make_divisible(output_channel[mode] * width_mult, 8) if width_mult > 1.0 else output_channel[mode]
+
         if self.loss == 'softmax':
             self.classifier = nn.Sequential(
-                nn.Linear(exp_size, output_channel),
+                nn.Linear(exp_size, self.feature_dim),
+                nn.BatchNorm1d(self.feature_dim),
                 h_swish(),
                 Dropout(**dropout_cls),
-                nn.Linear(output_channel, num_classes),
+                nn.Linear(self.feature_dim, num_classes),
             )
         else:
             assert self.loss == 'am_softmax'
             self.classifier = nn.Sequential(
-                nn.Linear(exp_size, output_channel),
+                nn.Linear(exp_size, self.feature_dim),
+                nn.BatchNorm1d(self.feature_dim),
                 nn.PReLU(),
                 Dropout(**dropout_cls),
-                AngleSimpleLinear(output_channel, num_classes),
+                AngleSimpleLinear(self.feature_dim, num_classes),
             )
+
+        # if self.loss == 'softmax':
+        #      self.classifier = nn.Sequential(
+        #                         MobileNetV3PreClassifier(
+        #                             in_channels=exp_size,
+        #                             out_channels=num_classes,
+        #                             mid_channels=self.feature_dim,
+        #                             dropout_cls=dropout_cls),
+        #                         conv1x1(
+        #                             in_channels=self.feature_dim,
+        #                             out_channels=num_classes,
+        #                             bias=True) # question about bias
+        #                         )
+        # else:
+        #     assert self.loss == 'am_softmax'
+        #     self.classifier = nn.Sequential(
+        #                         MobileNetV3PreClassifier(
+        #                             in_channels=exp_size,
+        #                             out_channels=num_classes,
+        #                             mid_channels=self.feature_dim,
+        #                             dropout_cls=dropout_cls)
+        #                         )
+        #     self.asl = AngleSimpleLinear(
+        #         in_features=self.feature_dim,
+        #         out_features=num_classes)
+
+            # self.classifier = AngleSimpleLinear(
+            #     in_features=exp_size,
+            #     out_features=num_classes)
 
         self._initialize_weights()
 
@@ -305,7 +378,7 @@ def init_pretrained_weights(model, key=''):
     # state_dict = torch.load(cached_file)
     model = load_model(model, cached_file)
 
-def mobilenetv3_large(pretrained=False, **kwargs):
+def mobilenetv3_large_075(pretrained=False, **kwargs):
     """
     Constructs a MobileNetV3-Large model
     """
@@ -330,10 +403,38 @@ def mobilenetv3_large(pretrained=False, **kwargs):
 
     net = MobileNetV3(cfgs, mode='large', width_mult =.75, **kwargs)
     if pretrained:
-        init_pretrained_weights(net, key='mobilenetv3_large')
+        init_pretrained_weights(net, key='mobilenetv3_large_075')
 
     return net
 
+def mobilenetv3_large(pretrained=False, **kwargs):
+    """
+    Constructs a MobileNetV3-Large model
+    """
+    cfgs = [
+        # k, t, c, SE, HS, s
+        [3,   1,  16, 0, 0, 1],
+        [3,   4,  24, 0, 0, 2],
+        [3,   3,  24, 0, 0, 1],
+        [5,   3,  40, 1, 0, 2],
+        [5,   3,  40, 1, 0, 1],
+        [5,   3,  40, 1, 0, 1],
+        [3,   6,  80, 0, 1, 2],
+        [3, 2.5,  80, 0, 1, 1],
+        [3, 2.3,  80, 0, 1, 1],
+        [3, 2.3,  80, 0, 1, 1],
+        [3,   6, 112, 1, 1, 1],
+        [3,   6, 112, 1, 1, 1],
+        [5,   6, 160, 1, 1, 2],
+        [5,   6, 160, 1, 1, 1],
+        [5,   6, 160, 1, 1, 1]
+    ]
+
+    net = MobileNetV3(cfgs, mode='large', width_mult = 1.5, **kwargs)
+    if pretrained:
+        init_pretrained_weights(net, key='mobilenetv3_large')
+
+    return net
 
 def mobilenetv3_small(pretrained=False, **kwargs):
     """

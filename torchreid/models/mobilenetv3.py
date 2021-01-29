@@ -393,6 +393,7 @@ def init_pretrained_weights(model, key=''):
     cached_file = os.path.join(model_dir, filename)
     if not os.path.exists(cached_file):
         gdown.download(pretrained_urls[key], cached_file, quiet=False)
+
     state_dict = torch.load('/home/prokofiev/deep-person-reid/mobilenetv3-large-1cd25616.pth')
     model.load_pretrained_weights(state_dict)
 
