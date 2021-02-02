@@ -14,19 +14,16 @@
  limitations under the License.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-
-import math
-
+from __future__ import division, absolute_import
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-
 import torch.nn.functional as F
 from torch.nn import Parameter
 
-from .fmix import sample_mask, FMixBase
+import math
+
+from .fmix import FMixBase, sample_mask
 
 
 class AngleSimpleLinear(nn.Module):

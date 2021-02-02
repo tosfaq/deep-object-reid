@@ -1,10 +1,11 @@
 from __future__ import print_function, absolute_import
-import warnings
 import torch
 import torch.nn as nn
 
-from .radam import RAdam
+import warnings
+
 from .sam import SAM
+from .radam import RAdam
 
 AVAI_OPTIMS = ['adam', 'amsgrad', 'sgd', 'rmsprop', 'radam', 'sam']
 

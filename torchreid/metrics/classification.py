@@ -1,9 +1,9 @@
-from collections import defaultdict
-
-import torch
 import numpy as np
-from sklearn.metrics import confusion_matrix
+import torch
+
+from collections import defaultdict
 from terminaltables import AsciiTable
+from sklearn.metrics import confusion_matrix
 
 
 def score_extraction(data_loader, model, use_gpu, head_id=0):

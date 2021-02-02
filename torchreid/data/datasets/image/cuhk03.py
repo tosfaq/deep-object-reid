@@ -1,7 +1,8 @@
 from __future__ import division, print_function, absolute_import
-import os.path as osp
 
 from torchreid.utils import read_json, write_json, mkdir_if_missing
+
+import os.path as osp
 
 from ..dataset import ImageDataset
 
@@ -103,8 +104,8 @@ class CUHK03(ImageDataset):
             return
 
         import h5py
-        from scipy.misc import imsave
         from scipy.io import loadmat
+        from scipy.misc import imsave
 
         mkdir_if_missing(self.imgs_detected_dir)
         mkdir_if_missing(self.imgs_labeled_dir)

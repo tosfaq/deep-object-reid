@@ -14,21 +14,22 @@
  limitations under the License.
 """
 
-import argparse
-from PIL import Image
-
 import numpy as np
-import os.path as osp
-import onnx
-from onnx import numpy_helper
 import torch
-from torch.onnx.symbolic_registry import register_op
+from PIL import Image
 from torch.onnx.symbolic_helper import parse_args
+from torch.onnx.symbolic_registry import register_op
 
+from torchreid.utils import load_checkpoint, load_pretrained_weights
 from torchreid.models import build_model
-from torchreid.utils import load_pretrained_weights, load_checkpoint
 from torchreid.data.transforms import build_inference_transform
-from scripts.default_config import get_default_config, model_kwargs
+
+import onnx
+import os.path as osp
+import argparse
+from onnx import numpy_helper
+from scripts.default_config import model_kwargs, get_default_config
+
 
 def load_checkpoint(fpath):
     r"""Loads checkpoint.
@@ -67,7 +68,7 @@ def load_checkpoint(fpath):
 
 @parse_args('v', 'i', 'v', 'v', 'f', 'i')
 def group_norm_symbolic(g, input, num_groups, weight, bias, eps, cudnn_enabled):
-    from torch.onnx.symbolic_opset9 import reshape, mul, add, reshape_as
+    from torch.onnx.symbolic_opset9 import add, mul, reshape, reshape_as
 
     channels_num = input.type().sizes()[1]
 

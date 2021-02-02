@@ -1,8 +1,9 @@
 from __future__ import division, print_function, absolute_import
-import glob
-import os.path as osp
 
 from torchreid.utils import read_json
+
+import glob
+import os.path as osp
 
 from ..dataset import VideoDataset
 

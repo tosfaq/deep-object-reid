@@ -16,19 +16,17 @@ from .osnet_fpn import *
 from .resnetmid import *
 from .shufflenet import *
 from .squeezenet import *
-from .inceptionv4 import *
 from .mobilenetv2 import *
-from .mobilenetv3_2 import *
+from .mobilenetv3 import *
+from .ptcv_wrapper import *
 from .resnet_ibn_a import *
 from .resnet_ibn_b import *
 from .shufflenetv2 import *
 from .inceptionresnetv2 import *
-from .mobile_face_net_se import *
-from .ptcv_wrapper import *
-from .mobilenetv3_spoof import mobilenetv3_large_spoof
-from .mobilenetv3_pytcv import *
 from .inceptionv4_pytcv import *
+from .mobile_face_net_se import *
 from .efficient_net_pytcv import *
+
 __model_factory = {
     # image classification models
     'resnet18': resnet18,
@@ -49,7 +47,6 @@ __model_factory = {
     'densenet201': densenet201,
     'densenet161': densenet161,
     'inceptionresnetv2': inceptionresnetv2,
-    'inceptionv4': inceptionv4,
     'inceptionv4_pytcv': inceptionv4_pytcv,
     'xception': xception,
     'resnet50_ibn_a': resnet50_ibn_a,
@@ -61,8 +58,7 @@ __model_factory = {
     'mobilenetv3_small': mobilenetv3_small,
     'mobilenetv3_large': mobilenetv3_large,
     'mobilenetv3_large_075': mobilenetv3_large_075,
-    'mobilenetv3_large_w1': mobilenetv3_large_w1,
-    'mobilenetv3_small_w1': mobilenetv3_small_w1,
+    'mobilenetv3_large_150': mobilenetv3_large_150,
     'shufflenet': shufflenet,
     'squeezenet1_0': squeezenet1_0,
     'squeezenet1_0_fc512': squeezenet1_0_fc512,
@@ -95,7 +91,6 @@ __model_factory = {
     # face reid models
     'mobile_face_net_se_1x': mobile_face_net_se_1x,
     'mobile_face_net_se_2x': mobile_face_net_se_2x,
-    'mobilenetv3_spoof': mobilenetv3_large_spoof,
     'efficientnet_b0': efficientnet_b0,
     'efficientnet_b1': efficientnet_b1,
     'efficientnet_b2': efficientnet_b2b,
@@ -132,7 +127,6 @@ def build_model(name, **kwargs):
         >>> from torchreid import models
         >>> model = models.build_model('resnet50', 751, loss='softmax')
     """
-
     avai_models = list(__model_factory.keys())
     if name not in avai_models:
         raise KeyError('Unknown model: {}. Must be one of {}'.format(name, avai_models))

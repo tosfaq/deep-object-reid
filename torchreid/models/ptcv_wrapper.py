@@ -12,12 +12,12 @@
 """
 
 from __future__ import division, absolute_import
+import torch.nn as nn
+
+from torchreid.losses import AngleSimpleLinear
 
 from functools import partial
-
-import torch.nn as nn
-from pytorchcv.model_provider import get_model, _models
-from torchreid.losses import AngleSimpleLinear
+from pytorchcv.model_provider import _models, get_model
 
 from .common import ModelInterface
 

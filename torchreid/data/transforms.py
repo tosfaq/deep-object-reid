@@ -1,17 +1,24 @@
 from __future__ import division, print_function, absolute_import
+import numpy as np
+import cv2
+import torch
+from PIL import Image, ImageOps
+from torchvision.transforms import (
+    Resize,
+    Compose,
+    ToTensor,
+    Normalize,
+    ToPILImage,
+    ColorJitter
+)
+from torchvision.transforms import functional as F
+
+from torchreid.utils.tools import read_image
 
 import math
 import random
-from os.path import exists, join
+from os.path import join, exists
 from collections import deque
-
-import cv2
-import numpy as np
-import torch
-from torchvision.transforms import Compose, Resize, ToTensor, Normalize, ColorJitter, ToPILImage
-from torchvision.transforms import functional as F
-from torchreid.utils.tools import read_image
-from PIL import Image, ImageOps
 
 from ..data.datasets.image.lfw import FivePointsAligner
 

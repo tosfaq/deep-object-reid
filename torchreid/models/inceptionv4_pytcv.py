@@ -6,14 +6,16 @@
 
 __all__ = ['InceptionV4', 'inceptionv4_pytcv']
 
-import os
 import torch
 import torch.nn as nn
 import torch.nn.init as init
 
-from .common import Concurrent, ModelInterface
+from torchreid.ops import Dropout, EvalModeSetter, rsc
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, rsc, EvalModeSetter
+
+import os
+
+from .common import Concurrent, ModelInterface
 
 
 class InceptConv(nn.Module):

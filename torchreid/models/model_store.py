@@ -5,9 +5,9 @@
 __all__ = ['get_model_file', 'load_model', 'download_model', 'calc_num_params']
 
 import os
-import zipfile
-import logging
 import hashlib
+import logging
+import zipfile
 
 _model_sha1 = {name: (error, checksum, repo_release_tag, caption, paper, ds, img_size, scale, batch, rem) for
                name, error, checksum, repo_release_tag, caption, paper, ds, img_size, scale, batch, rem in [
@@ -232,6 +232,7 @@ def load_model(net,
         Whether to silently ignore parameters from the file that are not present in this Module.
     """
     import torch
+
     import warnings
     from collections import OrderedDict
 

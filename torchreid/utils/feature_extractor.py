@@ -5,7 +5,9 @@ import torchvision.transforms as T
 from PIL import Image
 
 from torchreid.utils import (
-    check_isfile, load_pretrained_weights, compute_model_complexity
+    check_isfile,
+    load_pretrained_weights,
+    compute_model_complexity
 )
 from torchreid.models import build_model
 

@@ -18,25 +18,29 @@
  limitations under the License.
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-
-import copy
-
+from __future__ import division, print_function, absolute_import
+import numpy as np
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
 import torch.nn.functional as F
+from torchvision.transforms import ToPILImage
+
+from torchreid import metrics
+from torchreid.utils import StateCacher, set_random_seed
+from torchreid.engine import Engine
+from torchreid.losses import (
+    MetricLosses,
+    AMSoftmaxLoss,
+    CrossEntropyLoss,
+    sample_mask,
+    get_regularizer
+)
+
+import os
+import copy
 from torch_lr_finder import LRFinder
 
-from torchvision.transforms import ToPILImage
-import numpy as np
-import os
-
-from torchreid.engine import Engine
-from torchreid.utils import StateCacher, clip
-from torchreid.losses import get_regularizer, AMSoftmaxLoss, CrossEntropyLoss, MetricLosses, sample_mask
-from torchreid import metrics
 
 class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
@@ -190,7 +194,7 @@ class ImageAMSoftmaxEngine(Engine):
 
         steps = [1,2] if self.enable_sam else [1]
         for step in steps:
-            # is sam anabled then statistics will be written each step, but saved only the second time
+            # if sam is enabled then statistics will be written each step, but will be saved only the second time
             # this is made just for convinience
             avg_acc = 0.0
             out_logits = [[] for _ in range(self.num_targets)]
@@ -235,16 +239,16 @@ class ImageAMSoftmaxEngine(Engine):
             total_loss.backward(retain_graph=self.enable_metric_losses)
 
             for model_name in model_names:
+                optim_name = self.optims[model_name].__class__.__name__
                 for trg_id in range(self.num_targets):
                     if self.enable_metric_losses:
                         ml_loss_module = self.ml_losses[trg_id][model_name]
                         ml_loss_module.end_iteration(do_backward=False)
-                if self.enable_sam and step == 1:
+                if optim_name == "SAM" and step == 1:
                     self.optims[model_name].first_step()
-                elif self.enable_sam and step == 2:
+                elif optim_name == "SAM" and step == 2:
                     self.optims[model_name].second_step()
-                else:
-                    assert not self.enable_sam
+                elif optim_name != "SAM" and step == 1:
                     self.optims[model_name].step()
 
             loss_summary['loss'] = total_loss.item()
@@ -253,16 +257,6 @@ class ImageAMSoftmaxEngine(Engine):
 
     def _single_model_losses(self, model, train_records, imgs, obj_ids, n_iter, model_name, num_packages):
         run_kwargs = self._prepare_run_kwargs(obj_ids)
-
-        # mean = [0.485, 0.456, 0.406]
-        # std = [0.229, 0.224, 0.225]
-        # for im in imgs:
-        #     z = im * torch.tensor(std).to(imgs.device).view(3, 1, 1)
-        #     z = z + torch.tensor(mean).to(imgs.device).view(3, 1, 1)
-
-        #     img2 = ToPILImage(mode='RGB')(z)
-        #     img2.save(f'/home/prokofiev/deep-person-reid/test_images/{torch.rand(1)}.jpg')
-        # exit()
         model_output = model(imgs, **run_kwargs)
         all_logits, all_embeddings, extra_data = self._parse_model_output(model_output)
 
@@ -491,95 +485,70 @@ class ImageAMSoftmaxEngine(Engine):
 
     def find_lr(
         self,
-        lr_find_mode='automatic',
-        max_lr=0.01,
-        min_lr=0.001,
+        mode='automatic',
+        epochs_warmup=2,
+        max_lr=0.03,
+        min_lr=4e-3,
         num_iter=10,
-        num_epoch = 3,
-        pretrained = True,
-        save_dir='log',
-        print_freq=10,
-        fixbase_epoch=0,
-        open_layers=None,
-        start_eval=0,
-        eval_freq=-1,
-        test_only=False,
-        dist_metric='euclidean',
-        normalize_feature=False,
-        visrank=False,
-        visrank_topk=10,
-        use_metric_cuhk03=False,
-        ranks=(1, 5, 10, 20),
-        rerank=False,
+        num_epochs=3,
+        path_to_savefig='',
+        seed = 5,
         **kwargs):
         r"""A  pipeline for learning rate search.
 
         Args:
-            lr_find_mode (str, optional): mode for learning rate finder, "automatic" or "brute_force".
+            mode (str, optional): mode for learning rate finder, "automatic" or "brute_force".
                 Default is "automatic".
             max_lr (float): upper bound for leaning rate
             min_lr (float): lower bound for leaning rate
-            num_iter (int, optional): number of iterations for searching space. Default is 10.
+            num_iter (int, optional): number of iterations for learning rate searching space. Default is 10
+            num_epochs (int, optional): number of epochs to train for each learning rate. Default is 3
             pretrained (bool): whether or not the model is pretrained
-            save_dir (str): directory to save model.
-            max_epoch (int): maximum epoch.
-            start_epoch (int, optional): starting epoch. Default is 0.
-            print_freq (int, optional): print_frequency. Default is 10.
-            fixbase_epoch (int, optional): number of epochs to train ``open_layers`` (new layers)
-                while keeping base layers frozen. Default is 0. ``fixbase_epoch`` is counted
-                in ``max_epoch``.
-            open_layers (str or list, optional): layers (attribute names) open for training.
-            start_eval (int, optional): from which epoch to start evaluation. Default is 0.
-            eval_freq (int, optional): evaluation frequency. Default is -1 (meaning evaluation
-                is only performed at the end of training).
-            test_only (bool, optional): if True, only runs evaluation on test datasets.
-                Default is False.
-            dist_metric (str, optional): distance metric used to compute distance matrix
-                between query and gallery. Default is "euclidean".
-            normalize_feature (bool, optional): performs L2 normalization on feature vectors before
-                computing feature distance. Default is False.
-            visrank (bool, optional): visualizes ranked results. Default is False. It is recommended to
-                enable ``visrank`` when ``test_only`` is True. The ranked images will be saved to
-                "save_dir/visrank_dataset", e.g. "save_dir/visrank_market1501".
-            visrank_topk (int, optional): top-k ranked images to be visualized. Default is 10.
-            use_metric_cuhk03 (bool, optional): use single-gallery-shot setting for cuhk03.
-                Default is False. This should be enabled when using cuhk03 classic split.
-            ranks (list, optional): cmc ranks to be computed. Default is [1, 5, 10, 20].
-            rerank (bool, optional): uses person re-ranking (by Zhong et al. CVPR'17).
-                Default is False. This is only enabled when test_only=True.
+            path_to_savefig (str): if path given save plot loss/lr (only for automatic mode). Default: ''
         """
-        print('=> Start learning rate search')
+        print('=> Start learning rate search. Mode: {}'.format(mode))
 
+        name = self.get_model_names(None)[0]
+        model_device = next(self.models[name].parameters()).device
         self.num_batches = len(self.train_loader)
 
-        names = self.get_model_names(None)
-        name = names[0]
-        wd = self.optims[name].param_groups[0]['weight_decay']
-        lower_bound_lr = 3e-4
-        upper_bound_lr = 0.1 if pretrained else 1.
-        model = self.models[name]
-        model_device = next(model.parameters()).device
-
-        if lr_find_mode == 'automatic':
-
+        if mode == 'automatic':
+            wd = self.optims[name].param_groups[0]['weight_decay']
             criterion = self.main_losses[0]
             if self.optims[name].__class__.__name__ == 'SAM':
-                optimizer = torch.optim.SGD(model.parameters(), lr=lower_bound_lr, weight_decay=wd)
+                optimizer = torch.optim.SGD(self.models[name].parameters(), lr=min_lr, weight_decay=wd)
             else:
                 optimizer = self.optims[name]
+            if epochs_warmup != 0:
+                state_cacher = StateCacher(in_memory=True, cache_dir=None)
+                state_cacher.store("model", self.models[name].module.state_dict())
+                state_cacher.store("optimizer", self.optims[name].state_dict())
+                print("Warmup the model's weights for {} epochs".format(epochs_warmup))
+                self.run(max_epoch=epochs_warmup, lr_finder=True)
+                print("Finished warmuping the model. Continue to find learning rate:")
+            # run lr finder
+            lr_finder = LRFinder(self.models[name], optimizer, criterion, device="cuda")
+            lr_finder.range_test(self.train_loader, smooth_f=0.01, start_lr=min_lr, end_lr=max_lr,
+                                 num_iter=self.num_batches, step_mode='exp')
+            ax, optim_lr = lr_finder.plot()
+            # plot if needed
+            if path_to_savefig:
+                fig = ax.get_figure()
+                fig.savefig(path_to_savefig)
+            # reset weights and optimizer state
+            if epochs_warmup != 0:
+                self.models[name].module.load_state_dict(state_cacher.retrieve("model"))
+                self.optims[name].load_state_dict(state_cacher.retrieve("optimizer"))
+                self.models[name].to(model_device)
+            else:
+                lr_finder.reset()
 
-            lr_finder = LRFinder(model, optimizer, criterion, device="cuda")
-            lr_finder.range_test(self.train_loader, start_lr = lower_bound_lr, end_lr = upper_bound_lr, num_iter=self.num_batches, step_mode='exp')
-            _, optim_lr = lr_finder.plot()
-            lr_finder.reset()
-            print(optim_lr)
-            return clip(optim_lr, pretrained=pretrained, backbone_name=model.module.__class__.__name__)
+            return optim_lr
 
-        assert lr_find_mode == 'brute_force'
+        assert mode == 'brute_force'
+        if num_epochs < 3:
+            raise ValueError("Number of epochs to find an optimal learning rate less than 3. It's pointless")
         acc_store = dict()
-        self.start_epoch = 0
-        self.max_epoch = num_epoch
-        self.fixbase_epoch = fixbase_epoch
         state_cacher = StateCacher(in_memory=True, cache_dir=None)
         state_cacher.store("model", self.models[name].module.state_dict())
         state_cacher.store("optimizer", self.optims[name].state_dict())
@@ -587,51 +556,29 @@ class ImageAMSoftmaxEngine(Engine):
         best_acc = 0.0
 
         for lr in range_lr:
+            print('Training with next lr: {}'.format(lr))
             for param_group in self.optims[name].param_groups:
                 param_group["lr"] = round(lr,6)
-            for self.epoch in range(self.start_epoch, self.max_epoch):
-                cur_top1 = 0.
-                self.train(
-                        print_freq=print_freq,
-                        fixbase_epoch=fixbase_epoch,
-                        open_layers=open_layers,
-                        lr_finder=True
-                        )
 
-                top1 = self.test(
-                        self.epoch,
-                        dist_metric=dist_metric,
-                        normalize_feature=normalize_feature,
-                        visrank=visrank,
-                        visrank_topk=visrank_topk,
-                        save_dir=save_dir,
-                        use_metric_cuhk03=use_metric_cuhk03,
-                        ranks=ranks,
-                        lr_finder=True
-                    )
-                top1 = round(top1, 4)
-                if (self.max_epoch < 5) and (self.epoch == self.max_epoch - 1):
-                    acc_store[lr] = top1
-
-                elif (self.max_epoch >= 5) and (self.epoch == self.max_epoch - 1):
-                    acc_store[lr] = max(cur_top1, top1)
-
-                cur_top1 = top1
+            top1 = round(self.run(max_epoch=num_epochs, lr_finder=True, start_eval=0, eval_freq=1,), 4)
+            acc_store[lr] = top1
 
             self.models[name].module.load_state_dict(state_cacher.retrieve("model"))
             self.optims[name].load_state_dict(state_cacher.retrieve("optimizer"))
             self.models[name].to(model_device)
+            set_random_seed(seed)
 
-            # break if the results got worse
             cur_acc = acc_store[lr]
-            if (best_acc - cur_acc) >= 0.02:
+            # break if the results got worse
+            if (best_acc - cur_acc) >= 0.017:
+                print("The results got worse. Breaking learning rate search")
                 break
             best_acc = max(best_acc, cur_acc)
 
         max_acc = 0
-        for lr, acc in sorted(acc_store.items()):
+        for lr, acc in sorted(reversed(acc_store.items())):
             if acc >= (max_acc-0.002):
                 max_acc = acc
                 opt_lr = lr
 
-        return opt_lr
+        return float(opt_lr)

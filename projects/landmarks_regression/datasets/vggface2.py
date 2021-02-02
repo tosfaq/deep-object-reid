@@ -11,11 +11,12 @@
  limitations under the License.
 """
 
-import os.path as osp
-import cv2 as cv
-from tqdm import tqdm
 import numpy as np
+import cv2 as cv
 from torch.utils.data import Dataset
+
+import os.path as osp
+from tqdm import tqdm
 
 
 class VGGFace2(Dataset):

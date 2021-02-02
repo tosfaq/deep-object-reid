@@ -18,21 +18,25 @@
  limitations under the License.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-
-import warnings
-from collections import OrderedDict
-
+from __future__ import division, absolute_import
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from torchreid.models.osnet import OSNet, ConvLayer, LightConv3x3, Conv1x1Linear, \
-                                   ChannelGate, Conv1x1, pretrained_urls
+from torchreid.ops import FPN, Dropout, GeneralizedMeanPooling
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, FPN, GeneralizedMeanPooling
+from torchreid.models.osnet import (
+    OSNet,
+    Conv1x1,
+    ConvLayer,
+    ChannelGate,
+    LightConv3x3,
+    Conv1x1Linear,
+    pretrained_urls
+)
 
+import warnings
+from collections import OrderedDict
 
 __all__ = ['fpn_osnet_x1_0', 'fpn_osnet_x0_75', 'fpn_osnet_x0_5', 'fpn_osnet_x0_25', 'fpn_osnet_ibn_x1_0']
 

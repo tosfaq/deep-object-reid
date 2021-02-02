@@ -12,16 +12,26 @@ __all__ = ['EfficientNet', 'calc_tf_padding', 'EffiInvResUnit', 'EffiInitBlock',
            'efficientnet_b0c', 'efficientnet_b1c', 'efficientnet_b2c', 'efficientnet_b3c', 'efficientnet_b4c',
            'efficientnet_b5c', 'efficientnet_b6c', 'efficientnet_b7c', 'efficientnet_b8c']
 
+import torch.nn as nn
+import torch.nn.init as init
+import torch.nn.functional as F
+
+from torchreid.ops import Dropout
+from torchreid.losses import AngleSimpleLinear
+
 import os
 import math
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.nn.init as init
 
-from .common import (ModelInterface, round_channels, conv1x1_block,
-                     conv3x3_block, dwconv3x3_block, dwconv5x5_block, SEBlock)
-from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout
+from .common import (
+    SEBlock,
+    ModelInterface,
+    conv1x1_block,
+    conv3x3_block,
+    round_channels,
+    dwconv3x3_block,
+    dwconv5x5_block
+)
+
 
 def calc_tf_padding(x,
                     kernel_size,
@@ -225,7 +235,8 @@ class EffiInitBlock(nn.Module):
             stride=2,
             padding=(0 if tf_mode else 1),
             bn_eps=bn_eps,
-            activation=activation)
+            activation=activation,
+            IN_conv=IN_conv1)
 
     def forward(self, x):
         if self.tf_mode:
@@ -390,7 +401,7 @@ class EfficientNet(ModelInterface):
         if get_embeddings:
             out_data = [logits, glob_features.view(x.shape[0], -1)]
         elif self.loss in ['softmax', 'am_softmax']:
-            if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
+            if self.lr_finder.enable and self.lr_finder.mode == 'automatic':
                 out_data = logits
             else:
                 out_data = [logits]
@@ -400,7 +411,7 @@ class EfficientNet(ModelInterface):
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
-        if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
+        if self.lr_finder.enable and self.lr_finder.mode == 'automatic':
             return out_data
         return tuple(out_data)
 

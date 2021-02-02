@@ -1,8 +1,9 @@
 from __future__ import division, absolute_import
-import math
-from collections import OrderedDict
 import torch.nn as nn
 from torch.utils import model_zoo
+
+import math
+from collections import OrderedDict
 
 __all__ = [
     'senet154', 'se_resnet50', 'se_resnet101', 'se_resnet152',

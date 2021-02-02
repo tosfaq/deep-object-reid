@@ -1,6 +1,8 @@
 from torchreid.engine import (
-    ImageAMSoftmaxEngine, VideoSoftmaxEngine,
-    ImageTripletEngine, VideoTripletEngine,
+    ImageTripletEngine,
+    VideoSoftmaxEngine,
+    VideoTripletEngine,
+    ImageAMSoftmaxEngine,
     ImageContrastiveEngine
 )
 

@@ -1,11 +1,10 @@
 from __future__ import division, absolute_import
-
-import warnings
-from collections import OrderedDict
-
 import torch
 from torch import nn
 from torch.nn import functional as F
+
+import warnings
+from collections import OrderedDict
 
 from .common import ModelInterface
 

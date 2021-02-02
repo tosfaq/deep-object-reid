@@ -7,15 +7,14 @@ def get_default_config():
     # lr finder
     cfg.lr_finder = CN()
     cfg.lr_finder.enable = False
-    cfg.lr_finder.lr_find_mode = 'automatic'
-    cfg.lr_finder.max_lr = 0.01
-    cfg.lr_finder.min_lr = 0.001
+    cfg.lr_finder.mode = 'automatic'
+    cfg.lr_finder.max_lr = 0.03
+    cfg.lr_finder.min_lr = 0.004
     cfg.lr_finder.num_iter = 10
-    cfg.lr_finder.num_epoch = 3
+    cfg.lr_finder.num_epochs = 3
+    cfg.lr_finder.epochs_warmup = 2
     cfg.lr_finder.stop_after = False
-
-    # number of the experinent
-    cfg.num_exp = 'whatever'
+    cfg.lr_finder.path_to_savefig = ''
 
     # model
     cfg.model = CN()
@@ -542,12 +541,6 @@ def engine_run_kwargs(cfg):
         'save_dir': cfg.data.save_dir,
         'tb_log_dir': cfg.data.tb_log_dir,
         'max_epoch': cfg.train.max_epoch,
-        'lr_find_mode': cfg.lr_finder.lr_find_mode,
-        'max_lr': cfg.lr_finder.max_lr,
-        'min_lr': cfg.lr_finder.min_lr,
-        'num_iter': cfg.lr_finder.num_iter,
-        'num_epoch': cfg.lr_finder.num_epoch,
-        'pretrained': cfg.model.pretrained,
         'start_epoch': cfg.train.start_epoch,
         'fixbase_epoch': cfg.train.fixbase_epoch,
         'open_layers': cfg.train.open_layers,
@@ -564,6 +557,17 @@ def engine_run_kwargs(cfg):
         'rerank': cfg.test.rerank
     }
 
+def lr_finder_run_kwargs(cfg):
+    return {
+        'mode': cfg.lr_finder.mode,
+        'epochs_warmup': cfg.lr_finder.epochs_warmup,
+        'max_lr': cfg.lr_finder.max_lr,
+        'min_lr': cfg.lr_finder.min_lr,
+        'num_iter': cfg.lr_finder.num_iter,
+        'num_epochs': cfg.lr_finder.num_epochs,
+        'path_to_savefig': cfg.lr_finder.path_to_savefig,
+        'seed': cfg.train.seed
+    }
 
 def transforms(cfg):
     return cfg.data.transforms

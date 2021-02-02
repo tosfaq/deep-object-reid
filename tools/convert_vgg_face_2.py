@@ -1,13 +1,13 @@
-import os.path as osp
-from torch.utils.data import Dataset
-from tqdm import tqdm
-import cv2 as cv
 import numpy as np
-import os
-
-import argparse
+import cv2 as cv
+from torch.utils.data import Dataset
 
 from torchreid.data.datasets.image.lfw import FivePointsAligner
+
+import os
+import os.path as osp
+import argparse
+from tqdm import tqdm
 
 
 class VGGFace2_raw(Dataset):

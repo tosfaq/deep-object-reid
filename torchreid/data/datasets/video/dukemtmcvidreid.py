@@ -1,9 +1,10 @@
 from __future__ import division, print_function, absolute_import
+
+from torchreid.utils import read_json, write_json
+
 import glob
 import os.path as osp
 import warnings
-
-from torchreid.utils import read_json, write_json
 
 from ..dataset import VideoDataset
 

@@ -1,15 +1,18 @@
-import argparse
-import json
-
 import torch
 
 import torchreid
 from torchreid.utils import (
-    set_random_seed, collect_env_info, compute_model_complexity
+    set_random_seed,
+    collect_env_info,
+    compute_model_complexity
 )
 
+import json
+import argparse
 from scripts.default_config import (
-    model_kwargs, get_default_config, imagedata_kwargs
+    model_kwargs,
+    imagedata_kwargs,
+    get_default_config
 )
 
 

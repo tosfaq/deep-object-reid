@@ -1,10 +1,10 @@
-from .dropout import Dropout
-from .nonlinearities import HSigmoid, HSwish
-from .gumbel import GumbelSigmoid, gumbel_sigmoid, GumbelSoftmax
-from .non_local import NonLocalModule
-from .norm import LocalContrastNormalization
 from .fpn import FPN
 from .gmp import GeneralizedMeanPooling
-from .data_parallel import DataParallel
-from .self_challenging import RSC, rsc
+from .norm import LocalContrastNormalization
 from .utils import EvalModeSetter
+from .gumbel import GumbelSigmoid, GumbelSoftmax, gumbel_sigmoid
+from .dropout import Dropout
+from .non_local import NonLocalModule
+from .data_parallel import DataParallel
+from .nonlinearities import HSwish, HSigmoid
+from .self_challenging import RSC, rsc

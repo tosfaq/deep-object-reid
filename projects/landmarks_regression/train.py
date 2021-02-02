@@ -11,27 +11,24 @@
  limitations under the License.
 """
 
-import argparse
-import datetime
-import os.path as osp
-
 import numpy as np
-import glog as log
-from tensorboardX import SummaryWriter
-
 import torch
-import torch.backends.cudnn as cudnn
 import torch.optim as optim
+import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
-from datasets import VGGFace2, CelebA, NDG
-
-from landnet import LandmarksNet
+import glog as log
+import os.path as osp
+import argparse
+import datetime
 from utils import landmarks_augmentation
-from utils.utils import save_model_cpu, load_model_state
-from utils.alignment_losses import AlignmentLoss
+from landnet import LandmarksNet
+from datasets import NDG, CelebA, VGGFace2
 from evaluate import evaluate
+from utils.utils import save_model_cpu, load_model_state
+from tensorboardX import SummaryWriter
+from utils.alignment_losses import AlignmentLoss
 
 
 def train(args):

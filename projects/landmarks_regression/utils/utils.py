@@ -11,10 +11,10 @@
  limitations under the License.
 """
 
-from collections import OrderedDict
-
 import torch
 import torch.backends.cudnn as cudnn
+
+from collections import OrderedDict
 
 
 def save_model_cpu(net, optim, ckpt_fname, epoch, write_solverstate=False):

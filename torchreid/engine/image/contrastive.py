@@ -14,16 +14,13 @@
  limitations under the License.
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-
+from __future__ import division, print_function, absolute_import
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from torchreid.engine import Engine
-from torchreid.losses import get_regularizer, InfoNCELoss
+from torchreid.losses import InfoNCELoss, get_regularizer
 
 
 class ImageContrastiveEngine(Engine):

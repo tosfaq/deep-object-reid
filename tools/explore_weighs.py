@@ -14,16 +14,16 @@
  limitations under the License.
 """
 
-import os.path as osp
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, REMAINDER
-
 import numpy as np
 import torch
 import torch.nn as nn
 
 import torchreid
 from torchreid.utils import load_pretrained_weights
-from scripts.default_config import get_default_config, model_kwargs
+
+import os.path as osp
+from argparse import REMAINDER, ArgumentParser, ArgumentDefaultsHelpFormatter
+from scripts.default_config import model_kwargs, get_default_config
 
 
 def collect_conv_layers(model):

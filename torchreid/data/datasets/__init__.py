@@ -1,13 +1,41 @@
 from __future__ import print_function, absolute_import
 
 from .image import (
-    GRID, PRID, CUHK01, CUHK02, CUHK03, MSMT17, VIPeR, SenseReID, Market1501, DukeMTMCreID, iLIDS,
-    VRIC, VeRi, CompCars, VMMRdb, CityFlow, Vehicle1M, UniverseModels, VeRiWild,
-    InternalWildtrack, InternalAirport, InternalCameraTampering, InternalGlobalMe,
-    InternalMall, InternalPSVIndoor, InternalPSVOutdoor, InternalSSPlatform,
-    InternalSSStreet, InternalSSTicket, MarketTrainOnly, VGGFace2, LFW, Classification, ClassificationImageFolder
+    LFW,
+    GRID,
+    PRID,
+    VRIC,
+    CUHK01,
+    CUHK02,
+    CUHK03,
+    MSMT17,
+    VeRi,
+    VIPeR,
+    VMMRdb,
+    CityFlow,
+    CompCars,
+    VeRiWild,
+    VGGFace2,
+    SenseReID,
+    Vehicle1M,
+    Market1501,
+    DukeMTMCreID,
+    InternalMall,
+    Classification,
+    UniverseModels,
+    InternalAirport,
+    MarketTrainOnly,
+    InternalGlobalMe,
+    InternalSSStreet,
+    InternalSSTicket,
+    InternalPSVIndoor,
+    InternalWildtrack,
+    InternalPSVOutdoor,
+    InternalSSPlatform,
+    InternalCameraTampering,
+    ClassificationImageFolder,
+    iLIDS
 )
-
 from .video import PRID2011, Mars, DukeMTMCVidReID, iLIDSVID
 from .dataset import Dataset, ImageDataset, VideoDataset
 

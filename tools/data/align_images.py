@@ -14,14 +14,14 @@
  limitations under the License.
 """
 
-import argparse
-from os.path import exists, join, abspath, isfile
-from os import listdir, walk, makedirs
-from shutil import rmtree
-
-import cv2
 import numpy as np
+import cv2
+
+import argparse
+from os import walk, listdir, makedirs
 from tqdm import tqdm
+from shutil import rmtree
+from os.path import join, exists, isfile, abspath
 
 
 def create_dirs(dir_path, override=False):

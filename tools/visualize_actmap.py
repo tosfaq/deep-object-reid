@@ -6,19 +6,27 @@ Reference:
     - Zhou et al. Omni-Scale Feature Learning for Person Re-Identification. ICCV, 2019.
 """
 
-import os.path as osp
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, REMAINDER
-
 import numpy as np
 import cv2
 import torch
 import torch.nn.functional as F
 
 import torchreid
-from torchreid.utils import check_isfile, mkdir_if_missing, load_pretrained_weights
+from torchreid.utils import (
+    check_isfile,
+    mkdir_if_missing,
+    load_pretrained_weights
+)
 from torchreid.data.datasets import init_image_dataset
 from torchreid.data.transforms import build_transforms
-from scripts.default_config import imagedata_kwargs, get_default_config, model_kwargs
+
+import os.path as osp
+from argparse import REMAINDER, ArgumentParser, ArgumentDefaultsHelpFormatter
+from scripts.default_config import (
+    model_kwargs,
+    imagedata_kwargs,
+    get_default_config
+)
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]

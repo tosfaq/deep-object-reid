@@ -1,21 +1,28 @@
-import os
-import sys
-import time
-import os.path as osp
-import argparse
 import torch
 import torch.nn as nn
 
 import torchreid
 from torchreid.utils import (
-    Logger, check_isfile, set_random_seed, collect_env_info,
-    resume_from_checkpoint, compute_model_complexity
+    Logger,
+    check_isfile,
+    set_random_seed,
+    collect_env_info,
+    resume_from_checkpoint,
+    compute_model_complexity
 )
 
+import os
+import sys
+import time
+import os.path as osp
+import argparse
 import osnet_search as osnet_models
 from softmax_nas import ImageSoftmaxNASEngine
 from default_config import (
-    imagedata_kwargs, optimizer_kwargs, engine_run_kwargs, get_default_config,
+    imagedata_kwargs,
+    optimizer_kwargs,
+    engine_run_kwargs,
+    get_default_config,
     lr_scheduler_kwargs
 )
 

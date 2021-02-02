@@ -12,12 +12,13 @@
 """
 
 from __future__ import division, absolute_import
-import math
 import torch.nn as nn
 
 from torchreid.losses import AngleSimpleLinear
-from .common import ModelInterface
 
+import math
+
+from .common import ModelInterface
 
 __all__ = ['mobile_face_net_se_1x', 'mobile_face_net_se_2x']
 

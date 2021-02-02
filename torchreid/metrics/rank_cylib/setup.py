@@ -1,7 +1,8 @@
 import numpy as np
+
+from Cython.Build import cythonize
 from distutils.core import setup
 from distutils.extension import Extension
-from Cython.Build import cythonize
 
 
 def numpy_include():

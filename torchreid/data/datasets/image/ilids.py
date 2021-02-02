@@ -1,11 +1,12 @@
 from __future__ import division, print_function, absolute_import
+
+from torchreid.utils import read_json, write_json
+
 import copy
 import glob
 import random
 import os.path as osp
 from collections import defaultdict
-
-from torchreid.utils import read_json, write_json
 
 from ..dataset import ImageDataset
 

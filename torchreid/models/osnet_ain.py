@@ -1,16 +1,20 @@
 from __future__ import division, absolute_import
-
-import warnings
-from collections import OrderedDict
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from torchreid.ops import (
+    HSwish,
+    Dropout,
+    GumbelSigmoid,
+    LocalContrastNormalization
+)
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, HSwish, GumbelSigmoid, LocalContrastNormalization
-from .common import ModelInterface
 
+import warnings
+from collections import OrderedDict
+
+from .common import ModelInterface
 
 __all__ = ['osnet_ain_x1_0', 'osnet_ain2_x1_0']
 

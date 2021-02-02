@@ -1,6 +1,6 @@
 from __future__ import division, print_function, absolute_import
-import torch
 import numpy as np
+import torch
 
 from torchreid.data.sampler import build_train_sampler
 from torchreid.data.datasets import init_image_dataset, init_video_dataset

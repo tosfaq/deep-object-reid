@@ -2,12 +2,13 @@
 Code source: https://github.com/pytorch/vision
 """
 from __future__ import division, absolute_import
-import re
-from collections import OrderedDict
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils import model_zoo
+
+import re
+from collections import OrderedDict
 
 __all__ = [
     'densenet121', 'densenet169', 'densenet201', 'densenet161',

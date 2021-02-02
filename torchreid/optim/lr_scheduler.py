@@ -1,9 +1,9 @@
 from __future__ import print_function, absolute_import
-
 import torch
-import math
-from torch.optim.lr_scheduler import _LRScheduler
 from torch import optim
+from torch.optim.lr_scheduler import _LRScheduler
+
+import math
 from bisect import bisect_right
 
 AVAI_SCH = ['single_step', 'multi_step', 'cosine', 'multi_step_warmup', 'cosine_warmup', 'cosine_cycle', 'reduce_on_plateau']
@@ -11,6 +11,7 @@ AVAI_SCH = ['single_step', 'multi_step', 'cosine', 'multi_step_warmup', 'cosine_
 
 def build_lr_scheduler(optimizer,
                        lr_scheduler='single_step',
+                       base_scheduler = None,
                        stepsize=1,
                        gamma=0.1,
                        lr_scales=None,
@@ -75,12 +76,10 @@ def build_lr_scheduler(optimizer,
         )
 
     elif lr_scheduler == 'cosine':
-        print("NOT HERE")
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer, float(max_epoch)
         )
     elif lr_scheduler == 'multi_step_warmup':
-        print("HERE 2")
         if not isinstance(stepsize, list):
             raise TypeError(
                 'For multi_step lr_scheduler, stepsize must '
@@ -92,10 +91,8 @@ def build_lr_scheduler(optimizer,
             warmup_factor_base=warmup_factor_base, frozen_factor_base=frozen_factor_base, warmup_iters=warmup
         )
     elif lr_scheduler == 'cosine_warmup':
-        scheduler_after = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, float(max_epoch)
-        )
-        scheduler = WarmupScheduler(optimizer, multiplier=multiplier, total_epoch=warmup, after_scheduler=scheduler_after)
+        assert base_scheduler is not None
+        scheduler = WarmupScheduler(optimizer, multiplier=multiplier, total_epoch=warmup, after_scheduler=base_scheduler)
     elif lr_scheduler == 'cosine_cycle':
         scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=min_lr, max_lr=max_lr, step_size_up=first_cycle_steps, mode='triangular2')
         # scheduler = CosineAnnealingCycleRestart(optimizer, first_cycle_steps=first_cycle_steps, cycle_mult=cycle_mult,
@@ -297,10 +294,3 @@ class WarmupScheduler(_LRScheduler):
                 self.after_scheduler.step(epoch - self.total_epoch)
         else:
             return super().step(epoch)
-
-class ReduceOnPlateau(optim.lr_scheduler.ReduceLROnPlateau):
-    def __init__(self, optimizer, **kwargs):
-        super().__init__(optimizer, **kwargs)
-
-    def get_lr_lower_bound(self):
-        return self.min_lrs

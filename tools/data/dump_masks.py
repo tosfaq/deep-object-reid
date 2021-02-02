@@ -14,19 +14,17 @@
  limitations under the License.
 """
 
-import argparse
-from os.path import exists, join, abspath, isfile
-from os import listdir, walk, makedirs
-from shutil import rmtree
-
-import cv2
 import numpy as np
+import cv2
+
 import mmcv
+import argparse
 import pycocotools.mask as mask_utils
+from os import walk, listdir, makedirs
 from tqdm import tqdm
-
-from mmdet.apis import init_detector, inference_detector, show_result
-
+from shutil import rmtree
+from os.path import join, exists, isfile, abspath
+from mmdet.apis import show_result, init_detector, inference_detector
 
 COCO_VEHICLE_CLASSES = 2, 5, 7  # car, bus, truck
 MIN_DET_CONF = 0.1
