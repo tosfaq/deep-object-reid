@@ -1,29 +1,22 @@
 from __future__ import division, print_function, absolute_import
+import time
 import numpy as np
+import os
+import os.path as osp
+import datetime
+from collections import OrderedDict
 import torch
+import copy
 import matplotlib.pyplot as plt
 from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 from torchreid import metrics
 from torchreid.utils import (
-    MetricMeter,
-    AverageMeter,
-    re_ranking,
-    get_model_attr,
-    open_all_layers,
-    save_checkpoint,
-    open_specified_layers,
-    visualize_ranked_results
+    MetricMeter, AverageMeter, re_ranking, open_all_layers, save_checkpoint,
+    open_specified_layers, visualize_ranked_results, get_model_attr
 )
 from torchreid.losses import DeepSupervision
-
-import os
-import copy
-import time
-import os.path as osp
-import datetime
-from collections import OrderedDict
 
 
 class Engine:
@@ -309,8 +302,11 @@ class Engine:
             )
             if self.save_chkpt and not lr_finder:
                 self.save_model(self.epoch, save_dir)
-            if top1:
+            if top1 and lr_finder:
                 top1 = max(top1, top1_final)
+                print("epoch: {}\t top1: {}\t lr: {}".format(self.epoch,
+                                                                top1,
+                                                                self.get_current_lr()))
 
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
