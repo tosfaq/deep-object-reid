@@ -22,10 +22,29 @@ def build_datamanager(cfg):
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
+
+def reset_config(cfg, args):
+    if args.root:
+        cfg.data.root = args.root
+    if args.custom_roots:
+        cfg.custom_datasets.roots = args.custom_roots
+    if args.custom_types:
+        cfg.custom_datasets.types = args.custom_types
+    if args.custom_names:
+        cfg.custom_datasets.names = args.custom_names
+
+
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config-file', type=str, default='',
                         help='path to config file')
+    parser.add_argument('--custom-roots', type=str, nargs='+',
+                        help='types or paths to annotation of custom datasets (delimited by space)')
+    parser.add_argument('--custom-types', type=str, nargs='+',
+                        help='path of custom datasets (delimited by space)')
+    parser.add_argument('--custom-names', type=str, nargs='+',
+                        help='names of custom datasets (delimited by space)')
+    parser.add_argument('--root', type=str, default='', help='path to data root')
     parser.add_argument('--out')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help='Modify config options using the command-line')
@@ -35,6 +54,7 @@ def main():
     cfg.use_gpu = torch.cuda.is_available()
     if args.config_file:
         cfg.merge_from_file(args.config_file)
+    reset_config(cfg, args)
     cfg.merge_from_list(args.opts)
     set_random_seed(cfg.train.seed)
 

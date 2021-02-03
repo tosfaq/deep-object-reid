@@ -85,9 +85,12 @@ def get_default_config():
     cfg.cuhk03.labeled_images = False  # use labeled images, if False, use detected images
     cfg.cuhk03.classic_split = False  # use classic split by Li et al. CVPR14
     cfg.cuhk03.use_metric_cuhk03 = False  # use cuhk03's metric for evaluation
-    cfg.classification = CN()
-    cfg.classification.data_dir = 'cl'
-    cfg.classification.version = ''
+
+    # custom_datasets
+    cfg.custom_datasets = CN() # this node contains information about custom classification datasets
+    cfg.custom_datasets.roots = [] # a list of root folders in case of ImagesFolder fromat or list of annotation files with paths relative to the list's parent folder
+    cfg.custom_datasets.types = [] # a list of types (classification or classification_image_folder)
+    cfg.custom_datasets.names = [] # aliases for custom datasets that can be used in the data section. Should be unique
 
     # sampler
     cfg.sampler = CN()
@@ -431,11 +434,11 @@ def imagedata_kwargs(cfg):
         'cuhk03_labeled': cfg.cuhk03.labeled_images,
         'cuhk03_classic_split': cfg.cuhk03.classic_split,
         'market1501_500k': cfg.market1501.use_500k_distractors,
-        'cl_data_dir': cfg.classification.data_dir,
-        'cl_version': cfg.classification.version,
         'apply_masks_to_test': cfg.test.apply_masks,
         'min_samples_per_id': cfg.data.min_samples_per_id,
-        'seed': cfg.train.seed
+        'custom_dataset_names': cfg.custom_datasets.names,
+        'custom_dataset_roots': cfg.custom_datasets.roots,
+        'custom_dataset_types': cfg.custom_datasets.types,
     }
 
 

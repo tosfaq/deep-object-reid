@@ -421,7 +421,7 @@ class Engine:
                     top1, top5, mAP = self._evaluate_classification(
                         model=model,
                         epoch=epoch,
-                        data_loader=self.test_loader[dataset_name]['gallery'],
+                        data_loader=self.test_loader[dataset_name]['query'],
                         model_name=model_name,
                         dataset_name=dataset_name,
                         ranks=ranks,
