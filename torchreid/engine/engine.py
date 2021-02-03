@@ -141,8 +141,8 @@ class Engine:
 
         for name in names:
             if self.scheds[name] is not None:
-                if self.scheds[name].__class__.__name__ == 'ReduceLROnPlateau':
-                    self.scheds[name].step(output_avg_metric)
+                if self.scheds[name].__class__.__name__ in ['ReduceLROnPlateau', 'WarmupScheduler']:
+                    self.scheds[name].step(metrics=output_avg_metric)
                 else:
                     self.scheds[name].step()
 

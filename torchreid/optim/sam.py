@@ -4,18 +4,18 @@ import torch
 class SAM(torch.optim.Optimizer):
     def __init__(self, params, base_optimizer, rho=0.05, **kwargs):
         assert rho >= 0.0, f"Invalid rho, should be non-negative: {rho}"
+        self.rho = rho
+        defaults = dict(rho=rho)
+        super().__init__(params, defaults)
 
-        defaults = dict(rho=rho, **kwargs)
-        super(SAM, self).__init__(params, defaults)
-
-        self.base_optimizer = base_optimizer(self.param_groups, **kwargs)
+        self.base_optimizer = base_optimizer
         self.param_groups = self.base_optimizer.param_groups
 
     @torch.no_grad()
     def first_step(self, zero_grad=False):
         grad_norm = self._grad_norm()
         for group in self.param_groups:
-            scale = group["rho"] / (grad_norm + 1e-12)
+            scale = self.rho / (grad_norm + 1e-12)
 
             for p in group["params"]:
                 if p.grad is None: continue

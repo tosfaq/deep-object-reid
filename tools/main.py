@@ -66,9 +66,10 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
 
         model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
 
-    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
-
+    op_builder = torchreid.optim.OtimizerBuilder(model, **optimizer_kwargs(cfg))
+    optimizer = op_builder.build_optimizer()
+    sc_builder = torchreid.optim.SchedulerBuilder(optimizer, **lr_scheduler_kwargs(cfg))
+    scheduler = sc_builder.build_lr_scheduler()
     return model, optimizer, scheduler
 
 
@@ -161,11 +162,13 @@ def main():
     else:
         extra_device_ids = [None for _ in range(len(args.extra_config_files))]
 
-    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
+    op_builder = torchreid.optim.OtimizerBuilder(model, **optimizer_kwargs(cfg))
+    optimizer = op_builder.build_optimizer()
     if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic':
         scheduler = None
     else:
-        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+        sc_builder = torchreid.optim.SchedulerBuilder(optimizer, **lr_scheduler_kwargs(cfg))
+        scheduler = sc_builder.build_lr_scheduler()
 
     if cfg.model.resume and check_isfile(cfg.model.resume):
         cfg.train.start_epoch = resume_from_checkpoint(
@@ -205,8 +208,11 @@ def main():
         cfg.train.lr = lr
         cfg.lr_finder.enable = False
         set_random_seed(cfg.train.seed)
-        optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+        op_builder = torchreid.optim.OtimizerBuilder(model, **optimizer_kwargs(cfg))
+        optimizer = op_builder.build_optimizer()
+        sc_builder = torchreid.optim.SchedulerBuilder(optimizer, **lr_scheduler_kwargs(cfg))
+        scheduler = sc_builder.build_lr_scheduler()
+
         if enable_mutual_learning:
             models[0], optimizers[0], schedulers[0] = model, optimizer, scheduler
         else:

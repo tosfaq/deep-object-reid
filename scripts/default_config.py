@@ -122,6 +122,7 @@ def get_default_config():
     cfg.train.new_layers = ['classifier']  # newly added layers with default lr
     cfg.train.base_lr_mult = 0.1  # learning rate multiplier for base layers
     cfg.train.lr_scheduler = 'single_step'
+    cfg.train.base_scheduler = ''
     cfg.train.stepsize = [20]  # stepsize to decay learning rate
     cfg.train.gamma = 0.1  # learning rate decay multiplier
     cfg.train.lr_scales = []
@@ -488,6 +489,7 @@ def optimizer_kwargs(cfg):
 def lr_scheduler_kwargs(cfg):
     return {
         'lr_scheduler': cfg.train.lr_scheduler,
+        'base_scheduler': cfg.train.base_scheduler,
         'stepsize': cfg.train.stepsize,
         'gamma': cfg.train.gamma,
         'lr_scales': cfg.train.lr_scales,

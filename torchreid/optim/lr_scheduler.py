@@ -6,103 +6,136 @@ from torch.optim.lr_scheduler import _LRScheduler
 import math
 from bisect import bisect_right
 
-AVAI_SCH = ['single_step', 'multi_step', 'cosine', 'multi_step_warmup', 'cosine_warmup', 'cosine_cycle', 'reduce_on_plateau']
+AVAI_SCH = ['single_step', 'multi_step', 'cosine', 'multi_step_warmup', 'warmup', 'cosine_cycle', 'reduce_on_plateau']
 
 
-def build_lr_scheduler(optimizer,
-                       lr_scheduler='single_step',
-                       base_scheduler = None,
-                       stepsize=1,
-                       gamma=0.1,
-                       lr_scales=None,
-                       max_epoch=1,
-                       frozen=20,
-                       warmup=10,
-                       multiplier = 10,
-                       first_cycle_steps=10,
-                       cycle_mult = 1.,
-                       min_lr = 1e-4,
-                       max_lr = 0.1,
-                       patience = 5,
-                       warmup_factor_base=0.1,
-                       frozen_factor_base=0.1):
-    """A function wrapper for building a learning rate scheduler.
+class SchedulerBuilder:
+    def __init__(self,
+                optimizer,
+                lr_scheduler='single_step',
+                base_scheduler = None,
+                stepsize=1,
+                gamma=0.1,
+                lr_scales=None,
+                max_epoch=1,
+                frozen=20,
+                warmup=10,
+                multiplier = 10,
+                first_cycle_steps=10,
+                cycle_mult = 1.,
+                min_lr = 1e-4,
+                max_lr = 0.1,
+                patience = 5,
+                warmup_factor_base=0.1,
+                frozen_factor_base=0.1):
+        """A class for building a learning rate scheduler.
 
-    Args:
-        optimizer (Optimizer): an Optimizer.
-        lr_scheduler (str, optional): learning rate scheduler method. Default is single_step.
-        stepsize (int or list, optional): step size to decay learning rate. When ``lr_scheduler``
-            is "single_step", ``stepsize`` should be an integer. When ``lr_scheduler`` is
-            "multi_step", ``stepsize`` is a list. Default is 1.
-        gamma (float, optional): decay rate. Default is 0.1.
-        max_epoch (int, optional): maximum epoch (for cosine annealing). Default is 1.
+            Args:
+                optimizer (Optimizer): an Optimizer.
+                lr_scheduler (str, optional): learning rate scheduler method. Default is single_step.
+                stepsize (int or list, optional): step size to decay learning rate. When ``lr_scheduler``
+                    is "single_step", ``stepsize`` should be an integer. When ``lr_scheduler`` is
+                    "multi_step", ``stepsize`` is a list. Default is 1.
+                gamma (float, optional): decay rate. Default is 0.1.
+                max_epoch (int, optional): maximum epoch (for cosine annealing). Default is 1.
 
-    Examples::
-        >>> # Decay learning rate by every 20 epochs.
-        >>> scheduler = torchreid.optim.build_lr_scheduler(
-        >>>     optimizer, lr_scheduler='single_step', stepsize=20
-        >>> )
-        >>> # Decay learning rate at 30, 50 and 55 epochs.
-        >>> scheduler = torchreid.optim.build_lr_scheduler(
-        >>>     optimizer, lr_scheduler='multi_step', stepsize=[30, 50, 55]
-        >>> )
-    """
-    if lr_scheduler not in AVAI_SCH:
-        raise ValueError('Unsupported scheduler: {}. Must be one of {}'.format(lr_scheduler, AVAI_SCH))
+            Examples::
+                >>> # Decay learning rate by every 20 epochs.
+                >>> scheduler = torchreid.optim.build_lr_scheduler(
+                >>>     optimizer, lr_scheduler='single_step', stepsize=20
+                >>> )
+                >>> # Decay learning rate at 30, 50 and 55 epochs.
+                >>> scheduler = torchreid.optim.build_lr_scheduler(
+                >>>     optimizer, lr_scheduler='multi_step', stepsize=[30, 50, 55]
+                >>> )
+        """
 
-    if lr_scheduler == 'single_step':
-        if isinstance(stepsize, list):
-            stepsize = stepsize[-1]
+        self.optimizer = optimizer
+        self.lr_scheduler = lr_scheduler
+        self.base_scheduler = base_scheduler
+        self.stepsize = stepsize
+        self.gamma = gamma
+        self.lr_scales = lr_scales
+        self.max_epoch = max_epoch
+        self.frozen = frozen
+        self.warmup = warmup
+        self.multiplier = multiplier
+        self.first_cycle_steps = first_cycle_steps
+        self.cycle_mult = cycle_mult
+        self.min_lr = min_lr
+        self.max_lr = max_lr
+        self.patience = patience
+        self.warmup_factor_base = warmup_factor_base
+        self.frozen_factor_base = frozen_factor_base
 
-        if not isinstance(stepsize, int):
-            raise TypeError(
-                'For single_step lr_scheduler, stepsize must '
-                'be an integer, but got {}'.format(type(stepsize))
+    def build_lr_scheduler(self):
+        if self.lr_scheduler == 'warmup':
+            base_scheduler = self._build_scheduler(self.base_scheduler)
+            scheduler = self._build_scheduler(self.lr_scheduler, base_scheduler=base_scheduler)
+        else:
+            scheduler = self._build_scheduler(self.lr_scheduler)
+
+        return scheduler
+
+    def _build_scheduler(self, lr_scheduler, base_scheduler=None):
+
+        if lr_scheduler not in AVAI_SCH:
+            raise ValueError('Unsupported scheduler: {}. Must be one of {}'.format(lr_scheduler, AVAI_SCH))
+
+        if lr_scheduler == 'single_step':
+            if isinstance(self.stepsize, list):
+                self.stepsize = self.stepsize[-1]
+
+            if not isinstance(self.stepsize, int):
+                raise TypeError(
+                    'For single_step lr_scheduler, stepsize must '
+                    'be an integer, but got {}'.format(type(self.stepsize))
+                )
+
+            print(self.stepsize)
+            scheduler = optim.lr_scheduler.StepLR(
+                self.optimizer, step_size=self.stepsize, gamma=self.gamma
             )
 
-        scheduler = optim.lr_scheduler.StepLR(
-            optimizer, step_size=stepsize, gamma=gamma
-        )
+        elif lr_scheduler == 'multi_step':
+            if not isinstance(self.stepsize, list):
+                raise TypeError(
+                    'For multi_step lr_scheduler, stepsize must '
+                    'be a list, but got {}'.format(type(self.stepsize))
+                )
 
-    elif lr_scheduler == 'multi_step':
-        if not isinstance(stepsize, list):
-            raise TypeError(
-                'For multi_step lr_scheduler, stepsize must '
-                'be a list, but got {}'.format(type(stepsize))
+            scheduler = optim.lr_scheduler.MultiStepLR(
+                self.optimizer, milestones=self.stepsize, gamma=self.gamma
             )
 
-        scheduler = optim.lr_scheduler.MultiStepLR(
-            optimizer, milestones=stepsize, gamma=gamma
-        )
-
-    elif lr_scheduler == 'cosine':
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, float(max_epoch)
-        )
-    elif lr_scheduler == 'multi_step_warmup':
-        if not isinstance(stepsize, list):
-            raise TypeError(
-                'For multi_step lr_scheduler, stepsize must '
-                'be a list, but got {}'.format(type(stepsize))
+        elif lr_scheduler == 'cosine':
+            scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, float(self.max_epoch)
             )
+        elif lr_scheduler == 'multi_step_warmup':
+            if not isinstance(self.stepsize, list):
+                raise TypeError(
+                    'For multi_step lr_scheduler, stepsize must '
+                    'be a list, but got {}'.format(type(self.stepsize))
+                )
 
-        scheduler = MultiStepLRWithWarmUp(
-            optimizer, milestones=stepsize, frozen_iters=frozen, gamma=gamma, lr_scales=lr_scales,
-            warmup_factor_base=warmup_factor_base, frozen_factor_base=frozen_factor_base, warmup_iters=warmup
-        )
-    elif lr_scheduler == 'cosine_warmup':
-        assert base_scheduler is not None
-        scheduler = WarmupScheduler(optimizer, multiplier=multiplier, total_epoch=warmup, after_scheduler=base_scheduler)
-    elif lr_scheduler == 'cosine_cycle':
-        scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=min_lr, max_lr=max_lr, step_size_up=first_cycle_steps, mode='triangular2')
-        # scheduler = CosineAnnealingCycleRestart(optimizer, first_cycle_steps=first_cycle_steps, cycle_mult=cycle_mult,
-        # max_lr=max_lr, min_lr=min_lr, warmup_steps=warmup, gamma=gamma)
-    elif lr_scheduler == 'reduce_on_plateau':
-        scheduler = scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=patience, verbose=True, min_lr=min_lr)
-    else:
-        raise ValueError('Unknown scheduler: {}'.format(lr_scheduler))
+            scheduler = MultiStepLRWithWarmUp(
+                self.optimizer, milestones=self.stepsize, frozen_iters=self.frozen, gamma=self.gamma, lr_scales=self.lr_scales,
+                warmup_factor_base=self.warmup_factor_base, frozen_factor_base=self.frozen_factor_base, warmup_iters=self.warmup
+            )
+        elif lr_scheduler == 'warmup':
+            if base_scheduler is None:
+                raise ValueError("Base scheduler is not defined. Please, add it to the configuration file.")
+            scheduler = WarmupScheduler(self.optimizer, multiplier=self.multiplier, total_epoch=self.warmup, after_scheduler=base_scheduler)
+        elif lr_scheduler == 'cosine_cycle':
+            scheduler = CosineAnnealingCycleRestart(self.optimizer, first_cycle_steps=self.first_cycle_steps, cycle_mult=self.cycle_mult,
+            max_lr=self.max_lr, min_lr=self.min_lr, warmup_steps=self.warmup, gamma=self.gamma)
+        elif lr_scheduler == 'reduce_on_plateau':
+            scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=self.gamma, patience=self.patience, verbose=True, min_lr=self.min_lr)
+        else:
+            raise ValueError('Unknown scheduler: {}'.format(lr_scheduler))
 
-    return scheduler
+        return scheduler
 
 
 class MultiStepLRWithWarmUp(_LRScheduler):
@@ -275,7 +308,9 @@ class WarmupScheduler(_LRScheduler):
                 if not self.finished:
                     self.after_scheduler.base_lrs = [base_lr * self.multiplier for base_lr in self.base_lrs]
                     self.finished = True
-                return self.after_scheduler.get_lr()
+                if hasattr(self.after_scheduler.__class__, 'get_lr'):
+                    print('True')
+                    return self.after_scheduler.get_lr()
             return [base_lr * self.multiplier for base_lr in self.base_lrs]
 
         return [base_lr * ((self.multiplier - 1.) * self.last_epoch / self.total_epoch + 1.) for base_lr in self.base_lrs]
@@ -288,9 +323,15 @@ class WarmupScheduler(_LRScheduler):
 
     def step(self, epoch=None, metrics=None):
         if self.finished and self.after_scheduler:
-            if epoch is None:
-                self.after_scheduler.step(None)
+            if self.after_scheduler.__class__.__name__ == 'ReduceLROnPlateau':
+                if epoch is None:
+                    self.after_scheduler.step(metrics=metrics, epoch=None)
+                else:
+                    self.after_scheduler.step(metrics=metrics, epoch=epoch - self.total_epoch)
             else:
-                self.after_scheduler.step(epoch - self.total_epoch)
+                if epoch is None:
+                    self.after_scheduler.step(None)
+                else:
+                    self.after_scheduler.step(epoch - self.total_epoch)
         else:
             return super().step(epoch)
