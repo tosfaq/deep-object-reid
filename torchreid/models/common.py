@@ -13,10 +13,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from inspect import isfunction
 
 from torchreid.ops import Dropout
-
-from inspect import isfunction
 
 
 class ModelInterface(nn.Module):
@@ -320,7 +319,6 @@ def conv1x1(in_channels,
         stride=stride,
         groups=groups,
         bias=bias)
-
 
 def conv3x3_block(in_channels,
                   out_channels,

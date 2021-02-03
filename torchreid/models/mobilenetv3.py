@@ -357,7 +357,7 @@ def mobilenetv3_large_150(pretrained=False, **kwargs):
 
     net = MobileNetV3(cfgs, mode='large', width_mult = 1.5, **kwargs)
     if pretrained:
-        init_pretrained_weights(net, key='mobilenetv3_large')
+        raise NotImplementedError("The weights for this configuration are not available")
 
     return net
 
