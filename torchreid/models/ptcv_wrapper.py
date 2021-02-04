@@ -12,44 +12,16 @@
 """
 
 from __future__ import division, absolute_import
-import torch.nn as nn
-
-from torchreid.losses import AngleSimpleLinear
 
 from functools import partial
-from pytorchcv.model_provider import _models, get_model
+
+import torch.nn as nn
+from pytorchcv.model_provider import get_model, _models
+from torchreid.losses import AngleSimpleLinear
 
 from .common import ModelInterface
 
 __all__ = ['wrapped_models']
-
-def conv1x1(in_channels,
-            out_channels,
-            stride=1,
-            groups=1,
-            bias=False):
-    """
-    Convolution 1x1 layer.
-    Parameters:
-    ----------
-    in_channels : int
-        Number of input channels.
-    out_channels : int
-        Number of output channels.
-    stride : int or tuple/list of 2 int, default 1
-        Strides of the convolution.
-    groups : int, default 1
-        Number of groups.
-    bias : bool, default False
-        Whether the layer uses a bias vector.
-    """
-    return nn.Conv2d(
-        in_channels=in_channels,
-        out_channels=out_channels,
-        kernel_size=1,
-        stride=stride,
-        groups=groups,
-        bias=bias)
 
 
 class PTCVModel(ModelInterface):

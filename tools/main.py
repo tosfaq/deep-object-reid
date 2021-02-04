@@ -47,6 +47,7 @@ def reset_config(cfg, args):
         cfg.custom_datasets.roots = args.custom_roots
     if args.custom_types:
         cfg.custom_datasets.types = args.custom_types
+
     if args.custom_names:
         cfg.custom_datasets.names = args.custom_names
 
@@ -201,7 +202,7 @@ def main():
 
     if cfg.lr_finder.enable:
         if enable_mutual_learning:
-            print("Mutual learning is on. Lr finder will treat only the main model")
+            print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
 
         lr = engine.find_lr(**lr_finder_run_kwargs(cfg))
         # reload random seeds, opimizer with new lr and scheduler for it
@@ -220,9 +221,9 @@ def main():
         # build new engine
         engine = build_engine(cfg, datamanager, models, optimizers, schedulers)
 
-        print("Proposed lr by LR Finder: {}".format(lr))
+        print(f"Estimated learning rate: {lr}")
         if cfg.lr_finder.stop_after:
-            print("Finding learning rate finished. Terminate the training")
+            print("Finding learning rate finished. Terminate the training process")
             exit()
 
     engine.run(**engine_run_kwargs(cfg))
