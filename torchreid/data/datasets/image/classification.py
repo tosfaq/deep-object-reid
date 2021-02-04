@@ -79,24 +79,26 @@ class ClassificationImageFolder(ImageDataset):
         self.check_before_run(required_files)
 
         if mode == 'train':
-            train = self.load_annotation(
+            train, classes = self.load_annotation(
                 self.root,
                 dataset_id=dataset_id
             )
-        else:
-            train = []
-
-        if mode == 'query':
-            query = self.load_annotation(
-                self.root,
-                dataset_id=dataset_id
-            )
-        else:
             query = []
+        elif mode == 'query':
+            query, classes = self.load_annotation(
+                self.root,
+                dataset_id=dataset_id
+            )
+            train = []
+        else:
+            classes = []
+            train, query = [], []
 
         gallery = []
 
         super().__init__(train, query, gallery, mode=mode, **kwargs)
+
+        self.classes = classes
 
 
     @staticmethod
@@ -128,4 +130,4 @@ class ClassificationImageFolder(ImageDataset):
         if not len(out_data):
             print('Failed to locate images in folder ' + data_dir + f'fole with extensions {ALLOWED_EXTS}')
 
-        return out_data
+        return out_data, class_to_idx

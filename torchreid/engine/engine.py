@@ -100,7 +100,8 @@ class Engine:
                                 'epoch': epoch + 1,
                                 'optimizer': self.optims[name].state_dict(),
                                 'scheduler': self.scheds[name].state_dict(),
-                                'num_classes': self.datamanager.num_train_pids
+                                'num_classes': self.datamanager.num_train_pids,
+                                'classes_map': self.datamanager.train_loader.dataset.classes
                             },
                             osp.join(save_dir, name),
                             is_best=is_best
