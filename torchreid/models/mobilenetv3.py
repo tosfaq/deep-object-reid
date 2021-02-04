@@ -103,7 +103,7 @@ class MobileNetV3(ModelInterface):
                  num_classes=1000,
                  width_mult=1.,
                  in_channels=3,
-                 in_size=(224, 224),
+                 input_size=(224, 224),
                  dropout_cls = None,
                  dropout_cfg = None,
                  pooling_type='avg',
@@ -120,7 +120,7 @@ class MobileNetV3(ModelInterface):
         super().__init__(**kwargs)
         # setting of inverted residual blocks
         self.cfgs = cfgs
-        self.in_size = in_size
+        self.in_size = input_size
         self.num_classes = num_classes
         self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
         self.bn_eval = bn_eval
@@ -135,13 +135,13 @@ class MobileNetV3(ModelInterface):
         assert mode in ['large', 'small']
         # building first layer
         input_channel = make_divisible(16 * width_mult, 8)
-        stride = 1 if in_size[0] < 100 else 2
+        stride = 1 if self.in_size[0] < 100 else 2
         layers = [conv_3x3_bn(3, input_channel, stride, IN_conv1)]
         # building inverted residual blocks
         block = InvertedResidual
         flag = True
         for k, t, c, use_se, use_hs, s in self.cfgs:
-            if (in_size[0] < 100) and (s == 2) and flag:
+            if (self.in_size[0] < 100) and (s == 2) and flag:
                 s = 1
                 flag = False
             output_channel = make_divisible(c * width_mult, 8)
@@ -268,10 +268,9 @@ def init_pretrained_weights(model, key=''):
             raise
     filename = key + '_imagenet.pth'
     cached_file = os.path.join(model_dir, filename)
-    # if not os.path.exists(cached_file):
-    gdown.download(pretrained_urls[key], cached_file)
+    if not os.path.exists(cached_file):
+        gdown.download(pretrained_urls[key], cached_file)
 
-    # state_dict = torch.load(cached_file)
     model = load_model(model, cached_file)
 
 def mobilenetv3_large_075(pretrained=False, **kwargs):

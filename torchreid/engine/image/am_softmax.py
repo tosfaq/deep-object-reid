@@ -528,10 +528,10 @@ class ImageAMSoftmaxEngine(Engine):
                 print("Finished warmuping the model. Continue to find learning rate:")
             # run lr finder
             lr_finder = LRFinder(self.models[name], optimizer, criterion, device="cuda")
-            lr_finder.range_test(self.train_loader, smooth_f=0.01, start_lr=min_lr, end_lr=max_lr,
+            lr_finder.range_test(self.train_loader, start_lr=min_lr, end_lr=max_lr, accumulation_steps=5,
                                  num_iter=self.num_batches, step_mode='exp')
             ax, optim_lr = lr_finder.plot()
-            # plot if needed
+            # save plot if needed
             if path_to_savefig:
                 fig = ax.get_figure()
                 fig.savefig(path_to_savefig)
@@ -554,6 +554,7 @@ class ImageAMSoftmaxEngine(Engine):
         state_cacher.store("optimizer", self.optims[name].state_dict())
         range_lr = np.linspace(min_lr, max_lr, num_iter)
         best_acc = 0.0
+        EPS = 0.017
 
         for lr in range_lr:
             print('Training with next lr: {}'.format(lr))
@@ -569,15 +570,18 @@ class ImageAMSoftmaxEngine(Engine):
             set_random_seed(seed)
 
             cur_acc = acc_store[lr]
-            # break if the results got worse
-            if (best_acc - cur_acc) >= 0.017:
+            # break if the results got worse with epsilon confidence
+            if (best_acc - cur_acc) >= EPS:
                 print("The results got worse. Breaking learning rate search")
                 break
             best_acc = max(best_acc, cur_acc)
 
         max_acc = 0
+        # if the results get better only for 0.2%
+        # choose a higher learning rate instead
+        delta = 0.002
         for lr, acc in sorted(reversed(acc_store.items())):
-            if acc >= (max_acc-0.002):
+            if acc >= (max_acc-delta):
                 max_acc = acc
                 opt_lr = lr
 

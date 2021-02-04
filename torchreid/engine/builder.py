@@ -30,7 +30,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 aug_prob=cfg.loss.softmax.augmentations.aug_prob,
                 decay_power=cfg.loss.softmax.augmentations.fmix.decay_power,
                 alpha=cfg.loss.softmax.augmentations.alpha,
-                size=cfg.model.in_size,
+                size=(cfg.data.height, cfg.data.width),
                 max_soft=cfg.loss.softmax.augmentations.fmix.max_soft,
                 reformulate=cfg.loss.softmax.augmentations.fmix.reformulate,
                 pr_product=cfg.loss.softmax.pr_product,

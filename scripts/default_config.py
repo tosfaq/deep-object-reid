@@ -526,7 +526,6 @@ def model_kwargs(cfg, num_classes):
         'input_size': (cfg.data.height, cfg.data.width),
         'IN_first': cfg.model.IN_first,
         'IN_conv1': cfg.model.IN_conv1,
-        'in_size': (cfg.data.height, cfg.data.width),
         'extra_blocks': cfg.model.extra_blocks,
         'lct_gate': cfg.model.lct_gate,
         'bn_eval': cfg.model.bn_eval,

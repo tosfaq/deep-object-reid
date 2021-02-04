@@ -985,12 +985,9 @@ class AugMix(object):
                 mask_aug = mask.copy() if mask != '' else mask
                 depth = self.depth if self.depth > 0 else np.random.randint(1, 4)
                 # filter operations that have already been used
-                # operations = set()
                 for _ in range(depth):
                     op = np.random.choice(self.train_transforms)
-                    # if op not in operations:
                     image_aug, mask_aug = op((image_aug, mask_aug))
-                    # operations.add(op)
                 # Preprocessing commutes since all coefficients are convex
                 image_aug, mask_aug = self.normalize(self.to_tensor((image_aug, mask_aug)))
                 mix_img = mix_img + ws[i] * image_aug
@@ -1004,7 +1001,7 @@ class AugMix(object):
 
                 return mixed_image, mixed_mask
 
-        assert not self.transforms or p > self.p
+        assert not self.transforms or prob > self.p
         image, mask = self.normalize(self.to_tensor((image, mask)))
         return image, mask
 

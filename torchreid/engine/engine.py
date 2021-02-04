@@ -100,7 +100,7 @@ class Engine:
         else:
             return names_real
 
-     def save_model(self, epoch, save_dir, is_best=False):
+    def save_model(self, epoch, save_dir, is_best=False):
         names = self.get_model_names()
 
         for name in names:
@@ -237,10 +237,6 @@ class Engine:
             log_dir = tb_log_dir if len(tb_log_dir) else save_dir
             self.writer = SummaryWriter(log_dir=log_dir)
 
-        # Save zeroth checkpoint
-        if self.save_chkpt and not lr_finder:
-            self.save_model(-1, save_dir)
-
         time_start = time.time()
         top1 = None
         self.start_epoch = start_epoch
@@ -277,9 +273,7 @@ class Engine:
                     self.save_model(self.epoch, save_dir)
 
                 if lr_finder:
-                    print("epoch: {}\t top1: {}\t lr: {}".format(self.epoch,
-                                                                top1,
-                                                                self.get_current_lr()))
+                    print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
 
             if ((self.early_stoping) and
                 (not lr_finder) and
@@ -303,9 +297,7 @@ class Engine:
                 self.save_model(self.epoch, save_dir)
             if top1 and lr_finder:
                 top1 = max(top1, top1_final)
-                print("epoch: {}\t top1: {}\t lr: {}".format(self.epoch,
-                                                                top1,
-                                                                self.get_current_lr()))
+                print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
 
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
