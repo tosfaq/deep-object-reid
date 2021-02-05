@@ -10,10 +10,11 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+from inspect import isfunction
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from inspect import isfunction
 
 from torchreid.ops import Dropout
 

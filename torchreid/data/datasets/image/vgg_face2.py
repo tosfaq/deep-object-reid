@@ -11,12 +11,12 @@
  limitations under the License.
 """
 
-import numpy as np
-import cv2 as cv
-from torch.utils.data import Dataset
-
 import os
 import os.path as osp
+
+import cv2 as cv
+import numpy as np
+from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from ..dataset import ImageDataset

@@ -11,9 +11,9 @@
  limitations under the License.
 """
 
-import torch
-
 import argparse
+
+import torch
 from landnet import LandmarksNet
 from utils.utils import load_model_state
 

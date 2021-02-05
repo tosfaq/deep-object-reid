@@ -1,8 +1,7 @@
 from __future__ import absolute_import
-
 import os
-import sys
 import os.path as osp
+import sys
 
 from .tools import mkdir_if_missing
 

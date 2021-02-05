@@ -1,8 +1,7 @@
-from __future__ import division, print_function, absolute_import
-
-import re
+from __future__ import absolute_import, division, print_function
 import glob
 import os.path as osp
+import re
 import warnings
 
 from ..dataset import ImageDataset

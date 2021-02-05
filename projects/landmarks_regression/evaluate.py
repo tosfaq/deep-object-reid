@@ -11,18 +11,18 @@
  limitations under the License.
 """
 
-import torch
-import torch.backends.cudnn as cudnn
-from torch.utils.data import DataLoader
-from torchvision.transforms import transforms as t
+import argparse
 
 import glog as log
-import argparse
-from tqdm import tqdm
-from landnet import LandmarksNet
+import torch
+import torch.backends.cudnn as cudnn
 from datasets import NDG, CelebA, VGGFace2
-from utils.utils import load_model_state
+from landnet import LandmarksNet
+from torch.utils.data import DataLoader
+from torchvision.transforms import transforms as t
+from tqdm import tqdm
 from utils.landmarks_augmentation import Rescale, ToTensor
+from utils.utils import load_model_state
 
 
 def evaluate(val_loader, model):

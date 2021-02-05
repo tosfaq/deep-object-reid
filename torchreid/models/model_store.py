@@ -4,9 +4,9 @@
 
 __all__ = ['get_model_file', 'load_model', 'download_model', 'calc_num_params']
 
-import os
 import hashlib
 import logging
+import os
 import zipfile
 
 _model_sha1 = {name: (error, checksum, repo_release_tag, caption, paper, ds, img_size, scale, batch, rem) for

@@ -1,15 +1,15 @@
-from __future__ import division, print_function, absolute_import
-import numpy as np
-import torch
-
-from torchreid.utils import read_image, download_url, mkdir_if_missing
-
+from __future__ import absolute_import, division, print_function
 import copy
+import operator
 import os.path as osp
 import tarfile
 import zipfile
-import operator
 from collections import defaultdict
+
+import numpy as np
+import torch
+
+from torchreid.utils import download_url, mkdir_if_missing, read_image
 
 
 class Dataset:

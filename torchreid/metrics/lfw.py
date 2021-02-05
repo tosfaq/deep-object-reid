@@ -11,18 +11,18 @@
  limitations under the License.
 """
 
-import numpy as np
-import cv2 as cv
-import torch
-import torch.nn.functional as F
-from torchvision import transforms as t
-from torch.utils.data import DataLoader
-
 import argparse
 import datetime
-from tqdm import tqdm
 from functools import partial
+
+import cv2 as cv
+import numpy as np
+import torch
+import torch.nn.functional as F
 from scipy.spatial.distance import cosine
+from torch.utils.data import DataLoader
+from torchvision import transforms as t
+from tqdm import tqdm
 
 
 def get_subset(container, subset_bounds):

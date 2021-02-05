@@ -1,9 +1,9 @@
-import numpy as np
-from setuptools import setup, find_packages
-
 import os.path as osp
-from Cython.Build import cythonize
 from distutils.extension import Extension
+from setuptools import find_packages, setup
+
+import numpy as np
+from Cython.Build import cythonize
 
 
 def readme():

@@ -1,37 +1,29 @@
-from __future__ import print_function, absolute_import
+from __future__ import absolute_import, print_function
 
-from .lfw import LFW
-from .grid import GRID
-from .prid import PRID
-from .veri import VeRi
-from .vric import VRIC
-from .ilids import iLIDS
-from .viper import VIPeR
+from .cityflow import CityFlow
+from .classification import Classification, ClassificationImageFolder
+from .compcars import CompCars
 from .cuhk01 import CUHK01
 from .cuhk02 import CUHK02
 from .cuhk03 import CUHK03
-from .msmt17 import MSMT17
-from .vmmrdb import VMMRdb
-from .cityflow import CityFlow
-from .compcars import CompCars
-from .globalme import (
-    InternalMall,
-    InternalAirport,
-    MarketTrainOnly,
-    InternalGlobalMe,
-    InternalSSStreet,
-    InternalSSTicket,
-    InternalPSVIndoor,
-    InternalWildtrack,
-    InternalPSVOutdoor,
-    InternalSSPlatform,
-    InternalCameraTampering
-)
-from .veriwild import VeRiWild
-from .sensereid import SenseReID
-from .vehicle1m import Vehicle1M
-from .vgg_face2 import VGGFace2
-from .market1501 import Market1501
 from .dukemtmcreid import DukeMTMCreID
-from .classification import Classification, ClassificationImageFolder
+from .globalme import (InternalAirport, InternalCameraTampering,
+                       InternalGlobalMe, InternalMall, InternalPSVIndoor,
+                       InternalPSVOutdoor, InternalSSPlatform,
+                       InternalSSStreet, InternalSSTicket, InternalWildtrack,
+                       MarketTrainOnly)
+from .grid import GRID
+from .ilids import iLIDS
+from .lfw import LFW
+from .market1501 import Market1501
+from .msmt17 import MSMT17
+from .prid import PRID
+from .sensereid import SenseReID
 from .universe_models import UniverseModels
+from .vehicle1m import Vehicle1M
+from .veri import VeRi
+from .veriwild import VeRiWild
+from .vgg_face2 import VGGFace2
+from .viper import VIPeR
+from .vmmrdb import VMMRdb
+from .vric import VRIC

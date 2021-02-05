@@ -11,14 +11,13 @@
  limitations under the License.
 """
 
-from __future__ import division, absolute_import
-
+from __future__ import absolute_import, division
 from functools import partial
 
 import torch.nn as nn
-from pytorchcv.model_provider import get_model, _models
-from torchreid.losses import AngleSimpleLinear
+from pytorchcv.model_provider import _models, get_model
 
+from torchreid.losses import AngleSimpleLinear
 from .common import ModelInterface
 
 __all__ = ['wrapped_models']

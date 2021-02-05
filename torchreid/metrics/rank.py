@@ -1,8 +1,8 @@
-from __future__ import division, print_function, absolute_import
-import numpy as np
-
+from __future__ import absolute_import, division, print_function
 import warnings
 from collections import defaultdict
+
+import numpy as np
 
 try:
     from torchreid.metrics.rank_cylib.rank_cy import evaluate_cy

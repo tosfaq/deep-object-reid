@@ -1,12 +1,11 @@
+import math
+
 import torch
 import torch.nn as nn
 
-from torchreid.ops import Dropout, EvalModeSetter, rsc
 from torchreid.losses import AngleSimpleLinear
-
-import math
-
-from .common import HSwish, HSigmoid, ModelInterface, make_divisible
+from torchreid.ops import Dropout, EvalModeSetter, rsc
+from .common import HSigmoid, HSwish, ModelInterface, make_divisible
 
 __all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150']
 

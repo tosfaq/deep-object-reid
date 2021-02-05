@@ -14,13 +14,13 @@
  limitations under the License.
 """
 
-import cv2
-
 import argparse
-from os import walk, listdir, makedirs
-from tqdm import tqdm
+from os import listdir, makedirs, walk
+from os.path import abspath, exists, isfile, join
 from shutil import rmtree
-from os.path import join, exists, isfile, abspath
+
+import cv2
+from tqdm import tqdm
 
 
 def create_dirs(dir_path):

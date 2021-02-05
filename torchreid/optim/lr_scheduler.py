@@ -1,10 +1,10 @@
-from __future__ import print_function, absolute_import
+from __future__ import absolute_import, print_function
+import math
+from bisect import bisect_right
+
 import torch
 from torch import optim
 from torch.optim.lr_scheduler import _LRScheduler
-
-import math
-from bisect import bisect_right
 
 AVAI_SCH = ['single_step', 'multi_step', 'cosine', 'multi_step_warmup', 'warmup', 'cosine_cycle', 'reduce_on_plateau']
 

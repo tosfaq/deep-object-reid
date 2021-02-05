@@ -1,9 +1,9 @@
-from __future__ import print_function, absolute_import
-import numpy as np
-import cv2
-
-import shutil
+from __future__ import absolute_import, print_function
 import os.path as osp
+import shutil
+
+import cv2
+import numpy as np
 
 from .tools import mkdir_if_missing
 

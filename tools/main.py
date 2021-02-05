@@ -1,32 +1,20 @@
-import torch
-
-import torchreid
-from torchreid.ops import DataParallel
-from torchreid.utils import (
-    Logger,
-    check_isfile,
-    set_random_seed,
-    collect_env_info,
-    resume_from_checkpoint,
-    load_pretrained_weights,
-    compute_model_complexity
-)
-from torchreid.engine import build_engine
-
+import argparse
+import os.path as osp
 import sys
 import time
-import os.path as osp
-import argparse
-from scripts.default_config import (
-    model_kwargs,
-    imagedata_kwargs,
-    optimizer_kwargs,
-    videodata_kwargs,
-    engine_run_kwargs,
-    get_default_config,
-    lr_scheduler_kwargs,
-    lr_finder_run_kwargs
-)
+
+import torch
+from scripts.default_config import (engine_run_kwargs, get_default_config,
+                                    imagedata_kwargs, lr_finder_run_kwargs,
+                                    lr_scheduler_kwargs, model_kwargs,
+                                    optimizer_kwargs, videodata_kwargs)
+
+import torchreid
+from torchreid.engine import build_engine
+from torchreid.ops import DataParallel
+from torchreid.utils import (Logger, check_isfile, collect_env_info,
+                             compute_model_complexity, load_pretrained_weights,
+                             resume_from_checkpoint, set_random_seed)
 
 
 def build_datamanager(cfg):

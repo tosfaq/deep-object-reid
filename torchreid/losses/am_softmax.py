@@ -188,8 +188,7 @@ class AMSoftmaxLoss(nn.Module):
 
         index = torch.zeros_like(cos_theta, dtype=torch.uint8)
         index.scatter_(1, target.data.view(-1, 1), 1)
-        output = torch.where(index, phi_theta, cos_theta)
-
+       \
         self.last_scale = self._get_scale(self.start_s, self.end_s, self.duration_s, self.skip_steps_s, iteration)
 
         if self.gamma == 0.0 and self.t == 1.0:

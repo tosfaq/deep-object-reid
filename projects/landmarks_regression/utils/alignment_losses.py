@@ -11,10 +11,10 @@
  limitations under the License.
 """
 
+import math
+
 import torch
 import torch.nn as nn
-
-import math
 
 VALID_CORE_FUNC_TYPES = ['l1', 'l2', 'wing']
 

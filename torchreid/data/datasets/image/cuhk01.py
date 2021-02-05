@@ -1,12 +1,11 @@
-from __future__ import division, print_function, absolute_import
-import numpy as np
-
-from torchreid.utils import read_json, write_json
-
+from __future__ import absolute_import, division, print_function
 import glob
 import os.path as osp
 import zipfile
 
+import numpy as np
+
+from torchreid.utils import read_json, write_json
 from ..dataset import ImageDataset
 
 

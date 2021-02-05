@@ -14,20 +14,21 @@
  limitations under the License.
 """
 
+import argparse
+import os.path as osp
+
 import numpy as np
+import onnx
 import torch
 from PIL import Image
+from scripts.default_config import get_default_config, model_kwargs
 from torch.onnx.symbolic_helper import parse_args
 from torch.onnx.symbolic_registry import register_op
 
-from torchreid.utils import load_checkpoint, load_pretrained_weights
-from torchreid.models import build_model
 from torchreid.data.transforms import build_inference_transform
+from torchreid.models import build_model
+from torchreid.utils import load_checkpoint, load_pretrained_weights
 
-import onnx
-import os.path as osp
-import argparse
-from scripts.default_config import model_kwargs, get_default_config
 
 @parse_args('v', 'i', 'v', 'v', 'f', 'i')
 def group_norm_symbolic(g, input, num_groups, weight, bias, eps, cudnn_enabled):

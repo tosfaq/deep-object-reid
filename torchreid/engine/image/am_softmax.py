@@ -18,28 +18,23 @@
  limitations under the License.
 """
 
-from __future__ import division, print_function, absolute_import
+from __future__ import absolute_import, division, print_function
+import copy
+import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import matplotlib.pyplot as plt
 import torch.nn.functional as F
+from torch_lr_finder import LRFinder
 from torchvision.transforms import ToPILImage
 
 from torchreid import metrics
-from torchreid.utils import StateCacher, set_random_seed
 from torchreid.engine import Engine
-from torchreid.losses import (
-    MetricLosses,
-    AMSoftmaxLoss,
-    CrossEntropyLoss,
-    sample_mask,
-    get_regularizer
-)
-
-import os
-import copy
-from torch_lr_finder import LRFinder
+from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss, MetricLosses,
+                              get_regularizer, sample_mask)
+from torchreid.utils import StateCacher, set_random_seed
 
 
 class ImageAMSoftmaxEngine(Engine):

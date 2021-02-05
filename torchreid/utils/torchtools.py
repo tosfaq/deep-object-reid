@@ -1,13 +1,13 @@
-from __future__ import division, print_function, absolute_import
-import torch
-import torch.nn as nn
-
+from __future__ import absolute_import, division, print_function
+import os.path as osp
 import pickle
 import shutil
-import os.path as osp
 import warnings
-from functools import partial
 from collections import OrderedDict
+from functools import partial
+
+import torch
+import torch.nn as nn
 
 from .tools import mkdir_if_missing
 

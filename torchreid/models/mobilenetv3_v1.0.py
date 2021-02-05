@@ -9,17 +9,16 @@ arXiv preprint arXiv:1905.02244.
 Original repository: https://github.com/d-li14/mobilenetv3.pytorch
 """
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-from torchreid.ops import HSwish, Dropout, HSigmoid
-from torchreid.losses import AngleSimpleLinear
-
 import math
 import warnings
 from collections import OrderedDict
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from torchreid.losses import AngleSimpleLinear
+from torchreid.ops import Dropout, HSigmoid, HSwish
 from .common import ModelInterface
 
 __all__ = ['mobilenetv3_small', 'mobilenetv3_large']

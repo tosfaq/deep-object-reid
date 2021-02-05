@@ -1,18 +1,18 @@
-from __future__ import division, print_function, absolute_import
+from __future__ import absolute_import, division, print_function
+import copy
+import errno
+import json
+import os
+import os.path as osp
+import random
+import sys
+import time
+import warnings
+
 import numpy as np
 import PIL
 import torch
 from PIL import Image
-
-import os
-import sys
-import copy
-import json
-import time
-import errno
-import random
-import os.path as osp
-import warnings
 
 __all__ = [
     'mkdir_if_missing', 'check_isfile', 'read_json', 'write_json',

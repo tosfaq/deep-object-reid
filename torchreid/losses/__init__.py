@@ -1,19 +1,15 @@
-from __future__ import division, print_function, absolute_import
+from __future__ import absolute_import, division, print_function
 
-from .fmix import FMixBase, sample_mask
-from .metric import CenterLoss, MetricLosses
-from .entropy import MaxEntropyLoss, MinEntropyLoss, entropy
-from .info_nce import InfoNCELoss
 from .am_softmax import AMSoftmaxLoss, AngleSimpleLinear
-from .regularizers import (
-    ConvRegularizer,
-    NormRegularizer,
-    SVMORegularizer,
-    get_regularizer
-)
 from .cross_entropy_loss import CrossEntropyLoss, PseudoCrossEntropyLoss
-from .kullback_leibler_div import kl_div, set_kl_div, symmetric_kl_div
+from .entropy import MaxEntropyLoss, MinEntropyLoss, entropy
+from .fmix import FMixBase, sample_mask
 from .hard_mine_triplet_loss import TripletLoss
+from .info_nce import InfoNCELoss
+from .kullback_leibler_div import kl_div, set_kl_div, symmetric_kl_div
+from .metric import CenterLoss, MetricLosses
+from .regularizers import (ConvRegularizer, NormRegularizer, SVMORegularizer,
+                           get_regularizer)
 
 
 def DeepSupervision(criterion, xs, y, **kwargs):

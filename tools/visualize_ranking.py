@@ -14,26 +14,23 @@
  limitations under the License.
 """
 
-import numpy as np
+from argparse import REMAINDER, ArgumentDefaultsHelpFormatter, ArgumentParser
+from os import makedirs
+from os.path import exists, join
+from shutil import rmtree
+
 import cv2
+import numpy as np
 import torch
 import torch.nn.functional as F
+from scripts.default_config import (get_default_config, imagedata_kwargs,
+                                    model_kwargs)
+from tqdm import tqdm, trange
 
 import torchreid
-from torchreid.utils import load_pretrained_weights
 from torchreid.data.datasets import init_image_dataset
 from torchreid.data.transforms import build_test_transform
-
-from os import makedirs
-from tqdm import tqdm, trange
-from shutil import rmtree
-from os.path import join, exists
-from argparse import REMAINDER, ArgumentParser, ArgumentDefaultsHelpFormatter
-from scripts.default_config import (
-    model_kwargs,
-    imagedata_kwargs,
-    get_default_config
-)
+from torchreid.utils import load_pretrained_weights
 
 GRID_SPACING = 4
 ANCHOR_COLOR = (0, 0, 0)

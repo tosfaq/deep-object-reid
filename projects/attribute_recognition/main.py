@@ -1,39 +1,26 @@
 from __future__ import division, print_function
+import copy
+import datetime
+import os.path as osp
+import sys
+import time
+import warnings
+
+import datasets
+import models
 import numpy as np
 import torch
 import torch.nn as nn
+from default_parser import init_parser, lr_scheduler_kwargs, optimizer_kwargs
 
 import torchreid
-from torchreid.utils import (
-    Logger,
-    AverageMeter,
-    check_isfile,
-    open_all_layers,
-    save_checkpoint,
-    set_random_seed,
-    collect_env_info,
-    open_specified_layers,
-    load_pretrained_weights,
-    compute_model_complexity
-)
-from torchreid.data.transforms import (
-    Resize,
-    Compose,
-    ToTensor,
-    Normalize,
-    Random2DTranslation,
-    RandomHorizontalFlip
-)
-
-import sys
-import copy
-import time
-import models
-import os.path as osp
-import datasets
-import datetime
-import warnings
-from default_parser import init_parser, optimizer_kwargs, lr_scheduler_kwargs
+from torchreid.data.transforms import (Compose, Normalize, Random2DTranslation,
+                                       RandomHorizontalFlip, Resize, ToTensor)
+from torchreid.utils import (AverageMeter, Logger, check_isfile,
+                             collect_env_info, compute_model_complexity,
+                             load_pretrained_weights, open_all_layers,
+                             open_specified_layers, save_checkpoint,
+                             set_random_seed)
 
 parser = init_parser()
 args = parser.parse_args()

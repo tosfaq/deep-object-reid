@@ -1,8 +1,7 @@
-from __future__ import division, print_function, absolute_import
+from __future__ import absolute_import, division, print_function
+import os.path as osp
 
 from torchreid.utils import read_image
-
-import os.path as osp
 
 
 class Dataset(object):

@@ -11,13 +11,12 @@
  limitations under the License.
 """
 
-from __future__ import division, absolute_import
+from __future__ import absolute_import, division
+import math
+
 import torch.nn as nn
 
 from torchreid.losses import AngleSimpleLinear
-
-import math
-
 from .common import ModelInterface
 
 __all__ = ['mobile_face_net_se_1x', 'mobile_face_net_se_2x']

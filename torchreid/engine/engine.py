@@ -1,22 +1,23 @@
-from __future__ import division, print_function, absolute_import
-import time
-import numpy as np
+from __future__ import absolute_import, division, print_function
+import copy
+import datetime
 import os
 import os.path as osp
-import datetime
+import time
 from collections import OrderedDict
-import torch
-import copy
+
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
 from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 from torchreid import metrics
-from torchreid.utils import (
-    MetricMeter, AverageMeter, re_ranking, open_all_layers, save_checkpoint,
-    open_specified_layers, visualize_ranked_results, get_model_attr
-)
 from torchreid.losses import DeepSupervision
+from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
+                             open_all_layers, open_specified_layers,
+                             re_ranking, save_checkpoint,
+                             visualize_ranked_results)
 
 
 class Engine:

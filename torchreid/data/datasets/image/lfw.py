@@ -11,12 +11,12 @@
  limitations under the License.
 """
 
-import numpy as np
+import os.path as osp
+
 import cv2 as cv
+import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
-
-import os.path as osp
 
 
 class FivePointsAligner():

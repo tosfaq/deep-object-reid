@@ -12,25 +12,17 @@ __all__ = ['EfficientNet', 'calc_tf_padding', 'EffiInvResUnit', 'EffiInitBlock',
            'efficientnet_b0c', 'efficientnet_b1c', 'efficientnet_b2c', 'efficientnet_b3c', 'efficientnet_b4c',
            'efficientnet_b5c', 'efficientnet_b6c', 'efficientnet_b7c', 'efficientnet_b8c']
 
-import torch.nn as nn
-import torch.nn.init as init
-import torch.nn.functional as F
-
-from torchreid.ops import Dropout
-from torchreid.losses import AngleSimpleLinear
-
-import os
 import math
+import os
 
-from .common import (
-    SEBlock,
-    ModelInterface,
-    conv1x1_block,
-    conv3x3_block,
-    round_channels,
-    dwconv3x3_block,
-    dwconv5x5_block
-)
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.nn.init as init
+
+from torchreid.losses import AngleSimpleLinear
+from torchreid.ops import Dropout
+from .common import (ModelInterface, SEBlock, conv1x1_block, conv3x3_block,
+                     dwconv3x3_block, dwconv5x5_block, round_channels)
 
 
 def calc_tf_padding(x,

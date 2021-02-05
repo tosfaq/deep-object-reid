@@ -14,13 +14,13 @@
  limitations under the License.
 """
 
-import torch.nn.functional as F
-from torch import Tensor, nn
-from torch.nn import init
-
 import math
 import operator
 from functools import reduce
+
+import torch.nn.functional as F
+from torch import Tensor, nn
+from torch.nn import init
 
 
 def xavier_fill(tensor):

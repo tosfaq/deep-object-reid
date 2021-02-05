@@ -1,10 +1,10 @@
-from __future__ import division, print_function, absolute_import
+from __future__ import absolute_import, division, print_function
+import math
+from collections import defaultdict, namedtuple
+from itertools import repeat
+
 import numpy as np
 import torch
-
-import math
-from itertools import repeat
-from collections import namedtuple, defaultdict
 
 __all__ = ['compute_model_complexity']
 """

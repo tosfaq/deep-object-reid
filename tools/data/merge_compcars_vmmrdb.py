@@ -15,9 +15,10 @@
 """
 
 import argparse
-from os import walk, makedirs
-from shutil import rmtree, copyfile
-from os.path import join, exists, abspath
+from os import makedirs, walk
+from os.path import abspath, exists, join
+from shutil import copyfile, rmtree
+
 from scipy.io import loadmat
 
 VMMRDB_COMPLEX_NAMES = 'alfa_romeo', 'aston_martin', 'am_general', 'can_am', 'mercedes_benz'

@@ -1,11 +1,11 @@
 """
 Credit to https://github.com/XingangPan/IBN-Net.
 """
-from __future__ import division, absolute_import
+from __future__ import absolute_import, division
+import math
+
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
-
-import math
 
 __all__ = ['resnet50_ibn_b']
 

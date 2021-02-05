@@ -1,13 +1,13 @@
+import math
+import warnings
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 
 from torchreid.losses import AngleSimpleLinear
-
-import math
-import warnings
-from collections import OrderedDict
 
 __all__ = ['res2net50_v1b_26w_4s', 'res2net101_v1b_26w_4s']
 
