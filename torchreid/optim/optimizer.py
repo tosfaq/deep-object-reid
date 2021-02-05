@@ -1,20 +1,67 @@
-from __future__ import absolute_import, print_function
-import warnings
-
+from __future__ import print_function, absolute_import
 import torch
 import torch.nn as nn
 
-from .radam import RAdam
+import warnings
+
 from .sam import SAM
+from .radam import RAdam
 
 AVAI_OPTIMS = {'adam', 'amsgrad', 'sgd', 'rmsprop', 'radam', 'sam'}
 
+def build_optimizer(model, optim, base_optim, **kwargs):
+    """A wrapper function for building an optimizer.
 
-class OtimizerBuilder:
-    def __init__(self,
-                model,
+    Args:
+        model (nn.Module): model.
+        optim (str, optional): optimizer. Default is "adam".
+        lr (float, optional): learning rate. Default is 0.0003.
+        weight_decay (float, optional): weight decay (L2 penalty). Default is 5e-04.
+        momentum (float, optional): momentum factor in sgd. Default is 0.9,
+        sgd_dampening (float, optional): dampening for momentum. Default is 0.
+        sgd_nesterov (bool, optional): enables Nesterov momentum. Default is False.
+        rmsprop_alpha (float, optional): smoothing constant for rmsprop. Default is 0.99.
+        adam_beta1 (float, optional): beta-1 value in adam. Default is 0.9.
+        adam_beta2 (float, optional): beta-2 value in adam. Default is 0.99,
+        staged_lr (bool, optional): uses different learning rates for base and new layers. Base
+            layers are pretrained layers while new layers are randomly initialized, e.g. the
+            identity classification layer. Enabling ``staged_lr`` can allow the base layers to
+            be trained with a smaller learning rate determined by ``base_lr_mult``, while the new
+            layers will take the ``lr``. Default is False.
+        new_layers (str or list): attribute names in ``model``. Default is empty.
+        base_lr_mult (float, optional): learning rate multiplier for base layers. Default is 0.1.
+        sam_rho (float, optional): Scale factor for SAM optimizer
+
+    Examples::
+        >>> # A normal optimizer can be built by
+        >>> optimizer = torchreid.optim.build_optimizer(model, optim='sgd', lr=0.01)
+        >>> # If you want to use a smaller learning rate for pretrained layers
+        >>> # and the attribute name for the randomly initialized layer is 'classifier',
+        >>> # you can do
+        >>> optimizer = torchreid.optim.build_optimizer(
+        >>>     model, optim='sgd', lr=0.01, staged_lr=True,
+        >>>     new_layers='classifier', base_lr_mult=0.1
+        >>> )
+        >>> # Now the `classifier` has learning rate 0.01 but the base layers
+        >>> # have learning rate 0.01 * 0.1.
+        >>> # new_layers can also take multiple attribute names. Say the new layers
+        >>> # are 'fc' and 'classifier', you can do
+        >>> optimizer = torchreid.optim.build_optimizer(
+        >>>     model, optim='sgd', lr=0.01, staged_lr=True,
+        >>>     new_layers=['fc', 'classifier'], base_lr_mult=0.1
+        >>> )
+    """
+    if optim == 'sam':
+        base_optim = _build_optim(model, optim=base_optim, base_optim=None, **kwargs)
+        optimizer = _build_optim(model, optim=optim, base_optim=base_optim, **kwargs)
+    else:
+        optimizer = _build_optim(model, optim=optim, base_optim=None, **kwargs)
+
+    return optimizer
+
+def _build_optim(model,
                 optim='adam',
-                base_optim = 'sgd',
+                base_optim='sgd',
                 lr=0.0003,
                 weight_decay=5e-04,
                 momentum=0.9,
@@ -27,172 +74,109 @@ class OtimizerBuilder:
                 new_layers='',
                 base_lr_mult=0.1,
                 sam_rho = 0.05):
+    if optim not in AVAI_OPTIMS:
+        raise ValueError(
+            'Unsupported optimizer: {}. Must be one of {}'.format(
+                optim, AVAI_OPTIMS
+            )
+        )
 
-        """A class for building an optimizer.
+    if isinstance(base_optim, SAM):
+        raise ValueError(
+            'Invalid base optimizer. SAM cannot be the base one'
+        )
 
-        Args:
-            model (nn.Module): model.
-            optim (str, optional): optimizer. Default is "adam".
-            lr (float, optional): learning rate. Default is 0.0003.
-            weight_decay (float, optional): weight decay (L2 penalty). Default is 5e-04.
-            momentum (float, optional): momentum factor in sgd. Default is 0.9,
-            sgd_dampening (float, optional): dampening for momentum. Default is 0.
-            sgd_nesterov (bool, optional): enables Nesterov momentum. Default is False.
-            rmsprop_alpha (float, optional): smoothing constant for rmsprop. Default is 0.99.
-            adam_beta1 (float, optional): beta-1 value in adam. Default is 0.9.
-            adam_beta2 (float, optional): beta-2 value in adam. Default is 0.99,
-            staged_lr (bool, optional): uses different learning rates for base and new layers. Base
-                layers are pretrained layers while new layers are randomly initialized, e.g. the
-                identity classification layer. Enabling ``staged_lr`` can allow the base layers to
-                be trained with a smaller learning rate determined by ``base_lr_mult``, while the new
-                layers will take the ``lr``. Default is False.
-            new_layers (str or list): attribute names in ``model``. Default is empty.
-            base_lr_mult (float, optional): learning rate multiplier for base layers. Default is 0.1.
+    if not isinstance(model, nn.Module):
+        raise TypeError(
+            'model given to build_optimizer must be an instance of nn.Module'
+        )
 
-        Examples::
-            >>> # A normal optimizer can be built by
-            >>> optimizer = torchreid.optim.build_optimizer(model, optim='sgd', lr=0.01)
-            >>> # If you want to use a smaller learning rate for pretrained layers
-            >>> # and the attribute name for the randomly initialized layer is 'classifier',
-            >>> # you can do
-            >>> optimizer = torchreid.optim.build_optimizer(
-            >>>     model, optim='sgd', lr=0.01, staged_lr=True,
-            >>>     new_layers='classifier', base_lr_mult=0.1
-            >>> )
-            >>> # Now the `classifier` has learning rate 0.01 but the base layers
-            >>> # have learning rate 0.01 * 0.1.
-            >>> # new_layers can also take multiple attribute names. Say the new layers
-            >>> # are 'fc' and 'classifier', you can do
-            >>> optimizer = torchreid.optim.build_optimizer(
-            >>>     model, optim='sgd', lr=0.01, staged_lr=True,
-            >>>     new_layers=['fc', 'classifier'], base_lr_mult=0.1
-            >>> )
-        """
-        self.model = model
-        self.optim = optim
-        self.base_optim = base_optim
-        self.lr = lr
-        self.weight_decay = weight_decay
-        self.momentum = momentum
-        self.sgd_dampening = sgd_dampening
-        self.sgd_nesterov = sgd_nesterov
-        self.rmsprop_alpha = rmsprop_alpha
-        self.adam_beta1 = adam_beta1
-        self.adam_beta2 = adam_beta2
-        self.staged_lr = staged_lr
-        self.new_layers = new_layers
-        self.base_lr_mult = base_lr_mult
-        self.sam_rho = sam_rho
-
-    def build_optimizer(self):
-        if self.optim == 'sam':
-            base_optim = self._build_optim(optim=self.base_optim)
-            optimizer = self._build_optim(self.optim, base_optim=base_optim)
-        else:
-            optimizer = self._build_optim(optim=self.optim)
-
-        return optimizer
-
-    def _build_optim(self, optim, base_optim=None):
-
-        if optim not in AVAI_OPTIMS:
-            raise ValueError(
-                'Unsupported optim: {}. Must be one of {}'.format(
-                    optim, AVAI_OPTIMS
+    if staged_lr:
+        if isinstance(new_layers, str):
+            if new_layers is None:
+                warnings.warn(
+                    'new_layers is empty, therefore, staged_lr is useless'
                 )
-            )
+            new_layers = [new_layers]
 
-        if not isinstance(self.model, nn.Module):
-            raise TypeError(
-                'model given to build_optimizer must be an instance of nn.Module'
-            )
+        if isinstance(model, nn.DataParallel):
+            model = model.module
 
-        if self.staged_lr:
-            if isinstance(self.new_layers, str):
-                if self.new_layers is None:
-                    warnings.warn(
-                        'new_layers is empty, therefore, staged_lr is useless'
-                    )
-                self.new_layers = [self.new_layers]
+        base_params = []
+        base_layers = []
+        new_params = []
 
-            if isinstance(self.model, nn.DataParallel):
-                self.model = self.model.module
+        for name, module in model.named_children():
+            if name in new_layers:
+                new_params += [p for p in module.parameters()]
+            else:
+                base_params += [p for p in module.parameters()]
+                base_layers.append(name)
 
-            base_params = []
-            base_layers = []
-            new_params = []
+        param_groups = [
+            {
+                'params': base_params,
+                'lr': lr * base_lr_mult
+            },
+            {
+                'params': new_params
+            },
+        ]
 
-            for name, module in self.model.named_children():
-                if name in self.new_layers:
-                    new_params += [p for p in module.parameters()]
-                else:
-                    base_params += [p for p in module.parameters()]
-                    base_layers.append(name)
+    else:
+        param_groups = model.parameters()
+    if optim == 'adam':
+        optimizer = torch.optim.Adam(
+            param_groups,
+            lr=lr,
+            weight_decay=weight_decay,
+            betas=(adam_beta1, adam_beta2),
+        )
 
-            param_groups = [
-                {
-                    'params': base_params,
-                    'lr': self.lr * self.base_lr_mult
-                },
-                {
-                    'params': new_params
-                },
-            ]
+    elif optim == 'amsgrad':
+        optimizer = torch.optim.Adam(
+            param_groups,
+            lr=lr,
+            weight_decay=weight_decay,
+            betas=(adam_beta1, adam_beta2),
+            amsgrad=True,
+        )
 
-        else:
-            param_groups = self.model.parameters()
-        if optim == 'adam':
-            optimizer = torch.optim.Adam(
-                param_groups,
-                lr=self.lr,
-                weight_decay=self.weight_decay,
-                betas=(self.adam_beta1, self.adam_beta2),
-            )
+    elif optim == 'sgd':
+        optimizer = torch.optim.SGD(
+            param_groups,
+            lr=lr,
+            momentum=momentum,
+            weight_decay=weight_decay,
+            dampening=sgd_dampening,
+            nesterov=sgd_nesterov,
+        )
 
-        elif optim == 'amsgrad':
-            optimizer = torch.optim.Adam(
-                param_groups,
-                lr=self.lr,
-                weight_decay=self.weight_decay,
-                betas=(self.adam_beta1, self.adam_beta2),
-                amsgrad=True,
-            )
+    elif optim == 'rmsprop':
+        optimizer = torch.optim.RMSprop(
+            param_groups,
+            lr=lr,
+            momentum=momentum,
+            weight_decay=weight_decay,
+            alpha=rmsprop_alpha,
+        )
 
-        elif optim == 'sgd':
-            optimizer = torch.optim.SGD(
-                param_groups,
-                lr=self.lr,
-                momentum=self.momentum,
-                weight_decay=self.weight_decay,
-                dampening=self.sgd_dampening,
-                nesterov=self.sgd_nesterov,
-            )
+    elif optim == 'radam':
+        optimizer = RAdam(
+            param_groups,
+            lr=lr,
+            weight_decay=weight_decay,
+            betas=(adam_beta1, adam_beta2)
+        )
 
-        elif optim == 'rmsprop':
-            optimizer = torch.optim.RMSprop(
-                param_groups,
-                lr=self.lr,
-                momentum=self.momentum,
-                weight_decay=self.weight_decay,
-                alpha=self.rmsprop_alpha,
-            )
+    if optim == 'sam':
+        if not base_optim:
+            raise ValueError("SAM cannot operate without base optimizer. "
+                                "Please add it to configuration file")
+        optimizer = SAM(
+            params=param_groups,
+            base_optimizer=base_optim,
+            rho=sam_rho
+        )
 
-        elif optim == 'radam':
-            optimizer = RAdam(
-                param_groups,
-                lr=self.lr,
-                weight_decay=self.weight_decay,
-                betas=(self.adam_beta1, self.adam_beta2)
-            )
-
-        if optim == 'sam':
-            if not base_optim:
-                raise ValueError("SAM cannot operate without base optimizer. "
-                                 "Please add it to configuration file")
-            optimizer = SAM(
-                params=param_groups,
-                base_optimizer=base_optim,
-                rho=self.sam_rho
-            )
-
-        return optimizer
+    return optimizer

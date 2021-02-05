@@ -152,10 +152,8 @@ class Engine:
 
             if current_lr == self.lb_lr:
                 current_metric = np.round(top1, 4)
-                print(self.best_metric, current_metric)
                 if (self.best_metric >= current_metric):
                     self.iter_to_wait += 1
-                    print(f'best metric >= current metric! iter to wait: {self.iter_to_wait}')
                     if self.iter_to_wait >= self.train_patience:
                         print("The training stopped due to no improvements for {} epochs".format(self.train_patience))
                         return True
@@ -276,9 +274,9 @@ class Engine:
                 if lr_finder:
                     print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
 
-            if ((self.early_stoping) and
-                (not lr_finder) and
-                (self.exit_on_plataeu(top1, top5, mAP))):
+            if (self.early_stoping and
+                not lr_finder and
+                self.exit_on_plataeu(top1, top5, mAP)):
                     break
 
         if self.max_epoch > 0:
