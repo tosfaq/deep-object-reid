@@ -152,7 +152,8 @@ def main():
                                                  dataloader['query'].dataset.classes, strict=False):
                     raise ValueError('Inconsistent classes in evaluation dataset')
         elif args.classes:
-            if not check_classes_consistency(args.classes,
+            classes_map = {v : k for k, v in enumerate(sorted(args.classes))}
+            if not check_classes_consistency(classes_map,
                                              datamanager.train_loader.dataset.classes, strict=True):
                 raise ValueError('Inconsistent classes in training dataset')
 
