@@ -6,13 +6,17 @@ from sklearn.metrics import confusion_matrix
 from terminaltables import AsciiTable
 
 
-def score_extraction(data_loader, model, use_gpu, head_id=0):
+def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
     with torch.no_grad():
         out_scores, out_labels = [], []
         for batch_idx, data in enumerate(data_loader):
             batch_images, batch_labels = data[0], data[1]
             if use_gpu:
                 batch_images = batch_images.cuda()
+
+            if len(labelmap):
+                for i, label in enumerate(labelmap):
+                    batch_labels[torch.where(batch_labels==i)] = label
 
             out_scores.append(model(batch_images)[head_id])
             out_labels.extend(batch_labels)
@@ -120,8 +124,8 @@ def get_invalid(scores, gt_labels, data_info):
     return unmatched
 
 
-def evaluate_classification(dataloader, model, use_gpu, topk=(1,)):
-    scores, labels = score_extraction(dataloader, model, use_gpu)
+def evaluate_classification(dataloader, model, use_gpu, topk=(1,), labelmap=[]):
+    scores, labels = score_extraction(dataloader, model, use_gpu, labelmap)
 
     m_ap = mean_average_precision(scores, labels)
 

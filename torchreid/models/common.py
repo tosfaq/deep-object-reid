@@ -30,6 +30,7 @@ class ModelInterface(nn.Module):
           self.classification = classification
           self.contrastive = contrastive
           self.pretrained = pretrained
+          self.classification_classes = {}
 
      @staticmethod
      def _glob_feature_vector(x, mode, reduce_dims=True):
