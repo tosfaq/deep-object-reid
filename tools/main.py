@@ -61,6 +61,21 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
     return model, optimizer, scheduler
 
 
+def check_classes_consistency(ref_classes, probe_classes, strict=False):
+    if strict:
+        if len(ref_classes) != len(probe_classes):
+            return False
+        return sorted(probe_classes.keys()) == sorted(ref_classes.keys())
+    else:
+        if len(ref_classes) > len(probe_classes):
+            return False
+        probe_names = probe_classes.keys()
+        for cl in ref_classes.keys():
+            if cl not in probe_names:
+                return False
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config-file', type=str, default='',
@@ -77,6 +92,8 @@ def main():
                         help='target datasets (delimited by space)')
     parser.add_argument('--root', type=str, default='',
                         help='path to data root')
+    parser.add_argument('--classes', type=str, nargs='+',
+                        help='name of classes in classification dataset')
     parser.add_argument('--custom-roots', type=str, nargs='+',
                         help='types or paths to annotation of custom datasets (delimited by space)')
     parser.add_argument('--custom-types', type=str, nargs='+',
@@ -124,6 +141,21 @@ def main():
             model.load_pretrained_weights(state_dict)
         else:
             load_pretrained_weights(model, cfg.model.load_weights)
+
+    if cfg.model.classification:
+        if cfg.test.evaluate:
+            for name, dataloader in datamanager.test_loader.items():
+                if not len(dataloader['query'].dataset.classes): # current text annotation doesn't contain classes names
+                    print(f'Warning: classes are not defined for validation dataset {name}')
+                    continue
+                if not check_classes_consistency(model.classification_classes,
+                                                 dataloader['query'].dataset.classes, strict=False):
+                    raise ValueError('Inconsistent classes in evaluation dataset')
+        elif args.classes:
+            classes_map = {v : k for k, v in enumerate(sorted(args.classes))}
+            if not check_classes_consistency(classes_map,
+                                             datamanager.train_loader.dataset.classes, strict=True):
+                raise ValueError('Inconsistent classes in training dataset')
 
     if cfg.use_gpu:
         num_devices = min(torch.cuda.device_count(), args.gpu_num)

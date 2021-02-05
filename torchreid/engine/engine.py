@@ -100,7 +100,8 @@ class Engine:
                                 'epoch': epoch + 1,
                                 'optimizer': self.optims[name].state_dict(),
                                 'scheduler': self.scheds[name].state_dict(),
-                                'num_classes': self.datamanager.num_train_pids
+                                'num_classes': self.datamanager.num_train_pids,
+                                'classes_map': self.datamanager.train_loader.dataset.classes
                             },
                             osp.join(save_dir, name),
                             is_best=is_best
@@ -394,7 +395,13 @@ class Engine:
 
     @torch.no_grad()
     def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks):
-        cmc, mAP, norm_cm = metrics.evaluate_classification(data_loader, model, self.use_gpu, ranks)
+        labelmap = []
+        if len(data_loader.dataset.classes) and len(model.classification_classes) and \
+                len(data_loader.dataset.classes) < len(model.classification_classes):
+            for class_name in sorted(data_loader.dataset.classes.keys()):
+                labelmap.append(data_loader.dataset.classes[class_name])
+
+        cmc, mAP, norm_cm = metrics.evaluate_classification(data_loader, model, self.use_gpu, ranks, labelmap)
 
         if self.writer is not None:
             self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)

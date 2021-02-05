@@ -372,6 +372,7 @@ class ImageDataset(Dataset):
 
     def __init__(self, train, query, gallery, **kwargs):
         super(ImageDataset, self).__init__(train, query, gallery, **kwargs)
+        self.classes = {}
 
     def __getitem__(self, index):
         input_record = self.data[index]
