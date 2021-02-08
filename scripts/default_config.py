@@ -24,13 +24,13 @@ def get_default_config():
     cfg.model.save_chkpt = True
     cfg.model.load_weights = ''  # path to model weights
     cfg.model.resume = ''  # path to checkpoint for resume training
-    cfg.model.dropout = CN()
-    cfg.model.dropout.p = 0.0
-    cfg.model.dropout.mu = 0.1
-    cfg.model.dropout.sigma = 0.03
-    cfg.model.dropout.kernel = 3
-    cfg.model.dropout.temperature = 0.2
-    cfg.model.dropout.dist = 'none'
+    cfg.model.dropout_backbone = CN()
+    cfg.model.dropout_backbone.p = 0.0
+    cfg.model.dropout_backbone.mu = 0.1
+    cfg.model.dropout_backbone.sigma = 0.03
+    cfg.model.dropout_backbone.kernel = 3
+    cfg.model.dropout_backbone.temperature = 0.2
+    cfg.model.dropout_backbone.dist = 'none'
     cfg.model.dropout_cls = CN()
     cfg.model.dropout_cls.p = 0.0
     cfg.model.dropout_cls.mu = 0.1
@@ -129,13 +129,11 @@ def get_default_config():
     cfg.train.cycle_mult = 1.
     cfg.train.min_lr = 1e-5
     cfg.train.max_lr = 0.1
-    cfg.train.patience = 5
+    cfg.train.patience = 5 # define how much epochs to wait for reduce on plateau
     cfg.train.multiplier = 10
     cfg.train.print_freq = 20  # print frequency
     cfg.train.seed = 5  # random seed
     cfg.train.warmup = 1  # After fixbase_epoch
-    cfg.train.warmup_factor_base = 0.1
-    cfg.train.frozen_factor_base = 1.0
 
     # optimizer
     cfg.sgd = CN()
@@ -156,6 +154,7 @@ def get_default_config():
     cfg.loss.name = 'softmax'
     cfg.loss.softmax = CN()
     cfg.loss.softmax.label_smooth = False  # use label smoothing regularizer
+    cfg.loss.softmax.margin_type = 'cos'
     cfg.loss.softmax.augmentations = CN()
     cfg.loss.softmax.augmentations.aug_type = '' # use advanced augmentations like fmix, cutmix and mixup
     cfg.loss.softmax.augmentations.alpha = 1.0
@@ -501,8 +500,6 @@ def lr_scheduler_kwargs(cfg):
         'max_lr': cfg.train.max_lr,
         'patience': cfg.train.patience,
         'frozen': cfg.train.fixbase_epoch,
-        'warmup_factor_base': cfg.train.warmup_factor_base,
-        'frozen_factor_base': cfg.train.frozen_factor_base
     }
 
 
@@ -518,7 +515,7 @@ def model_kwargs(cfg, num_classes):
         'lr_finder': cfg.lr_finder,
         'download_weights': cfg.model.download_weights,
         'use_gpu': cfg.use_gpu,
-        'dropout_cfg': cfg.model.dropout,
+        'dropout_cfg': cfg.model.dropout_backbone,
         'dropout_cls': cfg.model.dropout_cls,
         'feature_dim': cfg.model.feature_dim,
         'fpn_cfg': cfg.model.fpn,

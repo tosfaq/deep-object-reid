@@ -579,7 +579,9 @@ class InceptionV4(ModelInterface):
     https://arxiv.org/abs/1602.07261.
     Parameters:
     ----------
-    dropout_rate : float, default 0.0
+    dropout_cfg : float, default 0.0
+        Fraction of the input units in backbone to drop. Must be a number between 0 and 1.
+    dropout_cls : float, default 0.0
         Fraction of the input units to drop. Must be a number between 0 and 1.
     in_channels : int, default 3
         Number of input channels.

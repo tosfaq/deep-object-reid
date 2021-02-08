@@ -33,6 +33,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 softmax_type=softmax_type,
                 m=cfg.loss.softmax.m,
                 s=cfg.loss.softmax.s,
+                margin_type=cfg.loss.softmax.margin_type,
                 end_s=cfg.loss.softmax.end_s,
                 duration_s=cfg.loss.softmax.duration_s,
                 skip_steps_s=cfg.loss.softmax.skip_steps_s,

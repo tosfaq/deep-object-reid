@@ -35,6 +35,7 @@ from torchreid.engine import Engine
 from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss, MetricLosses,
                               get_regularizer, sample_mask)
 from torchreid.utils import StateCacher, set_random_seed
+from torchreid.optim import SAM
 
 
 class ImageAMSoftmaxEngine(Engine):
@@ -43,7 +44,7 @@ class ImageAMSoftmaxEngine(Engine):
 
     def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, batch_transform_cfg,
                  scheduler=None, use_gpu=False, save_chkpt=True, train_patience=10, early_stoping = False,
-                 lb_lr = 1e-5, softmax_type='stock', label_smooth=False, epsilon=0.1, aug_type=None, decay_power=3,
+                 lb_lr = 1e-5, softmax_type='stock', label_smooth=False, margin_type='cos', epsilon=0.1, aug_type=None, decay_power=3,
                  alpha=1., size=(224, 224), max_soft=0.0, reformulate=False, aug_prob=1., conf_penalty=False,
                  pr_product=False, m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None, enable_masks=False,
                  adaptive_margins=False, class_weighting=False, attr_cfg=None, base_num_classes=-1,
@@ -104,6 +105,7 @@ class ImageAMSoftmaxEngine(Engine):
                 self.main_losses.append(AMSoftmaxLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
+                    margin_type=margin_type,
                     epsilon=epsilon,
                     aug_type=aug_type,
                     conf_penalty=conf_penalty,
@@ -234,16 +236,15 @@ class ImageAMSoftmaxEngine(Engine):
             total_loss.backward(retain_graph=self.enable_metric_losses)
 
             for model_name in model_names:
-                optim_name = self.optims[model_name].__class__.__name__
                 for trg_id in range(self.num_targets):
                     if self.enable_metric_losses:
                         ml_loss_module = self.ml_losses[trg_id][model_name]
                         ml_loss_module.end_iteration(do_backward=False)
-                if optim_name == "SAM" and step == 1:
+                if isinstance(self.optims[model_name], SAM) and step == 1:
                     self.optims[model_name].first_step()
-                elif optim_name == "SAM" and step == 2:
+                elif isinstance(self.optims[model_name], SAM) and step == 2:
                     self.optims[model_name].second_step()
-                elif optim_name != "SAM" and step == 1:
+                elif not isinstance(self.optims[model_name], SAM) and step == 1:
                     self.optims[model_name].step()
 
             loss_summary['loss'] = total_loss.item()
@@ -510,7 +511,7 @@ class ImageAMSoftmaxEngine(Engine):
         if mode == 'automatic':
             wd = self.optims[name].param_groups[0]['weight_decay']
             criterion = self.main_losses[0]
-            if self.optims[name].__class__.__name__ == 'SAM':
+            if self.enable_sam:
                 optimizer = torch.optim.SGD(self.models[name].parameters(), lr=min_lr, weight_decay=wd)
             else:
                 optimizer = self.optims[name]

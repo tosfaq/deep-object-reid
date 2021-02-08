@@ -940,10 +940,6 @@ class AugMix(object):
         for aug in self.transforms:
             if aug.__class__.__name__ == 'PairResize':
                 self.resize = aug
-            elif aug.__class__.__name__ == 'PairToTensor':
-                self.to_tensor = aug
-            elif aug.__class__.__name__ == 'PairNormalize':
-                self.normalize = aug
             elif aug.__class__.__name__ == 'RandomHorizontalFlip':
                 self.random_flip = aug
             elif aug.__class__.__name__ == 'RandomCrop':
@@ -971,31 +967,28 @@ class AugMix(object):
             ws = np.float32(np.random.dirichlet([self.alpha] * self.width))
             m = np.float32(np.random.beta(self.alpha, self.alpha))
 
-            mix_img = torch.zeros_like(F.to_tensor(image))
-            mix_mask = torch.zeros_like(F.to_tensor(mask)) if mask != '' else mask
+            mix_img = np.zeros_like(image)
+            mix_mask = np.zeros_like(mask) if mask != '' else mask
             for i in range(self.width):
                 image_aug = image.copy()
                 mask_aug = mask.copy() if mask != '' else mask
                 depth = self.depth if self.depth > 0 else np.random.randint(1, 4)
-                # filter operations that have already been used
+
                 for _ in range(depth):
                     op = np.random.choice(self.train_transforms)
                     image_aug, mask_aug = op((image_aug, mask_aug))
-                # Preprocessing commutes since all coefficients are convex
-                image_aug, mask_aug = self.normalize(self.to_tensor((image_aug, mask_aug)))
+
                 mix_img = mix_img + ws[i] * image_aug
                 mix_mask = mix_mask + ws[i] * mask_aug if mask != '' else mask
             prob = np.random.rand(1)[0]
             if prob <= self.p:
-                image, mask = self.normalize(self.to_tensor((image, mask)))
                 mixed_image = (1 - m) * image + m * mix_img
                 mixed_mask = (1 - m) * mask + m * mix_mask if mask != '' else mask
-                mixed_mask = Image.fromarray(mixed_mask) if mask != '' else mask
-
-                return mixed_image, mixed_mask
+                # # converting to PIL
+                mixed_mask = Image.fromarray(mixed_mask.astype(np.uint8)) if mixed_mask != '' else mixed_mask
+                return Image.fromarray(mixed_image.astype(np.uint8)), mixed_mask
 
         assert not self.transforms or prob > self.p
-        image, mask = self.normalize(self.to_tensor((image, mask)))
         return image, mask
 
 def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.406),
@@ -1082,10 +1075,6 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.random_gray_scale.enable:
         print('+ random_gray_scale')
         transform_tr += [RandomGrayscale(p=transforms.random_gray_scale.p)]
-    if transforms.random_perspective.enable:
-        print('+ random_perspective')
-        transform_tr += [RandomPerspective(p=transforms.random_perspective.p,
-                                           distortion_scale=transforms.random_perspective.distortion_scale)]
     if transforms.random_rotate.enable:
         print('+ random_rotate')
         transform_tr += [RandomRotate(**transforms.random_rotate)]
@@ -1107,6 +1096,11 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.coarse_dropout.enable:
         print('+ coarse_dropout')
         transform_tr += [CoarseDropout(**transforms.coarse_dropout)]
+    # if augmix is on - all of the above augmentations will be applyed in augmix maner
+    if transforms.augmix.enable:
+        print('all of the above augmentations will be applyed in augmix pipeline')
+        transform_tr = [AugMix(transform_tr, **transforms.augmix)]
+
     print('+ to torch tensor of range [0, 1]')
     transform_tr += [PairToTensor()]
     print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
@@ -1114,10 +1108,6 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.random_erase.enable and transforms.random_erase.norm_image:
         print('+ random erase')
         transform_tr += [RandomErasing(**transforms.random_erase)]
-    # if augmix is on - all of the above augmentations will be applyed in augmix maner
-    if transforms.augmix.enable:
-        print('all of the above augmentations will be applyed in augmix pipeline')
-        transform_tr = [AugMix(transform_tr, **transforms.augmix)]
 
     transform_tr = Compose(transform_tr)
     transform_te = build_test_transform(height, width, norm_mean, norm_std, apply_masks_to_test, transforms)

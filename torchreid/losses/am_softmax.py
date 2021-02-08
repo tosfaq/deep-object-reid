@@ -174,44 +174,55 @@ class AMSoftmaxLoss(nn.Module):
                 Each position contains the label index.
             iteration (int): current iteration
         """
+        if (self.aug_type and aug_index is not None and lam is not None):
+            targets1 = torch.zeros(cos_theta.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
+            if self.use_gpu:
+                targets1 = targets1.cuda()
+
+            targets2 = targets1[aug_index]
+            new_targets = targets1 * lam + targets2 * (1 - lam)
+            # in case if target label changed
+            target = new_targets.argmax(dim=1)
 
         if self.pr_product:
             pr_alpha = torch.sqrt(1.0 - cos_theta.pow(2.0))
             cos_theta = pr_alpha.detach() * cos_theta + cos_theta.detach() * (1.0 - pr_alpha)
 
+        one_hot_target = torch.zeros_like(cos_theta, dtype=torch.uint8)
+        one_hot_target.scatter_(1, target.data.view(-1, 1), 1)
+        # change margins accordingly
+        self.class_margins *= one_hot_target
+
         if self.margin_type == 'cos':
             phi_theta = cos_theta - self.class_margins
         else:
+            self.cos_m *= one_hot_target
+            self.sin_m *= one_hot_target
             sine = torch.sqrt(1.0 - torch.pow(cos_theta, 2))
             phi_theta = cos_theta * self.cos_m - sine * self.sin_m
-            phi_theta = torch.where(cos_theta > self.th, phi_theta, cos_theta - self.sin_m * self.m)
+            phi_theta = torch.where(cos_theta > self.th, phi_theta, cos_theta - self.sin_m * self.class_margins)
 
-        index = torch.zeros_like(cos_theta, dtype=torch.uint8)
-        index.scatter_(1, target.data.view(-1, 1), 1)
+        output = phi_theta
         self.last_scale = self._get_scale(self.start_s, self.end_s, self.duration_s, self.skip_steps_s, iteration)
 
         if self.gamma == 0.0 and self.t == 1.0:
             output *= self.last_scale
 
             if self.label_smooth:
-                targets = torch.zeros(output.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
+                assert not self.aug_type
+                target = torch.zeros(output.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
                 if self.use_gpu:
-                    targets = targets.cuda()
+                    target = target.cuda()
 
                 num_classes = output.size(1)
-                targets = (1.0 - self.epsilon) * targets + self.epsilon / float(num_classes)
-                losses = (- targets * F.log_softmax(output, dim=1)).sum(dim=1)
+                target = (1.0 - self.epsilon) * target + self.epsilon / float(num_classes)
+                losses = (- target * F.log_softmax(output, dim=1)).sum(dim=1)
+
+            elif (self.aug_type and aug_index is not None and lam is not None):
+                losses = (- new_targets * F.log_softmax(output, dim=1)).sum(dim=1)
+
             else:
                 losses = F.cross_entropy(output, target, reduction='none')
-
-            if (self.aug_type and aug_index is not None and lam is not None):
-                targets1 = torch.zeros(output.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
-                if self.use_gpu:
-                    targets1 = targets1.cuda()
-
-                targets2 = targets1[aug_index]
-                new_targets = targets1 * lam + targets2 * (1 - lam)
-                losses = (- new_targets * F.log_softmax(output, dim=1)).sum(dim=1)
 
             if self.symmetric_ce:
                 all_probs = F.softmax(output, dim=-1)
