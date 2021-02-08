@@ -59,6 +59,7 @@ __model_factory = {
     'mobilenetv3_large': mobilenetv3_large,
     'mobilenetv3_large_075': mobilenetv3_large_075,
     'mobilenetv3_large_150': mobilenetv3_large_150,
+    'mobilenetv3_large_125': mobilenetv3_large_125,
     'shufflenet': shufflenet,
     'squeezenet1_0': squeezenet1_0,
     'squeezenet1_0_fc512': squeezenet1_0_fc512,

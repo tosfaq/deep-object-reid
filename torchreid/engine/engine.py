@@ -269,7 +269,7 @@ class Engine:
                     ranks=ranks,
                     lr_finder = lr_finder
                 )
-                if self.save_chkpt:
+                if self.save_chkpt and not lr_finder:
                     self.save_model(self.epoch, save_dir)
 
                 if lr_finder:
@@ -448,7 +448,7 @@ class Engine:
         return  top1, top5, mAP
 
     @torch.no_grad()
-    def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks):
+    def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks, lr_finder):
         labelmap = []
         if len(data_loader.dataset.classes) and len(model.classification_classes) and \
                 len(data_loader.dataset.classes) < len(model.classification_classes):

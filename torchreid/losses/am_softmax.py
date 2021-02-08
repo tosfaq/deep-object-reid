@@ -175,7 +175,7 @@ class AMSoftmaxLoss(nn.Module):
             iteration (int): current iteration
         """
         if (self.aug_type and aug_index is not None and lam is not None):
-            targets1 = torch.zeros(cos_theta.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
+            targets1 = torch.zeros(cos_theta.size(), device=target.device).scatter_(1, target.detach().unsqueeze(1), 1)
             if self.use_gpu:
                 targets1 = targets1.cuda()
 
@@ -210,7 +210,7 @@ class AMSoftmaxLoss(nn.Module):
 
             if self.label_smooth:
                 assert not self.aug_type
-                target = torch.zeros(output.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
+                target = torch.zeros(output.size()).scatter_(1, target.unsqueeze(1).data, 1)
                 if self.use_gpu:
                     target = target.cuda()
 

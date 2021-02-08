@@ -236,7 +236,7 @@ def load_model(net,
     import warnings
     from collections import OrderedDict
 
-    pretrained_dict = torch.load(file_path)
+    pretrained_dict = torch.load(file_path, map_location="cpu")
     model_dict = net.state_dict()
     new_state_dict = OrderedDict()
     matched_layers, discarded_layers = [], []

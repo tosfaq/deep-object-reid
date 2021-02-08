@@ -7,7 +7,7 @@ from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, EvalModeSetter, rsc
 from .common import HSigmoid, HSwish, ModelInterface, make_divisible
 
-__all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150']
+__all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150', 'mobilenetv3_large_125']
 
 pretrained_urls = {
     'mobilenetv3_small':
@@ -354,6 +354,35 @@ def mobilenetv3_large_150(pretrained=False, **kwargs):
     ]
 
     net = MobileNetV3(cfgs, mode='large', width_mult = 1.5, **kwargs)
+    if pretrained:
+        raise NotImplementedError("The weights for this configuration are not available")
+
+    return net
+
+def mobilenetv3_large_125(pretrained=False, **kwargs):
+    """
+    Constructs a MobileNetV3-Large model
+    """
+    cfgs = [
+        # k, t, c, SE, HS, s
+        [3,   1,  16, 0, 0, 1],
+        [3,   4,  24, 0, 0, 2],
+        [3,   3,  24, 0, 0, 1],
+        [5,   3,  40, 1, 0, 2],
+        [5,   3,  40, 1, 0, 1],
+        [5,   3,  40, 1, 0, 1],
+        [3,   6,  80, 0, 1, 2],
+        [3, 2.5,  80, 0, 1, 1],
+        [3, 2.3,  80, 0, 1, 1],
+        [3, 2.3,  80, 0, 1, 1],
+        [3,   6, 112, 1, 1, 1],
+        [3,   6, 112, 1, 1, 1],
+        [5,   6, 160, 1, 1, 2],
+        [5,   6, 160, 1, 1, 1],
+        [5,   6, 160, 1, 1, 1]
+    ]
+
+    net = MobileNetV3(cfgs, mode='large', width_mult = 1.25, **kwargs)
     if pretrained:
         raise NotImplementedError("The weights for this configuration are not available")
 

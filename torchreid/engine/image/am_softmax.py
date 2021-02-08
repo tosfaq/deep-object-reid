@@ -517,15 +517,15 @@ class ImageAMSoftmaxEngine(Engine):
                 optimizer = self.optims[name]
             if epochs_warmup != 0:
                 state_cacher = StateCacher(in_memory=True, cache_dir=None)
-                state_cacher.store("model", self.models[name].module.state_dict())
+                state_cacher.store("model", self.models[name].module.cpu().state_dict())
                 state_cacher.store("optimizer", self.optims[name].state_dict())
+                self.models[name].module.to(model_device)
                 print("Warmup the model's weights for {} epochs".format(epochs_warmup))
                 self.run(max_epoch=epochs_warmup, lr_finder=True)
                 print("Finished warmuping the model. Continue to find learning rate:")
             # run lr finder
-            lr_finder = LRFinder(self.models[name], optimizer, criterion, device="cuda")
-            lr_finder.range_test(self.train_loader, start_lr=min_lr, end_lr=max_lr, accumulation_steps=5,
-                                 num_iter=self.num_batches, step_mode='exp')
+            lr_finder = LRFinder(self.models[name], optimizer, criterion, device=model_device)
+            lr_finder.range_test(self.train_loader, start_lr=min_lr, end_lr=max_lr, smooth_f=0.01, num_iter=self.num_batches, step_mode='exp')
             ax, optim_lr = lr_finder.plot()
             # save plot if needed
             if path_to_savefig:
@@ -546,7 +546,9 @@ class ImageAMSoftmaxEngine(Engine):
             raise ValueError("Number of epochs to find an optimal learning rate less than 3. It's pointless")
         acc_store = dict()
         state_cacher = StateCacher(in_memory=True, cache_dir=None)
-        state_cacher.store("model", self.models[name].module.state_dict())
+        state_cacher.store("model", self.models[name].module.cpu().state_dict())
+        # save on cpu, run on gpu
+        self.models[name].to(model_device)
         state_cacher.store("optimizer", self.optims[name].state_dict())
         range_lr = np.linspace(min_lr, max_lr, num_iter)
         best_acc = 0.0
