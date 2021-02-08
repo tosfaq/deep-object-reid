@@ -417,7 +417,7 @@ class ImageAMSoftmaxEngine(Engine):
             if self.alpha > 0 and r[0] <= self.aug_prob:
                 lam, fmask = sample_mask(self.alpha, self.decay_power, self.size,
                                         self.max_soft, self.reformulate)
-                index = torch.randperm(imgs.size(0)).to(imgs.device)
+                index = torch.randperm(imgs.size(0), device=imgs.device)
                 fmask = torch.from_numpy(fmask).float().to(imgs.device)
                 # Mix the images
                 x1 = fmask * imgs
@@ -433,7 +433,7 @@ class ImageAMSoftmaxEngine(Engine):
             r = np.random.rand(1)
             if self.alpha > 0 and r <= self.aug_prob:
                 lam = np.random.beta(self.alpha, self.alpha)
-                index = torch.randperm(imgs.size(0)).to(imgs.device)
+                index = torch.randperm(imgs.size(0), device=imgs.device)
 
                 imgs = lam * imgs + (1 - lam) * imgs[index, :]
                 self.lam = lam
@@ -447,7 +447,8 @@ class ImageAMSoftmaxEngine(Engine):
             if self.alpha > 0 and r <= self.aug_prob:
                 # generate mixed sample
                 lam = np.random.beta(self.alpha, self.alpha)
-                rand_index = torch.randperm(imgs.size(0)).to(imgs.device)
+                rand_index = torch.randperm(imgs.size(0), device=imgs.device)
+
                 bbx1, bby1, bbx2, bby2 = self.rand_bbox(imgs.size(), lam)
                 imgs[:, :, bbx1:bbx2, bby1:bby2] = imgs[rand_index, :, bbx1:bbx2, bby1:bby2]
                 # adjust lambda to exactly match pixel ratio
