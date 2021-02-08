@@ -176,9 +176,6 @@ class AMSoftmaxLoss(nn.Module):
         """
         if (self.aug_type and aug_index is not None and lam is not None):
             targets1 = torch.zeros(cos_theta.size(), device=target.device).scatter_(1, target.detach().unsqueeze(1), 1)
-            if self.use_gpu:
-                targets1 = targets1.cuda()
-
             targets2 = targets1[aug_index]
             new_targets = targets1 * lam + targets2 * (1 - lam)
             # in case if target label changed
@@ -210,10 +207,7 @@ class AMSoftmaxLoss(nn.Module):
 
             if self.label_smooth:
                 assert not self.aug_type
-                target = torch.zeros(output.size()).scatter_(1, target.unsqueeze(1).data, 1)
-                if self.use_gpu:
-                    target = target.cuda()
-
+                target = torch.zeros(output.size(), device=target.device).scatter_(1, target.detach().unsqueeze(1), 1)
                 num_classes = output.size(1)
                 target = (1.0 - self.epsilon) * target + self.epsilon / float(num_classes)
                 losses = (- target * F.log_softmax(output, dim=1)).sum(dim=1)
