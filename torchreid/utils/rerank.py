@@ -22,7 +22,8 @@ k1, k2, lambda_value: parameters, the original paper is (k1=20, k2=6, lambda_val
 Returns:
   final_dist: re-ranked distance, numpy array, shape [num_query, num_gallery]
 """
-from __future__ import division, print_function, absolute_import
+from __future__ import absolute_import, division, print_function
+
 import numpy as np
 
 __all__ = ['re_ranking']

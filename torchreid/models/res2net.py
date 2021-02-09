@@ -9,7 +9,6 @@ import torch.utils.model_zoo as model_zoo
 
 from torchreid.losses import AngleSimpleLinear
 
-
 __all__ = ['res2net50_v1b_26w_4s', 'res2net101_v1b_26w_4s']
 
 model_urls = {

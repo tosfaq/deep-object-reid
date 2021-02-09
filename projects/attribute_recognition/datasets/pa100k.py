@@ -1,6 +1,7 @@
-from __future__ import division, print_function, absolute_import
-import numpy as np
+from __future__ import absolute_import, division, print_function
 import os.path as osp
+
+import numpy as np
 from scipy.io import loadmat
 
 from .dataset import Dataset

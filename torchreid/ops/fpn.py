@@ -18,9 +18,9 @@ import math
 import operator
 from functools import reduce
 
-from torch import nn, Tensor
-from torch.nn import init
 import torch.nn.functional as F
+from torch import Tensor, nn
+from torch.nn import init
 
 
 def xavier_fill(tensor):

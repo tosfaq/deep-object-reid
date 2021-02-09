@@ -1,21 +1,20 @@
+import argparse
+import os.path as osp
 import sys
 import time
-import os.path as osp
-import argparse
+
 import torch
+from scripts.default_config import (engine_run_kwargs, get_default_config,
+                                    imagedata_kwargs, lr_finder_run_kwargs,
+                                    lr_scheduler_kwargs, model_kwargs,
+                                    optimizer_kwargs, videodata_kwargs)
 
 import torchreid
 from torchreid.engine import build_engine
-from torchreid.utils import (
-    Logger, check_isfile, set_random_seed, collect_env_info,
-    resume_from_checkpoint, load_pretrained_weights, compute_model_complexity
-)
 from torchreid.ops import DataParallel
-
-from scripts.default_config import (
-    imagedata_kwargs, optimizer_kwargs, videodata_kwargs, engine_run_kwargs,
-    get_default_config, lr_scheduler_kwargs, model_kwargs
-)
+from torchreid.utils import (Logger, check_isfile, collect_env_info,
+                             compute_model_complexity, load_pretrained_weights,
+                             resume_from_checkpoint, set_random_seed)
 
 
 def build_datamanager(cfg):
@@ -36,6 +35,7 @@ def reset_config(cfg, args):
         cfg.custom_datasets.roots = args.custom_roots
     if args.custom_types:
         cfg.custom_datasets.types = args.custom_types
+
     if args.custom_names:
         cfg.custom_datasets.names = args.custom_names
 
@@ -47,7 +47,7 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
 
     model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
 
-    if check_isfile(weights):
+    if (weights is not None) and (check_isfile(weights)):
         load_pretrained_weights(model, weights)
 
     if cfg.use_gpu:
@@ -57,7 +57,6 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
 
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
-
     return model, optimizer, scheduler
 
 
@@ -183,7 +182,11 @@ def main():
         extra_device_ids = [None for _ in range(len(args.extra_config_files))]
 
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+
+    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic':
+        scheduler = None
+    else:
+        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 
     if cfg.model.resume and check_isfile(cfg.model.resume):
         cfg.train.start_epoch = resume_from_checkpoint(
@@ -213,6 +216,32 @@ def main():
 
     print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers)
+
+    if cfg.lr_finder.enable:
+        if enable_mutual_learning:
+            print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
+
+        lr = engine.find_lr(**lr_finder_run_kwargs(cfg))
+        # reload random seeds, opimizer with new lr and scheduler for it
+        cfg.train.lr = lr
+        cfg.lr_finder.enable = False
+        set_random_seed(cfg.train.seed)
+
+        optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
+        torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+
+        if enable_mutual_learning:
+            models[0], optimizers[0], schedulers[0] = model, optimizer, scheduler
+        else:
+            models, optimizers, schedulers = model, optimizer, scheduler
+        # build new engine
+        engine = build_engine(cfg, datamanager, models, optimizers, schedulers)
+
+        print(f"Estimated learning rate: {lr}")
+        if cfg.lr_finder.stop_after:
+            print("Finding learning rate finished. Terminate the training process")
+            exit()
+
     engine.run(**engine_run_kwargs(cfg))
 
 

@@ -1,20 +1,23 @@
-from __future__ import division, print_function, absolute_import
-import time
-import numpy as np
+from __future__ import absolute_import, division, print_function
+import copy
+import datetime
 import os
 import os.path as osp
-import datetime
+import time
 from collections import OrderedDict
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 from torchreid import metrics
-from torchreid.utils import (
-    MetricMeter, AverageMeter, re_ranking, open_all_layers, save_checkpoint,
-    open_specified_layers, visualize_ranked_results, get_model_attr
-)
 from torchreid.losses import DeepSupervision
+from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
+                             open_all_layers, open_specified_layers,
+                             re_ranking, save_checkpoint,
+                             visualize_ranked_results)
 
 
 class Engine:
@@ -26,18 +29,26 @@ class Engine:
         use_gpu (bool, optional): use gpu. Default is True.
     """
 
-    def __init__(self, datamanager, models, optimizers, schedulers, use_gpu=True):
+    def __init__(self, datamanager, models, optimizers, schedulers,
+                 use_gpu=True, save_chkpt=True, train_patience = 10, lb_lr = 1e-5, early_stoping=False):
+
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
         self.test_loader = self.datamanager.test_loader
         self.use_gpu = (torch.cuda.is_available() and use_gpu)
+        self.save_chkpt = save_chkpt
         self.writer = None
 
         self.start_epoch = 0
         self.fixbase_epoch = 0
+        self.iter_to_wait = 0
+        self.best_metric = 0.0
         self.max_epoch = None
         self.num_batches = None
         self.epoch = None
+        self.lb_lr = lb_lr
+        self.train_patience = train_patience
+        self.early_stoping = early_stoping
 
         self.models = OrderedDict()
         self.optims = OrderedDict()
@@ -126,12 +137,32 @@ class Engine:
         name = names[0]
         return self.optims[name].param_groups[0]['lr']
 
-    def update_lr(self, names=None):
+    def update_lr(self, names=None, output_avg_metric=None):
         names = self.get_model_names(names)
 
         for name in names:
             if self.scheds[name] is not None:
-                self.scheds[name].step()
+                if self.scheds[name].__class__.__name__ in ['ReduceLROnPlateau', 'WarmupScheduler']:
+                    self.scheds[name].step(metrics=output_avg_metric)
+                else:
+                    self.scheds[name].step()
+
+    def exit_on_plataeu(self, top1, top5, mAP):
+            name = self.get_model_names()[0]
+            current_lr = self.get_current_lr()
+
+            if current_lr == self.lb_lr:
+                current_metric = np.round(top1, 4)
+                if (self.best_metric >= current_metric):
+                    self.iter_to_wait += 1
+                    if self.iter_to_wait >= self.train_patience:
+                        print("The training stopped due to no improvements for {} epochs".format(self.train_patience))
+                        return True
+                else:
+                    self.best_metric = current_metric
+                    self.iter_to_wait = 0
+
+            return False
 
     def run(
         self,
@@ -151,7 +182,9 @@ class Engine:
         visrank_topk=10,
         use_metric_cuhk03=False,
         ranks=(1, 5, 10, 20),
-        rerank=False
+        rerank=False,
+        lr_finder = False,
+        **kwargs
     ):
         r"""A unified pipeline for training and evaluating a model.
 
@@ -183,7 +216,6 @@ class Engine:
             rerank (bool, optional): uses person re-ranking (by Zhong et al. CVPR'17).
                 Default is False. This is only enabled when test_only=True.
         """
-
         if visrank and not test_only:
             raise ValueError('visrank can be set to True only if test_only=True')
 
@@ -197,7 +229,7 @@ class Engine:
                 save_dir=save_dir,
                 use_metric_cuhk03=use_metric_cuhk03,
                 ranks=ranks,
-                rerank=rerank
+                rerank=rerank,
             )
             return
 
@@ -205,28 +237,28 @@ class Engine:
             log_dir = tb_log_dir if len(tb_log_dir) else save_dir
             self.writer = SummaryWriter(log_dir=log_dir)
 
-        # Save zeroth checkpoint
-        self.save_model(-1, save_dir)
-
         time_start = time.time()
+        top1 = None
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch
         self.fixbase_epoch = fixbase_epoch
         print('=> Start training')
 
         for self.epoch in range(self.start_epoch, self.max_epoch):
+
             self.train(
                 print_freq=print_freq,
                 fixbase_epoch=fixbase_epoch,
-                open_layers=open_layers
+                open_layers=open_layers,
+                lr_finder = lr_finder
             )
 
-            if (self.epoch + 1) >= start_eval \
-               and eval_freq > 0 \
-               and (self.epoch+1) % eval_freq == 0 \
-               and (self.epoch + 1) != self.max_epoch:
+            if ((self.epoch + 1) >= start_eval
+               and eval_freq > 0
+               and (self.epoch+1) % eval_freq == 0
+               and (self.epoch + 1) != self.max_epoch):
 
-                self.test(
+                top1, top5, mAP = self.test(
                     self.epoch,
                     dist_metric=dist_metric,
                     normalize_feature=normalize_feature,
@@ -234,13 +266,23 @@ class Engine:
                     visrank_topk=visrank_topk,
                     save_dir=save_dir,
                     use_metric_cuhk03=use_metric_cuhk03,
-                    ranks=ranks
+                    ranks=ranks,
+                    lr_finder = lr_finder
                 )
-                self.save_model(self.epoch, save_dir)
+                if self.save_chkpt and not lr_finder:
+                    self.save_model(self.epoch, save_dir)
+
+                if lr_finder:
+                    print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
+
+            if (self.early_stoping and
+                not lr_finder and
+                self.exit_on_plataeu(top1, top5, mAP)):
+                    break
 
         if self.max_epoch > 0:
             print('=> Final test')
-            self.test(
+            top1_final, top5, mAP = self.test(
                 self.epoch,
                 dist_metric=dist_metric,
                 normalize_feature=normalize_feature,
@@ -248,9 +290,14 @@ class Engine:
                 visrank_topk=visrank_topk,
                 save_dir=save_dir,
                 use_metric_cuhk03=use_metric_cuhk03,
-                ranks=ranks
+                ranks=ranks,
+                lr_finder = lr_finder
             )
-            self.save_model(self.epoch, save_dir)
+            if self.save_chkpt and not lr_finder:
+                self.save_model(self.epoch, save_dir)
+            if top1 and lr_finder:
+                top1 = max(top1, top1_final)
+                print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
 
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
@@ -259,7 +306,9 @@ class Engine:
         if self.writer is not None:
             self.writer.close()
 
-    def train(self, print_freq=10, fixbase_epoch=0, open_layers=None):
+        return top1
+
+    def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False):
         losses = MetricMeter()
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -282,7 +331,7 @@ class Engine:
             losses.update(loss_summary)
             accuracy.update(avg_acc)
 
-            if (self.batch_idx + 1) % print_freq == 0:
+            if not lr_finder and ((self.batch_idx + 1) % print_freq) == 0:
                 nb_this_epoch = self.num_batches - (self.batch_idx + 1)
                 nb_future_epochs = (self.max_epoch - (self.epoch + 1)) * self.num_batches
                 eta_seconds = batch_time.avg * (nb_this_epoch+nb_future_epochs)
@@ -308,7 +357,7 @@ class Engine:
                     )
                 )
 
-            if self.writer is not None:
+            if self.writer is not None and not lr_finder:
                 n_iter = self.epoch * self.num_batches + self.batch_idx
                 self.writer.add_scalar('Train/time', batch_time.avg, n_iter)
                 self.writer.add_scalar('Train/data', data_time.avg, n_iter)
@@ -319,7 +368,8 @@ class Engine:
 
             end = time.time()
 
-        self.update_lr()
+        if not lr_finder:
+            self.update_lr(output_avg_metric = losses.meters['loss'].avg)
 
     def forward_backward(self, data):
         raise NotImplementedError
@@ -334,7 +384,8 @@ class Engine:
         save_dir='',
         use_metric_cuhk03=False,
         ranks=(1, 5, 10, 20),
-        rerank=False
+        rerank=False,
+        lr_finder = False
     ):
         r"""Tests model on target datasets.
 
@@ -351,20 +402,21 @@ class Engine:
         """
         self.set_model_mode('eval')
         targets = list(self.test_loader.keys())
-
+        top1, mAP, top5 = [None]*3
         for dataset_name in targets:
             domain = 'source' if dataset_name in self.datamanager.sources else 'target'
             print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
 
             for model_name, model in self.models.items():
                 if get_model_attr(model, 'classification'):
-                    self._evaluate_classification(
+                    top1, top5, mAP = self._evaluate_classification(
                         model=model,
                         epoch=epoch,
                         data_loader=self.test_loader[dataset_name]['query'],
                         model_name=model_name,
                         dataset_name=dataset_name,
-                        ranks=ranks
+                        ranks=ranks,
+                        lr_finder = lr_finder
                     )
                 elif get_model_attr(model, 'contrastive'):
                     pass
@@ -376,7 +428,7 @@ class Engine:
                         model_name=model_name
                     )
                 else:
-                    self._evaluate_reid(
+                    top1, top5, mAP = self._evaluate_reid(
                         model=model,
                         epoch=epoch,
                         model_name=model_name,
@@ -390,30 +442,37 @@ class Engine:
                         save_dir=save_dir,
                         use_metric_cuhk03=use_metric_cuhk03,
                         ranks=ranks,
-                        rerank=rerank
+                        rerank=rerank,
+                        lr_finder = lr_finder
                     )
+        return  top1, top5, mAP
 
     @torch.no_grad()
-    def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks):
+    def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks, lr_finder):
         labelmap = []
+        
         if data_loader.dataset.classes and get_model_attr(model, 'classification_classes') and \
                 len(data_loader.dataset.classes) < len(get_model_attr(model, 'classification_classes')):
+          
             for class_name in sorted(data_loader.dataset.classes.keys()):
                 labelmap.append(data_loader.dataset.classes[class_name])
 
         cmc, mAP, norm_cm = metrics.evaluate_classification(data_loader, model, self.use_gpu, ranks, labelmap)
 
-        if self.writer is not None:
+        if self.writer is not None and not lr_finder:
             self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
             for i, r in enumerate(ranks):
                 self.writer.add_scalar('Val/{}/{}/Rank-{}'.format(dataset_name, model_name, r), cmc[i], epoch + 1)
 
-        print('** Results ({}) **'.format(model_name))
-        print('mAP: {:.2%}'.format(mAP))
-        for i, r in enumerate(ranks):
-            print('Rank-{:<3}: {:.2%}'.format(r, cmc[i]))
-        if norm_cm.shape[0] <= 20:
-            metrics.show_confusion_matrix(norm_cm)
+        if not lr_finder:
+            print('** Results ({}) **'.format(model_name))
+            print('mAP: {:.2%}'.format(mAP))
+            for i, r in enumerate(ranks):
+                print('Rank-{:<3}: {:.2%}'.format(r, cmc[i]))
+            if norm_cm.shape[0] <= 20:
+                metrics.show_confusion_matrix(norm_cm)
+
+        return cmc[0], cmc[1], mAP
 
     @torch.no_grad()
     def _evaluate_pairwise(self, model, epoch, data_loader, model_name):
@@ -449,7 +508,8 @@ class Engine:
         use_metric_cuhk03=False,
         ranks=(1, 5, 10, 20),
         rerank=False,
-        model_name=''
+        model_name='',
+        lr_finder = False
     ):
         def _feature_extraction(data_loader):
             f_, pids_, camids_ = [], [], []
@@ -495,18 +555,18 @@ class Engine:
             use_metric_cuhk03=use_metric_cuhk03
         )
 
-        if self.writer is not None:
+        if self.writer is not None and not lr_finder:
             self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
             for r in ranks:
                 self.writer.add_scalar('Val/{}/{}/Rank-{}'.format(dataset_name, model_name, r), cmc[r - 1], epoch + 1)
+        if not lr_finder:
+            print('** Results ({}) **'.format(model_name))
+            print('mAP: {:.2%}'.format(mAP))
+            print('CMC curve')
+            for r in ranks:
+                print('Rank-{:<3}: {:.2%}'.format(r, cmc[r - 1]))
 
-        print('** Results ({}) **'.format(model_name))
-        print('mAP: {:.2%}'.format(mAP))
-        print('CMC curve')
-        for r in ranks:
-            print('Rank-{:<3}: {:.2%}'.format(r, cmc[r - 1]))
-
-        if visrank:
+        if visrank and not lr_finder:
             visualize_ranked_results(
                 distmat,
                 self.datamanager.fetch_test_loaders(dataset_name),
@@ -516,6 +576,8 @@ class Engine:
                 save_dir=osp.join(save_dir, 'visrank_' + dataset_name),
                 topk=visrank_topk
             )
+
+        return cmc[0], cmc[1], mAP
 
     @staticmethod
     def compute_loss(criterion, outputs, targets, **kwargs):

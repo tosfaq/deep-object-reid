@@ -1,11 +1,11 @@
+import argparse
+import os
 import os.path as osp
-from torch.utils.data import Dataset
-from tqdm import tqdm
+
 import cv2 as cv
 import numpy as np
-import os
-
-import argparse
+from torch.utils.data import Dataset
+from tqdm import tqdm
 
 from torchreid.data.datasets.image.lfw import FivePointsAligner
 

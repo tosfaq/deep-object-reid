@@ -12,10 +12,11 @@
 """
 
 import argparse
-import torch
 
-from utils.utils import load_model_state
+import torch
 from landnet import LandmarksNet
+from utils.utils import load_model_state
+
 
 def main():
     parser = argparse.ArgumentParser(description='Conversion script for LR models from PyTorch to ONNX')

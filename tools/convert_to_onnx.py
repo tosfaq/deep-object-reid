@@ -15,18 +15,19 @@
 """
 
 import argparse
-from PIL import Image
+import os.path as osp
 
 import numpy as np
 import onnx
 import torch
-from torch.onnx.symbolic_registry import register_op
-from torch.onnx.symbolic_helper import parse_args
-
-from torchreid.models import build_model
-from torchreid.utils import load_pretrained_weights, load_checkpoint
-from torchreid.data.transforms import build_inference_transform
+from PIL import Image
 from scripts.default_config import get_default_config, model_kwargs
+from torch.onnx.symbolic_helper import parse_args
+from torch.onnx.symbolic_registry import register_op
+
+from torchreid.data.transforms import build_inference_transform
+from torchreid.models import build_model
+from torchreid.utils import load_checkpoint, load_pretrained_weights
 
 
 @parse_args('v', 'i', 'v', 'v', 'f', 'i')

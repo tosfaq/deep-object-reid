@@ -1,11 +1,10 @@
-from __future__ import division, print_function, absolute_import
+from __future__ import absolute_import, division, print_function
 import os.path as osp
 from os import listdir
 
 from lxml import etree
 
 from ..dataset import ImageDataset
-
 
 COLORS_MAP = {
     1: 4,   # yellow

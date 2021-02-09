@@ -1,4 +1,5 @@
-from __future__ import division, absolute_import
+from __future__ import absolute_import, division
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -28,16 +29,18 @@ class CrossEntropyLoss(nn.Module):
     """
 
     def __init__(self, scale=1.0, epsilon=0.1, use_gpu=True, label_smooth=True,
-                 conf_penalty=None, penalty_scale=5.0):
+                 conf_penalty=None, penalty_scale=5.0, augmentations=None):
         super(CrossEntropyLoss, self).__init__()
 
         self.scale = scale
         self.epsilon = epsilon if label_smooth else 0
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
+        self.label_smooth = label_smooth
+        self.aug = augmentations
         self.penalty_scale = penalty_scale
 
-    def forward(self, inputs, targets, scale=None, iteration=None):
+    def forward(self, inputs, targets, aug_index=None, lam=None, scale=None, iteration=None):
         """
         Args:
             inputs (torch.Tensor): prediction matrix (before softmax) with
@@ -58,7 +61,13 @@ class CrossEntropyLoss(nn.Module):
             targets = targets.cuda()
 
         num_classes = inputs.size(1)
-        targets = (1.0 - self.epsilon) * targets + self.epsilon / float(num_classes)
+        if self.label_smooth:
+            targets = (1.0 - self.epsilon) * targets + self.epsilon / float(num_classes)
+
+        if (self.aug and aug_index is not None and lam is not None):
+            targets2 = targets[aug_index]
+            targets = targets * lam + targets2 * (1 - lam)
+
         sm_loss = (- targets * log_probs).sum(dim=1)
 
         if self.conf_penalty is not None and self.conf_penalty > 0.0\

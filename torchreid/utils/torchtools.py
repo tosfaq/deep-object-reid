@@ -1,10 +1,11 @@
-from __future__ import division, print_function, absolute_import
+from __future__ import absolute_import, division, print_function
+import os.path as osp
 import pickle
 import shutil
-import os.path as osp
 import warnings
-from functools import partial
 from collections import OrderedDict
+from functools import partial
+
 import torch
 import torch.nn as nn
 
@@ -289,7 +290,6 @@ def load_pretrained_weights(model, weight_path):
     for k, v in state_dict.items():
         if k.startswith('module.'):
             k = k[7:]  # discard module.
-
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
             matched_layers.append(k)

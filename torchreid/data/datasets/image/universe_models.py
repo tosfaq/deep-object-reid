@@ -1,6 +1,6 @@
-from __future__ import division, print_function, absolute_import
-from os.path import join, isfile, expanduser, abspath
-from os import walk, listdir
+from __future__ import absolute_import, division, print_function
+from os import listdir, walk
+from os.path import abspath, expanduser, isfile, join
 
 from ..dataset import ImageDataset
 

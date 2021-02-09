@@ -1,9 +1,10 @@
-from __future__ import division, absolute_import
+from __future__ import absolute_import, division
 import copy
-import numpy as np
 import random
 from collections import defaultdict
-from torch.utils.data.sampler import Sampler, RandomSampler, SequentialSampler
+
+import numpy as np
+from torch.utils.data.sampler import RandomSampler, Sampler, SequentialSampler
 
 AVAI_SAMPLERS = ['RandomIdentitySampler', 'RandomIdentitySamplerV2', 'RandomIdentitySamplerV3',
                  'SequentialSampler', 'RandomSampler']

@@ -15,15 +15,15 @@
 """
 
 import os.path as osp
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, REMAINDER
+from argparse import REMAINDER, ArgumentDefaultsHelpFormatter, ArgumentParser
 
 import numpy as np
 import torch
 import torch.nn as nn
+from scripts.default_config import get_default_config, model_kwargs
 
 import torchreid
 from torchreid.utils import load_pretrained_weights
-from scripts.default_config import get_default_config, model_kwargs
 
 
 def collect_conv_layers(model):

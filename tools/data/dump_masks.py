@@ -15,18 +15,16 @@
 """
 
 import argparse
-from os.path import exists, join, abspath, isfile
-from os import listdir, walk, makedirs
+from os import listdir, makedirs, walk
+from os.path import abspath, exists, isfile, join
 from shutil import rmtree
 
 import cv2
-import numpy as np
 import mmcv
+import numpy as np
 import pycocotools.mask as mask_utils
+from mmdet.apis import inference_detector, init_detector, show_result
 from tqdm import tqdm
-
-from mmdet.apis import init_detector, inference_detector, show_result
-
 
 COCO_VEHICLE_CLASSES = 2, 5, 7  # car, bus, truck
 MIN_DET_CONF = 0.1

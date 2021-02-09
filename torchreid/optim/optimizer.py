@@ -1,29 +1,16 @@
 from __future__ import print_function, absolute_import
-import warnings
 import torch
 import torch.nn as nn
 
+import warnings
+
+from .sam import SAM
 from .radam import RAdam
 
-AVAI_OPTIMS = ['adam', 'amsgrad', 'sgd', 'rmsprop', 'radam']
+AVAI_OPTIMS = {'adam', 'amsgrad', 'sgd', 'rmsprop', 'radam', 'sam'}
 
-
-def build_optimizer(
-    model,
-    optim='adam',
-    lr=0.0003,
-    weight_decay=5e-04,
-    momentum=0.9,
-    sgd_dampening=0,
-    sgd_nesterov=False,
-    rmsprop_alpha=0.99,
-    adam_beta1=0.9,
-    adam_beta2=0.99,
-    staged_lr=False,
-    new_layers='',
-    base_lr_mult=0.1
-):
-    """A function wrapper for building an optimizer.
+def build_optimizer(model, optim, base_optim, **kwargs):
+    """A wrapper function for building an optimizer.
 
     Args:
         model (nn.Module): model.
@@ -43,6 +30,7 @@ def build_optimizer(
             layers will take the ``lr``. Default is False.
         new_layers (str or list): attribute names in ``model``. Default is empty.
         base_lr_mult (float, optional): learning rate multiplier for base layers. Default is 0.1.
+        sam_rho (float, optional): Scale factor for SAM optimizer
 
     Examples::
         >>> # A normal optimizer can be built by
@@ -63,11 +51,39 @@ def build_optimizer(
         >>>     new_layers=['fc', 'classifier'], base_lr_mult=0.1
         >>> )
     """
+    if optim == 'sam':
+        base_optim = _build_optim(model, optim=base_optim, base_optim=None, **kwargs)
+        optimizer = _build_optim(model, optim=optim, base_optim=base_optim, **kwargs)
+    else:
+        optimizer = _build_optim(model, optim=optim, base_optim=None, **kwargs)
+
+    return optimizer
+
+def _build_optim(model,
+                optim='adam',
+                base_optim='sgd',
+                lr=0.0003,
+                weight_decay=5e-04,
+                momentum=0.9,
+                sgd_dampening=0,
+                sgd_nesterov=False,
+                rmsprop_alpha=0.99,
+                adam_beta1=0.9,
+                adam_beta2=0.99,
+                staged_lr=False,
+                new_layers='',
+                base_lr_mult=0.1,
+                sam_rho = 0.05):
     if optim not in AVAI_OPTIMS:
         raise ValueError(
-            'Unsupported optim: {}. Must be one of {}'.format(
+            'Unsupported optimizer: {}. Must be one of {}'.format(
                 optim, AVAI_OPTIMS
             )
+        )
+
+    if isinstance(base_optim, SAM):
+        raise ValueError(
+            'Invalid base optimizer. SAM cannot be the base one'
         )
 
     if not isinstance(model, nn.Module):
@@ -109,7 +125,6 @@ def build_optimizer(
 
     else:
         param_groups = model.parameters()
-
     if optim == 'adam':
         optimizer = torch.optim.Adam(
             param_groups,
@@ -152,6 +167,16 @@ def build_optimizer(
             lr=lr,
             weight_decay=weight_decay,
             betas=(adam_beta1, adam_beta2)
+        )
+
+    if optim == 'sam':
+        if not base_optim:
+            raise ValueError("SAM cannot operate without base optimizer. "
+                                "Please add it to configuration file")
+        optimizer = SAM(
+            params=param_groups,
+            base_optimizer=base_optim,
+            rho=sam_rho
         )
 
     return optimizer

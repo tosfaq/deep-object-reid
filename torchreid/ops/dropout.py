@@ -97,4 +97,3 @@ def info_dropout(in_features, kernel, out_features, drop_rate, temperature=0.2, 
     out = out_scale * out_features * out_mask.view(out_mask_shape)
 
     return out
-

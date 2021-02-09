@@ -1,23 +1,21 @@
+import argparse
 import os
+import os.path as osp
 import sys
 import time
-import os.path as osp
-import argparse
-import torch
-import torch.nn as nn
-
-import torchreid
-from torchreid.utils import (
-    Logger, check_isfile, set_random_seed, collect_env_info,
-    resume_from_checkpoint, compute_model_complexity
-)
 
 import osnet_search as osnet_models
+import torch
+import torch.nn as nn
+from default_config import (engine_run_kwargs, get_default_config,
+                            imagedata_kwargs, lr_scheduler_kwargs,
+                            optimizer_kwargs)
 from softmax_nas import ImageSoftmaxNASEngine
-from default_config import (
-    imagedata_kwargs, optimizer_kwargs, engine_run_kwargs, get_default_config,
-    lr_scheduler_kwargs
-)
+
+import torchreid
+from torchreid.utils import (Logger, check_isfile, collect_env_info,
+                             compute_model_complexity, resume_from_checkpoint,
+                             set_random_seed)
 
 
 def reset_config(cfg, args):

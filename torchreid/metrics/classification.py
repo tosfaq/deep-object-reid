@@ -1,7 +1,7 @@
 from collections import defaultdict
 
-import torch
 import numpy as np
+import torch
 from sklearn.metrics import confusion_matrix
 from terminaltables import AsciiTable
 

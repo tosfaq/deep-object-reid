@@ -15,8 +15,8 @@
 """
 
 import argparse
-from os.path import exists, join, abspath, isfile
-from os import listdir, walk, makedirs
+from os import listdir, makedirs, walk
+from os.path import abspath, exists, isfile, join
 from shutil import rmtree
 
 import cv2

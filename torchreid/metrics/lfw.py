@@ -16,14 +16,13 @@ import datetime
 from functools import partial
 
 import cv2 as cv
+import numpy as np
 import torch
 import torch.nn.functional as F
+from scipy.spatial.distance import cosine
 from torch.utils.data import DataLoader
 from torchvision import transforms as t
-
-from scipy.spatial.distance import cosine
 from tqdm import tqdm
-import numpy as np
 
 
 def get_subset(container, subset_bounds):

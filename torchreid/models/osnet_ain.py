@@ -1,5 +1,4 @@
-from __future__ import division, absolute_import
-
+from __future__ import absolute_import, division
 import warnings
 from collections import OrderedDict
 
@@ -8,9 +7,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, HSwish, GumbelSigmoid, LocalContrastNormalization
+from torchreid.ops import (Dropout, GumbelSigmoid, HSwish,
+                           LocalContrastNormalization)
 from .common import ModelInterface
-
 
 __all__ = ['osnet_ain_x1_0', 'osnet_ain2_x1_0']
 
@@ -440,8 +439,6 @@ class OSNet(ModelInterface):
 
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
-        self.classification = classification
-        self.contrastive = contrastive
         self.pooling_type = pooling_type
 
         num_blocks = len(blocks)
@@ -523,7 +520,7 @@ class OSNet(ModelInterface):
         self.fc, self.classifier = nn.ModuleList(), nn.ModuleList()
         for trg_id, trg_num_classes in enumerate(self.num_classes):
             self.fc.append(self._construct_fc_layer(backbone_out_num_channels, in_feature_dims[trg_id]))
-            if not contrastive and trg_num_classes > 0:
+            if not self.contrastive and trg_num_classes > 0:
                 self.classifier.append(classifier_block(out_feature_dims[trg_id], trg_num_classes))
 
         self._init_params()

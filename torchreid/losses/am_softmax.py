@@ -14,17 +14,16 @@
  limitations under the License.
 """
 
-from __future__ import absolute_import
-from __future__ import division
+from __future__ import division, absolute_import
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn import Parameter
 
 import math
 
-import torch
-import torch.nn as nn
-import numpy as np
-
-import torch.nn.functional as F
-from torch.nn import Parameter
+from .fmix import FMixBase, sample_mask
 
 
 class AngleSimpleLinear(nn.Module):
@@ -57,13 +56,15 @@ class AMSoftmaxLoss(nn.Module):
 
     def __init__(self, use_gpu=True, margin_type='cos', gamma=0.0, m=0.5, t=1.0,
                  s=30, end_s=None, duration_s=None, skip_steps_s=None, conf_penalty=0.0,
-                 label_smooth=False, epsilon=0.1, pr_product=False, symmetric_ce=False,
-                 class_counts=None, adaptive_margins=False, class_weighting=False):
+                 label_smooth=False, epsilon=0.1, aug_type='', pr_product=False,
+                 symmetric_ce=False, class_counts=None, adaptive_margins=False,
+                 class_weighting=False):
         super(AMSoftmaxLoss, self).__init__()
         self.use_gpu = use_gpu
         self.conf_penalty = conf_penalty
         self.label_smooth = label_smooth
         self.epsilon = epsilon
+        self.aug_type = aug_type
         self.pr_product = pr_product
 
         assert margin_type in AMSoftmaxLoss.margin_types
@@ -164,7 +165,7 @@ class AMSoftmaxLoss(nn.Module):
 
         return weighted_losses
 
-    def forward(self, cos_theta, target, iteration=None):
+    def forward(self, cos_theta, target, aug_index=None, lam=None, iteration=None):
         """
         Args:
             cos_theta (torch.Tensor): prediction matrix (before softmax) with
@@ -173,35 +174,47 @@ class AMSoftmaxLoss(nn.Module):
                 Each position contains the label index.
             iteration (int): current iteration
         """
+        if (self.aug_type and aug_index is not None and lam is not None):
+            targets1 = torch.zeros(cos_theta.size(), device=target.device).scatter_(1, target.detach().unsqueeze(1), 1)
+            targets2 = targets1[aug_index]
+            new_targets = targets1 * lam + targets2 * (1 - lam)
+            # in case if target label changed
+            target = new_targets.argmax(dim=1)
 
         if self.pr_product:
             pr_alpha = torch.sqrt(1.0 - cos_theta.pow(2.0))
             cos_theta = pr_alpha.detach() * cos_theta + cos_theta.detach() * (1.0 - pr_alpha)
 
+        one_hot_target = torch.zeros_like(cos_theta, dtype=torch.uint8)
+        one_hot_target.scatter_(1, target.data.view(-1, 1), 1)
+        # change margins accordingly
+        self.class_margins *= one_hot_target
+
         if self.margin_type == 'cos':
             phi_theta = cos_theta - self.class_margins
         else:
+            self.cos_m *= one_hot_target
+            self.sin_m *= one_hot_target
             sine = torch.sqrt(1.0 - torch.pow(cos_theta, 2))
             phi_theta = cos_theta * self.cos_m - sine * self.sin_m
-            phi_theta = torch.where(cos_theta > self.th, phi_theta, cos_theta - self.sin_m * self.m)
+            phi_theta = torch.where(cos_theta > self.th, phi_theta, cos_theta - self.sin_m * self.class_margins)
 
-        index = torch.zeros_like(cos_theta, dtype=torch.uint8)
-        index.scatter_(1, target.data.view(-1, 1), 1)
-        output = torch.where(index, phi_theta, cos_theta)
-
+        output = phi_theta
         self.last_scale = self._get_scale(self.start_s, self.end_s, self.duration_s, self.skip_steps_s, iteration)
 
         if self.gamma == 0.0 and self.t == 1.0:
             output *= self.last_scale
 
             if self.label_smooth:
-                targets = torch.zeros(output.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1)
-                if self.use_gpu:
-                    targets = targets.cuda()
-
+                assert not self.aug_type
+                target = torch.zeros(output.size(), device=target.device).scatter_(1, target.detach().unsqueeze(1), 1)
                 num_classes = output.size(1)
-                targets = (1.0 - self.epsilon) * targets + self.epsilon / float(num_classes)
-                losses = (- targets * F.log_softmax(output, dim=1)).sum(dim=1)
+                target = (1.0 - self.epsilon) * target + self.epsilon / float(num_classes)
+                losses = (- target * F.log_softmax(output, dim=1)).sum(dim=1)
+
+            elif (self.aug_type and aug_index is not None and lam is not None):
+                losses = (- new_targets * F.log_softmax(output, dim=1)).sum(dim=1)
+
             else:
                 losses = F.cross_entropy(output, target, reduction='none')
 

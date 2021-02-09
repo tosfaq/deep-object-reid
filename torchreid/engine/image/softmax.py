@@ -1,10 +1,9 @@
-from __future__ import division, print_function, absolute_import
+from __future__ import absolute_import, division, print_function
 
 import torch
 
 from torchreid import metrics
 from torchreid.losses import CrossEntropyLoss
-
 from ..engine import Engine
 
 

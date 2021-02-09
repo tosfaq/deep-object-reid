@@ -2,22 +2,42 @@ from yacs.config import CfgNode as CN
 
 
 def get_default_config():
+
     cfg = CN()
+    # lr finder
+    cfg.lr_finder = CN()
+    cfg.lr_finder.enable = False
+    cfg.lr_finder.mode = 'automatic'
+    cfg.lr_finder.max_lr = 0.03
+    cfg.lr_finder.min_lr = 0.004
+    cfg.lr_finder.num_iter = 10
+    cfg.lr_finder.num_epochs = 3
+    cfg.lr_finder.epochs_warmup = 2
+    cfg.lr_finder.stop_after = False
+    cfg.lr_finder.path_to_savefig = ''
 
     # model
     cfg.model = CN()
     cfg.model.name = 'resnet50'
     cfg.model.pretrained = False
     cfg.model.download_weights = True
+    cfg.model.save_chkpt = True
     cfg.model.load_weights = ''  # path to model weights
     cfg.model.resume = ''  # path to checkpoint for resume training
-    cfg.model.dropout = CN()
-    cfg.model.dropout.p = 0.0
-    cfg.model.dropout.mu = 0.1
-    cfg.model.dropout.sigma = 0.03
-    cfg.model.dropout.kernel = 3
-    cfg.model.dropout.temperature = 0.2
-    cfg.model.dropout.dist = 'none'
+    cfg.model.dropout_backbone = CN()
+    cfg.model.dropout_backbone.p = 0.0
+    cfg.model.dropout_backbone.mu = 0.1
+    cfg.model.dropout_backbone.sigma = 0.03
+    cfg.model.dropout_backbone.kernel = 3
+    cfg.model.dropout_backbone.temperature = 0.2
+    cfg.model.dropout_backbone.dist = 'none'
+    cfg.model.dropout_cls = CN()
+    cfg.model.dropout_cls.p = 0.0
+    cfg.model.dropout_cls.mu = 0.1
+    cfg.model.dropout_cls.sigma = 0.03
+    cfg.model.dropout_cls.kernel = 3
+    cfg.model.dropout_cls.temperature = 0.2
+    cfg.model.dropout_cls.dist = 'none'
     cfg.model.feature_dim = 512  # embedding size
     cfg.model.bn_eval = False
     cfg.model.bn_frozen = False
@@ -33,6 +53,10 @@ def get_default_config():
     cfg.model.fpn.process = 'concatenation'
     cfg.model.classification = False
     cfg.model.contrastive = False
+    cfg.model.self_challenging_cfg = CN()
+    cfg.model.self_challenging_cfg.enable = False
+    cfg.model.self_challenging_cfg.drop_p = 0.33
+    cfg.model.self_challenging_cfg.drop_batch_p = 0.33
 
     # data
     cfg.data = CN()
@@ -52,6 +76,7 @@ def get_default_config():
     cfg.data.tb_log_dir = ''  # path to save tensorboard log. If empty, log will be saved to data.save_dir
     cfg.data.min_samples_per_id = 1
     cfg.data.num_sampled_packages = 1
+
     # specific datasets
     cfg.market1501 = CN()
     cfg.market1501.use_500k_distractors = False  # add 500k distractors to the gallery set for market1501
@@ -82,25 +107,33 @@ def get_default_config():
     # train
     cfg.train = CN()
     cfg.train.optim = 'adam'
+    cfg.train.base_optim = 'sgd'
     cfg.train.lr = 0.0003
     cfg.train.weight_decay = 5e-4
     cfg.train.max_epoch = 60
     cfg.train.start_epoch = 0
     cfg.train.batch_size = 32
+    cfg.train.early_stoping = False # switch on exit on metric plataeu method
+    cfg.train.train_patience = 10 # define how much epochs to wait after scheduler process
     cfg.train.fixbase_epoch = 0  # number of epochs to fix base layers
     cfg.train.open_layers = ['classifier']  # layers for training while keeping others frozen
     cfg.train.staged_lr = False  # set different lr to different layers
     cfg.train.new_layers = ['classifier']  # newly added layers with default lr
     cfg.train.base_lr_mult = 0.1  # learning rate multiplier for base layers
     cfg.train.lr_scheduler = 'single_step'
+    cfg.train.base_scheduler = ''
     cfg.train.stepsize = [20]  # stepsize to decay learning rate
     cfg.train.gamma = 0.1  # learning rate decay multiplier
     cfg.train.lr_scales = []
+    cfg.train.first_cycle_steps = 5
+    cfg.train.cycle_mult = 1.
+    cfg.train.min_lr = 1e-5
+    cfg.train.max_lr = 0.1
+    cfg.train.patience = 5 # define how much epochs to wait for reduce on plateau
+    cfg.train.multiplier = 10
     cfg.train.print_freq = 20  # print frequency
-    cfg.train.seed = 1  # random seed
+    cfg.train.seed = 5  # random seed
     cfg.train.warmup = 1  # After fixbase_epoch
-    cfg.train.warmup_factor_base = 0.1
-    cfg.train.frozen_factor_base = 1.0
 
     # optimizer
     cfg.sgd = CN()
@@ -112,12 +145,24 @@ def get_default_config():
     cfg.adam = CN()
     cfg.adam.beta1 = 0.9  # exponential decay rate for first moment
     cfg.adam.beta2 = 0.999  # exponential decay rate for second moment
+    cfg.sam = CN() # new way for optimization
+    cfg.sam.enable = False
+    cfg.sam.rho = 0.05
 
     # loss
     cfg.loss = CN()
     cfg.loss.name = 'softmax'
     cfg.loss.softmax = CN()
     cfg.loss.softmax.label_smooth = False  # use label smoothing regularizer
+    cfg.loss.softmax.margin_type = 'cos'
+    cfg.loss.softmax.augmentations = CN()
+    cfg.loss.softmax.augmentations.aug_type = '' # use advanced augmentations like fmix, cutmix and mixup
+    cfg.loss.softmax.augmentations.alpha = 1.0
+    cfg.loss.softmax.augmentations.aug_prob = 1.0
+    cfg.loss.softmax.augmentations.fmix = CN()
+    cfg.loss.softmax.augmentations.fmix.decay_power = 3
+    cfg.loss.softmax.augmentations.fmix.max_soft = 0.0
+    cfg.loss.softmax.augmentations.fmix.reformulate = False
     cfg.loss.softmax.conf_penalty = 0.0
     cfg.loss.softmax.pr_product = False
     cfg.loss.softmax.m = 0.35
@@ -208,6 +253,7 @@ def get_default_config():
     cfg.data.transforms.random_crop.p = 0.5
     cfg.data.transforms.random_crop.scale = 0.9
     cfg.data.transforms.random_crop.margin = 0
+    cfg.data.transforms.random_crop.static = False
     cfg.data.transforms.random_crop.align_ar = False
     cfg.data.transforms.random_crop.align_center = False
 
@@ -227,6 +273,15 @@ def get_default_config():
     cfg.data.transforms.random_negative.enable = False
     cfg.data.transforms.random_negative.p = 0.5
 
+    cfg.data.transforms.posterize = CN()
+    cfg.data.transforms.posterize.enable = False
+    cfg.data.transforms.posterize.p = 0.5
+    cfg.data.transforms.posterize.bits = 1
+
+    cfg.data.transforms.equalize = CN()
+    cfg.data.transforms.equalize.enable = False
+    cfg.data.transforms.equalize.p = 0.5
+
     cfg.data.transforms.random_padding = CN()
     cfg.data.transforms.random_padding.enable = False
     cfg.data.transforms.random_padding.p = 0.5
@@ -241,9 +296,9 @@ def get_default_config():
     cfg.data.transforms.color_jitter.enable = False
     cfg.data.transforms.color_jitter.p = 0.5
     cfg.data.transforms.color_jitter.brightness = 0.2
-    cfg.data.transforms.color_jitter.contrast = 0.15
-    cfg.data.transforms.color_jitter.saturation = 0.0
-    cfg.data.transforms.color_jitter.hue = 0.0
+    cfg.data.transforms.color_jitter.contrast = 0.2
+    cfg.data.transforms.color_jitter.saturation = 0.1
+    cfg.data.transforms.color_jitter.hue = 0.1
 
     cfg.data.transforms.random_erase = CN()
     cfg.data.transforms.random_erase.enable = False
@@ -254,6 +309,17 @@ def get_default_config():
     cfg.data.transforms.random_erase.rh = 3.3
     cfg.data.transforms.random_erase.fill_color = (125.307, 122.961, 113.8575)
     cfg.data.transforms.random_erase.norm_image = True
+
+    cfg.data.transforms.coarse_dropout = CN()
+    cfg.data.transforms.coarse_dropout.enable = False
+    cfg.data.transforms.coarse_dropout.p = 0.5
+    cfg.data.transforms.coarse_dropout.max_height = 8
+    cfg.data.transforms.coarse_dropout.max_width = 8
+    cfg.data.transforms.coarse_dropout.max_holes = 8
+    cfg.data.transforms.coarse_dropout.min_holes = None
+    cfg.data.transforms.coarse_dropout.min_height = None
+    cfg.data.transforms.coarse_dropout.fill_value = 0
+    cfg.data.transforms.coarse_dropout.mask_fill_value = None
 
     cfg.data.transforms.random_rotate = CN()
     cfg.data.transforms.random_rotate.enable = False
@@ -276,6 +342,13 @@ def get_default_config():
     cfg.data.transforms.random_noise.p = 0.2
     cfg.data.transforms.random_noise.sigma = 0.05
     cfg.data.transforms.random_noise.grayscale = False
+
+    cfg.data.transforms.augmix = CN()
+    cfg.data.transforms.augmix.enable = False
+    cfg.data.transforms.augmix.p = 1.
+    cfg.data.transforms.augmix.width = 3
+    cfg.data.transforms.augmix.depth = -1
+    cfg.data.transforms.augmix.alpha = 1.
 
     cfg.data.transforms.random_figures = CN()
     cfg.data.transforms.random_figures.enable = False
@@ -320,12 +393,6 @@ def get_default_config():
     cfg.data.transforms.mixup.alpha = 0.2
     cfg.data.transforms.mixup.images_root_dir = ''
     cfg.data.transforms.mixup.images_list_file = ''
-
-    cfg.data.transforms.batch_transform = CN()
-    cfg.data.transforms.batch_transform.enable = False
-    cfg.data.transforms.batch_transform.type = 'Pairing'
-    cfg.data.transforms.batch_transform.alpha = 1.
-    cfg.data.transforms.batch_transform.anchor_bias = 0.8
 
     cfg.data.transforms.test = CN()
     cfg.data.transforms.test.resize_first = False
@@ -395,6 +462,7 @@ def videodata_kwargs(cfg):
 def optimizer_kwargs(cfg):
     return {
         'optim': cfg.train.optim,
+        'base_optim': cfg.train.base_optim,
         'lr': cfg.train.lr,
         'weight_decay': cfg.train.weight_decay,
         'momentum': cfg.sgd.momentum,
@@ -405,21 +473,27 @@ def optimizer_kwargs(cfg):
         'adam_beta2': cfg.adam.beta2,
         'staged_lr': cfg.train.staged_lr,
         'new_layers': cfg.train.new_layers,
-        'base_lr_mult': cfg.train.base_lr_mult
+        'base_lr_mult': cfg.train.base_lr_mult,
+        'sam_rho': cfg.sam.rho
     }
 
 
 def lr_scheduler_kwargs(cfg):
     return {
         'lr_scheduler': cfg.train.lr_scheduler,
+        'base_scheduler': cfg.train.base_scheduler,
         'stepsize': cfg.train.stepsize,
         'gamma': cfg.train.gamma,
         'lr_scales': cfg.train.lr_scales,
         'max_epoch': cfg.train.max_epoch,
         'warmup': cfg.train.warmup,
+        'multiplier': cfg.train.multiplier,
+        'first_cycle_steps': cfg.train.first_cycle_steps,
+        'cycle_mult': cfg.train.cycle_mult,
+        'min_lr': cfg.train.min_lr,
+        'max_lr': cfg.train.max_lr,
+        'patience': cfg.train.patience,
         'frozen': cfg.train.fixbase_epoch,
-        'warmup_factor_base': cfg.train.warmup_factor_base,
-        'frozen_factor_base': cfg.train.frozen_factor_base
     }
 
 
@@ -432,9 +506,11 @@ def model_kwargs(cfg, num_classes):
         'num_classes': num_classes,
         'loss': cfg.loss.name,
         'pretrained': cfg.model.pretrained,
+        'lr_finder': cfg.lr_finder,
         'download_weights': cfg.model.download_weights,
         'use_gpu': cfg.use_gpu,
-        'dropout_cfg': cfg.model.dropout,
+        'dropout_cfg': cfg.model.dropout_backbone,
+        'dropout_cls': cfg.model.dropout_cls,
         'feature_dim': cfg.model.feature_dim,
         'fpn_cfg': cfg.model.fpn,
         'pooling_type': cfg.model.pooling_type,
@@ -450,6 +526,7 @@ def model_kwargs(cfg, num_classes):
         'attr_num_classes': cfg.attr_loss.num_classes,
         'classification': cfg.model.classification,
         'contrastive': cfg.model.contrastive,
+        'self_challenging_cfg': cfg.model.self_challenging_cfg,
     }
 
 
@@ -474,6 +551,17 @@ def engine_run_kwargs(cfg):
         'rerank': cfg.test.rerank
     }
 
+def lr_finder_run_kwargs(cfg):
+    return {
+        'mode': cfg.lr_finder.mode,
+        'epochs_warmup': cfg.lr_finder.epochs_warmup,
+        'max_lr': cfg.lr_finder.max_lr,
+        'min_lr': cfg.lr_finder.min_lr,
+        'num_iter': cfg.lr_finder.num_iter,
+        'num_epochs': cfg.lr_finder.num_epochs,
+        'path_to_savefig': cfg.lr_finder.path_to_savefig,
+        'seed': cfg.train.seed
+    }
 
 def transforms(cfg):
     return cfg.data.transforms
@@ -494,5 +582,9 @@ def augmentation_kwargs(cfg):
         'random_figures': cfg.data.transforms.random_figures,
         'random_grid': cfg.data.transforms.random_grid,
         'random_negative': cfg.data.transforms.random_negative,
-        'cut_out_with_prior': cfg.data.transforms.cut_out_with_prior
+        'cut_out_with_prior': cfg.data.transforms.cut_out_with_prior,
+        'coarse_dropout': cfg.data.transforms.coarse_dropout,
+        'equalize': cfg.data.transforms.equalize,
+        'posterize': cfg.data.transforms.posterize,
+        'augmix': cfg.data.transforms.augmix
     }

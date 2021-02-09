@@ -1,6 +1,6 @@
-from __future__ import division, print_function, absolute_import
-import os.path as osp
+from __future__ import absolute_import, division, print_function
 import os
+import os.path as osp
 
 from ..dataset import ImageDataset
 
@@ -103,7 +103,7 @@ class ClassificationImageFolder(ImageDataset):
 
     @staticmethod
     def load_annotation(data_dir, dataset_id=0):
-        ALLOWED_EXTS = ('.jpg', '.jpeg', '.png')
+        ALLOWED_EXTS = ('.jpg', '.jpeg', '.png', '.gif')
         def is_valid(filename):
             return not filename.startswith('.') and filename.lower().endswith(ALLOWED_EXTS)
 

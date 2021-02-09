@@ -18,33 +18,38 @@
  limitations under the License.
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-
+from __future__ import absolute_import, division, print_function
 import copy
+import os
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
+from torch_lr_finder import LRFinder
+from torchvision.transforms import ToPILImage
 
-from torchreid.engine import Engine
-from torchreid.losses import get_regularizer, AMSoftmaxLoss, CrossEntropyLoss, MetricLosses
 from torchreid import metrics
+from torchreid.engine import Engine
+from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss, MetricLosses,
+                              get_regularizer, sample_mask)
+from torchreid.utils import StateCacher, set_random_seed
+from torchreid.optim import SAM
 
 
 class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
 
-    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, batch_transform_cfg,
-                 scheduler=None, use_gpu=False, softmax_type='stock', label_smooth=False,
-                 conf_penalty=False, pr_product=False, m=0.35, s=10, end_s=None,
-                 duration_s=None, skip_steps_s=None, enable_masks=False,
-                 adaptive_margins=False, class_weighting=False,
-                 attr_cfg=None, base_num_classes=-1, symmetric_ce=False, mix_weight=1.0):
-        super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu)
+    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, scheduler=None, use_gpu=False, save_chkpt=True,
+                 train_patience=10, early_stoping = False, lb_lr = 1e-5, softmax_type='stock', label_smooth=False,
+                 margin_type='cos', epsilon=0.1, aug_type=None, decay_power=3, alpha=1., size=(224, 224), max_soft=0.0,
+                 reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, s=10, end_s=None, duration_s=None,
+                 skip_steps_s=None, enable_masks=False, adaptive_margins=False, class_weighting=False, attr_cfg=None,
+                 base_num_classes=-1, symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False):
+        super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt,
+                                                    train_patience, lb_lr, early_stoping)
 
         assert softmax_type in ['stock', 'am']
         assert s > 0.0
@@ -55,6 +60,17 @@ class ImageAMSoftmaxEngine(Engine):
         self.enable_metric_losses = metric_cfg.enable
         self.enable_masks = enable_masks
         self.mix_weight = mix_weight
+        self.enable_rsc = enable_rsc
+        self.enable_sam = enable_sam
+        self.aug_type = aug_type
+        self.aug_prob = aug_prob
+        self.aug_index = None
+        self.lam = None
+        self.alpha = alpha
+        self.decay_power = decay_power
+        self.size =  size
+        self.max_soft = max_soft
+        self.reformulate = reformulate
 
         num_batches = len(self.train_loader)
         num_classes = self.datamanager.num_train_pids
@@ -65,6 +81,7 @@ class ImageAMSoftmaxEngine(Engine):
 
         self.main_losses = nn.ModuleList()
         self.ml_losses = list()
+
         for trg_id, trg_num_classes in enumerate(self.num_classes):
             if base_num_classes <= 1:
                 scale_factor = 1.0
@@ -75,6 +92,8 @@ class ImageAMSoftmaxEngine(Engine):
                 self.main_losses.append(CrossEntropyLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
+                    epsilon=epsilon,
+                    augmentations=self.aug_type,
                     conf_penalty=conf_penalty,
                     scale=scale_factor * s
                 ))
@@ -85,6 +104,9 @@ class ImageAMSoftmaxEngine(Engine):
                 self.main_losses.append(AMSoftmaxLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
+                    margin_type=margin_type,
+                    epsilon=epsilon,
+                    aug_type=aug_type,
                     conf_penalty=conf_penalty,
                     m=m,
                     s=scale_factor * s,
@@ -137,10 +159,6 @@ class ImageAMSoftmaxEngine(Engine):
             else:
                 self.attr_name_map = {attr_name: attr_id for attr_id, attr_name in enumerate(attr_cfg.names)}
 
-        self.batch_transform_cfg = batch_transform_cfg
-        self.lambda_distr = torch.distributions.beta.Beta(self.batch_transform_cfg.alpha,
-                                                          self.batch_transform_cfg.alpha)
-
     @staticmethod
     def _valid(value):
         return value is not None and value > 0
@@ -161,67 +179,75 @@ class ImageAMSoftmaxEngine(Engine):
             obj_ids = obj_ids.view(-1, 1).repeat(1, num_packages).view(-1)
             train_records['dataset_id'] = train_records['dataset_id'].view(-1, 1).repeat(1, num_packages).view(-1)
 
-        imgs, obj_ids = self._apply_batch_transform(imgs, obj_ids)
+        imgs, obj_ids = self._apply_batch_augmentation(imgs, obj_ids)
 
         model_names = self.get_model_names()
         num_models = len(model_names)
 
-        avg_acc = 0.0
-        out_logits = [[] for _ in range(self.num_targets)]
-        total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-        loss_summary = dict()
+        steps = [1,2] if self.enable_sam else [1]
+        for step in steps:
+            # if sam is enabled then statistics will be written each step, but will be saved only the second time
+            # this is made just for convinience
+            avg_acc = 0.0
+            out_logits = [[] for _ in range(self.num_targets)]
+            total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
+            loss_summary = dict()
 
-        for model_name in model_names:
-            self.optims[model_name].zero_grad()
+            for model_name in model_names:
+                self.optims[model_name].zero_grad()
 
-            model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
-                self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name, num_packages
-            )
+                model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
+                    self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name, num_packages
+                )
 
-            avg_acc += model_avg_acc / float(num_models)
-            total_loss += model_loss / float(num_models)
-            loss_summary.update(model_loss_summary)
+                avg_acc += model_avg_acc / float(num_models)
+                total_loss += model_loss / float(num_models)
+                loss_summary.update(model_loss_summary)
 
-            for trg_id in range(self.num_targets):
-                if model_logits[trg_id] is not None:
-                    out_logits[trg_id].append(model_logits[trg_id])
+                for trg_id in range(self.num_targets):
+                    if model_logits[trg_id] is not None:
+                        out_logits[trg_id].append(model_logits[trg_id])
 
-        if len(model_names) > 1:
-            num_mutual_losses = 0
-            mutual_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-            for trg_id in range(self.num_targets):
-                if len(out_logits[trg_id]) <= 1:
-                    continue
+            if len(model_names) > 1:
+                num_mutual_losses = 0
+                mutual_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
+                for trg_id in range(self.num_targets):
+                    if len(out_logits[trg_id]) <= 1:
+                        continue
 
-                with torch.no_grad():
-                    trg_probs = torch.softmax(torch.stack(out_logits[trg_id]), dim=2).mean(dim=0)
+                    with torch.no_grad():
+                        trg_probs = torch.softmax(torch.stack(out_logits[trg_id]), dim=2).mean(dim=0)
 
-                for model_id, logits in enumerate(out_logits[trg_id]):
-                    log_probs = torch.log_softmax(logits, dim=1)
-                    m_loss = (trg_probs * log_probs).sum(dim=1).mean().neg()
+                    for model_id, logits in enumerate(out_logits[trg_id]):
+                        log_probs = torch.log_softmax(logits, dim=1)
+                        m_loss = (trg_probs * log_probs).sum(dim=1).mean().neg()
 
-                    mutual_loss += m_loss
-                    loss_summary['mutual_{}/{}'.format(trg_id, model_names[model_id])] = m_loss.item()
-                    num_mutual_losses += 1
+                        mutual_loss += m_loss
+                        loss_summary['mutual_{}/{}'.format(trg_id, model_names[model_id])] = m_loss.item()
+                        num_mutual_losses += 1
 
-            total_loss += mutual_loss / float(num_mutual_losses)
+                total_loss += mutual_loss / float(num_mutual_losses)
 
-        total_loss.backward()
+            total_loss.backward(retain_graph=self.enable_metric_losses)
 
-        for model_name in model_names:
-            for trg_id in range(self.num_targets):
-                if self.enable_metric_losses:
-                    ml_loss_module = self.ml_losses[trg_id][model_name]
-                    ml_loss_module.end_iteration(do_backward=False)
+            for model_name in model_names:
+                for trg_id in range(self.num_targets):
+                    if self.enable_metric_losses:
+                        ml_loss_module = self.ml_losses[trg_id][model_name]
+                        ml_loss_module.end_iteration(do_backward=False)
+                if isinstance(self.optims[model_name], SAM) and step == 1:
+                    self.optims[model_name].first_step()
+                elif isinstance(self.optims[model_name], SAM) and step == 2:
+                    self.optims[model_name].second_step()
+                elif not isinstance(self.optims[model_name], SAM) and step == 1:
+                    self.optims[model_name].step()
 
-            self.optims[model_name].step()
-
-        loss_summary['loss'] = total_loss.item()
+            loss_summary['loss'] = total_loss.item()
 
         return loss_summary, avg_acc
 
     def _single_model_losses(self, model, train_records, imgs, obj_ids, n_iter, model_name, num_packages):
-        run_kwargs = self._prepare_run_kwargs()
+        run_kwargs = self._prepare_run_kwargs(obj_ids)
         model_output = model(imgs, **run_kwargs)
         all_logits, all_embeddings, extra_data = self._parse_model_output(model_output)
 
@@ -242,7 +268,8 @@ class ImageAMSoftmaxEngine(Engine):
 
             trg_logits = all_logits[trg_id][trg_mask]
 
-            main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, iteration=n_iter)
+            main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, aug_index=self.aug_index,
+                                                lam=self.lam, iteration=n_iter)
 
             avg_acc += metrics.accuracy(trg_logits, trg_obj_ids)[0].item()
             loss_summary['main_{}/{}'.format(trg_id, model_name)] = main_loss.item()
@@ -341,12 +368,15 @@ class ImageAMSoftmaxEngine(Engine):
 
         return total_loss, loss_summary, avg_acc, out_logits
 
-    def _prepare_run_kwargs(self):
+    def _prepare_run_kwargs(self, gt_labels):
         run_kwargs = dict()
         if self.enable_metric_losses:
             run_kwargs['get_embeddings'] = True
         if self.enable_attr or self.enable_masks:
             run_kwargs['get_extra_data'] = True
+        if self.enable_rsc:
+            run_kwargs['gt_labels'] = gt_labels
+
 
         return run_kwargs
 
@@ -367,14 +397,177 @@ class ImageAMSoftmaxEngine(Engine):
 
         return all_logits, all_embeddings, extra_data
 
-    def _apply_batch_transform(self, imgs, obj_ids):
-        if self.batch_transform_cfg.enable:
-            lambd = self.batch_transform_cfg.anchor_bias \
-                    + (1 - self.batch_transform_cfg.anchor_bias) \
-                    * self.lambda_distr.sample((imgs.shape[0],))
-            lambd = lambd.view(-1, 1, 1, 1)
+    def _apply_batch_augmentation(self, imgs, obj_ids):
+        if self.aug_type == 'fmix':
+            r = np.random.rand(1)
+            if self.alpha > 0 and r[0] <= self.aug_prob:
+                lam, fmask = sample_mask(self.alpha, self.decay_power, self.size,
+                                        self.max_soft, self.reformulate)
+                index = torch.randperm(imgs.size(0), device=imgs.device)
+                fmask = torch.from_numpy(fmask).float().to(imgs.device)
+                # Mix the images
+                x1 = fmask * imgs
+                x2 = (1 - fmask) * imgs[index]
+                self.aug_index = index
+                self.lam = lam
+                imgs = x1 + x2
+            else:
+                self.aug_index = None
+                self.lam = None
 
-            permuted_idx = torch.randperm(imgs.shape[0])
-            imgs = lambd * imgs + (1 - lambd) * imgs[permuted_idx]
+        elif self.aug_type == 'mixup':
+            r = np.random.rand(1)
+            if self.alpha > 0 and r <= self.aug_prob:
+                lam = np.random.beta(self.alpha, self.alpha)
+                index = torch.randperm(imgs.size(0), device=imgs.device)
+
+                imgs = lam * imgs + (1 - lam) * imgs[index, :]
+                self.lam = lam
+                self.aug_index = index
+            else:
+                self.aug_index = None
+                self.lam = None
+
+        elif self.aug_type == 'cutmix':
+            r = np.random.rand(1)
+            if self.alpha > 0 and r <= self.aug_prob:
+                # generate mixed sample
+                lam = np.random.beta(self.alpha, self.alpha)
+                rand_index = torch.randperm(imgs.size(0), device=imgs.device)
+
+                bbx1, bby1, bbx2, bby2 = self.rand_bbox(imgs.size(), lam)
+                imgs[:, :, bbx1:bbx2, bby1:bby2] = imgs[rand_index, :, bbx1:bbx2, bby1:bby2]
+                # adjust lambda to exactly match pixel ratio
+                lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (imgs.size()[-1] * imgs.size()[-2]))
+                self.lam = lam
+                self.aug_index = rand_index
+            else:
+                self.aug_index = None
+                self.lam = None
 
         return imgs, obj_ids
+
+    @staticmethod
+    def rand_bbox(size, lam):
+        W = size[2]
+        H = size[3]
+        cut_rat = np.sqrt(1. - lam)
+        cut_w = np.int(W * cut_rat)
+        cut_h = np.int(H * cut_rat)
+
+        # uniform
+        cx = np.random.randint(W)
+        cy = np.random.randint(H)
+
+        bbx1 = np.clip(cx - cut_w // 2, 0, W)
+        bby1 = np.clip(cy - cut_h // 2, 0, H)
+        bbx2 = np.clip(cx + cut_w // 2, 0, W)
+        bby2 = np.clip(cy + cut_h // 2, 0, H)
+
+        return bbx1, bby1, bbx2, bby2
+
+    def find_lr(
+        self,
+        mode='automatic',
+        epochs_warmup=2,
+        max_lr=0.03,
+        min_lr=4e-3,
+        num_iter=10,
+        num_epochs=3,
+        path_to_savefig='',
+        seed = 5,
+        **kwargs):
+        r"""A  pipeline for learning rate search.
+
+        Args:
+            mode (str, optional): mode for learning rate finder, "automatic" or "brute_force".
+                Default is "automatic".
+            max_lr (float): upper bound for leaning rate
+            min_lr (float): lower bound for leaning rate
+            num_iter (int, optional): number of iterations for learning rate searching space. Default is 10
+            num_epochs (int, optional): number of epochs to train for each learning rate. Default is 3
+            pretrained (bool): whether or not the model is pretrained
+            path_to_savefig (str): if path given save plot loss/lr (only for automatic mode). Default: ''
+        """
+        print('=> Start learning rate search. Mode: {}'.format(mode))
+
+        name = self.get_model_names(None)[0]
+        model_device = next(self.models[name].parameters()).device
+        self.num_batches = len(self.train_loader)
+
+        if mode == 'automatic':
+            wd = self.optims[name].param_groups[0]['weight_decay']
+            criterion = self.main_losses[0]
+            if self.enable_sam:
+                optimizer = torch.optim.SGD(self.models[name].parameters(), lr=min_lr, weight_decay=wd)
+            else:
+                optimizer = self.optims[name]
+            if epochs_warmup != 0:
+                state_cacher = StateCacher(in_memory=True, cache_dir=None)
+                state_cacher.store("model", self.models[name].module.cpu().state_dict())
+                state_cacher.store("optimizer", self.optims[name].state_dict())
+                self.models[name].module.to(model_device)
+                print("Warmup the model's weights for {} epochs".format(epochs_warmup))
+                self.run(max_epoch=epochs_warmup, lr_finder=True)
+                print("Finished warmuping the model. Continue to find learning rate:")
+            # run lr finder
+            lr_finder = LRFinder(self.models[name], optimizer, criterion, device=model_device)
+            lr_finder.range_test(self.train_loader, start_lr=min_lr, end_lr=max_lr, smooth_f=0.01, num_iter=self.num_batches, step_mode='exp')
+            ax, optim_lr = lr_finder.plot()
+            # save plot if needed
+            if path_to_savefig:
+                fig = ax.get_figure()
+                fig.savefig(path_to_savefig)
+            # reset weights and optimizer state
+            if epochs_warmup != 0:
+                self.models[name].module.load_state_dict(state_cacher.retrieve("model"))
+                self.optims[name].load_state_dict(state_cacher.retrieve("optimizer"))
+                self.models[name].to(model_device)
+            else:
+                lr_finder.reset()
+
+            return optim_lr
+
+        assert mode == 'brute_force'
+        if num_epochs < 3:
+            raise ValueError("Number of epochs to find an optimal learning rate less than 3. It's pointless")
+        acc_store = dict()
+        state_cacher = StateCacher(in_memory=True, cache_dir=None)
+        state_cacher.store("model", self.models[name].module.cpu().state_dict())
+        # save on cpu, run on gpu
+        self.models[name].to(model_device)
+        state_cacher.store("optimizer", self.optims[name].state_dict())
+        range_lr = np.linspace(min_lr, max_lr, num_iter)
+        best_acc = 0.0
+        EPS = 0.017
+
+        for lr in range_lr:
+            print('Training with next lr: {}'.format(lr))
+            for param_group in self.optims[name].param_groups:
+                param_group["lr"] = round(lr,6)
+
+            top1 = round(self.run(max_epoch=num_epochs, lr_finder=True, start_eval=0, eval_freq=1,), 4)
+            acc_store[lr] = top1
+
+            self.models[name].module.load_state_dict(state_cacher.retrieve("model"))
+            self.optims[name].load_state_dict(state_cacher.retrieve("optimizer"))
+            self.models[name].to(model_device)
+            set_random_seed(seed)
+
+            cur_acc = acc_store[lr]
+            # break if the results got worse with epsilon confidence
+            if (best_acc - cur_acc) >= EPS:
+                print("The results got worse. Breaking learning rate search")
+                break
+            best_acc = max(best_acc, cur_acc)
+
+        max_acc = 0
+        # if the results get better only for 0.2%
+        # choose a higher learning rate instead
+        delta = 0.002
+        for lr, acc in sorted(reversed(acc_store.items())):
+            if acc >= (max_acc-delta):
+                max_acc = acc
+                opt_lr = lr
+
+        return float(opt_lr)

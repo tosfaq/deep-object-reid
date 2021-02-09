@@ -7,18 +7,20 @@ Reference:
 """
 
 import os.path as osp
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, REMAINDER
+from argparse import REMAINDER, ArgumentDefaultsHelpFormatter, ArgumentParser
 
-import numpy as np
 import cv2
+import numpy as np
 import torch
 import torch.nn.functional as F
+from scripts.default_config import (get_default_config, imagedata_kwargs,
+                                    model_kwargs)
 
 import torchreid
-from torchreid.utils import check_isfile, mkdir_if_missing, load_pretrained_weights
 from torchreid.data.datasets import init_image_dataset
 from torchreid.data.transforms import build_transforms
-from scripts.default_config import imagedata_kwargs, get_default_config, model_kwargs
+from torchreid.utils import (check_isfile, load_pretrained_weights,
+                             mkdir_if_missing)
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]

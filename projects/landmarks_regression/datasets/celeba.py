@@ -13,10 +13,10 @@
 
 import os.path as osp
 
-import numpy as np
-from tqdm import tqdm
-from torch.utils.data import Dataset
 import cv2 as cv
+import numpy as np
+from torch.utils.data import Dataset
+from tqdm import tqdm
 
 
 class CelebA(Dataset):

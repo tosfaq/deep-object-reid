@@ -1,16 +1,15 @@
-from __future__ import division, print_function, absolute_import
-
+from __future__ import absolute_import, division, print_function
 import copy
+import operator
 import os.path as osp
+import tarfile
+import zipfile
 from collections import defaultdict
 
 import numpy as np
-import tarfile
-import zipfile
 import torch
-import operator
 
-from torchreid.utils import read_image, download_url, mkdir_if_missing
+from torchreid.utils import download_url, mkdir_if_missing, read_image
 
 
 class Dataset:
@@ -423,7 +422,6 @@ class ImageDataset(Dataset):
                 transformed_image = image
 
             output_record = transformed_image, obj_id, cam_id
-
         return output_record
 
     def show_summary(self):

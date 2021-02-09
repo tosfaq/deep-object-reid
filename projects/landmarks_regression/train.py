@@ -15,23 +15,20 @@ import argparse
 import datetime
 import os.path as osp
 
-import numpy as np
 import glog as log
-from tensorboardX import SummaryWriter
-
+import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
+from datasets import NDG, CelebA, VGGFace2
+from evaluate import evaluate
+from landnet import LandmarksNet
+from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
-
-from datasets import VGGFace2, CelebA, NDG
-
-from landnet import LandmarksNet
 from utils import landmarks_augmentation
-from utils.utils import save_model_cpu, load_model_state
 from utils.alignment_losses import AlignmentLoss
-from evaluate import evaluate
+from utils.utils import load_model_state, save_model_cpu
 
 
 def train(args):

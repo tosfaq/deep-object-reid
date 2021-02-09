@@ -12,17 +12,15 @@
 """
 
 import argparse
-from tqdm import tqdm
 
 import glog as log
 import torch
 import torch.backends.cudnn as cudnn
+from datasets import NDG, CelebA, VGGFace2
+from landnet import LandmarksNet
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms as t
-
-from datasets import VGGFace2, CelebA, NDG
-
-from landnet import LandmarksNet
+from tqdm import tqdm
 from utils.landmarks_augmentation import Rescale, ToTensor
 from utils.utils import load_model_state
 

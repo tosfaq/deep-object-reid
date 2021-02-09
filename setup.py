@@ -1,7 +1,8 @@
-import numpy as np
 import os.path as osp
-from setuptools import setup, find_packages
 from distutils.extension import Extension
+from setuptools import find_packages, setup
+
+import numpy as np
 from Cython.Build import cythonize
 
 

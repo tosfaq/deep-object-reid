@@ -14,12 +14,9 @@
  limitations under the License.
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-
-import os.path as osp
+from __future__ import absolute_import, division, print_function
 import glob
+import os.path as osp
 import re
 import warnings
 

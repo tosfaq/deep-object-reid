@@ -11,8 +11,9 @@ Paper: https://arxiv.org/abs/1908.03265
 }
 """
 
-from __future__ import print_function, absolute_import
+from __future__ import absolute_import, print_function
 import math
+
 import torch
 from torch.optim.optimizer import Optimizer
 

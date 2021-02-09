@@ -11,12 +11,13 @@
  limitations under the License.
 """
 
-import os.path as osp
 import json
-import numpy as np
-from tqdm import tqdm
-from torch.utils.data import Dataset
+import os.path as osp
+
 import cv2 as cv
+import numpy as np
+from torch.utils.data import Dataset
+from tqdm import tqdm
 
 
 class NDG(Dataset):
