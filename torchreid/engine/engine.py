@@ -450,8 +450,10 @@ class Engine:
     @torch.no_grad()
     def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks, lr_finder):
         labelmap = []
-        if len(data_loader.dataset.classes) and len(model.module.classification_classes) and \
-                len(data_loader.dataset.classes) < len(model.module.classification_classes):
+        
+        if data_loader.dataset.classes and get_model_attr(model, 'classification_classes') and \
+                len(data_loader.dataset.classes) < len(get_model_attr(model, 'classification_classes')):
+          
             for class_name in sorted(data_loader.dataset.classes.keys()):
                 labelmap.append(data_loader.dataset.classes[class_name])
 
