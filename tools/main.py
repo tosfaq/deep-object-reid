@@ -142,6 +142,7 @@ def main():
             load_pretrained_weights(model, cfg.model.load_weights)
 
     if cfg.model.classification:
+        classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
         if cfg.test.evaluate:
             for name, dataloader in datamanager.test_loader.items():
                 if not len(dataloader['query'].dataset.classes): # current text annotation doesn't contain classes names
@@ -150,8 +151,10 @@ def main():
                 if not check_classes_consistency(model.classification_classes,
                                                  dataloader['query'].dataset.classes, strict=False):
                     raise ValueError('Inconsistent classes in evaluation dataset')
+                if args.classes and not check_classes_consistency(classes_map,
+                                                                  model.classification_classes, strict=True):
+                    raise ValueError('Classes provided via --classes should be the same as in the loaded model')
         elif args.classes:
-            classes_map = {v : k for k, v in enumerate(sorted(args.classes))}
             if not check_classes_consistency(classes_map,
                                              datamanager.train_loader.dataset.classes, strict=True):
                 raise ValueError('Inconsistent classes in training dataset')
