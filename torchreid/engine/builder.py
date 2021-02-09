@@ -13,7 +13,6 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 optimizer=optimizer,
                 reg_cfg=cfg.reg,
                 metric_cfg=cfg.metric_losses,
-                batch_transform_cfg=cfg.data.transforms.batch_transform,
                 scheduler=scheduler,
                 use_gpu=cfg.use_gpu,
                 save_chkpt = cfg.model.save_chkpt,

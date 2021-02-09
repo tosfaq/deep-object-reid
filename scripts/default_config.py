@@ -394,12 +394,6 @@ def get_default_config():
     cfg.data.transforms.mixup.images_root_dir = ''
     cfg.data.transforms.mixup.images_list_file = ''
 
-    cfg.data.transforms.batch_transform = CN()
-    cfg.data.transforms.batch_transform.enable = False
-    cfg.data.transforms.batch_transform.type = 'Pairing'
-    cfg.data.transforms.batch_transform.alpha = 1.
-    cfg.data.transforms.batch_transform.anchor_bias = 0.8
-
     cfg.data.transforms.test = CN()
     cfg.data.transforms.test.resize_first = False
     cfg.data.transforms.test.resize_scale = 1.0

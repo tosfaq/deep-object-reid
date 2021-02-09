@@ -42,13 +42,12 @@ class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
 
-    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, batch_transform_cfg,
-                 scheduler=None, use_gpu=False, save_chkpt=True, train_patience=10, early_stoping = False,
-                 lb_lr = 1e-5, softmax_type='stock', label_smooth=False, margin_type='cos', epsilon=0.1, aug_type=None, decay_power=3,
-                 alpha=1., size=(224, 224), max_soft=0.0, reformulate=False, aug_prob=1., conf_penalty=False,
-                 pr_product=False, m=0.35, s=10, end_s=None, duration_s=None, skip_steps_s=None, enable_masks=False,
-                 adaptive_margins=False, class_weighting=False, attr_cfg=None, base_num_classes=-1,
-                 symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False):
+    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, scheduler=None, use_gpu=False, save_chkpt=True,
+                 train_patience=10, early_stoping = False, lb_lr = 1e-5, softmax_type='stock', label_smooth=False,
+                 margin_type='cos', epsilon=0.1, aug_type=None, decay_power=3, alpha=1., size=(224, 224), max_soft=0.0,
+                 reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, s=10, end_s=None, duration_s=None,
+                 skip_steps_s=None, enable_masks=False, adaptive_margins=False, class_weighting=False, attr_cfg=None,
+                 base_num_classes=-1, symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt,
                                                     train_patience, lb_lr, early_stoping)
 
@@ -160,10 +159,6 @@ class ImageAMSoftmaxEngine(Engine):
             else:
                 self.attr_name_map = {attr_name: attr_id for attr_id, attr_name in enumerate(attr_cfg.names)}
 
-        self.batch_transform_cfg = batch_transform_cfg
-        self.lambda_distr = torch.distributions.beta.Beta(self.batch_transform_cfg.alpha,
-                                                          self.batch_transform_cfg.alpha)
-
     @staticmethod
     def _valid(value):
         return value is not None and value > 0
@@ -184,7 +179,7 @@ class ImageAMSoftmaxEngine(Engine):
             obj_ids = obj_ids.view(-1, 1).repeat(1, num_packages).view(-1)
             train_records['dataset_id'] = train_records['dataset_id'].view(-1, 1).repeat(1, num_packages).view(-1)
 
-        imgs, obj_ids = self._apply_batch_transform(imgs, obj_ids)
+        imgs, obj_ids = self._apply_batch_augmentation(imgs, obj_ids)
 
         model_names = self.get_model_names()
         num_models = len(model_names)
@@ -402,16 +397,7 @@ class ImageAMSoftmaxEngine(Engine):
 
         return all_logits, all_embeddings, extra_data
 
-    def _apply_batch_transform(self, imgs, obj_ids):
-        if self.batch_transform_cfg.enable:
-            lambd = self.batch_transform_cfg.anchor_bias \
-                    + (1 - self.batch_transform_cfg.anchor_bias) \
-                    * self.lambda_distr.sample((imgs.shape[0],))
-            lambd = lambd.view(-1, 1, 1, 1)
-
-            permuted_idx = torch.randperm(imgs.shape[0])
-            imgs = lambd * imgs + (1 - lambd) * imgs[permuted_idx]
-
+    def _apply_batch_augmentation(self, imgs, obj_ids):
         if self.aug_type == 'fmix':
             r = np.random.rand(1)
             if self.alpha > 0 and r[0] <= self.aug_prob:
