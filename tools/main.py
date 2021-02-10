@@ -23,22 +23,24 @@ def build_datamanager(cfg):
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
-
 def reset_config(cfg, args):
     if args.root:
         cfg.data.root = args.root
+
     if args.sources:
         cfg.data.sources = args.sources
     if args.targets:
         cfg.data.targets = args.targets
+
     if args.custom_roots:
         cfg.custom_datasets.roots = args.custom_roots
     if args.custom_types:
         cfg.custom_datasets.types = args.custom_types
-
     if args.custom_names:
         cfg.custom_datasets.names = args.custom_names
 
+    if args.auxiliary_models_cfg:
+        cfg.mutual_learning.aux_configs = args.auxiliary_models_cfg
 
 def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, weights=None):
     cfg = get_default_config()
@@ -59,7 +61,6 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
     return model, optimizer, scheduler
 
-
 def check_classes_consistency(ref_classes, probe_classes, strict=False):
     if strict:
         if len(ref_classes) != len(probe_classes):
@@ -74,12 +75,11 @@ def check_classes_consistency(ref_classes, probe_classes, strict=False):
                 return False
     return True
 
-
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config-file', type=str, default='',
                         help='path to config file')
-    parser.add_argument('-e', '--extra-config-files', type=str, nargs='*', default='',
+    parser.add_argument('-e', '--auxiliary-models-cfg', type=str, nargs='*', default='',
                         help='path to extra config files')
     parser.add_argument('-w', '--extra-weights', type=str, nargs='*', default='',
                         help='path to extra model weights')
@@ -124,7 +124,7 @@ def main():
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True
 
-    enable_mutual_learning = len(args.extra_config_files) > 0
+    enable_mutual_learning = len(cfg.mutual_learning.aux_configs) > 0
 
     datamanager = build_datamanager(cfg)
     num_train_classes = datamanager.num_train_pids
@@ -159,7 +159,7 @@ def main():
     if cfg.use_gpu:
         num_devices = min(torch.cuda.device_count(), args.gpu_num)
         if enable_mutual_learning and args.split_models:
-            num_models = len(args.extra_config_files) + 1
+            num_models = len(cfg.mutual_learning.aux_configs) + 1
             assert num_devices >= num_models
             assert num_devices % num_models == 0
 
@@ -175,11 +175,11 @@ def main():
             extra_device_ids = device_splits[1:]
         else:
             main_device_ids = list(range(num_devices))
-            extra_device_ids = [main_device_ids for _ in range(len(args.extra_config_files))]
+            extra_device_ids = [main_device_ids for _ in range(len(cfg.mutual_learning.aux_configs))]
 
         model = DataParallel(model, device_ids=main_device_ids, output_device=0).cuda(main_device_ids[0])
     else:
-        extra_device_ids = [None for _ in range(len(args.extra_config_files))]
+        extra_device_ids = [None for _ in range(len(cfg.mutual_learning.aux_configs))]
 
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
 
@@ -194,16 +194,16 @@ def main():
         )
 
     if enable_mutual_learning:
-        print('Enabled mutual learning between {} models.'.format(len(args.extra_config_files) + 1))
+        print('Enabled mutual learning between {} models.'.format(len(cfg.mutual_learning.aux_configs) + 1))
 
         if len(args.extra_weights) > 0:
-            assert len(args.extra_weights) == len(args.extra_config_files)
+            assert len(args.extra_weights) == len(cfg.mutual_learning.aux_configs)
             weights = args.extra_weights
         else:
-            weights = [None] * len(args.extra_config_files)
+            weights = [None] * len(cfg.mutual_learning.aux_configs)
 
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
-        for config_file, model_weights, device_ids in zip(args.extra_config_files, weights, extra_device_ids):
+        for config_file, model_weights, device_ids in zip(cfg.mutual_learning.aux_configs, weights, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
                 config_file, num_train_classes, cfg.use_gpu, device_ids, model_weights
             )

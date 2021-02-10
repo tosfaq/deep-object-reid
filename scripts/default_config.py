@@ -58,6 +58,10 @@ def get_default_config():
     cfg.model.self_challenging_cfg.drop_p = 0.33
     cfg.model.self_challenging_cfg.drop_batch_p = 0.33
 
+    # mutual learning, auxiliary model
+    cfg.mutual_learning = CN()
+    cfg.mutual_learning.aux_configs = []
+
     # data
     cfg.data = CN()
     cfg.data.type = 'image'
