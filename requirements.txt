@@ -19,5 +19,5 @@ scikit-learn
 lxml
 pytorchcv
 terminaltables
-torch_lr_finder
+torch-lr-finder
 onnx
