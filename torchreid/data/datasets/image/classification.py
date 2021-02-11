@@ -106,8 +106,10 @@ class ClassificationImageFolder(ImageDataset):
             return not filename.startswith('.') and filename.lower().endswith(ALLOWED_EXTS)
 
         def find_classes(dir, filter_names=None):
-            filter_list = filter_names if filter_names else []
-            classes = [d.name for d in os.scandir(dir) if d.is_dir() and d.name in filter_list]
+            if filter_names:
+                classes = [d.name for d in os.scandir(dir) if d.is_dir() and d.name in filter_names]
+            else:
+                classes = [d.name for d in os.scandir(dir) if d.is_dir()]
             classes.sort()
             class_to_idx = {classes[i]: i for i in range(len(classes))}
             return class_to_idx
@@ -127,6 +129,6 @@ class ClassificationImageFolder(ImageDataset):
                         out_data.append((path, class_index, 0, dataset_id, '', -1, -1))\
 
         if not len(out_data):
-            print('Failed to locate images in folder ' + data_dir + f'fole with extensions {ALLOWED_EXTS}')
+            print('Failed to locate images in folder ' + data_dir + f' with extensions {ALLOWED_EXTS}')
 
         return out_data, class_to_idx
