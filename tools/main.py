@@ -17,9 +17,9 @@ from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              resume_from_checkpoint, set_random_seed)
 
 
-def build_datamanager(cfg):
+def build_datamanager(cfg, classification_classes_filter=None):
     if cfg.data.type == 'image':
-        return torchreid.data.ImageDataManager(**imagedata_kwargs(cfg))
+        return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
@@ -126,7 +126,7 @@ def main():
 
     enable_mutual_learning = len(cfg.mutual_learning.aux_configs) > 0
 
-    datamanager = build_datamanager(cfg)
+    datamanager = build_datamanager(cfg, args.classes)
     num_train_classes = datamanager.num_train_pids
 
     print('Building main model: {}'.format(cfg.model.name))
@@ -147,6 +147,9 @@ def main():
             for name, dataloader in datamanager.test_loader.items():
                 if not len(dataloader['query'].dataset.classes): # current text annotation doesn't contain classes names
                     print(f'Warning: classes are not defined for validation dataset {name}')
+                    continue
+                if not len(model.classification_classes):
+                    print(f'Warning: classes are not provided in the current snapshot. Consistency checks are skipped.')
                     continue
                 if not check_classes_consistency(model.classification_classes,
                                                  dataloader['query'].dataset.classes, strict=False):

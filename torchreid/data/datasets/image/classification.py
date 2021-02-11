@@ -67,7 +67,7 @@ class ClassificationImageFolder(ImageDataset):
     """Classification dataset representing raw folders without annotation files.
     """
 
-    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, **kwargs):
+    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, filter_classes=None, **kwargs):
         if load_masks:
             raise NotImplementedError
 
@@ -80,14 +80,12 @@ class ClassificationImageFolder(ImageDataset):
 
         if mode == 'train':
             train, classes = self.load_annotation(
-                self.root,
-                dataset_id=dataset_id
+                self.root, filter_classes, dataset_id
             )
             query = []
         elif mode == 'query':
             query, classes = self.load_annotation(
-                self.root,
-                dataset_id=dataset_id
+                self.root, filter_classes, dataset_id
             )
             train = []
         else:
@@ -102,18 +100,19 @@ class ClassificationImageFolder(ImageDataset):
 
 
     @staticmethod
-    def load_annotation(data_dir, dataset_id=0):
+    def load_annotation(data_dir, filter_classes=None, dataset_id=0):
         ALLOWED_EXTS = ('.jpg', '.jpeg', '.png', '.gif')
         def is_valid(filename):
             return not filename.startswith('.') and filename.lower().endswith(ALLOWED_EXTS)
 
-        def find_classes(dir):
-            classes = [d.name for d in os.scandir(dir) if d.is_dir()]
+        def find_classes(dir, filter_names=None):
+            filter_list = filter_names if filter_names else []
+            classes = [d.name for d in os.scandir(dir) if d.is_dir() and d.name in filter_list]
             classes.sort()
             class_to_idx = {classes[i]: i for i in range(len(classes))}
             return class_to_idx
 
-        class_to_idx = find_classes(data_dir)
+        class_to_idx = find_classes(data_dir, filter_classes)
 
         out_data = []
         for target_class in sorted(class_to_idx.keys()):
