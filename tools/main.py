@@ -228,7 +228,7 @@ def main():
         set_random_seed(cfg.train.seed)
 
         optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-        torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 
         if enable_mutual_learning:
             models[0], optimizers[0], schedulers[0] = model, optimizer, scheduler
