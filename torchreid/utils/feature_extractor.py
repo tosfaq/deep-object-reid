@@ -5,6 +5,7 @@ import torch
 import torchvision.transforms as T
 from PIL import Image
 
+from scripts.default_config import model_kwargs, get_default_config
 from torchreid.models import build_model
 from torchreid.utils import (check_isfile, compute_model_complexity,
                              load_pretrained_weights)
@@ -25,12 +26,9 @@ class FeatureExtractor(object):
     feature dimension.
 
     Args:
-        model_name (str): model name.
+        config_path (str): path to model configuration file.
         model_path (str): path to model weights.
         image_size (sequence or int): image height and width.
-        pixel_mean (list): pixel mean for normalization.
-        pixel_std (list): pixel std for normalization.
-        pixel_norm (bool): whether to normalize pixels.
         device (str): 'cpu' or 'cuda' (could be specific gpu devices).
         verbose (bool): show model details.
 
@@ -58,30 +56,25 @@ class FeatureExtractor(object):
 
     def __init__(
         self,
-        model_name='',
+        config_path='',
         model_path='',
-        image_size=(256, 128),
-        pixel_mean=[0.485, 0.456, 0.406],
-        pixel_std=[0.229, 0.224, 0.225],
-        pixel_norm=True,
         device='cuda',
         verbose=True
     ):
         # Build model
-        model = build_model(
-            model_name,
-            num_classes=1,
-            pretrained=True,
-            use_gpu=device.startswith('cuda')
-        )
+        cfg = get_default_config()
+        cfg.merge_from_file(config_path)
+        cfg.use_gpu = device.startswith('cuda')
+        model = build_model(**model_kwargs(cfg, 1))
         model.eval()
 
+        image_size = (cfg.data.height, cfg.data.width)
         num_params, flops = compute_model_complexity(
             model, (1, 3, image_size[0], image_size[1])
         )
 
         if verbose:
-            print('Model: {}'.format(model_name))
+            print('Model: {}'.format(cfg.model.name))
             print('- params: {:,}'.format(num_params))
             print('- flops: {:,}'.format(flops))
 
@@ -92,8 +85,8 @@ class FeatureExtractor(object):
         transforms = []
         transforms += [T.Resize(image_size)]
         transforms += [T.ToTensor()]
-        if pixel_norm:
-            transforms += [T.Normalize(mean=pixel_mean, std=pixel_std)]
+        print(cfg.data.norm_mean, cfg.data.norm_std)
+        transforms += [T.Normalize(mean=cfg.data.norm_mean, std=cfg.data.norm_std)]
         preprocess = T.Compose(transforms)
 
         to_pil = T.ToPILImage()
