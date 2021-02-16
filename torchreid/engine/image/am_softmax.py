@@ -564,9 +564,8 @@ class ImageAMSoftmaxEngine(Engine):
         max_acc = 0
         # if the results get better only for 0.2%
         # choose a higher learning rate instead
-        delta = 0.002
-        for lr, acc in sorted(reversed(acc_store.items())):
-            if acc >= (max_acc-delta):
+        for lr, acc in sorted(acc_store.items()):
+            if acc >= max_acc:
                 max_acc = acc
                 opt_lr = lr
 
