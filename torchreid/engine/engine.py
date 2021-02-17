@@ -421,7 +421,6 @@ class Engine:
                         ranks=ranks,
                         lr_finder = lr_finder
                     )
-
                 elif get_model_attr(model, 'contrastive'):
                     pass
                 elif dataset_name == 'lfw':
