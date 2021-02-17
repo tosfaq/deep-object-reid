@@ -10,11 +10,9 @@ from torchreid.utils import (collect_env_info, compute_model_complexity,
                              set_random_seed)
 
 
-def build_datamanager(cfg):
-    if cfg.data.type == 'image':
-        return torchreid.data.ImageDataManager(**imagedata_kwargs(cfg))
-    else:
-        return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
+def build_datamanager(cfg, classification_classes_filter=None):
+    assert cfg.data.type == 'image'
+    return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
 
 
 def reset_config(cfg, args):
@@ -39,6 +37,8 @@ def main():
     parser.add_argument('--custom-names', type=str, nargs='+',
                         help='names of custom datasets (delimited by space)')
     parser.add_argument('--root', type=str, default='', help='path to data root')
+    parser.add_argument('--classes', type=str, nargs='+',
+                        help='name of classes in classification dataset')
     parser.add_argument('--out')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help='Modify config options using the command-line')
@@ -59,7 +59,7 @@ def main():
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True
 
-    datamanager = build_datamanager(cfg)
+    datamanager = build_datamanager(cfg, args.classes)
     num_train_classes = datamanager.num_train_pids
 
     print('Building main model: {}'.format(cfg.model.name))

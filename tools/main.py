@@ -17,9 +17,9 @@ from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              resume_from_checkpoint, set_random_seed)
 
 
-def build_datamanager(cfg):
+def build_datamanager(cfg, classification_classes_filter=None):
     if cfg.data.type == 'image':
-        return torchreid.data.ImageDataManager(**imagedata_kwargs(cfg))
+        return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
@@ -126,7 +126,7 @@ def main():
 
     enable_mutual_learning = len(cfg.mutual_learning.aux_configs) > 0
 
-    datamanager = build_datamanager(cfg)
+    datamanager = build_datamanager(cfg, args.classes)
     num_train_classes = datamanager.num_train_pids
 
     print('Building main model: {}'.format(cfg.model.name))
@@ -142,16 +142,22 @@ def main():
             load_pretrained_weights(model, cfg.model.load_weights)
 
     if cfg.model.classification:
+        classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
         if cfg.test.evaluate:
             for name, dataloader in datamanager.test_loader.items():
                 if not len(dataloader['query'].dataset.classes): # current text annotation doesn't contain classes names
                     print(f'Warning: classes are not defined for validation dataset {name}')
                     continue
+                if not len(model.classification_classes):
+                    print(f'Warning: classes are not provided in the current snapshot. Consistency checks are skipped.')
+                    continue
                 if not check_classes_consistency(model.classification_classes,
                                                  dataloader['query'].dataset.classes, strict=False):
                     raise ValueError('Inconsistent classes in evaluation dataset')
+                if args.classes and not check_classes_consistency(classes_map,
+                                                                  model.classification_classes, strict=True):
+                    raise ValueError('Classes provided via --classes should be the same as in the loaded model')
         elif args.classes:
-            classes_map = {v : k for k, v in enumerate(sorted(args.classes))}
             if not check_classes_consistency(classes_map,
                                              datamanager.train_loader.dataset.classes, strict=True):
                 raise ValueError('Inconsistent classes in training dataset')
@@ -193,6 +199,27 @@ def main():
             cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
         )
 
+    if cfg.lr_finder.enable:
+        if enable_mutual_learning:
+            print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
+
+        # build new engine
+        engine = build_engine(cfg, datamanager, model, optimizer, scheduler)
+        lr = engine.find_lr(**lr_finder_run_kwargs(cfg))
+
+        print(f"Estimated learning rate: {lr}")
+        if cfg.lr_finder.stop_after:
+            print("Finding learning rate finished. Terminate the training process")
+            exit()
+
+        # reload random seeds, opimizer with new lr and scheduler for it
+        cfg.train.lr = lr
+        cfg.lr_finder.enable = False
+        set_random_seed(cfg.train.seed)
+
+        optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
+        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+
     if enable_mutual_learning:
         print('Enabled mutual learning between {} models.'.format(len(cfg.mutual_learning.aux_configs) + 1))
 
@@ -216,31 +243,6 @@ def main():
 
     print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers)
-
-    if cfg.lr_finder.enable:
-        if enable_mutual_learning:
-            print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
-
-        lr = engine.find_lr(**lr_finder_run_kwargs(cfg))
-        # reload random seeds, opimizer with new lr and scheduler for it
-        cfg.train.lr = lr
-        cfg.lr_finder.enable = False
-        set_random_seed(cfg.train.seed)
-
-        optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-        torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
-
-        if enable_mutual_learning:
-            models[0], optimizers[0], schedulers[0] = model, optimizer, scheduler
-        else:
-            models, optimizers, schedulers = model, optimizer, scheduler
-        # build new engine
-        engine = build_engine(cfg, datamanager, models, optimizers, schedulers)
-
-        print(f"Estimated learning rate: {lr}")
-        if cfg.lr_finder.stop_after:
-            print("Finding learning rate finished. Terminate the training process")
-            exit()
 
     engine.run(**engine_run_kwargs(cfg))
 

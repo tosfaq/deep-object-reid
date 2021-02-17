@@ -1,7 +1,7 @@
 numpy
 Cython
 h5py
-yaml
+pyyaml
 Pillow
 six
 scipy
@@ -19,5 +19,6 @@ scikit-learn
 lxml
 pytorchcv
 terminaltables
-torch_lr_finder
+torch-lr-finder
 onnx
+torchvision
