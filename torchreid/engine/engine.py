@@ -103,6 +103,7 @@ class Engine:
 
     def save_model(self, epoch, save_dir, is_best=False):
         names = self.get_model_names()
+        main_model_name = names[0]
 
         for name in names:
             ckpt_path = save_checkpoint(
@@ -117,10 +118,12 @@ class Engine:
                             osp.join(save_dir, name),
                             is_best=is_best
                         )
-            latest_name = osp.join(save_dir, 'latest.pth')
-            if osp.lexists(latest_name):
-                os.remove(latest_name)
-            os.symlink(ckpt_path, latest_name)
+
+            if name == main_model_name:
+                latest_name = osp.join(save_dir, 'latest.pth')
+                if osp.lexists(latest_name):
+                    os.remove(latest_name)
+                os.symlink(ckpt_path, latest_name)
 
     def set_model_mode(self, mode='train', names=None):
         assert mode in ['train', 'eval', 'test']
@@ -450,10 +453,10 @@ class Engine:
     @torch.no_grad()
     def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks, lr_finder):
         labelmap = []
-        
+
         if data_loader.dataset.classes and get_model_attr(model, 'classification_classes') and \
                 len(data_loader.dataset.classes) < len(get_model_attr(model, 'classification_classes')):
-          
+
             for class_name in sorted(data_loader.dataset.classes.keys()):
                 labelmap.append(data_loader.dataset.classes[class_name])
 

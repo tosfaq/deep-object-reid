@@ -504,9 +504,9 @@ class ImageAMSoftmaxEngine(Engine):
                 optimizer = self.optims[name]
             if epochs_warmup != 0:
                 state_cacher = StateCacher(in_memory=True, cache_dir=None)
-                state_cacher.store("model", self.models[name].module.cpu().state_dict())
+                state_cacher.store("model", get_model_attr(self.models[name], 'cpu')().state_dict())
                 state_cacher.store("optimizer", self.optims[name].state_dict())
-                self.models[name].module.to(model_device)
+                get_model_attr(self.models[name], 'to')(model_device)
                 print("Warmup the model's weights for {} epochs".format(epochs_warmup))
                 self.run(max_epoch=epochs_warmup, lr_finder=True)
                 print("Finished warmuping the model. Continue to find learning rate:")
@@ -520,9 +520,9 @@ class ImageAMSoftmaxEngine(Engine):
                 fig.savefig(path_to_savefig)
             # reset weights and optimizer state
             if epochs_warmup != 0:
-                self.models[name].module.load_state_dict(state_cacher.retrieve("model"))
+                get_model_attr(self.models[name], 'load_state_dict')(state_cacher.retrieve("model"))
                 self.optims[name].load_state_dict(state_cacher.retrieve("optimizer"))
-                self.models[name].to(model_device)
+                get_model_attr(self.models[name],'to')(model_device)
             else:
                 lr_finder.reset()
 
@@ -533,9 +533,9 @@ class ImageAMSoftmaxEngine(Engine):
             raise ValueError("Number of epochs to find an optimal learning rate less than 3. It's pointless")
         acc_store = dict()
         state_cacher = StateCacher(in_memory=True, cache_dir=None)
-        state_cacher.store("model", self.models[name].module.cpu().state_dict())
+        state_cacher.store("model", get_model_attr(self.models[name],'cpu')().state_dict())
         # save on cpu, run on gpu
-        self.models[name].to(model_device)
+        get_model_attr(self.models[name],'to')(model_device)
         state_cacher.store("optimizer", self.optims[name].state_dict())
         range_lr = np.linspace(min_lr, max_lr, num_iter)
         best_acc = 0.0
@@ -549,11 +549,10 @@ class ImageAMSoftmaxEngine(Engine):
             top1 = round(self.run(max_epoch=num_epochs, lr_finder=True, start_eval=0, eval_freq=1,), 4)
             acc_store[lr] = top1
 
-            self.models[name].module.load_state_dict(state_cacher.retrieve("model"))
+            get_model_attr(self.models[name], 'load_state_dict')(state_cacher.retrieve("model"))
             self.optims[name].load_state_dict(state_cacher.retrieve("optimizer"))
-            self.models[name].to(model_device)
+            get_model_attr(self.models[name],'to')(model_device)
             set_random_seed(seed)
-
             cur_acc = acc_store[lr]
             # break if the results got worse with epsilon confidence
             if (best_acc - cur_acc) >= EPS:
