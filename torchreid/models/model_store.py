@@ -2,14 +2,14 @@
     Model store which provides pretrained models.
 """
 
-__all__ = ['get_model_file', 'load_model', 'download_model', 'calc_num_params']
+__all__ = ['get_model_file', 'download_model', 'calc_num_params']
 
 import hashlib
 import logging
 import os
 import zipfile
 
-from torchreid.utils import check_isfile
+from torchreid.utils import load_pretrained_weights
 
 _model_sha1 = {name: (error, checksum, repo_release_tag, caption, paper, ds, img_size, scale, batch, rem) for
                name, error, checksum, repo_release_tag, caption, paper, ds, img_size, scale, batch, rem in [
@@ -220,59 +220,6 @@ def _check_sha1(file_name, sha1_hash):
     return sha1.hexdigest() == sha1_hash
 
 
-def load_model(net, file_path='', pretrained_dict=None, resume=False):
-    """
-    Load model state dictionary from a file.
-    Parameters
-    ----------
-    net : Module
-        Network in which weights are loaded.
-    file_path : str
-        Path to the file.
-    ignore_extra : bool, default True
-        Whether to silently ignore parameters from the file that are not present in this Module.
-    """
-    import torch
-
-    import warnings
-    from collections import OrderedDict
-
-    if file_path:
-        check_isfile(file_path)
-    pretrained_dict = (torch.load(file_path, map_location="cpu")
-                       if not pretrained_dict
-                       else pretrained_dict)
-    model_dict = net.state_dict()
-    print(model_dict.keys())
-    new_state_dict = OrderedDict()
-    matched_layers, discarded_layers = [], []
-    for k, v in pretrained_dict.items():
-        if k.startswith('module.') and not resume:
-            k = k[7:]  # discard module.
-        if k in model_dict and model_dict[k].size() == v.size():
-            new_state_dict[k] = v
-            matched_layers.append(k)
-        else:
-            discarded_layers.append(k)
-
-    model_dict.update(new_state_dict)
-    net.load_state_dict(model_dict)
-    if len(matched_layers) == 0:
-        warnings.warn(
-            'The pretrained weights cannot be loaded, '
-            'please check the key names manually '
-            '(** ignored and continue **)'
-        )
-    else:
-        print('Successfully loaded pretrained weights')
-        if len(discarded_layers) > 0:
-            print(
-                '** The following layers are discarded '
-                'due to unmatched keys or layer size: {}'.
-                format(discarded_layers)
-            )
-    return net
-
 def download_model(net,
                    model_name,
                    local_model_store_dir_path=os.path.join("~", ".torch", "models")):
@@ -289,8 +236,8 @@ def download_model(net,
     ignore_extra : bool, default True
         Whether to silently ignore parameters from the file that are not present in this Module.
     """
-    net = load_model(
-        net=net,
+    net = load_pretrained_weights(
+        model=net,
         file_path=get_model_file(
             model_name=model_name,
             local_model_store_dir_path=local_model_store_dir_path))

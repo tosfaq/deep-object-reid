@@ -240,7 +240,7 @@ def init_pretrained_weights(model, key=''):
     import errno
     import gdown
 
-    from .model_store import load_model
+    from torchreid.utils import load_pretrained_weights
 
     def _get_torch_home():
         ENV_TORCH_HOME = 'TORCH_HOME'
@@ -270,7 +270,7 @@ def init_pretrained_weights(model, key=''):
     if not os.path.exists(cached_file):
         gdown.download(pretrained_urls[key], cached_file)
 
-    model = load_model(model, cached_file)
+    model = load_pretrained_weights(model, cached_file)
 
 def mobilenetv3_large_075(pretrained=False, **kwargs):
     """

@@ -26,7 +26,6 @@ from .shufflenet import *
 from .shufflenetv2 import *
 from .squeezenet import *
 from .xception import *
-from .model_store import *
 
 __model_factory = {
     # image classification models

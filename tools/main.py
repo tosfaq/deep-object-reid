@@ -12,10 +12,9 @@ from scripts.default_config import (engine_run_kwargs, get_default_config,
 import torchreid
 from torchreid.engine import build_engine
 from torchreid.ops import DataParallel
-from torchreid.models import load_model
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              compute_model_complexity,resume_from_checkpoint,
-                             set_random_seed)
+                             set_random_seed, load_pretrained_weights)
 
 
 def build_datamanager(cfg, classification_classes_filter=None):
@@ -51,7 +50,7 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
     model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
 
     if (weights is not None) and (check_isfile(weights)):
-        load_model(model, weights)
+        load_pretrained_weights(model, weights)
 
     if cfg.use_gpu:
         assert device_ids is not None
@@ -136,11 +135,7 @@ def main():
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
     if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
-        if cfg.model.pretrained and not cfg.test.evaluate:
-            state_dict = torch.load(cfg.model.load_weights)
-            load_model(model, pretrained_dict=state_dict)
-        else:
-            load_model(model, cfg.model.load_weights)
+        load_pretrained_weights(model, pretrained_dict=state_dict)
 
     if cfg.model.classification:
         classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
