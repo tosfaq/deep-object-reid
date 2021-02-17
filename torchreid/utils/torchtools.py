@@ -9,7 +9,7 @@ from functools import partial
 import torch
 import torch.nn as nn
 
-from .tools import mkdir_if_missing
+from .tools import mkdir_if_missing, check_isfile
 
 __all__ = [
     'save_checkpoint', 'load_checkpoint', 'resume_from_checkpoint',
@@ -121,9 +121,9 @@ def resume_from_checkpoint(fpath, model, optimizer=None, scheduler=None):
     print('Loading checkpoint from "{}"'.format(fpath))
     checkpoint = load_checkpoint(fpath)
     if 'state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['state_dict'], strict=False)
+        load_pretrained_weights(model, pretrained_dict=checkpoint['state_dict'], resume=True)
     else:
-        model.load_state_dict(checkpoint, strict=False)
+        load_pretrained_weights(model, pretrained_dict=checkpoint, resume=True)
     print('Loaded model weights')
     if optimizer is not None and 'optimizer' in checkpoint.keys():
         optimizer.load_state_dict(checkpoint['optimizer'])
@@ -259,23 +259,25 @@ def count_num_param(model):
     return num_param
 
 
-def load_pretrained_weights(model, weight_path):
+def load_pretrained_weights(model, file_path='', pretrained_dict=None, resume=False):
     r"""Loads pretrianed weights to model.
-
     Features::
         - Incompatible layers (unmatched in name or size) will be ignored.
         - Can automatically deal with keys containing "module.".
-
     Args:
         model (nn.Module): network model.
-        weight_path (str): path to pretrained weights.
-
+        file_path (str): path to pretrained weights.
     Examples::
         >>> from torchreid.utils import load_pretrained_weights
-        >>> weight_path = 'log/my_model/model-best.pth.tar'
-        >>> load_pretrained_weights(model, weight_path)
+        >>> file_path = 'log/my_model/model-best.pth.tar'
+        >>> load_pretrained_weights(model, file_path)
     """
-    checkpoint = load_checkpoint(weight_path)
+    if file_path:
+        check_isfile(file_path)
+    checkpoint = (load_checkpoint(file_path)
+                       if not pretrained_dict
+                       else pretrained_dict)
+
     if 'classes_map' in checkpoint:
         model.classification_classes = checkpoint['classes_map']
     if 'state_dict' in checkpoint:
@@ -288,7 +290,7 @@ def load_pretrained_weights(model, weight_path):
     matched_layers, discarded_layers = [], []
 
     for k, v in state_dict.items():
-        if k.startswith('module.'):
+        if k.startswith('module.') and not resume:
             k = k[7:]  # discard module.
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
@@ -303,12 +305,12 @@ def load_pretrained_weights(model, weight_path):
         warnings.warn(
             'The pretrained weights "{}" cannot be loaded, '
             'please check the key names manually '
-            '(** ignored and continue **)'.format(weight_path)
+            '(** ignored and continue **)'.format(file_path)
         )
     else:
         print(
             'Successfully loaded pretrained weights from "{}"'.
-            format(weight_path)
+            format(file_path)
         )
         if len(discarded_layers) > 0:
             print(

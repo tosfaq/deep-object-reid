@@ -5,10 +5,9 @@ import torch
 import torchvision.transforms as T
 from PIL import Image
 
-from scripts.default_config import model_kwargs, get_default_config
 from torchreid.models import build_model
-from torchreid.utils import (check_isfile, compute_model_complexity,
-                             load_pretrained_weights)
+from torchreid.utils import check_isfile, compute_model_complexity, load_pretrained_weights
+from scripts.default_config import model_kwargs, get_default_config
 
 
 class FeatureExtractor(object):
