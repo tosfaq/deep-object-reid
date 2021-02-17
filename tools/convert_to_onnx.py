@@ -58,6 +58,10 @@ def parse_num_classes(source_datasets, classification=False, num_classes=None, s
         if snap_path is not None:
             chkpt = load_checkpoint(snap_path)
             num_classes_from_snap = chkpt['num_classes'] if 'num_classes' in chkpt else None
+
+            if isinstance(num_classes_from_snap, int):
+                num_classes_from_snap = [num_classes_from_snap]
+
             if num_classes is None:
                 num_classes = num_classes_from_snap
             else:
