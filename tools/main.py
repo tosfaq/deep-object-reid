@@ -199,7 +199,7 @@ def main():
             cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
         )
 
-    if cfg.lr_finder.enable:
+    if cfg.lr_finder.enable and not cfg.test.evaluate:
         if enable_mutual_learning:
             print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
 
