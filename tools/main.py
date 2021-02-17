@@ -12,9 +12,10 @@ from scripts.default_config import (engine_run_kwargs, get_default_config,
 import torchreid
 from torchreid.engine import build_engine
 from torchreid.ops import DataParallel
+from torchreid.models import load_model
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
-                             compute_model_complexity, load_pretrained_weights,
-                             resume_from_checkpoint, set_random_seed)
+                             compute_model_complexity,resume_from_checkpoint,
+                             set_random_seed)
 
 
 def build_datamanager(cfg, classification_classes_filter=None):
@@ -50,7 +51,7 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
     model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
 
     if (weights is not None) and (check_isfile(weights)):
-        load_pretrained_weights(model, weights)
+        load_model(model, weights)
 
     if cfg.use_gpu:
         assert device_ids is not None
@@ -137,9 +138,9 @@ def main():
     if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
         if cfg.model.pretrained and not cfg.test.evaluate:
             state_dict = torch.load(cfg.model.load_weights)
-            model.load_pretrained_weights(state_dict)
+            load_model(model, pretrained_dict=state_dict)
         else:
-            load_pretrained_weights(model, cfg.model.load_weights)
+            load_model(model, cfg.model.load_weights)
 
     if cfg.model.classification:
         classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
@@ -189,7 +190,7 @@ def main():
 
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
 
-    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic':
+    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
         scheduler = None
     else:
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
@@ -199,7 +200,7 @@ def main():
             cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
         )
 
-    if cfg.lr_finder.enable and not cfg.test.evaluate:
+    if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
         if enable_mutual_learning:
             print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
 

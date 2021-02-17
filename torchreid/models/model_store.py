@@ -9,6 +9,8 @@ import logging
 import os
 import zipfile
 
+from torchreid.utils import check_isfile
+
 _model_sha1 = {name: (error, checksum, repo_release_tag, caption, paper, ds, img_size, scale, batch, rem) for
                name, error, checksum, repo_release_tag, caption, paper, ds, img_size, scale, batch, rem in [
     ('mobilenetv2_wd4', '2451', '05e1e3a286b27c17ea11928783c4cd48b1e7a9b2', 'v0.0.137', 'MobileNetV2 x0.25', '1801.04381', 'in1k', 224, 0.875, 200, ''),  # noqa
@@ -218,8 +220,7 @@ def _check_sha1(file_name, sha1_hash):
     return sha1.hexdigest() == sha1_hash
 
 
-def load_model(net,
-               file_path):
+def load_model(net, file_path='', pretrained_dict=None, resume=False):
     """
     Load model state dictionary from a file.
     Parameters
@@ -236,12 +237,17 @@ def load_model(net,
     import warnings
     from collections import OrderedDict
 
-    pretrained_dict = torch.load(file_path, map_location="cpu")
+    if file_path:
+        check_isfile(file_path)
+    pretrained_dict = (torch.load(file_path, map_location="cpu")
+                       if not pretrained_dict
+                       else pretrained_dict)
     model_dict = net.state_dict()
+    print(model_dict.keys())
     new_state_dict = OrderedDict()
     matched_layers, discarded_layers = [], []
     for k, v in pretrained_dict.items():
-        if k.startswith('module.'):
+        if k.startswith('module.') and not resume:
             k = k[7:]  # discard module.
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v

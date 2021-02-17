@@ -5,9 +5,8 @@ import torch
 import torchvision.transforms as T
 from PIL import Image
 
-from torchreid.models import build_model
-from torchreid.utils import (check_isfile, compute_model_complexity,
-                             load_pretrained_weights)
+from torchreid.models import build_model, load_model
+from torchreid.utils import check_isfile, compute_model_complexity
 
 
 class FeatureExtractor(object):
@@ -86,7 +85,7 @@ class FeatureExtractor(object):
             print('- flops: {:,}'.format(flops))
 
         if model_path and check_isfile(model_path):
-            load_pretrained_weights(model, model_path)
+            load_model(model, model_path)
 
         # Build transform functions
         transforms = []
