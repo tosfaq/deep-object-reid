@@ -243,7 +243,6 @@ def load_model(net, file_path='', pretrained_dict=None, resume=False):
                        if not pretrained_dict
                        else pretrained_dict)
     model_dict = net.state_dict()
-    print(model_dict.keys())
     new_state_dict = OrderedDict()
     matched_layers, discarded_layers = [], []
     for k, v in pretrained_dict.items():
