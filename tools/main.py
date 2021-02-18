@@ -135,7 +135,7 @@ def main():
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
     if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
-        load_pretrained_weights(model, pretrained_dict=state_dict)
+        load_pretrained_weights(model, cfg.model.load_weights)
 
     if cfg.model.classification:
         classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
