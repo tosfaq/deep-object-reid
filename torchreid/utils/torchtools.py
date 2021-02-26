@@ -185,6 +185,9 @@ def open_all_layers(model):
     """
     model.train()
     for p in model.parameters():
+        if p.dtype in (torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.bool):
+            # only Tensors of floating point dtype can require gradients
+            continue
         p.requires_grad = True
 
 
@@ -307,6 +310,21 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None, resume=Fa
             'please check the key names manually '
             '(** ignored and continue **)'.format(file_path)
         )
+
+        if True: ########## DEBUG ####################################################
+            if len(discarded_layers) > 0:
+                print(
+                    '** The following layers are discarded '
+                    'due to unmatched keys or layer size: {}'.
+                    format(discarded_layers)
+                )
+            unmatched_layers = set(model_dict.keys()) - set(new_state_dict)
+            if unmatched_layers:
+                print(
+                    '** The following layers were not loaded from checkpoint: {}'.
+                    format(unmatched_layers)
+                )
+            raise RuntimeError('DEBUG --- this is required for debugging')
     else:
         print(
             'Successfully loaded pretrained weights from "{}"'.
@@ -317,4 +335,10 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None, resume=Fa
                 '** The following layers are discarded '
                 'due to unmatched keys or layer size: {}'.
                 format(discarded_layers)
+            )
+        unmatched_layers = set(model_dict.keys()) - set(new_state_dict)
+        if unmatched_layers:
+            print(
+                '** The following layers were not loaded from checkpoint: {}'.
+                format(unmatched_layers)
             )

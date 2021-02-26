@@ -55,7 +55,10 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
     if cfg.use_gpu:
         assert device_ids is not None
 
-        model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
+        if len(device_ids) > 1:
+            model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
+        else:
+            model = model.cuda(device_ids[0])
 
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
@@ -74,6 +77,104 @@ def check_classes_consistency(ref_classes, probe_classes, strict=False):
             if cl not in probe_names:
                 return False
     return True
+
+def wrap_nncf_model(model, cfg, classification_classes_filter=None):
+    import numpy as np
+    import os
+    from PIL import Image
+
+    import nncf
+    from nncf import (NNCFConfig, create_compressed_model,
+                      register_default_init_args)
+    from nncf.initialization import InitializingDataLoader
+    from torchreid.data.transforms import build_inference_transform
+    from nncf.dynamic_graph.input_wrapping import nncf_model_input
+
+    h, w = cfg.data.height, cfg.data.width
+    nncf_config_data = {
+            "input_info": {
+                "sample_size": [1, 3, h, w]
+                },
+            "compression": [
+                {
+                    "algorithm": "quantization",
+                    "initializer": {
+                        "range": {
+                            "num_init_steps": 10
+                            },
+                        "batchnorm_adaptation": {
+                            "num_bn_adaptation_steps": 30
+                            }
+                        }
+                    }
+                ],
+            "log_dir": "."
+            }
+    nncf_config = NNCFConfig(nncf_config_data)
+    print(f'nncf_config =\n{nncf_config}')
+
+    print('before building datamanager for nncf initializing')
+    datamanager = build_datamanager(cfg, classification_classes_filter)
+    print('after building datamanager for nncf initializing')
+    train_loader = datamanager.train_loader
+    class ReidInitializeDataLoader(InitializingDataLoader): #TODO: check is it correct
+        def get_inputs(self, dataloader_output):
+            # define own InitializingDataLoader class using approach like
+            # parse_data_for_train and parse_data_for_eval in the class Engine
+            # dataloader_output[0] should be image here
+            args = (dataloader_output[0], )
+            return args, {}
+
+    cur_device = next(model.parameters()).device
+    print(f'cur_device = {cur_device}')
+
+    # TODO: add `if not loading pretrained model` here
+    wrapped_loader = ReidInitializeDataLoader(train_loader)
+    nncf_config = register_default_init_args(nncf_config, wrapped_loader, device=cur_device)
+
+    transform = build_inference_transform(
+        cfg.data.height,
+        cfg.data.width,
+        norm_mean=cfg.data.norm_mean,
+        norm_std=cfg.data.norm_std,
+    )
+    def random_image(height, width):
+        input_size = (height, width, 3)
+        img = np.random.rand(*input_size).astype(np.float32)
+        img = np.uint8(img * 255)
+
+        out_img = Image.fromarray(img)
+
+        return out_img
+
+    def dummy_forward(model):
+        input_img = random_image(cfg.data.height, cfg.data.width)
+        input_blob = transform(input_img).unsqueeze(0)
+        assert len(input_blob.size()) == 4
+        input_blob = input_blob.to(device=cur_device)
+        input_blob = nncf_model_input(input_blob)
+        model(input_blob)
+
+    # TODO: think if this is required
+    #       (NNCF has the default wrap_inputs builder)
+    def wrap_inputs(args, kwargs):
+        assert not kwargs
+        assert len(args) == 1
+        return (nncf_model_input(args[0]), ), {}
+
+    model.dummy_forward_fn = dummy_forward
+    if 'log_dir' in nncf_config:
+        os.makedirs(nncf_config['log_dir'], exist_ok=True)
+    print(f'nncf_config["log_dir"] = {nncf_config["log_dir"]}')
+
+    resuming_state_dict = None #TODO
+    compression_ctrl, model = create_compressed_model(model,
+                                                      nncf_config,
+                                                      dummy_forward_fn=dummy_forward,
+                                                      wrap_inputs_fn=wrap_inputs,
+                                                      resuming_state_dict=resuming_state_dict)
+    return compression_ctrl, model
+
 
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -137,6 +238,9 @@ def main():
     if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
         load_pretrained_weights(model, cfg.model.load_weights)
 
+    if True:
+        compression_ctrl, model = wrap_nncf_model(model, cfg, args.classes)
+
     if cfg.model.classification:
         classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
         if cfg.test.evaluate:
@@ -179,7 +283,10 @@ def main():
             main_device_ids = list(range(num_devices))
             extra_device_ids = [main_device_ids for _ in range(len(cfg.mutual_learning.aux_configs))]
 
-        model = DataParallel(model, device_ids=main_device_ids, output_device=0).cuda(main_device_ids[0])
+        if num_devices > 1:
+            model = DataParallel(model, device_ids=main_device_ids, output_device=0).cuda(main_device_ids[0])
+        else:
+            model = model.cuda(main_device_ids[0])
     else:
         extra_device_ids = [None for _ in range(len(cfg.mutual_learning.aux_configs))]
 
