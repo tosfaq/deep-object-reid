@@ -187,6 +187,7 @@ class Engine:
         ranks=(1, 5, 10, 20),
         rerank=False,
         lr_finder = False,
+        extra_callbacks=None,
         **kwargs
     ):
         r"""A unified pipeline for training and evaluating a model.
@@ -246,8 +247,12 @@ class Engine:
         self.max_epoch = max_epoch
         self.fixbase_epoch = fixbase_epoch
         print('=> Start training')
+        if extra_callbacks:
+            extra_callbacks.notify("on_train_begin")
 
         for self.epoch in range(self.start_epoch, self.max_epoch):
+            if extra_callbacks:
+                extra_callbacks.notify("on_epoch_begin", epoch=self.epoch)
 
             self.train(
                 print_freq=print_freq,
@@ -282,6 +287,9 @@ class Engine:
                 not lr_finder and
                 self.exit_on_plataeu(top1, top5, mAP)):
                     break
+            if extra_callbacks:
+                logs = {"loss": 0., "val_loss": 0., "accuracy": 0., "val_accuracy": top1}
+                extra_callbacks.notify("on_epoch_end", epoch=self.epoch, logs=logs)
 
         if self.max_epoch > 0:
             print('=> Final test')
@@ -305,6 +313,8 @@ class Engine:
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
         print('Elapsed {}'.format(elapsed))
+        if extra_callbacks:
+            extra_callbacks.notify("on_train_end")
 
         if self.writer is not None:
             self.writer.close()

@@ -1,6 +1,8 @@
 from __future__ import absolute_import, division, print_function
 import os
 import os.path as osp
+import numpy as np
+from PIL import Image
 
 from ..dataset import ImageDataset
 
@@ -132,3 +134,77 @@ class ClassificationImageFolder(ImageDataset):
             print('Failed to locate images in folder ' + data_dir + f' with extensions {ALLOWED_EXTS}')
 
         return out_data, class_to_idx
+
+
+class ClassificationNOUS(ImageDataset):
+    """
+    Dataloader that generates logits from DatasetItems.
+    """
+    def __init__(self, root='', mode='train', inference_mode=False, dataset_id=0,
+                 load_masks=False, filter_classes=None, transforms=None, **kwargs):
+
+        self.dataset, self.labels = root
+        self.inference_mode = inference_mode
+
+        if mode == 'train':
+            train, classes = self.load_annotation(
+                self.dataset, self.labels, dataset_id
+            )
+            query = []
+        elif mode == 'query':
+            query, classes = self.load_annotation(
+                self.dataset, self.labels, dataset_id
+            )
+            train = []
+        else:
+            classes = []
+            train, query = [], []
+
+        gallery = []
+
+        super().__init__(train, query, gallery, mode=mode, **kwargs)
+
+        self.classes = classes
+
+    @staticmethod
+    def load_annotation(dataset, labels, dataset_id=0):
+        class_to_idx = {i : label for i, label in enumerate(labels)}
+
+        out_data = []
+        for item in dataset:
+            label = item.annotation.get_labels()[0]
+            out_data.append((' ', label, 0, dataset_id, '', -1, -1))
+
+        return out_data, class_to_idx
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def get_input(self, idx: int):
+        """
+        Return the centered and scaled input tensor for file with 'idx'
+        """
+        sample = self.dataset[idx].numpy  # This returns 8-bit numpy array of shape (height, width, RGB)
+
+        if self.transform is not None:
+            img = Image.fromarray(sample)
+            img, _ = self.transform((img, ''))
+        return img
+
+    def __getitem__(self, idx: int):
+        """
+        Return the input and the an optional encoded target for training with index 'idx'
+        """
+        input_image = self.get_input(idx)
+
+        if self.inference_mode:
+            class_num = np.asarray(0)
+        else:
+            item = self.dataset[idx]
+            if len(item.annotation.get_labels()) == 0:
+                raise ValueError(
+                    f"No labels in annotation found. Annotation: {item.annotation}")
+            label = item.annotation.get_labels()[0]
+            class_num = self.labels.index(label)
+            class_num = np.asarray(class_num)
+        return input_image, class_num, 0
