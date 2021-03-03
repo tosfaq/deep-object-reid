@@ -47,6 +47,8 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
     cfg.use_gpu = use_gpu
     cfg.merge_from_file(config_file)
 
+    print('\nShow auxiliary configuration\n{}\n'.format(cfg))
+
     model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
 
     if (weights is not None) and (check_isfile(weights)):
@@ -100,10 +102,11 @@ def wrap_nncf_model(model, cfg, classification_classes_filter=None):
                     "algorithm": "quantization",
                     "initializer": {
                         "range": {
-                            "num_init_steps": 10
+                            "num_init_samples": 8192, # Number of samples from the training dataset to consume as sample model inputs for purposes of setting initial minimum and maximum quantization ranges
                             },
                         "batchnorm_adaptation": {
-                            "num_bn_adaptation_steps": 30
+                            "num_bn_adaptation_samples": 8192, # Number of samples from the training dataset to pass through the model at initialization in order to update batchnorm statistics of the original model. The actual number of samples will be a closest multiple of the batch size.
+                            #"num_bn_forget_samples": 1024, # Number of samples from the training dataset to pass through the model at initialization in order to erase batchnorm statistics of the original model (using large momentum value for rolling mean updates). The actual number of samples will be a closest multiple of the batch size.
                             }
                         }
                     }
@@ -139,6 +142,10 @@ def wrap_nncf_model(model, cfg, classification_classes_filter=None):
         norm_std=cfg.data.norm_std,
     )
     def random_image(height, width):
+        if True:
+            print(':::DEBUG: random_image call')
+            import traceback
+            traceback.print_stack(file=sys.stdout)
         input_size = (height, width, 3)
         img = np.random.rand(*input_size).astype(np.float32)
         img = np.uint8(img * 255)
@@ -148,12 +155,15 @@ def wrap_nncf_model(model, cfg, classification_classes_filter=None):
         return out_img
 
     def dummy_forward(model):
+        prev_training_state = model.training
+        model.eval()
         input_img = random_image(cfg.data.height, cfg.data.width)
         input_blob = transform(input_img).unsqueeze(0)
         assert len(input_blob.size()) == 4
         input_blob = input_blob.to(device=cur_device)
         input_blob = nncf_model_input(input_blob)
         model(input_blob)
+        model.train(prev_training_state)
 
     # TODO: think if this is required
     #       (NNCF has the default wrap_inputs builder)
