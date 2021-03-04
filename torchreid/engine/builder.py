@@ -3,7 +3,8 @@ from torchreid.engine import (ImageAMSoftmaxEngine, ImageContrastiveEngine,
                               VideoTripletEngine)
 
 
-def build_engine(cfg, datamanager, model, optimizer, scheduler):
+def build_engine(cfg, datamanager, model, optimizer, scheduler,
+                 should_freeze_aux_models=False):
     if cfg.data.type == 'image':
         if cfg.loss.name in ['softmax', 'am_softmax']:
             softmax_type = 'stock' if cfg.loss.name == 'softmax' else 'am'
@@ -45,6 +46,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 mix_weight=cfg.mixing_loss.enable * cfg.mixing_loss.weight,
                 enable_rsc=cfg.model.self_challenging_cfg.enable,
                 enable_sam=cfg.sam.enable,
+                should_freeze_aux_models=should_freeze_aux_models
             )
         elif cfg.loss.name == 'contrastive':
             engine = ImageContrastiveEngine(

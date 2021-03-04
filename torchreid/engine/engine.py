@@ -30,7 +30,8 @@ class Engine:
     """
 
     def __init__(self, datamanager, models, optimizers, schedulers,
-                 use_gpu=True, save_chkpt=True, train_patience = 10, lb_lr = 1e-5, early_stoping=False):
+                 use_gpu=True, save_chkpt=True, train_patience = 10, lb_lr = 1e-5, early_stoping=False,
+                 should_freeze_aux_models=False):
 
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
@@ -54,6 +55,9 @@ class Engine:
         self.optims = OrderedDict()
         self.scheds = OrderedDict()
 
+        self.should_freeze_aux_models = should_freeze_aux_models
+        self.model_names_to_freeze = []
+
         if isinstance(models, (tuple, list)):
             assert isinstance(optimizers, (tuple, list))
             assert isinstance(schedulers, (tuple, list))
@@ -63,7 +67,10 @@ class Engine:
             assert len(schedulers) == num_models
 
             for model_id, (model, optimizer, scheduler) in enumerate(zip(models, optimizers, schedulers)):
-                self.register_model(f'model_{model_id}', model, optimizer, scheduler)
+                model_name = f'model_{model_id}'
+                self.register_model(model_name, model, optimizer, scheduler)
+                if should_freeze_aux_models and model_id > 0:
+                    self.model_names_to_freeze.append(model_name)
         else:
             assert not isinstance(optimizers, (tuple, list))
             assert not isinstance(schedulers, (tuple, list))
@@ -323,6 +330,13 @@ class Engine:
 
         return top1
 
+    def _freeze_aux_models(self):
+        for model_name in self.model_names_to_freeze:
+            print(f'Freezing model {model_name}')
+            model = self.models[model_name]
+            model.eval()
+            open_specified_layers(model, [])
+
     def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False):
         losses = MetricMeter()
         batch_time = AverageMeter()
@@ -334,6 +348,9 @@ class Engine:
         self.two_stepped_transfer_learning(
             self.epoch, fixbase_epoch, open_layers
         )
+        if self.should_freeze_aux_models:
+            print('Freezing aux models')
+            self._freeze_aux_models()
 
         self.num_batches = len(self.train_loader)
         end = time.time()

@@ -14,7 +14,8 @@ from torchreid.engine import build_engine
 from torchreid.ops import DataParallel
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              compute_model_complexity,resume_from_checkpoint,
-                             set_random_seed, load_pretrained_weights)
+                             set_random_seed, load_pretrained_weights,
+                             open_specified_layers)
 
 
 def build_datamanager(cfg, classification_classes_filter=None):
@@ -248,8 +249,10 @@ def main():
     if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
         load_pretrained_weights(model, cfg.model.load_weights)
 
-    if True:
+    should_freeze_aux_models = False
+    if True: #TODO: add parameter to turn on nncf
         compression_ctrl, model = wrap_nncf_model(model, cfg, args.classes)
+        should_freeze_aux_models = True
 
     if cfg.model.classification:
         classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
@@ -348,6 +351,10 @@ def main():
                 config_file, num_train_classes, cfg.use_gpu, device_ids, model_weights
             )
 
+            if should_freeze_aux_models:
+                aux_model = aux_model.eval()
+                open_specified_layers(aux_model, [])
+
             models.append(aux_model)
             optimizers.append(aux_optimizer)
             schedulers.append(aux_scheduler)
@@ -355,7 +362,8 @@ def main():
         models, optimizers, schedulers = model, optimizer, scheduler
 
     print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
-    engine = build_engine(cfg, datamanager, models, optimizers, schedulers)
+    engine = build_engine(cfg, datamanager, models, optimizers, schedulers,
+                          should_freeze_aux_models=should_freeze_aux_models)
 
     engine.run(**engine_run_kwargs(cfg))
 
