@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from datetime import datetime
 import os
 import os.path as osp
 import sys
@@ -29,6 +30,7 @@ class Logger(object):
     def __init__(self, fpath=None):
         self.console = sys.stdout
         self.file = None
+        self.was_cr = True
         if fpath is not None:
             mkdir_if_missing(osp.dirname(fpath))
             self.file = open(fpath, 'w')
@@ -43,9 +45,15 @@ class Logger(object):
         self.close()
 
     def write(self, msg):
-        self.console.write(msg)
+        if self.was_cr:
+            timestamp = datetime.now().strftime('%Y-%m-%d_%H:%M:%S|')
+        else:
+            timestamp = ''
+        self.was_cr = msg.endswith('\n')
+
+        self.console.write(timestamp + msg)
         if self.file is not None:
-            self.file.write(msg)
+            self.file.write(timestamp + msg)
 
     def flush(self):
         self.console.flush()
