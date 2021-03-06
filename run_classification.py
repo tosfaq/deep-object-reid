@@ -33,7 +33,7 @@ def main():
     parser.add_argument(
         '--data_root',
         type=str,
-        default='/home/prokofiev/datasets',
+        default='/media/cluster_fs/datasets/classification',
         required=False,
         help='path to folder with datasets'
     )
@@ -43,7 +43,7 @@ def main():
     parser.add_argument('--gpu-num', type=int, default=1,
                         help='Number of GPUs for training. 0 is for CPU mode')
     args = parser.parse_args()
-
+    print(args.gpu_num)
     path_to_main = './tools/main.py'
     data_root = args.data_root
     yaml = YAML()
@@ -52,7 +52,7 @@ def main():
         flowers=dict(
             resolution=(224, 224),
             epochs=50,
-            roots=['/home/prokofiev/datasets/flowers/train.txt', '/home/prokofiev/datasets/flowers/val.txt'],
+            roots=['/media/cluster_fs/datasets/classification/flowers/train.txt', '/media/cluster_fs/datasets/classification/flowers/val.txt'],
             names=['flowers_train', 'flowers_val'],
             types=['classification', 'classification'],
             sources='flowers_train',
@@ -63,7 +63,7 @@ def main():
         CIFAR100=dict(
             resolution=(224, 224),
             epochs=35,
-            roots=['/home/prokofiev/datasets/CIFAR100/train', '/home/prokofiev/datasets/CIFAR100/val'],
+            roots=['/media/cluster_fs/datasets/classification/CIFAR100/train', '/media/cluster_fs/datasets/classification/CIFAR100/val'],
             names=['CIFAR100_train', 'CIFAR100_val'],
             types=['classification_image_folder', 'classification_image_folder'],
             sources='CIFAR100_train',
@@ -74,7 +74,7 @@ def main():
         fashionMNIST=dict(
             resolution=(28, 28),
             epochs=35,
-            roots=['/home/prokofiev/datasets/fashionMNIST/train', '/home/prokofiev/datasets/fashionMNIST/val'],
+            roots=['/media/cluster_fs/datasets/classification/fashionMNIST/train', '/media/cluster_fs/datasets/classification/fashionMNIST/val'],
             names=['fashionMNIST_train', 'fashionMNIST_val'],
             types=['classification_image_folder', 'classification_image_folder'],
             sources='fashionMNIST_train',
@@ -85,7 +85,7 @@ def main():
         SVHN=dict(
             resolution=(32, 32),
             epochs=50,
-            roots=['/home/prokofiev/datasets/SVHN/train.txt', '/home/prokofiev/datasets/SVHN/val.txt'],
+            roots=['/media/cluster_fs/datasets/classification/SVHN/train.txt', '/media/cluster_fs/datasets/classification/SVHN/val.txt'],
             names=['SVHN_train', 'SVHN_val'],
             types=['classification', 'classification'],
             sources='SVHN_train',
@@ -96,7 +96,7 @@ def main():
         cars=dict(
             resolution=(224, 224),
             epochs=110,
-            roots=['/home/prokofiev/datasets/cars/train.txt', '/home/prokofiev/datasets/cars/val.txt'],
+            roots=['/media/cluster_fs/datasets/classification/cars/train.txt', '/media/cluster_fs/datasets/classification/cars/val.txt'],
             names=['cars_train', 'cars_val'],
             types=['classification', 'classification'],
             sources='cars_train',
@@ -107,7 +107,7 @@ def main():
         DTD=dict(
             resolution=(224, 224),
             epochs=70,
-            roots=['/home/prokofiev/datasets/DTD/train', '/home/prokofiev/datasets/DTD/val'],
+            roots=['/media/cluster_fs/datasets/classification/DTD/train', '/media/cluster_fs/datasets/classification/DTD/val'],
             names=['DTD_train', 'DTD_val'],
             types=['classification_image_folder', 'classification_image_folder'],
             sources='DTD_train',
@@ -118,7 +118,7 @@ def main():
         pets=dict(
             resolution=(224, 224),
             epochs=60,
-            roots=['/home/prokofiev/datasets/pets/train.txt', '/home/prokofiev/datasets/pets/val.txt'],
+            roots=['/media/cluster_fs/datasets/classification/pets/train.txt', '/media/cluster_fs/datasets/classification/pets/val.txt'],
             names=['pets_train', 'pets_val'],
             types=['classification', 'classification'],
             sources='pets_train',
@@ -129,7 +129,7 @@ def main():
         Xray=dict(
             resolution=(224, 224),
             epochs=70,
-            roots=['/home/prokofiev/datasets/Xray/train', '/home/prokofiev/datasets/Xray/val'],
+            roots=['/media/cluster_fs/datasets/classification/Xray/train', '/media/cluster_fs/datasets/classification/Xray/val'],
             names=['Xray_train', 'Xray_val'],
             types=['classification_image_folder', 'classification_image_folder'],
             sources='Xray_train',
@@ -140,7 +140,7 @@ def main():
         SUN397=dict(
             resolution=(224, 224),
             epochs=60,
-            roots=['/home/prokofiev/datasets/SUN397/train.txt', '/home/prokofiev/datasets/SUN397/val.txt'],
+            roots=['/media/cluster_fs/datasets/classification/SUN397/train.txt', '/media/cluster_fs/datasets/classification/SUN397/val.txt'],
             names=['SUN397_train', 'SUN397_val'],
             types=['classification', 'classification'],
             sources='SUN397_train',
@@ -151,7 +151,7 @@ def main():
         birdsnap=dict(
             resolution=(224, 224),
             epochs=35,
-            roots=['/home/prokofiev/datasets/birdsnap/train.txt', '/home/prokofiev/datasets/birdsnap/val.txt'],
+            roots=['/media/cluster_fs/datasets/classification/birdsnap/train.txt', '/media/cluster_fs/datasets/classification/birdsnap/val.txt'],
             names=['birdsnap_train', 'birdsnap_val'],
             types=['classification', 'classification'],
             sources='birdsnap_train',
@@ -162,7 +162,7 @@ def main():
         caltech101=dict(
             resolution=(224, 224),
             epochs=55,
-            roots=['/home/prokofiev/datasets/caltech101/train.txt', '/home/prokofiev/datasets/caltech101/val.txt'],
+            roots=['/media/cluster_fs/datasets/classification/caltech101/train.txt', '/media/cluster_fs/datasets/classification/caltech101/val.txt'],
             names=['caltech101_train', 'caltech101_val'],
             types=['classification', 'classification'],
             sources='caltech101_train',
@@ -173,7 +173,7 @@ def main():
         FOOD101=dict(
             resolution=(224, 224),
             epochs=35,
-            roots=['/home/prokofiev/datasets/FOOD101/train.txt', '/home/prokofiev/datasets/FOOD101/val.txt'],
+            roots=['/media/cluster_fs/datasets/classification/FOOD101/train.txt', '/media/cluster_fs/datasets/classification/FOOD101/val.txt'],
             names=['FOOD101_train', 'FOOD101_val'],
             types=['classification', 'classification'],
             sources='FOOD101_train',
@@ -247,8 +247,8 @@ def main():
             # run training
             run(
                 f'python {str(path_to_main)}'
-                f' --config {tmp_path_to_cfg}',
-                f'--gpu-num {args.gpu_num}',
+                f' --config {tmp_path_to_cfg}'
+                f' --gpu-num {int(args.gpu_num)}',
                 shell=True
             )
         finally:
