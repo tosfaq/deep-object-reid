@@ -40,6 +40,8 @@ def main():
     parser.add_argument(
         '--config', type=str, required=False, help='path to config file'
     )
+    parser.add_argument('--gpu-num', type=int, default=1,
+                        help='Number of GPUs for training. 0 is for CPU mode')
     args = parser.parse_args()
 
     path_to_main = './tools/main.py'
@@ -246,6 +248,7 @@ def main():
             run(
                 f'python {str(path_to_main)}'
                 f' --config {tmp_path_to_cfg}',
+                f'--gpu-num {args.gpu_num}',
                 shell=True
             )
         finally:
