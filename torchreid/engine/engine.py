@@ -298,9 +298,8 @@ class Engine:
             )
             if self.save_chkpt and not lr_finder:
                 self.save_model(self.epoch, save_dir)
-            if top1 and lr_finder:
-                top1 = max(top1, top1_final)
-                print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
+            if lr_finder:
+                print(f"epoch: {self.epoch}\t top1: {top1_final}\t lr: {self.get_current_lr()}")
 
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
@@ -309,7 +308,7 @@ class Engine:
         if self.writer is not None:
             self.writer.close()
 
-        return top1
+        return top1_final
 
     def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False):
         losses = MetricMeter()
