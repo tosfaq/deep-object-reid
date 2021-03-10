@@ -4,7 +4,7 @@ import datetime
 import os
 import os.path as osp
 import time
-from collections import OrderedDict
+from collections import namedtuple, OrderedDict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,6 +20,31 @@ from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
                              visualize_ranked_results)
 
 
+EpochIntervalToValue = namedtuple('EpochIntervalToValue', ['first', 'last', 'value_inside', 'value_outside'])
+
+def _get_cur_action_from_epoch_interval(epoch_interval, epoch):
+#    The following code will be required if we want tu use a composite epoch_interval
+#    assert isinstance(epoch_interval, (list, EpochIntervalToValue))
+#    if isinstance(epoch_interval, list):
+#        return [_get_current_action_from_epoch_interval(e_i, epoch)
+#                for e_i in epoch_interval]
+
+    assert isinstance(epoch_interval, EpochIntervalToValue)
+    if epoch_interval.first is None and epoch_interval.last is None:
+        raise RuntimeError(f'Wrong epoch_interval {epoch_interval}')
+
+    if epoch_interval.first is not None and epoch < epoch_interval.first:
+        print(f'_get_cur_action_from_epoch_interval: since epoch={epoch} < epoch_interval.first={epoch_interval.first}, '
+              f'return value_outside={epoch_interval.value_outside}')
+        return epoch_interval.value_outside
+    if epoch_interval.last is not None and epoch > epoch_interval.last:
+        print(f'_get_cur_action_from_epoch_interval: since epoch={epoch} > epoch_interval.last={epoch_interval.last}, '
+              f'return value_outside={epoch_interval.value_outside}')
+        return epoch_interval.value_outside
+
+    print(f'_get_cur_action_from_epoch_interval: return value_inside={epoch_interval.value_inside}')
+    return epoch_interval.value_inside
+
 class Engine:
     r"""A generic base Engine class for both image- and video-reid.
 
@@ -31,7 +56,9 @@ class Engine:
 
     def __init__(self, datamanager, models, optimizers, schedulers,
                  use_gpu=True, save_chkpt=True, train_patience = 10, lb_lr = 1e-5, early_stoping=False,
-                 should_freeze_aux_models=False):
+                 should_freeze_aux_models=False,
+                 epoch_interval_for_aux_model_freeze=None,
+                 epoch_interval_for_turn_off_mutual_learning=None):
 
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
@@ -55,7 +82,12 @@ class Engine:
         self.optims = OrderedDict()
         self.scheds = OrderedDict()
 
+        print(f'Engine: should_freeze_aux_models={should_freeze_aux_models}')
+        print(f'Engine: epoch_interval_for_aux_model_freeze={epoch_interval_for_aux_model_freeze}')
+        print(f'Engine: epoch_interval_for_turn_off_mutual_learning={epoch_interval_for_turn_off_mutual_learning}')
         self.should_freeze_aux_models = should_freeze_aux_models
+        self.epoch_interval_for_aux_model_freeze = epoch_interval_for_aux_model_freeze
+        self.epoch_interval_for_turn_off_mutual_learning = epoch_interval_for_turn_off_mutual_learning
         self.model_names_to_freeze = []
 
         if isinstance(models, (tuple, list)):
@@ -76,6 +108,27 @@ class Engine:
             assert not isinstance(schedulers, (tuple, list))
 
             self.register_model('model', models, optimizers, schedulers)
+
+    def _should_freeze_aux_models(self, epoch):
+        print('_should_freeze_aux_models: begin')
+        if not self.should_freeze_aux_models:
+            print(f'_should_freeze_aux_models: simple case, res=False')
+            return False
+        if self.epoch_interval_for_aux_model_freeze is None:
+            print(f'_should_freeze_aux_models: simple case, res=True')
+            return True
+        res = _get_cur_action_from_epoch_interval(self.epoch_interval_for_aux_model_freeze, epoch)
+        print(f'_should_freeze_aux_models: return res={res}')
+        return res
+
+    def _should_turn_off_mutual_learning(self, epoch):
+        print('_should_turn_off_mutual_learning: begin')
+        if self.epoch_interval_for_turn_off_mutual_learning is None:
+            print(f'_should_turn_off_mutual_learning: simple case, return False')
+            return False
+        res = _get_cur_action_from_epoch_interval(self.epoch_interval_for_turn_off_mutual_learning, epoch)
+        print(f'_should_turn_off_mutual_learning: return {res}')
+        return res
 
     def register_model(self, name='model', model=None, optim=None, sched=None):
         if self.__dict__.get('models') is None:
@@ -337,6 +390,13 @@ class Engine:
             model.eval()
             open_specified_layers(model, [])
 
+    def _unfreeze_aux_models(self):
+        for model_name in self.model_names_to_freeze:
+            print(f'Unfreezing model {model_name}')
+            model = self.models[model_name]
+            model.train()
+            open_all_layers(model)
+
     def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False):
         losses = MetricMeter()
         batch_time = AverageMeter()
@@ -345,10 +405,18 @@ class Engine:
 
         self.set_model_mode('train')
 
+        if not self._should_freeze_aux_models(self.epoch):
+            # NB: it should be done before `two_stepped_transfer_learning`
+            # to give possibility to freeze some layers in the unlikely event
+            # that `two_stepped_transfer_learning` is used together with nncf
+            print('Unfreezing aux models')
+            self._unfreeze_aux_models()
+
         self.two_stepped_transfer_learning(
             self.epoch, fixbase_epoch, open_layers
         )
-        if self.should_freeze_aux_models:
+
+        if self._should_freeze_aux_models(self.epoch):
             print('Freezing aux models')
             self._freeze_aux_models()
 
