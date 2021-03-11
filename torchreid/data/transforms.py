@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from PIL import Image, ImageOps
 from torchvision.transforms import (ColorJitter, Compose, Normalize, Resize,
-                                    ToPILImage, ToTensor)
+                                    ToPILImage, ToTensor, InterpolationMode)
 from torchvision.transforms import functional as F
 
 from torchreid.utils.tools import read_image
@@ -314,9 +314,7 @@ class RandomColorJitter(ColorJitter):
             return input_tuple
 
         img, mask = input_tuple
-
-        transform = self.get_params(self.brightness, self.contrast, self.saturation, self.hue)
-        img = transform(img)
+        img = self.forward(img)
 
         return img, mask
 
@@ -436,10 +434,10 @@ class RandomRotate(object):
         else:
             rnd_angle = random.randint(self.angle[0], self.angle[1])
 
-        img = F.rotate(img, rnd_angle, resample=False, expand=False, center=None)
+        img = F.rotate(img, rnd_angle, expand=False, center=None)
         if mask != '':
             rgb_mask = mask.convert('RGB')
-            rgb_mask = F.rotate(rgb_mask, rnd_angle, resample=False, expand=False, center=None)
+            rgb_mask = F.rotate(rgb_mask, rnd_angle, expand=False, center=None)
             mask = rgb_mask.convert('L')
 
         return img, mask
@@ -890,7 +888,7 @@ class DisableBackground(object):
 
 
 class PairResize(object):
-    def __init__(self, size, interpolation=Image.BILINEAR):
+    def __init__(self, size, interpolation=InterpolationMode.NEAREST):
         assert isinstance(size, int) or len(size) == 2
         self.size = size
         self.interpolation = interpolation
