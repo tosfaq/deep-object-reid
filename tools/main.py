@@ -24,15 +24,35 @@ def build_datamanager(cfg, classification_classes_filter=None):
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
+<<<<<<< HEAD
 def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, weights=None):
+=======
+def reset_config(cfg, args):
+    if args.root:
+        cfg.data.root = args.root
+
+    if args.sources:
+        cfg.data.sources = args.sources
+    if args.targets:
+        cfg.data.targets = args.targets
+
+    if args.custom_roots:
+        cfg.custom_datasets.roots = args.custom_roots
+    if args.custom_types:
+        cfg.custom_datasets.types = args.custom_types
+    if args.custom_names:
+        cfg.custom_datasets.names = args.custom_names
+
+    if args.auxiliary_models_cfg:
+        cfg.mutual_learning.aux_configs = args.auxiliary_models_cfg
+
+def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None):
+>>>>>>> fix loading aux models
     cfg = get_default_config()
     cfg.use_gpu = use_gpu
     cfg.merge_from_file(config_file)
 
     model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
-
-    if (weights is not None) and (check_isfile(weights)):
-        load_pretrained_weights(model, weights)
 
     if cfg.use_gpu:
         assert device_ids is not None
@@ -41,14 +61,18 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
 
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+
+    if cfg.model.resume and check_isfile(cfg.model.resume):
+        cfg.train.start_epoch = resume_from_checkpoint(
+            cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
+        )
+
     return model, optimizer, scheduler
 
 def main():
     parser = build_base_argparser()
     parser.add_argument('-e', '--auxiliary-models-cfg', type=str, nargs='*', default='',
                         help='path to extra config files')
-    parser.add_argument('-w', '--extra-weights', type=str, nargs='*', default='',
-                        help='path to extra model weights')
     parser.add_argument('--split-models', action='store_true',
                         help='whether to split models on own gpu')
     args = parser.parse_args()
@@ -167,16 +191,10 @@ def main():
     if enable_mutual_learning:
         print('Enabled mutual learning between {} models.'.format(len(cfg.mutual_learning.aux_configs) + 1))
 
-        if len(args.extra_weights) > 0:
-            assert len(args.extra_weights) == len(cfg.mutual_learning.aux_configs)
-            weights = args.extra_weights
-        else:
-            weights = [None] * len(cfg.mutual_learning.aux_configs)
-
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
-        for config_file, model_weights, device_ids in zip(cfg.mutual_learning.aux_configs, weights, extra_device_ids):
+        for config_file, device_ids in zip(cfg.mutual_learning.aux_configs, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                config_file, num_train_classes, cfg.use_gpu, device_ids, model_weights
+                config_file, num_train_classes, cfg.use_gpu, device_ids
             )
 
             models.append(aux_model)
