@@ -24,30 +24,7 @@ def build_datamanager(cfg, classification_classes_filter=None):
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
-<<<<<<< HEAD
 def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, weights=None):
-=======
-def reset_config(cfg, args):
-    if args.root:
-        cfg.data.root = args.root
-
-    if args.sources:
-        cfg.data.sources = args.sources
-    if args.targets:
-        cfg.data.targets = args.targets
-
-    if args.custom_roots:
-        cfg.custom_datasets.roots = args.custom_roots
-    if args.custom_types:
-        cfg.custom_datasets.types = args.custom_types
-    if args.custom_names:
-        cfg.custom_datasets.names = args.custom_names
-
-    if args.auxiliary_models_cfg:
-        cfg.mutual_learning.aux_configs = args.auxiliary_models_cfg
-
-def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None):
->>>>>>> fix loading aux models
     cfg = get_default_config()
     cfg.use_gpu = use_gpu
     cfg.merge_from_file(config_file)
