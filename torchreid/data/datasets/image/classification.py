@@ -63,6 +63,74 @@ class Classification(ImageDataset):
         return out_data
 
 
+class ExternalDatasetWrapper(ImageDataset):
+    def __init__(self, data_provider, mode='train', dataset_id=0, load_masks=False, filter_classes=None, **kwargs):
+        if load_masks:
+            raise NotImplementedError
+        self.data_provider = data_provider
+
+        if mode == 'train':
+            train, classes = self.load_annotation(
+                self.data_provider, filter_classes, dataset_id
+            )
+            query = []
+        elif mode == 'query':
+            query, classes = self.load_annotation(
+                self.data_provider, filter_classes, dataset_id
+            )
+            train = []
+        else:
+            classes = []
+            train, query = [], []
+
+        super().__init__(train, query, gallery, mode=mode, **kwargs)
+
+        self.classes = classes
+
+    def __len__(self):
+        return len(self.data_provider)
+
+    def get_input(self, idx: int):
+        """
+        Return the centered and scaled input tensor for file with 'idx'
+        """
+        sample = self.data_provider[idx].numpy  # This returns 8-bit numpy array of shape (height, width, RGB)
+
+        if self.transform is not None:
+            img = Image.fromarray(sample)
+            img, _ = self.transform((img, ''))
+        return img
+
+    def __getitem__(self, idx: int):
+        """
+        Return the input and the an optional encoded target for training with index 'idx'
+        """
+        input_image = self.get_input(idx)
+
+        item = self.dataset[idx]
+        if len(item.annotation.get_labels()) == 0:
+            raise ValueError(
+                f"No labels in annotation found. Annotation: {item.annotation}")
+        label = item.annotation.get_labels()[0]
+        class_num = self.labels.index(label)
+        class_num = np.asarray(class_num)
+
+        return input_image, class_num, 0
+
+    @staticmethod
+    def load_annotation(data_provider, filter_classes=None, dataset_id=0):
+
+        all_classes = sorted(data_provider.get_classes())
+        class_to_idx = {all_classes[i]: i for i in range(len(all_classes))}
+
+        all_annotation = data_provider.get_annotation()
+        out_data = []
+        for item in annotation:
+            out_data.append(('', item[0], 0, dataset_id, '', -1, -1))\
+
+        return out_data, class_to_idx
+
+
 class ClassificationImageFolder(ImageDataset):
     """Classification dataset representing raw folders without annotation files.
     """

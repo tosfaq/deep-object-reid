@@ -170,7 +170,7 @@ class Engine:
     def run(
         self,
         save_dir='log',
-        tb_log_dir='',
+        tb_writer=None,
         max_epoch=0,
         start_epoch=0,
         print_freq=10,
@@ -236,9 +236,7 @@ class Engine:
                             )
             return results
 
-        if self.writer is None:
-            log_dir = tb_log_dir if len(tb_log_dir) else save_dir
-            self.writer = SummaryWriter(log_dir=log_dir)
+        self.writer = tb_writer
 
         time_start = time.time()
         top1 = None
