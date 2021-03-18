@@ -120,6 +120,8 @@ def main():
                         help='If nncf compression should be used')
     parser.add_argument('--no_nncf', action='store_true',
                         help='If nncf compression should NOT be used')
+    parser.add_argument('--nncf_load_checkpoint', action='store_true',
+                        help='If nncf compression checkpoint should be loaded')
     args = parser.parse_args()
 
     cfg = get_default_config()
@@ -169,14 +171,24 @@ def main():
         print('ATTENTION: during debug NNCF features, the default action for training without options'
               ' --nncf and --no_nncf is USE NNCF -- it is TEMPORARY and will be turned off!')
         should_use_nncf = True
+    else:
+        print(f'Now should_use_nncf={should_use_nncf}')
 
     if should_use_nncf:
         nncf_config_path = args.nncf if isinstance(args.nncf, str) else None
         print(f'should_freeze_aux_models_for_nncf = {should_freeze_aux_models_for_nncf}')
-        print('before building datamanager for nncf initializing')
-        datamanager_for_nncf = build_datamanager(cfg, args.classes)
-        print('after building datamanager for nncf initializing')
-        compression_ctrl, model = wrap_nncf_model(model, cfg, datamanager_for_nncf, nncf_config_path)
+        if args.nncf_load_checkpoint:
+            checkpoint_path = cfg.model.load_weights
+            assert check_isfile(checkpoint_path)
+            datamanager_for_nncf = None
+        else:
+            print('before building datamanager for nncf initializing')
+            datamanager_for_nncf = build_datamanager(cfg, args.classes)
+            print('after building datamanager for nncf initializing')
+            checkpoint_path = None
+        compression_ctrl, model = wrap_nncf_model(model, cfg, datamanager_for_nncf,
+                                                  nncf_config_path=nncf_config_path,
+                                                  checkpoint_path=checkpoint_path)
         should_freeze_aux_models = should_freeze_aux_models_for_nncf
 
     if args.freeze_aux_model_up_to_epoch is not None:

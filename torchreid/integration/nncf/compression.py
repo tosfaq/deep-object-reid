@@ -2,11 +2,48 @@ import json
 import numpy as np
 import os
 import sys
+from collections import OrderedDict
 from PIL import Image
+
+import torch
 
 from torchreid.data.transforms import build_inference_transform
 
-def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path):
+def _load_checkpoint_for_nncf(model, filename, map_location=None, strict=False):
+    """Load checkpoint from a file or URI.
+
+    Args:
+        model (Module): Module to load checkpoint.
+        filename (str): Either a filepath or URL or modelzoo://xxxxxxx.
+        map_location (str): Same as :func:`torch.load`.
+        strict (bool): Whether to allow different params for the model and
+            checkpoint.
+
+    Returns:
+        dict or OrderedDict: The loaded checkpoint.
+    """
+    from nncf import load_state
+
+    checkpoint = torch.load(filename, map_location=map_location)
+    # get state_dict from checkpoint
+    if isinstance(checkpoint, OrderedDict):
+        state_dict = checkpoint
+    elif isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+        state_dict = checkpoint['state_dict']
+    else:
+        raise RuntimeError(
+            'No state_dict found in checkpoint file {}'.format(filename))
+    _ = load_state(model, state_dict, strict)
+    return checkpoint
+
+def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
+                    checkpoint_path=None):
+    if not (datamanager_for_init or checkpoint_path):
+        raise RuntimeError(f'One of datamanager_for_init or checkpoint_path should be set: '
+                           f'datamanager_for_init={datamanager_for_init} checkpoint_path={checkpoint_path}')
+    if datamanager_for_init and checkpoint_path:
+        raise RuntimeError(f'Only ONE of datamanager_for_init or checkpoint_path should be set: '
+                           f'datamanager_for_init={datamanager_for_init} checkpoint_path={checkpoint_path}')
     import nncf
     from nncf import (NNCFConfig, create_compressed_model,
                       register_default_init_args)
@@ -56,7 +93,6 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path):
     nncf_config = NNCFConfig(nncf_config_data)
     print(f'nncf_config =\n{nncf_config}')
 
-    train_loader = datamanager_for_init.train_loader
     class ReidInitializeDataLoader(InitializingDataLoader): #TODO: check is it correct
         def get_inputs(self, dataloader_output):
             # define own InitializingDataLoader class using approach like
@@ -68,9 +104,16 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path):
     cur_device = next(model.parameters()).device
     print(f'cur_device = {cur_device}')
 
-    # TODO: add `if not loading pretrained model` here
-    wrapped_loader = ReidInitializeDataLoader(train_loader)
-    nncf_config = register_default_init_args(nncf_config, wrapped_loader, device=cur_device)
+    if checkpoint_path is None:
+        print('No checkpoint is provided -- register initialize data loader')
+        train_loader = datamanager_for_init.train_loader
+        wrapped_loader = ReidInitializeDataLoader(train_loader)
+        nncf_config = register_default_init_args(nncf_config, wrapped_loader, device=cur_device)
+        resuming_state_dict = None
+    else:
+        print(f'Loading NNCF model from {checkpoint_path}')
+        resuming_state_dict = _load_checkpoint_for_nncf(model, checkpoint_path, map_location=cur_device)
+        print(f'Loaded NNCF model from {checkpoint_path}')
 
     transform = build_inference_transform(
         cfg.data.height,
@@ -114,7 +157,6 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path):
         os.makedirs(nncf_config['log_dir'], exist_ok=True)
     print(f'nncf_config["log_dir"] = {nncf_config["log_dir"]}')
 
-    resuming_state_dict = None #TODO
     compression_ctrl, model = create_compressed_model(model,
                                                       nncf_config,
                                                       dummy_forward_fn=dummy_forward,

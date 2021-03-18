@@ -275,6 +275,12 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None, resume=Fa
         >>> file_path = 'log/my_model/model-best.pth.tar'
         >>> load_pretrained_weights(model, file_path)
     """
+    def _remove_prefix(key, prefix):
+        prefix = prefix + '.'
+        if key.startswith(prefix):
+            key = key[len(prefix):]
+        return key
+
     if file_path:
         check_isfile(file_path)
     checkpoint = (load_checkpoint(file_path)
@@ -293,8 +299,10 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None, resume=Fa
     matched_layers, discarded_layers = [], []
 
     for k, v in state_dict.items():
-        if k.startswith('module.') and not resume:
-            k = k[7:]  # discard module.
+        if not resume:
+            # discard known prefixes: 'nncf_module.' from NNCF, 'module.' from DataParallel
+            k = _remove_prefix(k, 'nncf_module')
+            k = _remove_prefix(k, 'module')
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
             matched_layers.append(k)
