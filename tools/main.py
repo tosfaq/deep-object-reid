@@ -117,7 +117,7 @@ def main():
     parser.add_argument('--freeze_aux_model_up_to_epoch', default=None, type=int,
                         help='If set, auxiliary models will be frozen up to the pointed epoch (inluding the epoch)')
     parser.add_argument('--nncf', nargs='?', const=True, default=None,
-                        help='If nncf compression should be used')
+                        help='If nncf compression should be used; optional parameter -- NNCF json config file')
     parser.add_argument('--no_nncf', action='store_true',
                         help='If nncf compression should NOT be used')
     parser.add_argument('--nncf_load_checkpoint', action='store_true',

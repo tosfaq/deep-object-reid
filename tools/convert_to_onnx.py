@@ -27,7 +27,8 @@ from torch.onnx.symbolic_registry import register_op
 
 from torchreid.data.transforms import build_inference_transform
 from torchreid.models import build_model
-from torchreid.utils import load_checkpoint, load_pretrained_weights
+from torchreid.utils import load_checkpoint, load_pretrained_weights, check_isfile
+from torchreid.integration.nncf.compression import wrap_nncf_model
 
 
 @parse_args('v', 'i', 'v', 'v', 'f', 'i')
@@ -110,6 +111,8 @@ def main():
     parser.add_argument('--verbose', default=False, action='store_true',
                         help='Verbose mode for onnx.export')
     parser.add_argument('--disable-dyn-axes', default=False, action='store_true')
+    parser.add_argument('--nncf', nargs='?', const=True, default=None,
+                        help='If nncf compression should be used; optional parameter -- NNCF json config file')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help='Modify config options using the command-line')
     args = parser.parse_args()
@@ -125,6 +128,19 @@ def main():
     num_classes = parse_num_classes(cfg.data.sources, cfg.model.classification, args.num_classes, cfg.model.load_weights)
     model = build_model(**model_kwargs(cfg, num_classes))
     load_pretrained_weights(model, cfg.model.load_weights)
+
+    if args.nncf is not None:
+        print('Using NNCF')
+        nncf_config_path = args.nncf if isinstance(args.nncf, str) and args.nncf else None
+        print(f'nncf_config_path={nncf_config_path}')
+
+        checkpoint_path = cfg.model.load_weights
+        assert check_isfile(checkpoint_path)
+        datamanager_for_nncf = None
+
+        compression_ctrl, model = wrap_nncf_model(model, cfg, datamanager_for_nncf,
+                                                  nncf_config_path=nncf_config_path,
+                                                  checkpoint_path=checkpoint_path)
     model.eval()
 
     transform = build_inference_transform(
