@@ -76,7 +76,10 @@ def init_image_dataset(name, custom_dataset_names=[''],
         assert len(custom_dataset_names) == len(custom_dataset_roots)
         i = custom_dataset_names.index(name)
         new_kwargs = copy(kwargs)
-        new_kwargs['root'] = custom_dataset_roots[i]
+        if custom_dataset_types[i] == 'external_classification_wrapper':
+            new_kwargs['data_provider'] = custom_dataset_roots[i]
+        else:
+            new_kwargs['root'] = custom_dataset_roots[i]
         return __image_datasets[custom_dataset_types[i]](**new_kwargs)
 
     return __image_datasets[name](**kwargs)
