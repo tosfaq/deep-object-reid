@@ -35,9 +35,15 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
         assert device_ids is not None
 
         model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
-
-    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+    if lr is not None:
+        aux_cfg.train.lr = lr
+        print(f"setting learning rate from main model, estimated by lr finder: {lr}")
+    if aux_cfg.loss.name == 'am_softmax':
+        s = compute_s(num_classes)
+        print(f"computed margin scale for dataset: {s}")
+        aux_cfg.loss.softmax.s = s
+    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
+    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
 
     if cfg.model.resume and check_isfile(cfg.model.resume):
         cfg.train.start_epoch = resume_from_checkpoint(
@@ -144,6 +150,7 @@ def main():
             cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
         )
 
+    lr = None # placeholder, needed for aux models
     if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
         if enable_mutual_learning:
             print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
@@ -171,7 +178,7 @@ def main():
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
         for config_file, device_ids in zip(cfg.mutual_learning.aux_configs, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                config_file, num_train_classes, cfg.use_gpu, device_ids
+                config_file, num_train_classes, cfg.use_gpu, device_ids, lr
             )
 
             models.append(aux_model)
