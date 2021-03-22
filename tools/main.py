@@ -14,7 +14,7 @@ from torchreid.engine import build_engine
 from torchreid.ops import DataParallel
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              compute_model_complexity,resume_from_checkpoint,
-                             set_random_seed, load_pretrained_weights)
+                             set_random_seed, load_pretrained_weights, check_classes_consistency)
 
 
 def build_datamanager(cfg, classification_classes_filter=None):
@@ -60,20 +60,6 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
     return model, optimizer, scheduler
-
-def check_classes_consistency(ref_classes, probe_classes, strict=False):
-    if strict:
-        if len(ref_classes) != len(probe_classes):
-            return False
-        return sorted(probe_classes.keys()) == sorted(ref_classes.keys())
-    else:
-        if len(ref_classes) > len(probe_classes):
-            return False
-        probe_names = probe_classes.keys()
-        for cl in ref_classes.keys():
-            if cl not in probe_names:
-                return False
-    return True
 
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)

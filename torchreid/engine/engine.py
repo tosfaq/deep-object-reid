@@ -223,18 +223,18 @@ class Engine:
             raise ValueError('visrank can be set to True only if test_only=True')
 
         if test_only:
-            self.test(
-                0,
-                dist_metric=dist_metric,
-                normalize_feature=normalize_feature,
-                visrank=visrank,
-                visrank_topk=visrank_topk,
-                save_dir=save_dir,
-                use_metric_cuhk03=use_metric_cuhk03,
-                ranks=ranks,
-                rerank=rerank,
-            )
-            return
+            results = self.test(
+                                0,
+                                dist_metric=dist_metric,
+                                normalize_feature=normalize_feature,
+                                visrank=visrank,
+                                visrank_topk=visrank_topk,
+                                save_dir=save_dir,
+                                use_metric_cuhk03=use_metric_cuhk03,
+                                ranks=ranks,
+                                rerank=rerank,
+                            )
+            return results
 
         if self.writer is None:
             log_dir = tb_log_dir if len(tb_log_dir) else save_dir
