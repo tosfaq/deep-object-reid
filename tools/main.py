@@ -39,7 +39,8 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
         aux_cfg.train.lr = lr
         print(f"setting learning rate from main model, estimated by lr finder: {lr}")
     if aux_cfg.loss.name == 'am_softmax':
-        s = compute_s(num_classes)
+        print(num_classes)
+        s = compute_s(num_classes[0])
         print(f"computed margin scale for dataset: {s}")
         aux_cfg.loss.softmax.s = s
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
