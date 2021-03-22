@@ -25,6 +25,9 @@ def build_datamanager(cfg, classification_classes_filter=None):
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
 def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, weights=None):
+    def compute_s(num_class: int):
+        return max(np.sqrt(2) * np.log(num_class - 1), 3)
+
     cfg = get_default_config()
     cfg.use_gpu = use_gpu
     cfg.merge_from_file(config_file)
@@ -39,7 +42,6 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
         aux_cfg.train.lr = lr
         print(f"setting learning rate from main model, estimated by lr finder: {lr}")
     if aux_cfg.loss.name == 'am_softmax':
-        print(num_classes)
         s = compute_s(num_classes[0])
         print(f"computed margin scale for dataset: {s}")
         aux_cfg.loss.softmax.s = s

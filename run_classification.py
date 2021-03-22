@@ -214,7 +214,6 @@ def main():
         root_train = params['roots'][0]
         root_val = params['roots'][1]
 
-        cfg['train']['max_epoch'] = params['epochs']
         cfg['custom_datasets']['roots'] = [root_train, root_val]
         cfg['custom_datasets']['types'] = [type_train, type_val]
         cfg['custom_datasets']['names'] = [name_train, name_val]
