@@ -8,6 +8,7 @@ from scripts.default_config import (engine_run_kwargs, get_default_config,
                                     imagedata_kwargs, lr_finder_run_kwargs,
                                     lr_scheduler_kwargs, model_kwargs,
                                     optimizer_kwargs, videodata_kwargs)
+from scripts.script_utils import build_base_argparser, reset_config, check_classes_consistency
 
 import torchreid
 from torchreid.engine import build_engine
@@ -22,25 +23,6 @@ def build_datamanager(cfg, classification_classes_filter=None):
         return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
-
-def reset_config(cfg, args):
-    if args.root:
-        cfg.data.root = args.root
-
-    if args.sources:
-        cfg.data.sources = args.sources
-    if args.targets:
-        cfg.data.targets = args.targets
-
-    if args.custom_roots:
-        cfg.custom_datasets.roots = args.custom_roots
-    if args.custom_types:
-        cfg.custom_datasets.types = args.custom_types
-    if args.custom_names:
-        cfg.custom_datasets.names = args.custom_names
-
-    if args.auxiliary_models_cfg:
-        cfg.mutual_learning.aux_configs = args.auxiliary_models_cfg
 
 def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, weights=None):
     cfg = get_default_config()
@@ -61,48 +43,14 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
     return model, optimizer, scheduler
 
-def check_classes_consistency(ref_classes, probe_classes, strict=False):
-    if strict:
-        if len(ref_classes) != len(probe_classes):
-            return False
-        return sorted(probe_classes.keys()) == sorted(ref_classes.keys())
-    else:
-        if len(ref_classes) > len(probe_classes):
-            return False
-        probe_names = probe_classes.keys()
-        for cl in ref_classes.keys():
-            if cl not in probe_names:
-                return False
-    return True
-
 def main():
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--config-file', type=str, default='',
-                        help='path to config file')
+    parser = build_base_argparser()
     parser.add_argument('-e', '--auxiliary-models-cfg', type=str, nargs='*', default='',
                         help='path to extra config files')
     parser.add_argument('-w', '--extra-weights', type=str, nargs='*', default='',
                         help='path to extra model weights')
     parser.add_argument('--split-models', action='store_true',
                         help='whether to split models on own gpu')
-    parser.add_argument('-s', '--sources', type=str, nargs='+',
-                        help='source datasets (delimited by space)')
-    parser.add_argument('-t', '--targets', type=str, nargs='+',
-                        help='target datasets (delimited by space)')
-    parser.add_argument('--root', type=str, default='',
-                        help='path to data root')
-    parser.add_argument('--classes', type=str, nargs='+',
-                        help='name of classes in classification dataset')
-    parser.add_argument('--custom-roots', type=str, nargs='+',
-                        help='types or paths to annotation of custom datasets (delimited by space)')
-    parser.add_argument('--custom-types', type=str, nargs='+',
-                        help='path of custom datasets (delimited by space)')
-    parser.add_argument('--custom-names', type=str, nargs='+',
-                        help='names of custom datasets (delimited by space)')
-    parser.add_argument('--gpu-num', type=int, default=1,
-                        help='Number of GPUs for training. 0 is for CPU mode')
-    parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
-                        help='Modify config options using the command-line')
     args = parser.parse_args()
 
     cfg = get_default_config()
