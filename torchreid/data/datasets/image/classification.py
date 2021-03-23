@@ -2,6 +2,8 @@ from __future__ import absolute_import, division, print_function
 import os
 import os.path as osp
 
+from PIL import Image
+
 from ..dataset import ImageDataset
 
 
@@ -83,6 +85,8 @@ class ExternalDatasetWrapper(ImageDataset):
             classes = []
             train, query = [], []
 
+        gallery = []
+
         super().__init__(train, query, gallery, mode=mode, **kwargs)
 
         self.classes = classes
@@ -91,10 +95,7 @@ class ExternalDatasetWrapper(ImageDataset):
         return len(self.data_provider)
 
     def get_input(self, idx: int):
-        """
-        Return the centered and scaled input tensor for file with 'idx'
-        """
-        sample = self.data_provider[idx].numpy  # This returns 8-bit numpy array of shape (height, width, RGB)
+        sample = self.data_provider[idx]['img']
 
         if self.transform is not None:
             img = Image.fromarray(sample)
@@ -102,20 +103,9 @@ class ExternalDatasetWrapper(ImageDataset):
         return img
 
     def __getitem__(self, idx: int):
-        """
-        Return the input and the an optional encoded target for training with index 'idx'
-        """
         input_image = self.get_input(idx)
-
-        item = self.dataset[idx]
-        if len(item.annotation.get_labels()) == 0:
-            raise ValueError(
-                f"No labels in annotation found. Annotation: {item.annotation}")
-        label = item.annotation.get_labels()[0]
-        class_num = self.labels.index(label)
-        class_num = np.asarray(class_num)
-
-        return input_image, class_num, 0
+        label = self.data_provider[idx]['label']
+        return input_image, label, 0
 
     @staticmethod
     def load_annotation(data_provider, filter_classes=None, dataset_id=0):
@@ -125,8 +115,8 @@ class ExternalDatasetWrapper(ImageDataset):
 
         all_annotation = data_provider.get_annotation()
         out_data = []
-        for item in annotation:
-            out_data.append(('', item[0], 0, dataset_id, '', -1, -1))\
+        for item in all_annotation:
+            out_data.append(('', item['label'], 0, dataset_id, '', -1, -1))\
 
         return out_data, class_to_idx
 
