@@ -51,8 +51,6 @@ def main():
                         help='path to extra model weights')
     parser.add_argument('--split-models', action='store_true',
                         help='whether to split models on own gpu')
-    parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
-                        help='Modify config options using the command-line')
     args = parser.parse_args()
 
     cfg = get_default_config()
