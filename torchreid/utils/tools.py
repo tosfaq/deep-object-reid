@@ -17,7 +17,7 @@ from PIL import Image
 __all__ = [
     'mkdir_if_missing', 'check_isfile', 'read_json', 'write_json',
     'set_random_seed', 'download_url', 'read_image', 'collect_env_info',
-    'get_model_attr', 'StateCacher', 'check_classes_consistency',
+    'get_model_attr', 'StateCacher',
 ]
 
 
@@ -186,17 +186,3 @@ class StateCacher(object):
         for k in self.cached:
             if os.path.exists(self.cached[k]):
                 os.remove(self.cached[k])
-
-def check_classes_consistency(ref_classes, probe_classes, strict=False):
-    if strict:
-        if len(ref_classes) != len(probe_classes):
-            return False
-        return sorted(probe_classes.keys()) == sorted(ref_classes.keys())
-    else:
-        if len(ref_classes) > len(probe_classes):
-            return False
-        probe_names = probe_classes.keys()
-        for cl in ref_classes.keys():
-            if cl not in probe_names:
-                return False
-    return True
