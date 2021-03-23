@@ -888,7 +888,7 @@ class DisableBackground(object):
 
 
 class PairResize(object):
-    def __init__(self, size, interpolation=InterpolationMode.NEAREST):
+    def __init__(self, size, interpolation=InterpolationMode.BILINEAR):
         assert isinstance(size, int) or len(size) == 2
         self.size = size
         self.interpolation = interpolation
