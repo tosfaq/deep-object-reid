@@ -283,29 +283,29 @@ class Engine:
             raise ValueError('visrank can be set to True only if test_only=True')
 
         if test_only:
-            self.test(
-                0,
-                dist_metric=dist_metric,
-                normalize_feature=normalize_feature,
-                visrank=visrank,
-                visrank_topk=visrank_topk,
-                save_dir=save_dir,
-                use_metric_cuhk03=use_metric_cuhk03,
-                ranks=ranks,
-                rerank=rerank,
-            )
-            return
+            results = self.test(
+                                0,
+                                dist_metric=dist_metric,
+                                normalize_feature=normalize_feature,
+                                visrank=visrank,
+                                visrank_topk=visrank_topk,
+                                save_dir=save_dir,
+                                use_metric_cuhk03=use_metric_cuhk03,
+                                ranks=ranks,
+                                rerank=rerank,
+                      )
+            return results
         print('Test before training')
         self.test(
-            0,
-            dist_metric=dist_metric,
-            normalize_feature=normalize_feature,
-            visrank=visrank,
-            visrank_topk=visrank_topk,
-            save_dir=save_dir,
-            use_metric_cuhk03=use_metric_cuhk03,
-            ranks=ranks,
-            rerank=rerank,
+                  0,
+                  dist_metric=dist_metric,
+                  normalize_feature=normalize_feature,
+                  visrank=visrank,
+                  visrank_topk=visrank_topk,
+                  save_dir=save_dir,
+                  use_metric_cuhk03=use_metric_cuhk03,
+                  ranks=ranks,
+                  rerank=rerank,
         )
 
         if self.writer is None:
@@ -370,9 +370,8 @@ class Engine:
             )
             if self.save_chkpt and not lr_finder:
                 self.save_model(self.epoch, save_dir)
-            if top1 and lr_finder:
-                top1 = max(top1, top1_final)
-                print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
+            if lr_finder:
+                print(f"epoch: {self.epoch}\t top1: {top1_final}\t lr: {self.get_current_lr()}")
 
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
@@ -381,7 +380,7 @@ class Engine:
         if self.writer is not None:
             self.writer.close()
 
-        return top1
+        return top1_final
 
     def _freeze_aux_models(self):
         for model_name in self.model_names_to_freeze:

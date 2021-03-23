@@ -17,7 +17,7 @@ from PIL import Image
 __all__ = [
     'mkdir_if_missing', 'check_isfile', 'read_json', 'write_json',
     'set_random_seed', 'download_url', 'read_image', 'collect_env_info',
-    'get_model_attr', 'StateCacher'
+    'get_model_attr', 'StateCacher',
 ]
 
 

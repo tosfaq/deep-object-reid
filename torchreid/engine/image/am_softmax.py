@@ -21,6 +21,7 @@
 from __future__ import absolute_import, division, print_function
 import copy
 import os
+import operator
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -577,7 +578,7 @@ class ImageAMSoftmaxEngine(Engine):
             # run lr finder
             lr_finder = LRFinder(self.models[name], optimizer, criterion, device=model_device)
             lr_finder.range_test(self.train_loader, start_lr=min_lr, end_lr=max_lr, smooth_f=0.01, num_iter=self.num_batches, step_mode='exp')
-            ax, optim_lr = lr_finder.plot()
+            ax, optim_lr = lr_finder.plot(suggest_lr=True)
             # save plot if needed
             if path_to_savefig:
                 fig = ax.get_figure()
@@ -624,12 +625,6 @@ class ImageAMSoftmaxEngine(Engine):
                 break
             best_acc = max(best_acc, cur_acc)
 
-        max_acc = 0
-        # if the results get better only for 0.2%
-        # choose a higher learning rate instead
-        for lr, acc in sorted(acc_store.items()):
-            if acc >= max_acc:
-                max_acc = acc
-                opt_lr = lr
+        opt_lr = max(acc_store.items(), key=operator.itemgetter(1))[0]
 
         return float(opt_lr)

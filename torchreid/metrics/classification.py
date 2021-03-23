@@ -8,24 +8,39 @@ from terminaltables import AsciiTable
 
 def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
     with torch.no_grad():
-        out_scores, out_labels = [], []
+        out_scores, gt_labels = [], []
         for batch_idx, data in enumerate(data_loader):
             batch_images, batch_labels = data[0], data[1]
             if use_gpu:
                 batch_images = batch_images.cuda()
 
-            if len(labelmap):
+            if labelmap:
                 for i, label in enumerate(labelmap):
                     batch_labels[torch.where(batch_labels==i)] = label
 
             out_scores.append(model(batch_images)[head_id])
-            out_labels.extend(batch_labels)
+            gt_labels.extend(batch_labels)
 
         out_scores = torch.cat(out_scores, 0).data.cpu().numpy()
-        out_labels = np.asarray(out_labels)
+        gt_labels = np.asarray(gt_labels)
 
-    return out_scores, out_labels
+    return out_scores, gt_labels
 
+
+def score_extraction_from_ir(data_loader, model, use_gpu, labelmap=[]):
+    out_scores, gt_labels = [], []
+    for data in data_loader.dataset:
+        image, label = np.asarray(data[0]), data[1]
+        if labelmap:
+            label = labelmap[label]
+        scores = model.forward([image])[0]
+        out_scores.append(scores)
+        gt_labels.append(label)
+
+    out_scores = np.concatenate(out_scores, 0)
+    gt_labels = np.asarray(gt_labels)
+
+    return out_scores, gt_labels
 
 def mean_top_k_accuracy(scores, labels, k=1):
     idx = np.argsort(-scores, axis=-1)[:, :k]
@@ -125,7 +140,10 @@ def get_invalid(scores, gt_labels, data_info):
 
 
 def evaluate_classification(dataloader, model, use_gpu, topk=(1,), labelmap=[]):
-    scores, labels = score_extraction(dataloader, model, use_gpu, labelmap)
+    if isinstance(model, torch.nn.Module):
+        scores, labels = score_extraction(dataloader, model, use_gpu, labelmap)
+    else:
+        scores, labels = score_extraction_from_ir(dataloader, model, labelmap)
 
     m_ap = mean_average_precision(scores, labels)
 
