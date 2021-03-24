@@ -204,8 +204,11 @@ def main():
         # create new configuration file related to current dataset
         if cfg['loss']['name'] == "am_softmax":
             margin = compute_s(params['num_C'])
-            print(margin)
             cfg['loss']['softmax']['s'] = float(margin)
+
+        if key in ['CIFAR100', 'SUN397']:
+            cfg['train']['lr'] = 0.01
+            cfg['lr_finder']['enable'] = False
 
         name_train = params['names'][0]
         name_val = params['names'][1]
