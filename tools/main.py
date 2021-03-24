@@ -11,6 +11,7 @@ from scripts.default_config import (engine_run_kwargs, get_default_config,
 from scripts.script_utils import build_base_argparser, reset_config, check_classes_consistency
 
 import torchreid
+import numpy as np
 from torchreid.engine import build_engine
 from torchreid.ops import DataParallel
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
@@ -24,17 +25,17 @@ def build_datamanager(cfg, classification_classes_filter=None):
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
-def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, weights=None):
+def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr=None):
     def compute_s(num_class: int):
-        return max(np.sqrt(2) * np.log(num_class - 1), 3)
+        return float(max(np.sqrt(2) * np.log(num_class - 1), 3))
 
-    cfg = get_default_config()
-    cfg.use_gpu = use_gpu
-    cfg.merge_from_file(config_file)
+    aux_cfg = get_default_config()
+    aux_cfg.use_gpu = use_gpu
+    aux_cfg.merge_from_file(config_file)
 
-    model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
+    model = torchreid.models.build_model(**model_kwargs(aux_cfg, num_classes))
 
-    if cfg.use_gpu:
+    if aux_cfg.use_gpu:
         assert device_ids is not None
 
         model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
@@ -48,9 +49,9 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, we
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
 
-    if cfg.model.resume and check_isfile(cfg.model.resume):
-        cfg.train.start_epoch = resume_from_checkpoint(
-            cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
+    if aux_cfg.model.resume and check_isfile(aux_cfg.model.resume):
+        aux_cfg.train.start_epoch = resume_from_checkpoint(
+            aux_cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
         )
 
     return model, optimizer, scheduler
@@ -181,7 +182,7 @@ def main():
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
         for config_file, device_ids in zip(cfg.mutual_learning.aux_configs, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                config_file, num_train_classes, cfg.use_gpu, device_ids, lr
+                config_file, num_train_classes, cfg.use_gpu, device_ids, lr=lr
             )
 
             models.append(aux_model)
