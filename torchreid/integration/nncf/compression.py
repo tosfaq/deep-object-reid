@@ -3,11 +3,26 @@ import numpy as np
 import os
 import sys
 from collections import OrderedDict
+from contextlib import contextmanager
 from PIL import Image
 
 import torch
 
-from torchreid.data.transforms import build_inference_transform
+
+@contextmanager
+def nullcontext():
+    """
+    Context which does nothing
+    """
+    yield
+
+def get_no_nncf_trace_context_manager():
+    try:
+        from nncf.dynamic_graph.context import \
+            no_nncf_trace as original_no_nncf_trace
+        return original_no_nncf_trace
+    except ImportError:
+        return nullcontext
 
 def _load_checkpoint_for_nncf(model, filename, map_location=None, strict=False):
     """Load checkpoint from a file or URI.
@@ -38,6 +53,10 @@ def _load_checkpoint_for_nncf(model, filename, map_location=None, strict=False):
 
 def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
                     checkpoint_path=None):
+    # Note that we require to import it here to avoid cyclic imports when import get_no_nncf_trace_context_manager
+    # from mobilenetv3
+    from torchreid.data.transforms import build_inference_transform
+
     if not (datamanager_for_init or checkpoint_path):
         raise RuntimeError(f'One of datamanager_for_init or checkpoint_path should be set: '
                            f'datamanager_for_init={datamanager_for_init} checkpoint_path={checkpoint_path}')
@@ -49,6 +68,7 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
                       register_default_init_args)
     from nncf.initialization import InitializingDataLoader
     from nncf.dynamic_graph.input_wrapping import nncf_model_input
+    from nncf.dynamic_graph.trace_tensor import TracedTensor
 
     if nncf_config_path:
         with open(nncf_config_path) as f:
@@ -150,6 +170,9 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
     def wrap_inputs(args, kwargs):
         assert not kwargs
         assert len(args) == 1
+        if isinstance(args[0], TracedTensor):
+            print('wrap_inputs: do not wrap input TracedTensor')
+            return args, {}
         return (nncf_model_input(args[0]), ), {}
 
     model.dummy_forward_fn = dummy_forward
@@ -163,5 +186,3 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
                                                       wrap_inputs_fn=wrap_inputs,
                                                       resuming_state_dict=resuming_state_dict)
     return compression_ctrl, model
-
-
