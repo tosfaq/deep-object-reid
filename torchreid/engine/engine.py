@@ -292,7 +292,7 @@ class Engine:
                 save_dir=save_dir,
                 use_metric_cuhk03=use_metric_cuhk03,
                 ranks=ranks,
-                lr_finder = lr_finder
+                lr_finder=lr_finder
             )
             if self.save_chkpt and not lr_finder:
                 self.save_model(self.epoch, save_dir)
