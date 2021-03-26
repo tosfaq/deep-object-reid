@@ -20,12 +20,11 @@ pretrained_urls = {
     'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-large-0.75-9632d2a8.pth?raw=true',
 }
 
-no_nncf_trace = get_no_nncf_trace_context_manager()
 
-SHOULD_NNCF_SKIP_SE_LAYERS = True
-SHOULD_NNCF_SKIP_HEAD = True
-no_nncf_se_layer_context = no_nncf_trace if SHOULD_NNCF_SKIP_SE_LAYERS else nullcontext
-no_nncf_head_context = no_nncf_trace if SHOULD_NNCF_SKIP_HEAD else nullcontext
+SHOULD_NNCF_SKIP_SE_LAYERS = False
+SHOULD_NNCF_SKIP_HEAD = False
+no_nncf_se_layer_context = get_no_nncf_trace_context_manager() if SHOULD_NNCF_SKIP_SE_LAYERS else nullcontext
+no_nncf_head_context = get_no_nncf_trace_context_manager() if SHOULD_NNCF_SKIP_HEAD else nullcontext
 
 class SELayer(nn.Module):
     def __init__(self, channel, reduction=4):
