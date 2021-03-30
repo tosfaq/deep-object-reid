@@ -47,13 +47,17 @@ class ImageAMSoftmaxEngine(Engine):
     def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, scheduler=None, use_gpu=False, save_chkpt=True,
                  train_patience=10, early_stoping = False, lb_lr = 1e-5, softmax_type='stock', label_smooth=False,
                  margin_type='cos', epsilon=0.1, aug_type=None, decay_power=3, alpha=1., size=(224, 224), max_soft=0.0,
-                 reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, s=10, end_s=None, duration_s=None,
+                 reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, compute_s=False, s=10, end_s=None, duration_s=None,
                  skip_steps_s=None, enable_masks=False, adaptive_margins=False, class_weighting=False, attr_cfg=None,
                  base_num_classes=-1, symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt,
                                                     train_patience, lb_lr, early_stoping)
 
         assert softmax_type in ['stock', 'am']
+        if compute_s and softmax_type == 'am':
+            print(f"computed margin scale for dataset: {s}")
+            s = self.compute_s(num_class[0])
+
         assert s > 0.0
         if softmax_type == 'am':
             assert m >= 0.0
@@ -164,6 +168,10 @@ class ImageAMSoftmaxEngine(Engine):
     @staticmethod
     def _valid(value):
         return value is not None and value > 0
+
+    @staticmethod
+    def compute_s(num_class: int):
+        return float(max(np.sqrt(2) * np.log(num_class - 1), 3))
 
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx

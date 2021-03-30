@@ -26,9 +26,6 @@ def build_datamanager(cfg, classification_classes_filter=None):
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
 def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr=None):
-    def compute_s(num_class: int):
-        return float(max(np.sqrt(2) * np.log(num_class - 1), 3))
-
     aux_cfg = get_default_config()
     aux_cfg.use_gpu = use_gpu
     aux_cfg.merge_from_file(config_file)
@@ -37,23 +34,21 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
 
     if aux_cfg.use_gpu:
         assert device_ids is not None
-
         model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
+
     if lr is not None:
         aux_cfg.train.lr = lr
         print(f"setting learning rate from main model, estimated by lr finder: {lr}")
-    if aux_cfg.loss.name == 'am_softmax':
-        s = compute_s(num_classes[0])
-        print(f"computed margin scale for dataset: {s}")
-        aux_cfg.loss.softmax.s = s
+
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
 
-    if aux_cfg.model.resume.snapshot and check_isfile(aux_cfg.model.resume.snapshot):
+    if aux_cfg.model.resume and check_isfile(aux_cfg.model.resume):
         aux_cfg.train.start_epoch = resume_from_checkpoint(
-            aux_cfg.model.resume.snapshot, model, optimizer=optimizer,
-                scheduler=scheduler, weights_only=aux_cfg.model.resume.weights_only
-        )
+            aux_cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler)
+
+    elif aux_cfg.model.load_weights and check_isfile(aux_cfg.model.load_weights):
+        load_pretrained_weights(model, aux_cfg.model.load_weights)
 
     return model, optimizer, scheduler
 
@@ -142,18 +137,21 @@ def main():
 
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
 
-    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume.snapshot:
+    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
         scheduler = None
     else:
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 
-    if cfg.model.resume.snapshot and check_isfile(cfg.model.resume.snapshot):
+    if cfg.model.resume and check_isfile(cfg.model.resume):
         cfg.train.start_epoch = resume_from_checkpoint(
-            cfg.model.resume.snapshot, model, optimizer=optimizer,
-                scheduler=scheduler, weights_only=cfg.model.resume.weights_only)
+            cfg.model.resume, model, optimizer=optimizer,scheduler=scheduler
+            )
+
+    elif cfg.model.load_weights and check_isfile(cfg.model.load_weights):
+        load_pretrained_weights(model, cfg.model.load_weights)
 
     lr = None # placeholder, needed for aux models
-    if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume.snapshot:
+    if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
         if enable_mutual_learning:
             print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
 
