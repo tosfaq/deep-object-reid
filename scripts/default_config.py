@@ -24,7 +24,7 @@ def get_default_config():
     cfg.model.save_chkpt = True
     cfg.model.resume = CN()
     cfg.model.resume.snapshot = '' # path to checkpoint for resume training
-    cfg.model.resume.weights_only = True
+    cfg.model.resume.weights_only = False
     cfg.model.dropout_backbone = CN()
     cfg.model.dropout_backbone.p = 0.0
     cfg.model.dropout_backbone.mu = 0.1
