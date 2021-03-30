@@ -49,9 +49,9 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
 
-    if aux_cfg.model.resume and check_isfile(aux_cfg.model.resume):
+    if aux_cfg.model.resume.snapshot and check_isfile(aux_cfg.model.resume.snapshot):
         aux_cfg.train.start_epoch = resume_from_checkpoint(
-            aux_cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
+            aux_cfg.model.resume.snapshot, model, optimizer=optimizer, scheduler=scheduler, only_weights=aux_cfg.model.resume.weights_only
         )
 
     return model, optimizer, scheduler
@@ -144,18 +144,18 @@ def main():
 
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
 
-    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
+    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume.snapshot:
         scheduler = None
     else:
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 
-    if cfg.model.resume and check_isfile(cfg.model.resume):
+    if cfg.model.resume.snapshot and check_isfile(cfg.model.resume.snapshot):
         cfg.train.start_epoch = resume_from_checkpoint(
-            cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
+            cfg.model.resume.snapshot, model, optimizer=optimizer, scheduler=scheduler, cfg.model.resume.weights_only
         )
 
     lr = None # placeholder, needed for aux models
-    if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
+    if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume.snapshot:
         if enable_mutual_learning:
             print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
 
