@@ -94,9 +94,6 @@ def main():
     num_params, flops = compute_model_complexity(model, (1, 3, cfg.data.height, cfg.data.width))
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
-    if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
-        load_pretrained_weights(model, cfg.model.load_weights)
-
     if cfg.model.classification:
         classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
         if cfg.test.evaluate:
