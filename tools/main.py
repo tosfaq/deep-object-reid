@@ -51,7 +51,8 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
 
     if aux_cfg.model.resume.snapshot and check_isfile(aux_cfg.model.resume.snapshot):
         aux_cfg.train.start_epoch = resume_from_checkpoint(
-            aux_cfg.model.resume.snapshot, model, optimizer=optimizer, scheduler=scheduler, only_weights=aux_cfg.model.resume.weights_only
+            aux_cfg.model.resume.snapshot, model, optimizer=optimizer,
+                scheduler=scheduler, only_weights=aux_cfg.model.resume.weights_only
         )
 
     return model, optimizer, scheduler
@@ -151,8 +152,8 @@ def main():
 
     if cfg.model.resume.snapshot and check_isfile(cfg.model.resume.snapshot):
         cfg.train.start_epoch = resume_from_checkpoint(
-            cfg.model.resume.snapshot, model, optimizer=optimizer, scheduler=scheduler, cfg.model.resume.weights_only
-        )
+            cfg.model.resume.snapshot, model, optimizer=optimizer,
+                scheduler=scheduler, only_weights=cfg.model.resume.weights_only)
 
     lr = None # placeholder, needed for aux models
     if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume.snapshot:
