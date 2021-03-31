@@ -171,6 +171,7 @@ def get_default_config():
     cfg.loss.softmax.pr_product = False
     cfg.loss.softmax.m = 0.35
     cfg.loss.softmax.s = 30.0
+    cfg.loss.softmax.compute_s = False
     cfg.loss.softmax.end_s = -1.0
     cfg.loss.softmax.duration_s = -1
     cfg.loss.softmax.skip_steps_s = -1

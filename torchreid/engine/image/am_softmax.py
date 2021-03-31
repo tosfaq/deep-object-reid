@@ -47,9 +47,9 @@ class ImageAMSoftmaxEngine(Engine):
     def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, scheduler=None, use_gpu=False, save_chkpt=True,
                  train_patience=10, early_stoping = False, lb_lr = 1e-5, softmax_type='stock', label_smooth=False,
                  margin_type='cos', epsilon=0.1, aug_type=None, decay_power=3, alpha=1., size=(224, 224), max_soft=0.0,
-                 reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, compute_s=False, s=10, end_s=None, duration_s=None,
-                 skip_steps_s=None, enable_masks=False, adaptive_margins=False, class_weighting=False, attr_cfg=None,
-                 base_num_classes=-1, symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False):
+                 reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, s=10, compute_s=False, end_s=None,
+                 duration_s=None, skip_steps_s=None, enable_masks=False, adaptive_margins=False, class_weighting=False,
+                 attr_cfg=None, base_num_classes=-1, symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt,
                                                     train_patience, lb_lr, early_stoping)
 
