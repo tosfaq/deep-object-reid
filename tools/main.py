@@ -31,6 +31,13 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
 
     model = torchreid.models.build_model(**model_kwargs(aux_cfg, num_classes))
 
+    if aux_cfg.model.resume and check_isfile(aux_cfg.model.resume):
+        aux_cfg.train.start_epoch = resume_from_checkpoint(
+            aux_cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler)
+
+    elif aux_cfg.model.load_weights and check_isfile(aux_cfg.model.load_weights):
+        load_pretrained_weights(model, aux_cfg.model.load_weights)
+
     if aux_cfg.use_gpu:
         assert device_ids is not None
         model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
@@ -41,13 +48,6 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
 
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
-
-    if aux_cfg.model.resume and check_isfile(aux_cfg.model.resume):
-        aux_cfg.train.start_epoch = resume_from_checkpoint(
-            aux_cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler)
-
-    elif aux_cfg.model.load_weights and check_isfile(aux_cfg.model.load_weights):
-        load_pretrained_weights(model, aux_cfg.model.load_weights)
 
     return model, optimizer, scheduler
 
