@@ -15,42 +15,17 @@
 """
 
 import argparse
-import os.path as osp
 
-import numpy as np
 import onnx
 import torch
-from PIL import Image
+
 from scripts.default_config import get_default_config, model_kwargs
-from torch.onnx.symbolic_helper import parse_args
+from scripts.script_utils import group_norm_symbolic
 from torch.onnx.symbolic_registry import register_op
 
 from torchreid.data.transforms import build_inference_transform
 from torchreid.models import build_model
 from torchreid.utils import load_checkpoint, load_pretrained_weights
-
-
-@parse_args('v', 'i', 'v', 'v', 'f', 'i')
-def group_norm_symbolic(g, input, num_groups, weight, bias, eps, cudnn_enabled):
-    from torch.onnx.symbolic_opset9 import reshape, mul, add, reshape_as
-
-    channels_num = input.type().sizes()[1]
-
-    if num_groups == channels_num:
-        output = g.op('InstanceNormalization', input, weight, bias, epsilon_f=eps)
-    else:
-        # Reshape from [n, g * cg, h, w] to [1, n * g, cg * h, w].
-        x = reshape(g, input, [0, num_groups, -1, 0])
-        x = reshape(g, x, [1, -1, 0, 0])
-        # Normalize channel-wise.
-        x = g.op('MeanVarianceNormalization', x, axes_i=[2, 3])
-        # Reshape back.
-        x = reshape_as(g, x, input)
-        # Apply affine transform.
-        x = mul(g, x, reshape(g, weight, [1, channels_num, 1, 1]))
-        output = add(g, x, reshape(g, bias, [1, channels_num, 1, 1]))
-
-    return output
 
 
 def parse_num_classes(source_datasets, classification=False, num_classes=None, snap_path=None):
@@ -83,16 +58,6 @@ def parse_num_classes(source_datasets, classification=False, num_classes=None, s
     assert total_num_sources > 0
 
     return [0] * total_num_sources  # dummy number of classes
-
-
-def random_image(height, width):
-    input_size = (height, width, 3)
-    img = np.random.rand(*input_size).astype(np.float32)
-    img = np.uint8(img * 255)
-
-    out_img = Image.fromarray(img)
-
-    return out_img
 
 
 def reset_config(cfg):
