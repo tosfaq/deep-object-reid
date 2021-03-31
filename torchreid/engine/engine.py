@@ -111,6 +111,7 @@ class Engine:
         if not self.should_freeze_aux_models:
             return False
         if self.epoch_interval_for_aux_model_freeze is None:
+            # simple case
             return True
         res = _get_cur_action_from_epoch_interval(self.epoch_interval_for_aux_model_freeze, epoch)
         print(f'_should_freeze_aux_models: return res={res}')
@@ -118,6 +119,7 @@ class Engine:
 
     def _should_turn_off_mutual_learning(self, epoch):
         if self.epoch_interval_for_turn_off_mutual_learning is None:
+            # simple case
             return False
         res = _get_cur_action_from_epoch_interval(self.epoch_interval_for_turn_off_mutual_learning, epoch)
         print(f'_should_turn_off_mutual_learning: return {res}')
