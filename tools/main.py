@@ -26,10 +26,13 @@ def build_datamanager(cfg, classification_classes_filter=None):
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
-def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr=None):
+def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr=None,
+                          aux_config_opts=None):
     aux_cfg = get_default_config()
     aux_cfg.use_gpu = use_gpu
     aux_cfg.merge_from_file(config_file)
+    if aux_config_opts:
+        aux_cfg.merge_from_list(aux_config_opts)
 
     print('\nShow auxiliary configuration\n{}\n'.format(aux_cfg))
 
@@ -79,6 +82,8 @@ def main():
     parser.add_argument('--nncf_load_checkpoint', action='store_true',
                         help='(TODO(lbeynens): should be removed when nncf config is stored in checkpoint`s meta) '
                              'If nncf compression checkpoint should be loaded')
+    parser.add_argument('--aux-config-opts', nargs='+', default=None,
+                        help='Modify aux config options using the command-line')
     args = parser.parse_args()
 
     cfg = get_default_config()
@@ -251,7 +256,8 @@ def main():
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
         for config_file, device_ids in zip(cfg.mutual_learning.aux_configs, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                config_file, num_train_classes, cfg.use_gpu, device_ids, lr=lr
+                config_file, num_train_classes, cfg.use_gpu, device_ids, lr=lr,
+                aux_config_opts=args.aux_config_opts
             )
 
             models.append(aux_model)
