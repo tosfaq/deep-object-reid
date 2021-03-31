@@ -30,10 +30,13 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
     aux_cfg.merge_from_file(config_file)
 
     model = torchreid.models.build_model(**model_kwargs(aux_cfg, num_classes))
+    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
+    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
 
     if aux_cfg.model.resume and check_isfile(aux_cfg.model.resume):
         aux_cfg.train.start_epoch = resume_from_checkpoint(
-            aux_cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler)
+            aux_cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
+            )
 
     elif aux_cfg.model.load_weights and check_isfile(aux_cfg.model.load_weights):
         load_pretrained_weights(model, aux_cfg.model.load_weights)
@@ -45,9 +48,6 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
     if lr is not None:
         aux_cfg.train.lr = lr
         print(f"setting learning rate from main model, estimated by lr finder: {lr}")
-
-    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
-    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
 
     return model, optimizer, scheduler
 
@@ -88,9 +88,17 @@ def main():
     num_params, flops = compute_model_complexity(model, (1, 3, cfg.data.height, cfg.data.width))
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
+    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
+
+    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
+        scheduler = None
+    else:
+        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+
     if cfg.model.resume and check_isfile(cfg.model.resume):
-            cfg.train.start_epoch = resume_from_checkpoint(
-                cfg.model.resume, model, optimizer=optimizer,scheduler=scheduler)
+        cfg.train.start_epoch = resume_from_checkpoint(
+            cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
+            )
 
     elif cfg.model.load_weights and check_isfile(cfg.model.load_weights):
         load_pretrained_weights(model, cfg.model.load_weights)
@@ -140,13 +148,6 @@ def main():
         model = DataParallel(model, device_ids=main_device_ids, output_device=0).cuda(main_device_ids[0])
     else:
         extra_device_ids = [None for _ in range(len(cfg.mutual_learning.aux_configs))]
-
-    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-
-    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
-        scheduler = None
-    else:
-        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 
     lr = None # placeholder, needed for aux models
     if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
