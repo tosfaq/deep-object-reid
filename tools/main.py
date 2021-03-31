@@ -11,7 +11,6 @@ from scripts.default_config import (engine_run_kwargs, get_default_config,
 from scripts.script_utils import build_base_argparser, reset_config, check_classes_consistency
 
 import torchreid
-import numpy as np
 from torchreid.engine import build_engine
 from torchreid.ops import DataParallel
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
