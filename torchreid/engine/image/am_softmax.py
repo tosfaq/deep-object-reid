@@ -39,22 +39,6 @@ from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss, MetricLosses,
 from torchreid.utils import StateCacher, set_random_seed
 from torchreid.optim import SAM
 
-DEBUG_CHANGING_MODEL = False
-if DEBUG_CHANGING_MODEL: #### DEBUG ##########################################################################################
-    _stored_state = None
-    from copy import deepcopy
-
-    def _equal_state_dicts(st1, st2):
-        assert list(st1.keys()) == list(st2.keys()), 'This is a simple func for this use case'
-        res = True
-        for kv1, kv2 in zip(st1.items(), st2.items()):
-            k1, v1 = kv1
-            k2, v2 = kv2
-            assert k1 == k2
-            if not torch.equal(v1, v2):
-                print(f'different values for key {k1}')
-                res = False
-        return res
 
 class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
@@ -188,7 +172,6 @@ class ImageAMSoftmaxEngine(Engine):
         return value is not None and value > 0
 
     def forward_backward(self, data):
-        global _stored_state
         n_iter = self.epoch * self.num_batches + self.batch_idx
 
         train_records = self.parse_data_for_train(data, True, self.enable_masks, self.use_gpu)
@@ -209,20 +192,6 @@ class ImageAMSoftmaxEngine(Engine):
         model_names = self.get_model_names()
         num_models = len(model_names)
 
-        if DEBUG_CHANGING_MODEL: #### DEBUG ##########################################################################################
-            assert num_models == 1
-            _cur_model_name = model_names[0]
-            _cur_model = self.models[_cur_model_name]
-            print("=== DEBUG")
-            print('model=')
-            print(_cur_model)
-            print("=== DEBUG\n")
-            _state_before_cycle = _cur_model.state_dict()
-            if _stored_state is not None:
-                print(f':::DEBUG: _state_before_cycle == _stored_state: {_equal_state_dicts(_state_before_cycle, _stored_state)}')
-            _stored_state = deepcopy(_state_before_cycle)
-            print(f':::DEBUG: now _state_before_cycle == _stored_state: {_equal_state_dicts(_state_before_cycle, _stored_state)}')
-
         steps = [1,2] if self.enable_sam else [1]
         for step in steps:
             # if sam is enabled then statistics will be written each step, but will be saved only the second time
@@ -233,14 +202,6 @@ class ImageAMSoftmaxEngine(Engine):
             loss_summary = dict()
 
             for model_name in model_names:
-                if DEBUG_CHANGING_MODEL: #### DEBUG ##########################################################################################
-                    self.models[model_name].module.features[0][1].train(mode=False)
-                    self.models[model_name].module.features[1].conv[1].train(mode=False)
-                    self.models[model_name].module.features[1].conv[5].train(mode=False)
-                    #self.models[model_name].train(mode=False)
-                    self.models[model_name].module.classifier[1].train(mode=False)
-                    self.models[model_name].module.conv[1].train(mode=False)
-
                 self.optims[model_name].zero_grad()
 
                 model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
@@ -254,8 +215,6 @@ class ImageAMSoftmaxEngine(Engine):
                 for trg_id in range(self.num_targets):
                     if model_logits[trg_id] is not None:
                         out_logits[trg_id].append(model_logits[trg_id])
-            if DEBUG_CHANGING_MODEL:
-                print(f':::DEBUG: point1: _stored_state == cur_state: {_equal_state_dicts(_stored_state, _cur_model.state_dict())}')
 
             if len(model_names) > 1:
                 num_mutual_losses = 0
@@ -280,13 +239,8 @@ class ImageAMSoftmaxEngine(Engine):
 
                 total_loss += coeff_mutual_learning * mutual_loss / float(num_mutual_losses)
 
-            if DEBUG_CHANGING_MODEL:
-                print(f':::DEBUG: before backward: _stored_state == cur_state: {_equal_state_dicts(_stored_state, _cur_model.state_dict())}')
 
             total_loss.backward(retain_graph=self.enable_metric_losses)
-
-            if DEBUG_CHANGING_MODEL:
-                print(f':::DEBUG: after backward: _stored_state == cur_state: {_equal_state_dicts(_stored_state, _cur_model.state_dict())}')
 
             for model_name in model_names:
                 for trg_id in range(self.num_targets):
@@ -299,15 +253,8 @@ class ImageAMSoftmaxEngine(Engine):
                     self.optims[model_name].second_step()
                 elif not isinstance(self.optims[model_name], SAM) and step == 1:
                     self.optims[model_name].step()
-            if DEBUG_CHANGING_MODEL:
-                print(f':::DEBUG: after step: _stored_state == cur_state: {_equal_state_dicts(_stored_state, _cur_model.state_dict())}')
 
             loss_summary['loss'] = total_loss.item()
-
-        if DEBUG_CHANGING_MODEL:
-            print(f':::DEBUG: before return from forward_backward: _stored_state == cur_state: {_equal_state_dicts(_stored_state, _cur_model.state_dict())}')
-            _stored_state = deepcopy(_cur_model.state_dict())
-            print(f':::DEBUG: before return from forward_backward: now _stored_state == cur_state: {_equal_state_dicts(_stored_state, _cur_model.state_dict())}')
 
         return loss_summary, avg_acc
 
