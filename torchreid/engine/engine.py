@@ -23,7 +23,7 @@ from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
 EpochIntervalToValue = namedtuple('EpochIntervalToValue', ['first', 'last', 'value_inside', 'value_outside'])
 
 def _get_cur_action_from_epoch_interval(epoch_interval, epoch):
-#    The following code will be required if we want tu use a composite epoch_interval
+#    The following code will be required if we want to use a composite epoch_interval
 #    assert isinstance(epoch_interval, (list, EpochIntervalToValue))
 #    if isinstance(epoch_interval, list):
 #        return [_get_current_action_from_epoch_interval(e_i, epoch)
@@ -83,8 +83,6 @@ class Engine:
         self.scheds = OrderedDict()
 
         print(f'Engine: should_freeze_aux_models={should_freeze_aux_models}')
-        print(f'Engine: epoch_interval_for_aux_model_freeze={epoch_interval_for_aux_model_freeze}')
-        print(f'Engine: epoch_interval_for_turn_off_mutual_learning={epoch_interval_for_turn_off_mutual_learning}')
         self.should_freeze_aux_models = should_freeze_aux_models
         self.epoch_interval_for_aux_model_freeze = epoch_interval_for_aux_model_freeze
         self.epoch_interval_for_turn_off_mutual_learning = epoch_interval_for_turn_off_mutual_learning
@@ -110,21 +108,16 @@ class Engine:
             self.register_model('model', models, optimizers, schedulers)
 
     def _should_freeze_aux_models(self, epoch):
-        print('_should_freeze_aux_models: begin')
         if not self.should_freeze_aux_models:
-            print(f'_should_freeze_aux_models: simple case, res=False')
             return False
         if self.epoch_interval_for_aux_model_freeze is None:
-            print(f'_should_freeze_aux_models: simple case, res=True')
             return True
         res = _get_cur_action_from_epoch_interval(self.epoch_interval_for_aux_model_freeze, epoch)
         print(f'_should_freeze_aux_models: return res={res}')
         return res
 
     def _should_turn_off_mutual_learning(self, epoch):
-        print('_should_turn_off_mutual_learning: begin')
         if self.epoch_interval_for_turn_off_mutual_learning is None:
-            print(f'_should_turn_off_mutual_learning: simple case, return False')
             return False
         res = _get_cur_action_from_epoch_interval(self.epoch_interval_for_turn_off_mutual_learning, epoch)
         print(f'_should_turn_off_mutual_learning: return {res}')

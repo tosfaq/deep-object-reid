@@ -60,17 +60,18 @@ def main():
                         help='whether to split models on own gpu')
 
     parser.add_argument('--should_freeze_aux_models_for_nncf', default='True', choices=['True', 'False'],
-                        help='If aux models should be frozen for NNCF ("True" or "False")')
+                        help='(DEBUG, TODO(lbeynens): should be removed) If aux models should be frozen for NNCF ("True" or "False")')
     parser.add_argument('--turn_off_mutual_learning_up_to_epoch', default=None, type=int,
-                        help='If set, mutual learning will be turned up to the pointed epoch (inluding the epoch)')
+                        help='(DEBUG, TODO(lbeynens): should be removed) If set, mutual learning will be turned up to the pointed epoch (inluding the epoch)')
     parser.add_argument('--freeze_aux_model_up_to_epoch', default=None, type=int,
-                        help='If set, auxiliary models will be frozen up to the pointed epoch (inluding the epoch)')
+                        help='(DEBUG, TODO(lbeynens): should be removed) If set, auxiliary models will be frozen up to the pointed epoch (inluding the epoch)')
     parser.add_argument('--nncf', nargs='?', const=True, default=None,
                         help='If nncf compression should be used; optional parameter -- NNCF json config file')
     parser.add_argument('--no_nncf', action='store_true',
-                        help='If nncf compression should NOT be used')
+            help='(DEBUG, TODO(lbeynens): should be removed) If nncf compression should NOT be used')
     parser.add_argument('--nncf_load_checkpoint', action='store_true',
-                        help='If nncf compression checkpoint should be loaded')
+                        help='(TODO(lbeynens): should be removed when nncf config is stored in checkpoint`s meta) '
+                             'If nncf compression checkpoint should be loaded')
     args = parser.parse_args()
 
     cfg = get_default_config()
@@ -116,10 +117,7 @@ def main():
     if args.no_nncf:
         should_use_nncf = False
     if not isinstance(should_use_nncf, bool):
-        # TODO(lbeynens): REMOVE THIS, it is a DEBUG insertion!
-        print('ATTENTION: during debug NNCF features, the default action for training without options'
-              ' --nncf and --no_nncf is USE NNCF -- it is TEMPORARY and will be turned off!')
-        should_use_nncf = True
+        should_use_nncf = False
     else:
         print(f'Now should_use_nncf={should_use_nncf}')
 
@@ -148,7 +146,6 @@ def main():
                                                                    value_outside=False)
     else:
         epoch_interval_for_aux_model_freeze = None
-    print(f'epoch_interval_for_aux_model_freeze = {epoch_interval_for_aux_model_freeze}')
 
     if args.turn_off_mutual_learning_up_to_epoch is not None:
         epoch_interval_for_turn_off_mutual_learning = EpochIntervalToValue(first=None,
@@ -157,7 +154,6 @@ def main():
                                                                            value_outside=False)
     else:
         epoch_interval_for_turn_off_mutual_learning = None
-    print(f'epoch_interval_for_turn_off_mutual_learning = {epoch_interval_for_turn_off_mutual_learning}')
 
     if cfg.model.classification:
         classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
