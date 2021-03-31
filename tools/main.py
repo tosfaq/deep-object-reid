@@ -11,7 +11,6 @@ from scripts.default_config import (engine_run_kwargs, get_default_config,
 from scripts.script_utils import build_base_argparser, reset_config, check_classes_consistency
 
 import torchreid
-import numpy as np
 from torchreid.engine import build_engine
 from torchreid.ops import DataParallel
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
@@ -89,6 +88,13 @@ def main():
     num_params, flops = compute_model_complexity(model, (1, 3, cfg.data.height, cfg.data.width))
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
+    if cfg.model.resume and check_isfile(cfg.model.resume):
+            cfg.train.start_epoch = resume_from_checkpoint(
+                cfg.model.resume, model, optimizer=optimizer,scheduler=scheduler)
+
+    elif cfg.model.load_weights and check_isfile(cfg.model.load_weights):
+        load_pretrained_weights(model, cfg.model.load_weights)
+
     if cfg.model.classification:
         classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
         if cfg.test.evaluate:
@@ -141,14 +147,6 @@ def main():
         scheduler = None
     else:
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
-
-    if cfg.model.resume and check_isfile(cfg.model.resume):
-        cfg.train.start_epoch = resume_from_checkpoint(
-            cfg.model.resume, model, optimizer=optimizer,scheduler=scheduler
-            )
-
-    elif cfg.model.load_weights and check_isfile(cfg.model.load_weights):
-        load_pretrained_weights(model, cfg.model.load_weights)
 
     lr = None # placeholder, needed for aux models
     if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
