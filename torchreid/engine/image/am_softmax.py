@@ -55,8 +55,8 @@ class ImageAMSoftmaxEngine(Engine):
 
         assert softmax_type in ['stock', 'am']
         if compute_s and softmax_type == 'am':
-            print(f"computed margin scale for dataset: {s}")
             s = self.compute_s(num_class[0])
+            print(f"computed margin scale for dataset: {s}")
 
         assert s > 0.0
         if softmax_type == 'am':
