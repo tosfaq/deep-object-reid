@@ -258,6 +258,8 @@ class Engine:
                 perf_monitor=perf_monitor,
                 stop_callback=stop_callback
             )
+            if stop_callback and stop_callback.check_stop():
+                break
             if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_end()
 
             if ((self.epoch + 1) >= start_eval
@@ -379,7 +381,7 @@ class Engine:
                     self.writer.add_scalar('Loss/' + name, meter.avg, n_iter)
 
             end = time.time()
-            if stop_callback and stop_callback.stop():
+            if stop_callback and stop_callback.check_stop():
                 break
 
         if not lr_finder:

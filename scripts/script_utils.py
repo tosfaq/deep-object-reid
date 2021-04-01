@@ -2,7 +2,6 @@ import argparse
 
 from PIL import Image
 import numpy as np
-import torch
 from torch.onnx.symbolic_helper import parse_args
 
 import torchreid
