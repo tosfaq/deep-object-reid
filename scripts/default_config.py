@@ -21,9 +21,9 @@ def get_default_config():
     cfg.model.name = 'resnet50'
     cfg.model.pretrained = False
     cfg.model.download_weights = True
+    cfg.model.load_weights = '' # path to snapshot to load weights
     cfg.model.save_chkpt = True
-    cfg.model.load_weights = ''  # path to model weights
-    cfg.model.resume = ''  # path to checkpoint for resume training
+    cfg.model.resume = '' # path to checkpoint for resume training
     cfg.model.dropout_backbone = CN()
     cfg.model.dropout_backbone.p = 0.0
     cfg.model.dropout_backbone.mu = 0.1
@@ -171,6 +171,7 @@ def get_default_config():
     cfg.loss.softmax.pr_product = False
     cfg.loss.softmax.m = 0.35
     cfg.loss.softmax.s = 30.0
+    cfg.loss.softmax.compute_s = False
     cfg.loss.softmax.end_s = -1.0
     cfg.loss.softmax.duration_s = -1
     cfg.loss.softmax.skip_steps_s = -1

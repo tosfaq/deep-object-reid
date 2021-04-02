@@ -121,9 +121,9 @@ def resume_from_checkpoint(fpath, model, optimizer=None, scheduler=None):
     print('Loading checkpoint from "{}"'.format(fpath))
     checkpoint = load_checkpoint(fpath)
     if 'state_dict' in checkpoint:
-        load_pretrained_weights(model, pretrained_dict=checkpoint['state_dict'], resume=True)
+        load_pretrained_weights(model, pretrained_dict=checkpoint['state_dict'])
     else:
-        load_pretrained_weights(model, pretrained_dict=checkpoint, resume=True)
+        load_pretrained_weights(model, pretrained_dict=checkpoint)
     print('Loaded model weights')
     if optimizer is not None and 'optimizer' in checkpoint.keys():
         optimizer.load_state_dict(checkpoint['optimizer'])
@@ -259,7 +259,7 @@ def count_num_param(model):
     return num_param
 
 
-def load_pretrained_weights(model, file_path='', pretrained_dict=None, resume=False):
+def load_pretrained_weights(model, file_path='', pretrained_dict=None):
     r"""Loads pretrianed weights to model.
     Features::
         - Incompatible layers (unmatched in name or size) will be ignored.
@@ -290,7 +290,7 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None, resume=Fa
     matched_layers, discarded_layers = [], []
 
     for k, v in state_dict.items():
-        if k.startswith('module.') and not resume:
+        if k.startswith('module.'):
             k = k[7:]  # discard module.
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
@@ -300,17 +300,17 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None, resume=Fa
 
     model_dict.update(new_state_dict)
     model.load_state_dict(model_dict)
-
+    message = file_path if file_path else "pretrained dict"
     if len(matched_layers) == 0:
         warnings.warn(
             'The pretrained weights "{}" cannot be loaded, '
             'please check the key names manually '
-            '(** ignored and continue **)'.format(file_path)
+            '(** ignored and continue **)'.format(message)
         )
     else:
         print(
             'Successfully loaded pretrained weights from "{}"'.
-            format(file_path)
+            format(message)
         )
         if len(discarded_layers) > 0:
             print(

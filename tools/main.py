@@ -24,31 +24,37 @@ def build_datamanager(cfg, classification_classes_filter=None):
     else:
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
-def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, weights=None):
-    cfg = get_default_config()
-    cfg.use_gpu = use_gpu
-    cfg.merge_from_file(config_file)
+def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr=None):
+    aux_cfg = get_default_config()
+    aux_cfg.use_gpu = use_gpu
+    aux_cfg.merge_from_file(config_file)
 
-    model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
+    model = torchreid.models.build_model(**model_kwargs(aux_cfg, num_classes))
+    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
+    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
 
-    if (weights is not None) and (check_isfile(weights)):
-        load_pretrained_weights(model, weights)
+    if aux_cfg.model.resume and check_isfile(aux_cfg.model.resume):
+        aux_cfg.train.start_epoch = resume_from_checkpoint(
+            aux_cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
+            )
 
-    if cfg.use_gpu:
+    elif aux_cfg.model.load_weights and check_isfile(aux_cfg.model.load_weights):
+        load_pretrained_weights(model, aux_cfg.model.load_weights)
+
+    if aux_cfg.use_gpu:
         assert device_ids is not None
-
         model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
 
-    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+    if lr is not None:
+        aux_cfg.train.lr = lr
+        print(f"setting learning rate from main model, estimated by lr finder: {lr}")
+
     return model, optimizer, scheduler
 
 def main():
     parser = build_base_argparser()
     parser.add_argument('-e', '--auxiliary-models-cfg', type=str, nargs='*', default='',
                         help='path to extra config files')
-    parser.add_argument('-w', '--extra-weights', type=str, nargs='*', default='',
-                        help='path to extra model weights')
     parser.add_argument('--split-models', action='store_true',
                         help='whether to split models on own gpu')
     args = parser.parse_args()
@@ -82,7 +88,19 @@ def main():
     num_params, flops = compute_model_complexity(model, (1, 3, cfg.data.height, cfg.data.width))
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
-    if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
+    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
+
+    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
+        scheduler = None
+    else:
+        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+
+    if cfg.model.resume and check_isfile(cfg.model.resume):
+        cfg.train.start_epoch = resume_from_checkpoint(
+            cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
+            )
+
+    elif cfg.model.load_weights and check_isfile(cfg.model.load_weights):
         load_pretrained_weights(model, cfg.model.load_weights)
 
     if cfg.model.classification:
@@ -131,18 +149,7 @@ def main():
     else:
         extra_device_ids = [None for _ in range(len(cfg.mutual_learning.aux_configs))]
 
-    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-
-    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
-        scheduler = None
-    else:
-        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
-
-    if cfg.model.resume and check_isfile(cfg.model.resume):
-        cfg.train.start_epoch = resume_from_checkpoint(
-            cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
-        )
-
+    lr = None # placeholder, needed for aux models
     if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
         if enable_mutual_learning:
             print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
@@ -167,16 +174,10 @@ def main():
     if enable_mutual_learning:
         print('Enabled mutual learning between {} models.'.format(len(cfg.mutual_learning.aux_configs) + 1))
 
-        if len(args.extra_weights) > 0:
-            assert len(args.extra_weights) == len(cfg.mutual_learning.aux_configs)
-            weights = args.extra_weights
-        else:
-            weights = [None] * len(cfg.mutual_learning.aux_configs)
-
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
-        for config_file, model_weights, device_ids in zip(cfg.mutual_learning.aux_configs, weights, extra_device_ids):
+        for config_file, device_ids in zip(cfg.mutual_learning.aux_configs, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                config_file, num_train_classes, cfg.use_gpu, device_ids, model_weights
+                config_file, num_train_classes, cfg.use_gpu, device_ids, lr=lr
             )
 
             models.append(aux_model)
