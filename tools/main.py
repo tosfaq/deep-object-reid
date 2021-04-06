@@ -3,11 +3,12 @@ import os.path as osp
 import sys
 import time
 
+from torch.utils.tensorboard import SummaryWriter
 import torch
 from scripts.default_config import (engine_run_kwargs, get_default_config,
-                                    imagedata_kwargs, lr_finder_run_kwargs,
+                                    lr_finder_run_kwargs,
                                     lr_scheduler_kwargs, model_kwargs,
-                                    optimizer_kwargs, videodata_kwargs)
+                                    optimizer_kwargs)
 from scripts.script_utils import (build_base_argparser, reset_config,
                                   check_classes_consistency,
                                   build_datamanager, build_auxiliary_model)
@@ -158,7 +159,8 @@ def main():
     print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers)
 
-    engine.run(**engine_run_kwargs(cfg))
+    log_dir = cfg.data.tb_log_dir if cfg.data.tb_log_dir else cfg.data.save_dir
+    engine.run(**engine_run_kwargs(cfg), tb_writer=SummaryWriter(log_dir=log_dir))
 
 
 if __name__ == '__main__':

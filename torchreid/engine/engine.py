@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.nn import functional as F
-from torch.utils.tensorboard import SummaryWriter
 
 from torchreid import metrics
 from torchreid.losses import DeepSupervision
