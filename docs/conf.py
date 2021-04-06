@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = u'torchreid'
-copyright = u'2019, Kaiyang Zhou'
+copyright = u'2019, Kaiyang Zhou; 2020-2021, Intel'
 author = u'Kaiyang Zhou'
 
 version_file = '../torchreid/__init__.py'

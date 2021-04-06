@@ -1,8 +1,12 @@
-Torchreid
-===========
-Torchreid is a library for deep-learning person re-identification, written in `PyTorch <https://pytorch.org/>`_.
+Deep Object Reid
+================
 
-It features:
+Deep Object Reid is a library for deep-learning image classification and object re-identification, written in `PyTorch <https://pytorch.org/>`_.
+It is a part of `OpenVINO™ Training Extensions <https://github.com/opencv/openvino_training_extensions>`_.
+
+The project is based on Kaiyang Zhou's `Torchreid <https://github.com/KaiyangZhou/deep-person-reid>`_ project.
+
+Its features:
 
 - multi-GPU training
 - support both image- and video-reid
@@ -18,17 +22,15 @@ It features:
 - visualization tools (tensorboard, ranks, etc.)
 
 
-Code: https://github.com/KaiyangZhou/deep-person-reid.
+Code: https://github.com/openvinotoolkit/deep-object-reid
 
-Documentation: https://kaiyangzhou.github.io/deep-person-reid/.
+How-to instructions: https://github.com/openvinotoolkit/deep-object-reid/blob/ote/docs/user_guide.rst
 
-How-to instructions: https://kaiyangzhou.github.io/deep-person-reid/user_guide.
+Model zoo by Kaiyang Zhou: https://github.com/openvinotoolkit/deep-object-reid/blob/ote/docs/MODEL_ZOO.md
 
-Model zoo: https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO.
+Original tech report by Kaiyang Zhou and Tao Xiang: https://arxiv.org/abs/1910.10093.
 
-Tech report: https://arxiv.org/abs/1910.10093.
-
-You can find some research projects that are built on top of Torchreid `here <https://github.com/KaiyangZhou/deep-person-reid/tree/master/projects>`_.
+Also you can find some other research projects that are built on top of Torchreid `here <https://github.com/KaiyangZhou/deep-person-reid/tree/master/projects>`_.
 
 
 What's new
