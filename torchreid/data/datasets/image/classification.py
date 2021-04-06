@@ -2,6 +2,8 @@ from __future__ import absolute_import, division, print_function
 import os
 import os.path as osp
 
+from PIL import Image
+
 from ..dataset import ImageDataset
 
 
@@ -61,6 +63,62 @@ class Classification(ImageDataset):
             label = int(label_str)
             out_data.append((full_image_path, label, 0, dataset_id, '', -1, -1))
         return out_data
+
+
+class ExternalDatasetWrapper(ImageDataset):
+    def __init__(self, data_provider, mode='train', dataset_id=0, load_masks=False, filter_classes=None, **kwargs):
+        if load_masks:
+            raise NotImplementedError
+        self.data_provider = data_provider
+
+        if mode == 'train':
+            train, classes = self.load_annotation(
+                self.data_provider, filter_classes, dataset_id
+            )
+            query = []
+        elif mode == 'query':
+            query, classes = self.load_annotation(
+                self.data_provider, filter_classes, dataset_id
+            )
+            train = []
+        else:
+            classes = []
+            train, query = [], []
+
+        gallery = []
+
+        super().__init__(train, query, gallery, mode=mode, **kwargs)
+
+        self.classes = classes
+
+    def __len__(self):
+        return len(self.data_provider)
+
+    def get_input(self, idx: int):
+        sample = self.data_provider[idx]['img']
+
+        if self.transform is not None:
+            img = Image.fromarray(sample)
+            img, _ = self.transform((img, ''))
+        return img
+
+    def __getitem__(self, idx: int):
+        input_image = self.get_input(idx)
+        label = self.data_provider[idx]['label']
+        return input_image, label, 0
+
+    @staticmethod
+    def load_annotation(data_provider, filter_classes=None, dataset_id=0):
+
+        all_classes = sorted(data_provider.get_classes())
+        class_to_idx = {all_classes[i]: i for i in range(len(all_classes))}
+
+        all_annotation = data_provider.get_annotation()
+        out_data = []
+        for item in all_annotation:
+            out_data.append(('', item['label'], 0, dataset_id, '', -1, -1))\
+
+        return out_data, class_to_idx
 
 
 class ClassificationImageFolder(ImageDataset):

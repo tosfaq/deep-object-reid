@@ -3,7 +3,7 @@ from copy import copy
 
 from .dataset import Dataset, ImageDataset, VideoDataset
 from .image import (CUHK01, CUHK02, CUHK03, GRID, LFW, MSMT17, PRID, VRIC,
-                    CityFlow, Classification, ClassificationImageFolder,
+                    CityFlow, Classification, ClassificationImageFolder, ExternalDatasetWrapper,
                     CompCars, DukeMTMCreID, InternalAirport,
                     InternalCameraTampering, InternalGlobalMe, InternalMall,
                     InternalPSVIndoor, InternalPSVOutdoor, InternalSSPlatform,
@@ -47,6 +47,7 @@ __image_datasets = {
     'lfw': LFW,
     'classification': Classification,
     'classification_image_folder' : ClassificationImageFolder,
+    'external_classification_wrapper' : ExternalDatasetWrapper,
 }
 
 __video_datasets = {
@@ -75,7 +76,10 @@ def init_image_dataset(name, custom_dataset_names=[''],
         assert len(custom_dataset_names) == len(custom_dataset_roots)
         i = custom_dataset_names.index(name)
         new_kwargs = copy(kwargs)
-        new_kwargs['root'] = custom_dataset_roots[i]
+        if custom_dataset_types[i] == 'external_classification_wrapper':
+            new_kwargs['data_provider'] = custom_dataset_roots[i]
+        else:
+            new_kwargs['root'] = custom_dataset_roots[i]
         return __image_datasets[custom_dataset_types[i]](**new_kwargs)
 
     return __image_datasets[name](**kwargs)
