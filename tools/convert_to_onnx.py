@@ -20,7 +20,7 @@ import onnx
 import torch
 
 from scripts.default_config import get_default_config, model_kwargs
-from scripts.script_utils import group_norm_symbolic
+from scripts.script_utils import group_norm_symbolic, random_image
 from torch.onnx.symbolic_registry import register_op
 
 from torchreid.data.transforms import build_inference_transform
