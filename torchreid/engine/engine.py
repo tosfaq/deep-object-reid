@@ -5,6 +5,7 @@ import os
 import os.path as osp
 import time
 from collections import namedtuple, OrderedDict
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -57,6 +58,7 @@ class Engine:
     def __init__(self, datamanager, models, optimizers, schedulers,
                  use_gpu=True, save_chkpt=True, train_patience = 10, lb_lr = 1e-5, early_stoping=False,
                  should_freeze_aux_models=False,
+                 nncf_metainfo=None,
                  epoch_interval_for_aux_model_freeze=None,
                  epoch_interval_for_turn_off_mutual_learning=None):
 
@@ -84,6 +86,7 @@ class Engine:
 
         print(f'Engine: should_freeze_aux_models={should_freeze_aux_models}')
         self.should_freeze_aux_models = should_freeze_aux_models
+        self.nncf_metainfo = deepcopy(nncf_metainfo)
         self.epoch_interval_for_aux_model_freeze = epoch_interval_for_aux_model_freeze
         self.epoch_interval_for_turn_off_mutual_learning = epoch_interval_for_turn_off_mutual_learning
         self.model_names_to_freeze = []
@@ -168,7 +171,8 @@ class Engine:
                                 'optimizer': self.optims[name].state_dict(),
                                 'scheduler': self.scheds[name].state_dict(),
                                 'num_classes': self.datamanager.num_train_pids,
-                                'classes_map': self.datamanager.train_loader.dataset.classes
+                                'classes_map': self.datamanager.train_loader.dataset.classes,
+                                'nncf_metainfo': self.nncf_metainfo
                             },
                             osp.join(save_dir, name),
                             is_best=is_best

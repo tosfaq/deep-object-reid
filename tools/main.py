@@ -2,6 +2,7 @@ import argparse
 import os.path as osp
 import sys
 import time
+from pprint import pformat
 
 import torch
 from scripts.default_config import (engine_run_kwargs, get_default_config,
@@ -18,7 +19,7 @@ from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              set_random_seed, load_pretrained_weights,
                              open_specified_layers)
 
-from torchreid.integration.nncf.compression import wrap_nncf_model
+from torchreid.integration.nncf.compression import wrap_nncf_model, is_checkpoint_nncf
 
 def build_datamanager(cfg, classification_classes_filter=None):
     if cfg.data.type == 'image':
@@ -69,19 +70,8 @@ def main():
     parser.add_argument('--split-models', action='store_true',
                         help='whether to split models on own gpu')
 
-    parser.add_argument('--should_freeze_aux_models_for_nncf', default='True', choices=['True', 'False'],
-                        help='(DEBUG, TODO(lbeynens): should be removed) If aux models should be frozen for NNCF ("True" or "False")')
-    parser.add_argument('--turn_off_mutual_learning_up_to_epoch', default=None, type=int,
-                        help='(DEBUG, TODO(lbeynens): should be removed) If set, mutual learning will be turned up to the pointed epoch (inluding the epoch)')
-    parser.add_argument('--freeze_aux_model_up_to_epoch', default=None, type=int,
-                        help='(DEBUG, TODO(lbeynens): should be removed) If set, auxiliary models will be frozen up to the pointed epoch (inluding the epoch)')
     parser.add_argument('--nncf', nargs='?', const=True, default=None,
                         help='If nncf compression should be used; optional parameter -- NNCF json config file')
-    parser.add_argument('--no_nncf', action='store_true',
-            help='(DEBUG, TODO(lbeynens): should be removed) If nncf compression should NOT be used')
-    parser.add_argument('--nncf_load_checkpoint', action='store_true',
-                        help='(TODO(lbeynens): should be removed when nncf config is stored in checkpoint`s meta) '
-                             'If nncf compression checkpoint should be loaded')
     parser.add_argument('--aux-config-opts', nargs='+', default=None,
                         help='Modify aux config options using the command-line')
     args = parser.parse_args()
@@ -130,54 +120,42 @@ def main():
     elif cfg.model.load_weights and check_isfile(cfg.model.load_weights):
         load_pretrained_weights(model, cfg.model.load_weights)
 
-    should_freeze_aux_models_for_nncf = (args.should_freeze_aux_models_for_nncf == 'True')
-    should_freeze_aux_models = False
 
-    should_use_nncf = None
-    if args.nncf and args.no_nncf:
-        raise RuntimeError('Both --nncf and --no_nncf are set')
-    if args.nncf:
-        should_use_nncf = True
-    if args.no_nncf:
-        should_use_nncf = False
-    if not isinstance(should_use_nncf, bool):
-        should_use_nncf = False
-    else:
-        print(f'Now should_use_nncf={should_use_nncf}')
-
-    if should_use_nncf:
+    is_current_checkpoint_nncf = is_checkpoint_nncf(cfg.model.load_weights)
+    if args.nncf or is_current_checkpoint_nncf:
+        print(f'using NNCF')
+        if cfg.model.resume:
+            raise NotImplementedError('Resuming NNCF training not implemented yet')
+        if not cfg.model.load_weights:
+            raise RuntimeError('NNCF training should be started from a non-NNCF (or NNCF) pre-trained model')
         nncf_config_path = args.nncf if isinstance(args.nncf, str) else None
-        print(f'should_freeze_aux_models_for_nncf = {should_freeze_aux_models_for_nncf}')
-        if args.nncf_load_checkpoint:
-            checkpoint_path = cfg.model.load_weights
-            assert check_isfile(checkpoint_path)
+        checkpoint_path = cfg.model.load_weights
+        if not check_isfile(checkpoint_path):
+            raise RuntimeError(f'Cannot load checkpoint from {checkpoint_path}')
+        if is_current_checkpoint_nncf:
+            # just skipping loading special datamanager
             datamanager_for_nncf = None
         else:
             print('before building datamanager for nncf initializing')
             datamanager_for_nncf = build_datamanager(cfg, args.classes)
             print('after building datamanager for nncf initializing')
             checkpoint_path = None
-        compression_ctrl, model = wrap_nncf_model(model, cfg, datamanager_for_nncf,
-                                                  nncf_config_path=nncf_config_path,
-                                                  checkpoint_path=checkpoint_path)
-        should_freeze_aux_models = should_freeze_aux_models_for_nncf
 
-    if args.freeze_aux_model_up_to_epoch is not None:
+        compression_ctrl, model, nncf_metainfo = \
+                wrap_nncf_model(model, cfg, datamanager_for_nncf,
+                                nncf_config_path=nncf_config_path,
+                                checkpoint_path=checkpoint_path)
+        is_nncf_used = True
         should_freeze_aux_models = True
-        epoch_interval_for_aux_model_freeze = EpochIntervalToValue(first=None,
-                                                                   last=int(args.freeze_aux_model_up_to_epoch),
-                                                                   value_inside=True,
-                                                                   value_outside=False)
+        print(f'should_freeze_aux_models = {should_freeze_aux_models}')
+        print(f'Received from wrapping nncf_metainfo =\n{pformat(nncf_metainfo)}')
+        if cfg.lr_finder.enable:
+            print('Turn off LR finder -- it should not be used together with NNCF compression')
+            cfg.lr_finder.enable = False
     else:
-        epoch_interval_for_aux_model_freeze = None
-
-    if args.turn_off_mutual_learning_up_to_epoch is not None:
-        epoch_interval_for_turn_off_mutual_learning = EpochIntervalToValue(first=None,
-                                                                           last=int(args.turn_off_mutual_learning_up_to_epoch),
-                                                                           value_inside=True,
-                                                                           value_outside=False)
-    else:
-        epoch_interval_for_turn_off_mutual_learning = None
+        is_nncf_used = False
+        should_freeze_aux_models = False
+        nncf_metainfo = None
 
     if cfg.model.classification:
         classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
@@ -269,8 +247,7 @@ def main():
     print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers,
                           should_freeze_aux_models=should_freeze_aux_models,
-                          epoch_interval_for_aux_model_freeze=epoch_interval_for_aux_model_freeze,
-                          epoch_interval_for_turn_off_mutual_learning=epoch_interval_for_turn_off_mutual_learning)
+                          nncf_metainfo=nncf_metainfo)
 
     engine.run(**engine_run_kwargs(cfg))
 

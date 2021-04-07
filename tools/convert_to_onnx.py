@@ -138,9 +138,9 @@ def main():
         assert check_isfile(checkpoint_path)
         datamanager_for_nncf = None
 
-        compression_ctrl, model = wrap_nncf_model(model, cfg, datamanager_for_nncf,
-                                                  nncf_config_path=nncf_config_path,
-                                                  checkpoint_path=checkpoint_path)
+        compression_ctrl, model, _ = wrap_nncf_model(model, cfg, datamanager_for_nncf,
+                                                     nncf_config_path=nncf_config_path,
+                                                     checkpoint_path=checkpoint_path)
     model.eval()
 
     transform = build_inference_transform(

@@ -5,6 +5,7 @@ import sys
 from collections import OrderedDict
 from contextlib import contextmanager
 from PIL import Image
+from pprint import pformat
 
 import torch
 
@@ -23,6 +24,20 @@ def get_no_nncf_trace_context_manager():
         return original_no_nncf_trace
     except ImportError:
         return nullcontext
+
+def _get_nncf_metainfo_from_checkpoint(filename):
+    if not filename:
+        return None
+    checkpoint = torch.load(filename, map_location='cpu')
+    if not isinstance(checkpoint, dict):
+        return None
+    return checkpoint.get('nncf_metainfo', None)
+
+def is_checkpoint_nncf(filename):
+    nncf_metainfo = _get_nncf_metainfo_from_checkpoint(filename)
+    if not nncf_metainfo:
+        return False
+    return nncf_metainfo.get('nncf_compression_enabled', False)
 
 def _load_checkpoint_for_nncf(model, filename, map_location=None, strict=False):
     """Load checkpoint from a file or URI.
@@ -60,6 +75,16 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
     if not (datamanager_for_init or checkpoint_path):
         raise RuntimeError(f'One of datamanager_for_init or checkpoint_path should be set: '
                            f'datamanager_for_init={datamanager_for_init} checkpoint_path={checkpoint_path}')
+
+    nncf_metainfo = _get_nncf_metainfo_from_checkpoint(checkpoint_path)
+    if nncf_metainfo and nncf_metainfo.get('nncf_compression_enabled'):
+        nncf_config_data = nncf_metainfo['nncf_config']
+        datamanager_for_init = None
+        print(f'Read NNCF metainfo from the checkpoint: nncf_metainfo=\n{pformat(nncf_metainfo)}')
+    else:
+        checkpoint_path = None
+        nncf_config_data = None
+
     if datamanager_for_init and checkpoint_path:
         raise RuntimeError(f'Only ONE of datamanager_for_init or checkpoint_path should be set: '
                            f'datamanager_for_init={datamanager_for_init} checkpoint_path={checkpoint_path}')
@@ -70,12 +95,11 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
     from nncf.dynamic_graph.input_wrapping import nncf_model_input
     from nncf.dynamic_graph.trace_tensor import TracedTensor
 
-    if nncf_config_path:
+    if nncf_config_path and not nncf_config_data:
         with open(nncf_config_path) as f:
             nncf_config_data = json.load(f)
-    else:
-        # TODO(lbeynens): remove this, this is a DEBUG feature for compatibility with older
-        #                 experiments
+    elif not nncf_config_data:
+        # TODO(lbeynens): remove this when loading of nncf config from the main config is implemented
         nncf_config_data = {
 #            "input_info": {
 #                "sample_size": [1, 3, h, w]
@@ -106,12 +130,23 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
             "log_dir": "."
         }
 
+    # do it even if nncf_config_data is loaded from a checkpoint -- for the rare case when
+    # the width and height of the model's input was changed in the config
+    # and then finetuning of NNCF model is run
     h, w = cfg.data.height, cfg.data.width
     nncf_config_data.setdefault('input_info', {})
     nncf_config_data['input_info']['sample_size'] = [1, 3, h, w]
 
     nncf_config = NNCFConfig(nncf_config_data)
     print(f'nncf_config =\n{nncf_config}')
+    if not nncf_metainfo:
+        nncf_metainfo = {
+                'nncf_compression_enabled': True,
+                'nncf_config': nncf_config_data
+            }
+    else:
+        # update it just to be on the safe side
+        nncf_metainfo['nncf_config'] = nncf_config_data
 
     class ReidInitializeDataLoader(InitializingDataLoader): #TODO: check is it correct
         def get_inputs(self, dataloader_output):
@@ -185,4 +220,4 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
                                                       dummy_forward_fn=dummy_forward,
                                                       wrap_inputs_fn=wrap_inputs,
                                                       resuming_state_dict=resuming_state_dict)
-    return compression_ctrl, model
+    return compression_ctrl, model, nncf_metainfo

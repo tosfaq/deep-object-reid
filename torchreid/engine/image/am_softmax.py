@@ -51,13 +51,11 @@ class ImageAMSoftmaxEngine(Engine):
                  duration_s=None, skip_steps_s=None, enable_masks=False, adaptive_margins=False, class_weighting=False,
                  attr_cfg=None, base_num_classes=-1, symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False,
                  should_freeze_aux_models=False,
-                 epoch_interval_for_aux_model_freeze=None,
-                 epoch_interval_for_turn_off_mutual_learning=None):
+                 nncf_metainfo=None):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt,
-                                                    train_patience, lb_lr, early_stoping,
-                                                    should_freeze_aux_models=should_freeze_aux_models,
-                                                    epoch_interval_for_aux_model_freeze=epoch_interval_for_aux_model_freeze,
-                                                    epoch_interval_for_turn_off_mutual_learning=epoch_interval_for_turn_off_mutual_learning)
+                                                   train_patience, lb_lr, early_stoping,
+                                                   should_freeze_aux_models=should_freeze_aux_models,
+                                                   nncf_metainfo=nncf_metainfo)
 
         assert softmax_type in ['stock', 'am']
         if compute_s and softmax_type == 'am':
