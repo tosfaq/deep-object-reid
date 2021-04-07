@@ -84,6 +84,10 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
     aux_cfg.use_gpu = use_gpu
     aux_cfg.merge_from_file(config_file)
 
+    if lr is not None:
+        aux_cfg.train.lr = lr
+        print(f"setting learning rate from main model, estimated by lr finder: {lr}")
+
     model = torchreid.models.build_model(**model_kwargs(aux_cfg, num_classes))
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
@@ -98,10 +102,6 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
     if aux_cfg.use_gpu:
         assert device_ids is not None
         model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
-
-    if lr is not None:
-        aux_cfg.train.lr = lr
-        print(f"setting learning rate from main model, estimated by lr finder: {lr}")
 
     return model, optimizer, scheduler
 
