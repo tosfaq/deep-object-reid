@@ -319,20 +319,19 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None):
             '(** ignored and continue **)'.format(message)
         )
 
-        if True: ########## DEBUG ####################################################
-            if len(discarded_layers) > 0:
-                print(
-                    '** The following layers are discarded '
-                    'due to unmatched keys or layer size: {}'.
-                    format(discarded_layers)
-                )
-            unmatched_layers = set(model_dict.keys()) - set(new_state_dict)
-            if unmatched_layers:
-                print(
-                    '** The following layers were not loaded from checkpoint: {}'.
-                    format(unmatched_layers)
-                )
-            raise RuntimeError('DEBUG --- this is required for debugging')
+        if len(discarded_layers) > 0:
+            print(
+                '** The following layers are discarded '
+                'due to unmatched keys or layer size: {}'.
+                format(discarded_layers)
+            )
+        unmatched_layers = set(model_dict.keys()) - set(new_state_dict)
+        if unmatched_layers:
+            print(
+                '** The following layers were not loaded from checkpoint: {}'.
+                format(unmatched_layers)
+            )
+        raise RuntimeError(f'The pretrained weights {message} cannot be loaded')
     else:
         print(
             'Successfully loaded pretrained weights from "{}"'.

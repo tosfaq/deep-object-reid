@@ -177,10 +177,6 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
         norm_std=cfg.data.norm_std,
     )
     def random_image(height, width):
-        if True: ### DEBUG #######################################################
-            print(':::DEBUG: random_image call')
-            import traceback
-            traceback.print_stack(file=sys.stdout)
         input_size = (height, width, 3)
         img = np.random.rand(*input_size).astype(np.float32)
         img = np.uint8(img * 255)
