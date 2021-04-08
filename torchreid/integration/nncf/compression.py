@@ -95,11 +95,13 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
     from nncf.dynamic_graph.input_wrapping import nncf_model_input
     from nncf.dynamic_graph.trace_tensor import TracedTensor
 
-    if nncf_config_path and not nncf_config_data:
+    # TODO(lbeynens): improve this branch when loading of nncf config from the main config is implemented
+    if nncf_config_path:
+        print(f'ATTENTION: Reading NNCF config from {nncf_config_path} -- it will overwrite NNCF metainfo')
         with open(nncf_config_path) as f:
             nncf_config_data = json.load(f)
     elif not nncf_config_data:
-        # TODO(lbeynens): remove this when loading of nncf config from the main config is implemented
+        print('Using the default NNCF int8 quantization config')
         nncf_config_data = {
 #            "input_info": {
 #                "sample_size": [1, 3, h, w]

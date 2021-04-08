@@ -26,7 +26,7 @@ from torch.onnx.symbolic_registry import register_op
 from torchreid.data.transforms import build_inference_transform
 from torchreid.models import build_model
 from torchreid.utils import load_checkpoint, load_pretrained_weights, check_isfile
-from torchreid.integration.nncf.compression import wrap_nncf_model
+from torchreid.integration.nncf.compression import wrap_nncf_model, is_checkpoint_nncf
 
 
 def parse_num_classes(source_datasets, classification=False, num_classes=None, snap_path=None):
@@ -94,13 +94,19 @@ def main():
     model = build_model(**model_kwargs(cfg, num_classes))
     load_pretrained_weights(model, cfg.model.load_weights)
 
-    if args.nncf is not None:
+    is_current_checkpoint_nncf = is_checkpoint_nncf(cfg.model.load_weights)
+    if args.nncf is not None or is_current_checkpoint_nncf:
         print('Using NNCF')
         nncf_config_path = args.nncf if isinstance(args.nncf, str) and args.nncf else None
         print(f'nncf_config_path={nncf_config_path}')
 
         checkpoint_path = cfg.model.load_weights
-        assert check_isfile(checkpoint_path)
+        if not check_isfile(checkpoint_path):
+            raise RuntimeError(f'File {checkpoint_path} is absent')
+        if not is_current_checkpoint_nncf and not nncf_config_path:
+            print(f'** WARNING: the checkpoint {checkpoint_path} does not contain NNCF metainfo, '
+                  f'the NNCF config will be filled by the default values')
+
         datamanager_for_nncf = None
 
         compression_ctrl, model, _ = wrap_nncf_model(model, cfg, datamanager_for_nncf,
