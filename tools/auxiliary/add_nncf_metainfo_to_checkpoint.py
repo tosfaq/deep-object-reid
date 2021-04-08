@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import torch
 
@@ -71,3 +72,6 @@ def main():
     checkpoint['nncf_metainfo'] = nncf_metainfo
     res_path = save_checkpoint(checkpoint, args.dst_folder)
 
+
+if __name__ == '__main__':
+    main()
