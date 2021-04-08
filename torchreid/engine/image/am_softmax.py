@@ -494,6 +494,7 @@ class ImageAMSoftmaxEngine(Engine):
         num_epochs=3,
         path_to_savefig='',
         seed = 5,
+        stop_callback=None,
         **kwargs):
         r"""A  pipeline for learning rate search.
 
@@ -526,7 +527,7 @@ class ImageAMSoftmaxEngine(Engine):
                 state_cacher.store("optimizer", self.optims[name].state_dict())
                 get_model_attr(self.models[name], 'to')(model_device)
                 print("Warmup the model's weights for {} epochs".format(epochs_warmup))
-                self.run(max_epoch=epochs_warmup, lr_finder=True)
+                self.run(max_epoch=epochs_warmup, lr_finder=True, stop_callback=stop_callback)
                 print("Finished warmuping the model. Continue to find learning rate:")
             # run lr finder
             lr_finder = LRFinder(self.models[name], optimizer, criterion, device=model_device)
@@ -564,7 +565,8 @@ class ImageAMSoftmaxEngine(Engine):
             for param_group in self.optims[name].param_groups:
                 param_group["lr"] = round(lr,6)
 
-            top1 = round(self.run(max_epoch=num_epochs, lr_finder=True, start_eval=0, eval_freq=1,), 4)
+            top1 = round(self.run(max_epoch=num_epochs, lr_finder=True, start_eval=0, eval_freq=1,
+                                  stop_callback=stop_callback), 4)
             acc_store[lr] = top1
 
             get_model_attr(self.models[name], 'load_state_dict')(state_cacher.retrieve("model"))
@@ -577,6 +579,8 @@ class ImageAMSoftmaxEngine(Engine):
                 print("The results got worse. Breaking learning rate search")
                 break
             best_acc = max(best_acc, cur_acc)
+            if stop_callback and stop_callback.check_stop():
+                break
 
         opt_lr = max(acc_store.items(), key=operator.itemgetter(1))[0]
 

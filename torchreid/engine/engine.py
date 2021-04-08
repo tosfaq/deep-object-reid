@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.nn import functional as F
-from torch.utils.tensorboard import SummaryWriter
 
 from torchreid import metrics
 from torchreid.losses import DeepSupervision
@@ -229,7 +228,7 @@ class Engine:
     def run(
         self,
         save_dir='log',
-        tb_log_dir='',
+        tb_writer=None,
         max_epoch=0,
         start_epoch=0,
         print_freq=10,
@@ -245,7 +244,9 @@ class Engine:
         use_metric_cuhk03=False,
         ranks=(1, 5, 10, 20),
         rerank=False,
-        lr_finder = False,
+        lr_finder=False,
+        perf_monitor=None,
+        stop_callback=None,
         **kwargs
     ):
         r"""A unified pipeline for training and evaluating a model.
@@ -282,18 +283,19 @@ class Engine:
             raise ValueError('visrank can be set to True only if test_only=True')
 
         if test_only:
-            results = self.test(
-                                0,
-                                dist_metric=dist_metric,
-                                normalize_feature=normalize_feature,
-                                visrank=visrank,
-                                visrank_topk=visrank_topk,
-                                save_dir=save_dir,
-                                use_metric_cuhk03=use_metric_cuhk03,
-                                ranks=ranks,
-                                rerank=rerank,
-                      )
-            return results
+            test_results = self.test(
+                                     0,
+                                     dist_metric=dist_metric,
+                                     normalize_feature=normalize_feature,
+                                     visrank=visrank,
+                                     visrank_topk=visrank_topk,
+                                     save_dir=save_dir,
+                                     use_metric_cuhk03=use_metric_cuhk03,
+                                     ranks=ranks,
+                                     rerank=rerank,
+                                    )
+            return test_results
+
         print('Test before training')
         self.test(
                   0,
@@ -307,9 +309,7 @@ class Engine:
                   rerank=rerank,
         )
 
-        if self.writer is None:
-            log_dir = tb_log_dir if len(tb_log_dir) else save_dir
-            self.writer = SummaryWriter(log_dir=log_dir)
+        self.writer = tb_writer
 
         time_start = time.time()
         top1 = None
@@ -318,14 +318,20 @@ class Engine:
         self.fixbase_epoch = fixbase_epoch
         print('=> Start training')
 
+        if perf_monitor and not lr_finder: perf_monitor.on_train_begin()
         for self.epoch in range(self.start_epoch, self.max_epoch):
-
+            if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_begin()
             self.train(
                 print_freq=print_freq,
                 fixbase_epoch=fixbase_epoch,
                 open_layers=open_layers,
-                lr_finder = lr_finder
+                lr_finder = lr_finder,
+                perf_monitor=perf_monitor,
+                stop_callback=stop_callback
             )
+            if stop_callback and stop_callback.check_stop():
+                break
+            if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_end()
 
             if ((self.epoch + 1) >= start_eval
                and eval_freq > 0
@@ -365,12 +371,14 @@ class Engine:
                 save_dir=save_dir,
                 use_metric_cuhk03=use_metric_cuhk03,
                 ranks=ranks,
-                lr_finder = lr_finder
+                lr_finder=lr_finder
             )
             if self.save_chkpt and not lr_finder:
                 self.save_model(self.epoch, save_dir)
             if lr_finder:
                 print(f"epoch: {self.epoch}\t top1: {top1_final}\t lr: {self.get_current_lr()}")
+
+        if perf_monitor and not lr_finder: perf_monitor.on_train_end()
 
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
@@ -395,7 +403,8 @@ class Engine:
             model.train()
             open_all_layers(model)
 
-    def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False):
+    def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False, perf_monitor=None,
+              stop_callback=None):
         losses = MetricMeter()
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -421,6 +430,8 @@ class Engine:
         self.num_batches = len(self.train_loader)
         end = time.time()
         for self.batch_idx, data in enumerate(self.train_loader):
+            if perf_monitor and not lr_finder: perf_monitor.on_train_batch_begin()
+
             data_time.update(time.time() - end)
 
             loss_summary, avg_acc = self.forward_backward(data)
@@ -428,6 +439,7 @@ class Engine:
 
             losses.update(loss_summary)
             accuracy.update(avg_acc)
+            if perf_monitor and not lr_finder: perf_monitor.on_train_batch_end()
 
             if not lr_finder and ((self.batch_idx + 1) % print_freq) == 0:
                 nb_this_epoch = self.num_batches - (self.batch_idx + 1)
@@ -465,6 +477,8 @@ class Engine:
                     self.writer.add_scalar('Loss/' + name, meter.avg, n_iter)
 
             end = time.time()
+            if stop_callback and stop_callback.check_stop():
+                break
 
         if not lr_finder:
             self.update_lr(output_avg_metric = losses.meters['loss'].avg)

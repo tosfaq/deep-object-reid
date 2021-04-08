@@ -4,64 +4,24 @@ import sys
 import time
 from pprint import pformat
 
+from torch.utils.tensorboard import SummaryWriter
 import torch
 from scripts.default_config import (engine_run_kwargs, get_default_config,
-                                    imagedata_kwargs, lr_finder_run_kwargs,
+                                    lr_finder_run_kwargs,
                                     lr_scheduler_kwargs, model_kwargs,
-                                    optimizer_kwargs, videodata_kwargs)
-from scripts.script_utils import build_base_argparser, reset_config, check_classes_consistency
+                                    optimizer_kwargs)
+from scripts.script_utils import (build_base_argparser, reset_config,
+                                  check_classes_consistency,
+                                  build_datamanager, build_auxiliary_model)
 
 import torchreid
-from torchreid.engine import build_engine, EpochIntervalToValue
+from torchreid.engine import build_engine
 from torchreid.ops import DataParallel
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
-                             compute_model_complexity,resume_from_checkpoint,
-                             set_random_seed, load_pretrained_weights,
-                             open_specified_layers)
+                             compute_model_complexity, resume_from_checkpoint,
+                             set_random_seed, load_pretrained_weights)
 
 from torchreid.integration.nncf.compression import wrap_nncf_model, is_checkpoint_nncf
-
-def build_datamanager(cfg, classification_classes_filter=None):
-    if cfg.data.type == 'image':
-        return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
-    else:
-        return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
-
-def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr=None,
-                          aux_config_opts=None):
-    aux_cfg = get_default_config()
-    aux_cfg.use_gpu = use_gpu
-    aux_cfg.merge_from_file(config_file)
-    if aux_config_opts:
-        aux_cfg.merge_from_list(aux_config_opts)
-
-    print('\nShow auxiliary configuration\n{}\n'.format(aux_cfg))
-
-    model = torchreid.models.build_model(**model_kwargs(aux_cfg, num_classes))
-    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
-    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
-
-    if aux_cfg.model.resume and check_isfile(aux_cfg.model.resume):
-        aux_cfg.train.start_epoch = resume_from_checkpoint(
-            aux_cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
-            )
-
-    elif aux_cfg.model.load_weights and check_isfile(aux_cfg.model.load_weights):
-        load_pretrained_weights(model, aux_cfg.model.load_weights)
-
-    if aux_cfg.use_gpu:
-        assert device_ids is not None
-
-        if len(device_ids) > 1:
-            model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
-        else:
-            model = model.cuda(device_ids[0])
-
-    if lr is not None:
-        aux_cfg.train.lr = lr
-        print(f"setting learning rate from main model, estimated by lr finder: {lr}")
-
-    return model, optimizer, scheduler
 
 def main():
     parser = build_base_argparser()
@@ -220,7 +180,7 @@ def main():
             print("Finding learning rate finished. Terminate the training process")
             exit()
 
-        # reload random seeds, opimizer with new lr and scheduler for it
+        # reload random seeds, optimizer with new lr and scheduler for it
         cfg.train.lr = lr
         cfg.lr_finder.enable = False
         set_random_seed(cfg.train.seed)
@@ -249,7 +209,8 @@ def main():
                           should_freeze_aux_models=should_freeze_aux_models,
                           nncf_metainfo=nncf_metainfo)
 
-    engine.run(**engine_run_kwargs(cfg))
+    log_dir = cfg.data.tb_log_dir if cfg.data.tb_log_dir else cfg.data.save_dir
+    engine.run(**engine_run_kwargs(cfg), tb_writer=SummaryWriter(log_dir=log_dir))
 
 
 if __name__ == '__main__':
