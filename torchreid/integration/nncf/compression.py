@@ -140,7 +140,7 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
     nncf_config_data['input_info']['sample_size'] = [1, 3, h, w]
 
     nncf_config = NNCFConfig(nncf_config_data)
-    print(f'nncf_config =\n{nncf_config}')
+    print(f'nncf_config =\n{pformat(nncf_config)}')
     if not nncf_metainfo:
         nncf_metainfo = {
                 'nncf_compression_enabled': True,
@@ -159,10 +159,10 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
             return args, {}
 
     cur_device = next(model.parameters()).device
-    print(f'cur_device = {cur_device}')
+    print(f'NNCF: cur_device = {cur_device}')
 
     if checkpoint_path is None:
-        print('No checkpoint is provided -- register initialize data loader')
+        print('No NNCF checkpoint is provided -- register initialize data loader')
         train_loader = datamanager_for_init.train_loader
         wrapped_loader = ReidInitializeDataLoader(train_loader)
         nncf_config = register_default_init_args(nncf_config, wrapped_loader, device=cur_device)
