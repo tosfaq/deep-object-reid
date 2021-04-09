@@ -23,12 +23,6 @@ from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
 EpochIntervalToValue = namedtuple('EpochIntervalToValue', ['first', 'last', 'value_inside', 'value_outside'])
 
 def _get_cur_action_from_epoch_interval(epoch_interval, epoch):
-#    The following code will be required if we want to use a composite epoch_interval
-#    assert isinstance(epoch_interval, (list, EpochIntervalToValue))
-#    if isinstance(epoch_interval, list):
-#        return [_get_current_action_from_epoch_interval(e_i, epoch)
-#                for e_i in epoch_interval]
-
     assert isinstance(epoch_interval, EpochIntervalToValue)
     if epoch_interval.first is None and epoch_interval.last is None:
         raise RuntimeError(f'Wrong epoch_interval {epoch_interval}')
@@ -45,6 +39,14 @@ def _get_cur_action_from_epoch_interval(epoch_interval, epoch):
     print(f'_get_cur_action_from_epoch_interval: return value_inside={epoch_interval.value_inside}')
     return epoch_interval.value_inside
 
+def get_initial_lr_from_checkpoint(filename):
+    if not filename:
+        return None
+    checkpoint = torch.load(filename, map_location='cpu')
+    if not isinstance(checkpoint, dict):
+        return None
+    return checkpoint.get('initial_lr')
+
 class Engine:
     r"""A generic base Engine class for both image- and video-reid.
 
@@ -58,6 +60,7 @@ class Engine:
                  use_gpu=True, save_chkpt=True, train_patience = 10, lb_lr = 1e-5, early_stoping=False,
                  should_freeze_aux_models=False,
                  nncf_metainfo=None,
+                 initial_lr=None,
                  epoch_interval_for_aux_model_freeze=None,
                  epoch_interval_for_turn_off_mutual_learning=None):
 
@@ -86,6 +89,7 @@ class Engine:
         print(f'Engine: should_freeze_aux_models={should_freeze_aux_models}')
         self.should_freeze_aux_models = should_freeze_aux_models
         self.nncf_metainfo = deepcopy(nncf_metainfo)
+        self.initial_lr = initial_lr
         self.epoch_interval_for_aux_model_freeze = epoch_interval_for_aux_model_freeze
         self.epoch_interval_for_turn_off_mutual_learning = epoch_interval_for_turn_off_mutual_learning
         self.model_names_to_freeze = []
@@ -171,7 +175,8 @@ class Engine:
                                 'scheduler': self.scheds[name].state_dict(),
                                 'num_classes': self.datamanager.num_train_pids,
                                 'classes_map': self.datamanager.train_loader.dataset.classes,
-                                'nncf_metainfo': self.nncf_metainfo
+                                'nncf_metainfo': self.nncf_metainfo,
+                                'initial_lr': self.initial_lr
                             },
                             osp.join(save_dir, name),
                             is_best=is_best

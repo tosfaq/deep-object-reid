@@ -15,13 +15,18 @@ from scripts.script_utils import (build_base_argparser, reset_config,
                                   build_datamanager, build_auxiliary_model)
 
 import torchreid
-from torchreid.engine import build_engine
+from torchreid.engine import build_engine, get_initial_lr_from_checkpoint
 from torchreid.ops import DataParallel
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              compute_model_complexity, resume_from_checkpoint,
                              set_random_seed, load_pretrained_weights)
 
 from torchreid.integration.nncf.compression import wrap_nncf_model, is_checkpoint_nncf
+
+def is_lr_set_from_opts(opts):
+    # Note that opts here -- the args.opts from build_base_argparser
+    key_names = opts[0::2]
+    return ('train.lr' in key_names)
 
 def main():
     parser = build_base_argparser()
@@ -30,8 +35,8 @@ def main():
     parser.add_argument('--split-models', action='store_true',
                         help='whether to split models on own gpu')
 
-    parser.add_argument('--nncf', nargs='?', const=True, default=None,
-                        help='If nncf compression should be used; optional parameter -- NNCF json config file')
+    parser.add_argument('--nncf', action='store_true',
+                        help='If nncf compression should be used')
     parser.add_argument('--aux-config-opts', nargs='+', default=None,
                         help='Modify aux config options using the command-line')
     args = parser.parse_args()
@@ -42,6 +47,8 @@ def main():
         cfg.merge_from_file(args.config_file)
     reset_config(cfg, args)
     cfg.merge_from_list(args.opts)
+    is_initial_lr_set_from_opts = is_lr_set_from_opts(args.opts)
+
     set_random_seed(cfg.train.seed)
 
     log_name = 'test.log' if cfg.test.evaluate else 'train.log'
@@ -81,6 +88,8 @@ def main():
         load_pretrained_weights(model, cfg.model.load_weights)
 
 
+    lr = None # placeholder, needed for aux models, may be filled by nncf part below
+              # TODO(lbeynens): rename lr to aux_lr
     is_current_checkpoint_nncf = is_checkpoint_nncf(cfg.model.load_weights)
     if args.nncf or is_current_checkpoint_nncf:
         print(f'using NNCF')
@@ -88,7 +97,6 @@ def main():
             raise NotImplementedError('Resuming NNCF training not implemented yet')
         if not cfg.model.load_weights:
             raise RuntimeError('NNCF training should be started from a non-NNCF (or NNCF) pre-trained model')
-        nncf_config_path = args.nncf if isinstance(args.nncf, str) else None
         checkpoint_path = cfg.model.load_weights
         if not check_isfile(checkpoint_path):
             raise RuntimeError(f'Cannot load checkpoint from {checkpoint_path}')
@@ -101,9 +109,8 @@ def main():
             print('after building datamanager for nncf initializing')
             checkpoint_path = None
 
-        compression_ctrl, model, nncf_metainfo = \
+        compression_ctrl, model, nncf_metainfo, coeff_decrease_lr_for_nncf = \
                 wrap_nncf_model(model, cfg, datamanager_for_nncf,
-                                nncf_config_path=nncf_config_path,
                                 checkpoint_path=checkpoint_path)
         is_nncf_used = True
         should_freeze_aux_models = True
@@ -112,6 +119,22 @@ def main():
         if cfg.lr_finder.enable:
             print('Turn off LR finder -- it should not be used together with NNCF compression')
             cfg.lr_finder.enable = False
+        if not is_initial_lr_set_from_opts:
+            print('Try to calculate initial LR for NNCF')
+            initial_lr_from_checkpoint = get_initial_lr_from_checkpoint(cfg.model.load_weights)
+            print(f'initial_lr_from_checkpoint = {initial_lr_from_checkpoint}')
+            if initial_lr_from_checkpoint is not None:
+                print(f'coeff_decrease_lr_for_nncf = {coeff_decrease_lr_for_nncf}')
+                lr = initial_lr_from_checkpoint * coeff_decrease_lr_for_nncf
+                cfg.train.lr = lr
+                print(f'calculated lr = {lr}')
+            else:
+                print(f'The checkpoint does not contain initial lr -- will not calculate initial LR for NNCF, '
+                      f'cfg.train.lr={cfg.train.lr}')
+        else:
+            print(f'Since initial LR is set from command line arguments, do not calculate initial LR for NNCF '
+                  f'cfg.train.lr={cfg.train.lr}')
+
     else:
         is_nncf_used = False
         should_freeze_aux_models = False
@@ -166,7 +189,6 @@ def main():
     else:
         extra_device_ids = [None for _ in range(len(cfg.mutual_learning.aux_configs))]
 
-    lr = None # placeholder, needed for aux models
     if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
         if enable_mutual_learning:
             print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
@@ -207,7 +229,8 @@ def main():
     print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers,
                           should_freeze_aux_models=should_freeze_aux_models,
-                          nncf_metainfo=nncf_metainfo)
+                          nncf_metainfo=nncf_metainfo,
+                          initial_lr=cfg.train.lr)
 
     log_dir = cfg.data.tb_log_dir if cfg.data.tb_log_dir else cfg.data.save_dir
     engine.run(**engine_run_kwargs(cfg), tb_writer=SummaryWriter(log_dir=log_dir))

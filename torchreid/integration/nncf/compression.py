@@ -10,6 +10,8 @@ from pprint import pformat
 import torch
 
 
+DEFAULT_COEFFICIENT_DECREASE_LR_FOR_NNCF = 0.035
+
 @contextmanager
 def nullcontext():
     """
@@ -32,6 +34,18 @@ def _get_nncf_metainfo_from_checkpoint(filename):
     if not isinstance(checkpoint, dict):
         return None
     return checkpoint.get('nncf_metainfo', None)
+
+def create_nncf_metainfo(nncf_compression_enabled, nncf_config):
+    nncf_metainfo = {
+            'nncf_compression_enabled': nncf_compression_enabled,
+            'nncf_config': nncf_config,
+        }
+    return nncf_metainfo
+
+def get_coeff_decrease_lr_for_nncf(nncf_external_config):
+    if nncf_external_config and nncf_external_config.get('coeff_decrease_lr_for_nncf'):
+        return nncf_external_config.get('coeff_decrease_lr_for_nncf')
+    return DEFAULT_COEFFICIENT_DECREASE_LR_FOR_NNCF
 
 def is_checkpoint_nncf(filename):
     nncf_metainfo = _get_nncf_metainfo_from_checkpoint(filename)
@@ -66,7 +80,7 @@ def _load_checkpoint_for_nncf(model, filename, map_location=None, strict=False):
     _ = load_state(model, state_dict, strict)
     return checkpoint
 
-def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
+def wrap_nncf_model(model, cfg, datamanager_for_init,
                     checkpoint_path=None):
     # Note that we require to import it here to avoid cyclic imports when import get_no_nncf_trace_context_manager
     # from mobilenetv3
@@ -76,18 +90,6 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
         raise RuntimeError(f'One of datamanager_for_init or checkpoint_path should be set: '
                            f'datamanager_for_init={datamanager_for_init} checkpoint_path={checkpoint_path}')
 
-    nncf_metainfo = _get_nncf_metainfo_from_checkpoint(checkpoint_path)
-    if nncf_metainfo and nncf_metainfo.get('nncf_compression_enabled'):
-        nncf_config_data = nncf_metainfo['nncf_config']
-        datamanager_for_init = None
-        print(f'Read NNCF metainfo from the checkpoint: nncf_metainfo=\n{pformat(nncf_metainfo)}')
-    else:
-        checkpoint_path = None
-        nncf_config_data = None
-
-    if datamanager_for_init and checkpoint_path:
-        raise RuntimeError(f'Only ONE of datamanager_for_init or checkpoint_path should be set: '
-                           f'datamanager_for_init={datamanager_for_init} checkpoint_path={checkpoint_path}')
     import nncf
     from nncf import (NNCFConfig, create_compressed_model,
                       register_default_init_args)
@@ -95,12 +97,38 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
     from nncf.dynamic_graph.input_wrapping import nncf_model_input
     from nncf.dynamic_graph.trace_tensor import TracedTensor
 
-    # TODO(lbeynens): improve this branch when loading of nncf config from the main config is implemented
-    if nncf_config_path:
-        print(f'ATTENTION: Reading NNCF config from {nncf_config_path} -- it will overwrite NNCF metainfo')
-        with open(nncf_config_path) as f:
-            nncf_config_data = json.load(f)
-    elif not nncf_config_data:
+    # Taking the part, related to NNCF, from the model config.
+    # Please, note that at the moment the part should be a dict of the following form:
+    # ```
+    # nncf = {
+    #     'nncf_config': {
+    #         # this is the NNCF config dict itself, placing in the model config file
+    #         ....
+    #     },
+    #     coeff_decrease_lr_for_nncf: <float value> # this is a coefficient to decrease the LR for NNCF training
+    # }
+    # ```
+    # -- in case if some section of this NNCF part is absent the default values will be used
+    nncf_external_config = cfg.get('nncf')
+
+    nncf_metainfo = _get_nncf_metainfo_from_checkpoint(checkpoint_path)
+    if nncf_metainfo and nncf_metainfo.get('nncf_compression_enabled'):
+        nncf_config_data = nncf_metainfo['nncf_config']
+        datamanager_for_init = None
+        print(f'Read NNCF metainfo from the checkpoint: nncf_metainfo=\n{pformat(nncf_metainfo)}')
+    else:
+        checkpoint_path = None # it is non-NNCF model
+
+        if nncf_external_config:
+            nncf_config_data = nncf_external_config.get('nncf_config')
+            print(f'Read nncf config from the model config: nncf_config=\n{pformat(nncf_config_data)}')
+        else:
+            nncf_config_data = None
+
+    if datamanager_for_init and checkpoint_path:
+        raise RuntimeError(f'Only ONE of datamanager_for_init or checkpoint_path should be set: '
+                           f'datamanager_for_init={datamanager_for_init} checkpoint_path={checkpoint_path}')
+    if not nncf_config_data:
         print('Using the default NNCF int8 quantization config')
         nncf_config_data = {
 #            "input_info": {
@@ -142,10 +170,8 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
     nncf_config = NNCFConfig(nncf_config_data)
     print(f'nncf_config =\n{pformat(nncf_config)}')
     if not nncf_metainfo:
-        nncf_metainfo = {
-                'nncf_compression_enabled': True,
-                'nncf_config': nncf_config_data
-            }
+        nncf_metainfo = create_nncf_metainfo(nncf_compression_enabled=True,
+                                             nncf_config=nncf_config_data)
     else:
         # update it just to be on the safe side
         nncf_metainfo['nncf_config'] = nncf_config_data
@@ -218,4 +244,7 @@ def wrap_nncf_model(model, cfg, datamanager_for_init, nncf_config_path,
                                                       dummy_forward_fn=dummy_forward,
                                                       wrap_inputs_fn=wrap_inputs,
                                                       resuming_state_dict=resuming_state_dict)
-    return compression_ctrl, model, nncf_metainfo
+
+    coeff_decrease_lr_for_nncf = get_coeff_decrease_lr_for_nncf(nncf_external_config)
+    assert isinstance(coeff_decrease_lr_for_nncf, float)
+    return compression_ctrl, model, nncf_metainfo, coeff_decrease_lr_for_nncf

@@ -76,8 +76,8 @@ def main():
     parser.add_argument('--verbose', default=False, action='store_true',
                         help='Verbose mode for onnx.export')
     parser.add_argument('--disable-dyn-axes', default=False, action='store_true')
-    parser.add_argument('--nncf', nargs='?', const=True, default=None,
-                        help='If nncf compression should be used; optional parameter -- NNCF json config file')
+    parser.add_argument('--nncf', action='store_true',
+                        help='If nncf compression should be used')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help='Modify config options using the command-line')
     args = parser.parse_args()
@@ -97,21 +97,18 @@ def main():
     is_current_checkpoint_nncf = is_checkpoint_nncf(cfg.model.load_weights)
     if args.nncf is not None or is_current_checkpoint_nncf:
         print('Using NNCF')
-        nncf_config_path = args.nncf if isinstance(args.nncf, str) and args.nncf else None
-        print(f'nncf_config_path={nncf_config_path}')
 
         checkpoint_path = cfg.model.load_weights
         if not check_isfile(checkpoint_path):
             raise RuntimeError(f'File {checkpoint_path} is absent')
-        if not is_current_checkpoint_nncf and not nncf_config_path:
+        if not is_current_checkpoint_nncf:
             print(f'** WARNING: the checkpoint {checkpoint_path} does not contain NNCF metainfo, '
-                  f'the NNCF config will be filled by the default values')
+                  f'the NNCF config will be filled either from the model config or from the default values')
 
         datamanager_for_nncf = None
 
-        compression_ctrl, model, _ = wrap_nncf_model(model, cfg, datamanager_for_nncf,
-                                                     nncf_config_path=nncf_config_path,
-                                                     checkpoint_path=checkpoint_path)
+        compression_ctrl, model, _, _ = wrap_nncf_model(model, cfg, datamanager_for_nncf,
+                                                        checkpoint_path=checkpoint_path)
     model.eval()
 
     transform = build_inference_transform(
