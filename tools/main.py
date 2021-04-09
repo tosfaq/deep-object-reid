@@ -80,8 +80,7 @@ def main():
         load_pretrained_weights(model, cfg.model.load_weights)
 
 
-    lr = None # placeholder, needed for aux models, may be filled by nncf part below
-              # TODO(lbeynens): rename lr to aux_lr
+    aux_lr = None # placeholder, needed for aux models, may be filled by nncf part below
     is_current_checkpoint_nncf = is_checkpoint_nncf(cfg.model.load_weights)
     if args.nncf or is_current_checkpoint_nncf:
         print(f'using NNCF')
@@ -119,9 +118,9 @@ def main():
             print(f'initial_lr_from_checkpoint = {initial_lr_from_checkpoint}')
             if initial_lr_from_checkpoint is not None:
                 print(f'coeff_decrease_lr_for_nncf = {coeff_decrease_lr_for_nncf}')
-                lr = initial_lr_from_checkpoint * coeff_decrease_lr_for_nncf
-                cfg.train.lr = lr
-                print(f'calculated lr = {lr}')
+                aux_lr = initial_lr_from_checkpoint * coeff_decrease_lr_for_nncf
+                cfg.train.lr = aux_lr
+                print(f'calculated lr = {aux_lr}')
             else:
                 print(f'The checkpoint does not contain initial lr -- will not calculate initial LR for NNCF, '
                       f'cfg.train.lr={cfg.train.lr}')
@@ -199,15 +198,15 @@ def main():
 
         # build new engine
         engine = build_engine(cfg, datamanager, model, optimizer, scheduler)
-        lr = engine.find_lr(**lr_finder_run_kwargs(cfg))
+        aux_lr = engine.find_lr(**lr_finder_run_kwargs(cfg))
 
-        print(f"Estimated learning rate: {lr}")
+        print(f"Estimated learning rate: {aux_lr}")
         if cfg.lr_finder.stop_after:
             print("Finding learning rate finished. Terminate the training process")
             exit()
 
         # reload random seeds, optimizer with new lr and scheduler for it
-        cfg.train.lr = lr
+        cfg.train.lr = aux_lr
         cfg.lr_finder.enable = False
         set_random_seed(cfg.train.seed)
 
@@ -220,7 +219,7 @@ def main():
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
         for config_file, device_ids in zip(cfg.mutual_learning.aux_configs, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                config_file, num_train_classes, cfg.use_gpu, device_ids, lr=lr,
+                config_file, num_train_classes, cfg.use_gpu, device_ids, lr=aux_lr,
                 aux_config_opts=args.aux_config_opts
             )
 
