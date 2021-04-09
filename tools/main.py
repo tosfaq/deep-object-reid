@@ -72,18 +72,10 @@ def main():
     num_params, flops = compute_model_complexity(model, (1, 3, cfg.data.height, cfg.data.width))
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
-    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-
-    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
-        scheduler = None
-    else:
-        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
-
     if cfg.model.resume and check_isfile(cfg.model.resume):
         cfg.train.start_epoch = resume_from_checkpoint(
             cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
             )
-
     elif cfg.model.load_weights and check_isfile(cfg.model.load_weights):
         load_pretrained_weights(model, cfg.model.load_weights)
 
@@ -119,6 +111,8 @@ def main():
         if cfg.lr_finder.enable:
             print('Turn off LR finder -- it should not be used together with NNCF compression')
             cfg.lr_finder.enable = False
+
+        # calculating initial LR for NNCF training
         if not is_initial_lr_set_from_opts:
             print('Try to calculate initial LR for NNCF')
             initial_lr_from_checkpoint = get_initial_lr_from_checkpoint(cfg.model.load_weights)
@@ -139,6 +133,16 @@ def main():
         is_nncf_used = False
         should_freeze_aux_models = False
         nncf_metainfo = None
+
+    # creating optimizer and scheduler -- it should be done after NNCF part, since
+    # NNCF could change some parameters
+    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
+
+    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
+        scheduler = None
+    else:
+        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+
 
     if cfg.model.classification:
         classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}

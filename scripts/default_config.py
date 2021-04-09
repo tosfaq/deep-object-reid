@@ -403,6 +403,10 @@ def get_default_config():
     cfg.data.transforms.test.resize_first = False
     cfg.data.transforms.test.resize_scale = 1.0
 
+    cfg.nncf = CN()
+    cfg.nncf.coeff_decrease_lr_for_nncf = 0.035
+    cfg.nncf.nncf_config_path = ''
+
     return cfg
 
 

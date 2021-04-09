@@ -1,4 +1,3 @@
-import json
 import numpy as np
 import os
 import sys
@@ -9,8 +8,6 @@ from pprint import pformat
 
 import torch
 
-
-DEFAULT_COEFFICIENT_DECREASE_LR_FOR_NNCF = 0.035
 
 @contextmanager
 def nullcontext():
@@ -45,7 +42,7 @@ def create_nncf_metainfo(nncf_compression_enabled, nncf_config):
 def get_coeff_decrease_lr_for_nncf(nncf_external_config):
     if nncf_external_config and nncf_external_config.get('coeff_decrease_lr_for_nncf'):
         return nncf_external_config.get('coeff_decrease_lr_for_nncf')
-    return DEFAULT_COEFFICIENT_DECREASE_LR_FOR_NNCF
+    raise RuntimeError('The default valie for coeff_decrease_lr_for_nncf is not set')
 
 def is_checkpoint_nncf(filename):
     nncf_metainfo = _get_nncf_metainfo_from_checkpoint(filename)
@@ -85,6 +82,7 @@ def wrap_nncf_model(model, cfg, datamanager_for_init,
     # Note that we require to import it here to avoid cyclic imports when import get_no_nncf_trace_context_manager
     # from mobilenetv3
     from torchreid.data.transforms import build_inference_transform
+    from torchreid.utils import read_json
 
     if not (datamanager_for_init or checkpoint_path):
         raise RuntimeError(f'One of datamanager_for_init or checkpoint_path should be set: '
@@ -101,11 +99,8 @@ def wrap_nncf_model(model, cfg, datamanager_for_init,
     # Please, note that at the moment the part should be a dict of the following form:
     # ```
     # nncf = {
-    #     'nncf_config': {
-    #         # this is the NNCF config dict itself, placing in the model config file
-    #         ....
-    #     },
-    #     coeff_decrease_lr_for_nncf: <float value> # this is a coefficient to decrease the LR for NNCF training
+    #     'nncf_config_path': '...' #this is the path to a json file with NNCF config dict itself
+    #     'coeff_decrease_lr_for_nncf': <float value> # this is a coefficient to decrease the LR for NNCF training
     # }
     # ```
     # -- in case if some section of this NNCF part is absent the default values will be used
@@ -119,11 +114,13 @@ def wrap_nncf_model(model, cfg, datamanager_for_init,
     else:
         checkpoint_path = None # it is non-NNCF model
 
-        if nncf_external_config:
-            nncf_config_data = nncf_external_config.get('nncf_config')
-            print(f'Read nncf config from the model config: nncf_config=\n{pformat(nncf_config_data)}')
-        else:
-            nncf_config_data = None
+        nncf_config_data = None
+        if nncf_external_config and nncf_external_config.get('nncf_config_path'):
+            nncf_config_path = nncf_external_config.get('nncf_config_path')
+            nncf_config_data = read_json(nncf_config_path)
+            print(f'Read nncf config from the NNCF config file {nncf_config_path}:\n nncf_config=\n{pformat(nncf_config_data)}')
+        if nncf_config_data is None:
+            print('Cannot read nncf_config from config file')
 
     if datamanager_for_init and checkpoint_path:
         raise RuntimeError(f'Only ONE of datamanager_for_init or checkpoint_path should be set: '
