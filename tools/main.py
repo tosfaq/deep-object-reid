@@ -28,6 +28,69 @@ def is_lr_set_from_opts(opts):
     key_names = opts[0::2]
     return ('train.lr' in key_names)
 
+def calculate_lr_for_nncf_training(cfg, coeff_decrease_lr_for_nncf,
+                                   is_initial_lr_set_from_opts):
+    if is_initial_lr_set_from_opts:
+        print(f'Since initial LR is set from command line arguments, do not calculate initial LR for NNCF '
+              f'cfg.train.lr={cfg.train.lr}')
+        return cfg.train.lr
+
+    initial_lr_from_checkpoint = get_initial_lr_from_checkpoint(cfg.model.load_weights)
+    print(f'initial_lr_from_checkpoint = {initial_lr_from_checkpoint}')
+    if initial_lr_from_checkpoint is None:
+        print(f'The checkpoint does not contain initial lr -- will not calculate initial LR for NNCF, '
+              f'cfg.train.lr={cfg.train.lr}')
+        return cfg.train.lr
+
+    if is_checkpoint_nncf(cfg.model.load_weights):
+        print('The loaded checkpoint was received from NNCF training')
+        print('WARNING: Loading NNCF checkpoint for fine-tuning -- since LR is NOT set from command line arguments '
+              'the initial LR stored in checkpoint will be used again')
+        print('Please, set LR from command line arguments to avoid this behavior')
+        lr = initial_lr_from_checkpoint
+        print(f'lr = {lr}')
+        return lr
+
+    print('Try to calculate initial LR for NNCF')
+    print(f'coeff_decrease_lr_for_nncf = {coeff_decrease_lr_for_nncf}')
+    lr = initial_lr_from_checkpoint * coeff_decrease_lr_for_nncf
+    print(f'calculated lr = {lr}')
+    return lr
+
+def make_nncf_changes_in_training(model, cfg, classes, is_initial_lr_set_from_opts):
+    print(f'using NNCF')
+    lr = None
+    if cfg.model.resume:
+        raise NotImplementedError('Resuming NNCF training not implemented yet')
+    if not cfg.model.load_weights:
+        raise RuntimeError('NNCF training should be started from a non-NNCF or NNCF pre-trained model')
+    checkpoint_path = cfg.model.load_weights
+    if not check_isfile(checkpoint_path):
+        raise RuntimeError(f'Cannot load checkpoint from {checkpoint_path}')
+    if is_checkpoint_nncf(cfg.model.load_weights):
+        print(f'is_checkpoint_nncf = True')
+        # just skipping loading special datamanager
+        datamanager_for_nncf = None
+    else:
+        print('before building datamanager for nncf initializing')
+        datamanager_for_nncf = build_datamanager(cfg, classes)
+        print('after building datamanager for nncf initializing')
+        checkpoint_path = None
+
+    compression_ctrl, model, nncf_metainfo, coeff_decrease_lr_for_nncf = \
+            wrap_nncf_model(model, cfg, datamanager_for_nncf,
+                            checkpoint_path=checkpoint_path)
+    print(f'Received from wrapping nncf_metainfo =\n{pformat(nncf_metainfo)}')
+    if cfg.lr_finder.enable:
+        print('Turn off LR finder -- it should not be used together with NNCF compression')
+        cfg.lr_finder.enable = False
+
+    # calculating initial LR for NNCF training
+    lr = calculate_lr_for_nncf_training(cfg, coeff_decrease_lr_for_nncf,
+                                        is_initial_lr_set_from_opts)
+    cfg.train.lr = lr
+    return model, cfg, lr, nncf_metainfo
+
 def main():
     parser = build_base_argparser()
     parser.add_argument('-e', '--auxiliary-models-cfg', type=str, nargs='*', default='',
@@ -81,53 +144,15 @@ def main():
 
 
     aux_lr = None # placeholder, needed for aux models, may be filled by nncf part below
-    is_current_checkpoint_nncf = is_checkpoint_nncf(cfg.model.load_weights)
-    if args.nncf or is_current_checkpoint_nncf:
+    if args.nncf or is_checkpoint_nncf(cfg.model.load_weights):
         print(f'using NNCF')
-        if cfg.model.resume:
-            raise NotImplementedError('Resuming NNCF training not implemented yet')
-        if not cfg.model.load_weights:
-            raise RuntimeError('NNCF training should be started from a non-NNCF (or NNCF) pre-trained model')
-        checkpoint_path = cfg.model.load_weights
-        if not check_isfile(checkpoint_path):
-            raise RuntimeError(f'Cannot load checkpoint from {checkpoint_path}')
-        if is_current_checkpoint_nncf:
-            # just skipping loading special datamanager
-            datamanager_for_nncf = None
-        else:
-            print('before building datamanager for nncf initializing')
-            datamanager_for_nncf = build_datamanager(cfg, args.classes)
-            print('after building datamanager for nncf initializing')
-            checkpoint_path = None
+        model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
+                                                                          args.classes,
+                                                                          is_initial_lr_set_from_opts)
 
-        compression_ctrl, model, nncf_metainfo, coeff_decrease_lr_for_nncf = \
-                wrap_nncf_model(model, cfg, datamanager_for_nncf,
-                                checkpoint_path=checkpoint_path)
         is_nncf_used = True
         should_freeze_aux_models = True
         print(f'should_freeze_aux_models = {should_freeze_aux_models}')
-        print(f'Received from wrapping nncf_metainfo =\n{pformat(nncf_metainfo)}')
-        if cfg.lr_finder.enable:
-            print('Turn off LR finder -- it should not be used together with NNCF compression')
-            cfg.lr_finder.enable = False
-
-        # calculating initial LR for NNCF training
-        if not is_initial_lr_set_from_opts:
-            print('Try to calculate initial LR for NNCF')
-            initial_lr_from_checkpoint = get_initial_lr_from_checkpoint(cfg.model.load_weights)
-            print(f'initial_lr_from_checkpoint = {initial_lr_from_checkpoint}')
-            if initial_lr_from_checkpoint is not None:
-                print(f'coeff_decrease_lr_for_nncf = {coeff_decrease_lr_for_nncf}')
-                aux_lr = initial_lr_from_checkpoint * coeff_decrease_lr_for_nncf
-                cfg.train.lr = aux_lr
-                print(f'calculated lr = {aux_lr}')
-            else:
-                print(f'The checkpoint does not contain initial lr -- will not calculate initial LR for NNCF, '
-                      f'cfg.train.lr={cfg.train.lr}')
-        else:
-            print(f'Since initial LR is set from command line arguments, do not calculate initial LR for NNCF '
-                  f'cfg.train.lr={cfg.train.lr}')
-
     else:
         is_nncf_used = False
         should_freeze_aux_models = False
