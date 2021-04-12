@@ -29,6 +29,7 @@ from torchreid.models import build_model
 from torchreid.utils import (Logger, set_random_seed,
                              load_pretrained_weights, get_model_attr)
 from torchreid.engine import build_engine
+from torchreid.integration.nncf.compression import wrap_nncf_model, is_checkpoint_nncf
 
 
 def make_nncf_changes_in_eval(model, cfg):
@@ -39,6 +40,7 @@ def make_nncf_changes_in_eval(model, cfg):
             wrap_nncf_model(model, cfg, datamanager_for_nncf,
                             checkpoint_path=checkpoint_path)
     return model, cfg
+
 def main():
     parser = build_base_argparser()
     args = parser.parse_args()
@@ -61,12 +63,12 @@ def main():
     if not is_ie_model:
         model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
         load_pretrained_weights(model, cfg.model.load_weights)
+        if is_checkpoint_nncf(cfg.model.load_weights):
+            model, cfg = make_nncf_changes_in_eval(model, cfg)
         if cfg.use_gpu:
             num_devices = min(torch.cuda.device_count(), args.gpu_num)
             main_device_ids = list(range(num_devices))
             model = DataParallel(model, device_ids=main_device_ids, output_device=0).cuda(main_device_ids[0])
-        if is_checkpoint_nncf(cfg.model.load_weights):
-            model, cfg = make_nncf_changes_in_eval(model, cfg)
     else:
         from torchreid.utils.ie_tools import VectorCNN
         from openvino.inference_engine import IECore
