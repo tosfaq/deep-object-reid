@@ -146,3 +146,9 @@ def random_image(height, width):
     out_img = Image.fromarray(img)
 
     return out_img
+
+def is_config_parameter_set_from_command_line(cmd_line_opts, parameter_name):
+    # Note that cmd_line_opts here should be compatible with
+    # the function yacs.config.CfgNode.merge_from_list
+    key_names = cmd_line_opts[0::2]
+    return (parameter_name in key_names)

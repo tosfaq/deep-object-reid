@@ -29,17 +29,9 @@ from torchreid.models import build_model
 from torchreid.utils import (Logger, set_random_seed,
                              load_pretrained_weights, get_model_attr)
 from torchreid.engine import build_engine
-from torchreid.integration.nncf.compression import wrap_nncf_model, is_checkpoint_nncf
+from torchreid.integration.nncf.compression import is_checkpoint_nncf
+from torchreid.integration.nncf.compression_script_utils import make_nncf_changes_in_eval
 
-
-def make_nncf_changes_in_eval(model, cfg):
-    print(f'using NNCF')
-    checkpoint_path = cfg.model.load_weights
-    datamanager_for_nncf = None
-    compression_ctrl, model, _, _ = \
-            wrap_nncf_model(model, cfg, datamanager_for_nncf,
-                            checkpoint_path=checkpoint_path)
-    return model, cfg
 
 def main():
     parser = build_base_argparser()

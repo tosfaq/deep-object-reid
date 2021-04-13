@@ -28,15 +28,10 @@ def _get_cur_action_from_epoch_interval(epoch_interval, epoch):
         raise RuntimeError(f'Wrong epoch_interval {epoch_interval}')
 
     if epoch_interval.first is not None and epoch < epoch_interval.first:
-        print(f'_get_cur_action_from_epoch_interval: since epoch={epoch} < epoch_interval.first={epoch_interval.first}, '
-              f'return value_outside={epoch_interval.value_outside}')
         return epoch_interval.value_outside
     if epoch_interval.last is not None and epoch > epoch_interval.last:
-        print(f'_get_cur_action_from_epoch_interval: since epoch={epoch} > epoch_interval.last={epoch_interval.last}, '
-              f'return value_outside={epoch_interval.value_outside}')
         return epoch_interval.value_outside
 
-    print(f'_get_cur_action_from_epoch_interval: return value_inside={epoch_interval.value_inside}')
     return epoch_interval.value_inside
 
 def get_initial_lr_from_checkpoint(filename):
