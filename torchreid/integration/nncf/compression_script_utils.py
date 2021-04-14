@@ -1,7 +1,9 @@
 from pprint import pformat
 
 from torchreid.engine import get_initial_lr_from_checkpoint
-from torchreid.utils import check_isfile
+from torchreid.utils import check_isfile, load_pretrained_weights
+
+from scripts.script_utils import build_datamanager
 
 from .compression import (is_checkpoint_nncf, wrap_nncf_model)
 
@@ -35,9 +37,7 @@ def calculate_lr_for_nncf_training(lr_from_cfg, checkpoint_path,
     print(f'calculated lr = {lr}')
     return lr
 
-def make_nncf_changes_in_training(model, cfg, classes, is_initial_lr_set_from_opts,
-                                  build_datamanager_function):
-    print(f'using NNCF')
+def make_nncf_changes_in_training(model, cfg, classes, is_initial_lr_set_from_opts):
     lr = None
     if cfg.model.resume:
         raise NotImplementedError('Resuming NNCF training is not implemented yet')
@@ -46,14 +46,23 @@ def make_nncf_changes_in_training(model, cfg, classes, is_initial_lr_set_from_op
     checkpoint_path = cfg.model.load_weights
     if not check_isfile(checkpoint_path):
         raise RuntimeError(f'Cannot find checkpoint at {checkpoint_path}')
-    if is_checkpoint_nncf(checkpoint_path):
+
+    is_curr_checkpoint_nncf = is_checkpoint_nncf(checkpoint_path)
+    print(f'First stage of NNCF model wrapping -- loading weights from {checkpoint_path}')
+    if is_curr_checkpoint_nncf:
+        print('Note that it is an NNCF checkpoint, so warnings that some layers are discarded '
+              'during loading due to unmatched keys will be printed -- it is normal for this case')
+
+    load_pretrained_weights(model, checkpoint_path)
+
+    if is_curr_checkpoint_nncf:
         print(f'Using NNCF checkpoint {checkpoint_path}')
         # just skipping loading special datamanager
         datamanager_for_nncf = None
         checkpoint_path_for_wrapping = checkpoint_path
     else:
         print('before building datamanager for nncf initializing')
-        datamanager_for_nncf = build_datamanager_function(cfg, classes)
+        datamanager_for_nncf = build_datamanager(cfg, classes)
         print('after building datamanager for nncf initializing')
         checkpoint_path_for_wrapping = None
 

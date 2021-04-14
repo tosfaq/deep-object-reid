@@ -70,21 +70,12 @@ def main():
     num_params, flops = compute_model_complexity(model, (1, 3, cfg.data.height, cfg.data.width))
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
-    if cfg.model.resume and check_isfile(cfg.model.resume):
-        cfg.train.start_epoch = resume_from_checkpoint(
-            cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
-            )
-    elif cfg.model.load_weights and check_isfile(cfg.model.load_weights):
-        load_pretrained_weights(model, cfg.model.load_weights)
-
-
     aux_lr = None # placeholder, needed for aux models, may be filled by nncf part below
     if args.nncf or is_checkpoint_nncf(cfg.model.load_weights):
         print(f'using NNCF')
         model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
                                                                           args.classes,
-                                                                          is_initial_lr_set_from_opts,
-                                                                          build_datamanager)
+                                                                          is_initial_lr_set_from_opts)
 
         is_nncf_used = True
         should_freeze_aux_models = True
@@ -103,6 +94,14 @@ def main():
     else:
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 
+    # Loading model (and optimizer and scheduler in case of resuming training).
+    # Note that if NNCF is used, loading is done inside NNCF part, so loading here is not required.
+    if cfg.model.resume and check_isfile(cfg.model.resume) and not is_nncf_used:
+        cfg.train.start_epoch = resume_from_checkpoint(
+            cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
+            )
+    elif cfg.model.load_weights and check_isfile(cfg.model.load_weights) and not is_nncf_used:
+        load_pretrained_weights(model, cfg.model.load_weights)
 
     if cfg.model.classification:
         classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
