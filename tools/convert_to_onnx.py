@@ -20,12 +20,12 @@ import onnx
 import torch
 
 from scripts.default_config import get_default_config, model_kwargs
-from scripts.script_utils import group_norm_symbolic, random_image
+from scripts.script_utils import group_norm_symbolic
 from torch.onnx.symbolic_registry import register_op
 
 from torchreid.data.transforms import build_inference_transform
 from torchreid.models import build_model
-from torchreid.utils import load_checkpoint, load_pretrained_weights, check_isfile
+from torchreid.utils import check_isfile, load_checkpoint, load_pretrained_weights, random_image
 from torchreid.integration.nncf.compression import wrap_nncf_model, is_checkpoint_nncf
 
 

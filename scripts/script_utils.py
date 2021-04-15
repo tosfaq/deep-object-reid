@@ -137,16 +137,6 @@ def group_norm_symbolic(g, input_blob, num_groups, weight, bias, eps, cudnn_enab
 
     return output
 
-
-def random_image(height, width):
-    input_size = (height, width, 3)
-    img = np.random.rand(*input_size).astype(np.float32)
-    img = np.uint8(img * 255)
-
-    out_img = Image.fromarray(img)
-
-    return out_img
-
 def is_config_parameter_set_from_command_line(cmd_line_opts, parameter_name):
     # Note that cmd_line_opts here should be compatible with
     # the function yacs.config.CfgNode.merge_from_list

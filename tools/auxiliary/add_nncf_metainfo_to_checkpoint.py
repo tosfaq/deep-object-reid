@@ -5,6 +5,7 @@ import torch
 
 from scripts.default_config import get_default_config
 from torchreid.utils import save_checkpoint
+from torchreid.integration.nncf.compression import get_default_nncf_compression_config
 
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -32,43 +33,13 @@ def main():
         raise RuntimeError(f'The dst folder {args.dst_folder} is NOT present')
 
     # default nncf config
-    nncf_config_data = {
-#            "input_info": {
-#                "sample_size": [1, 3, h, w]
-#                },
-        "compression": [
-            {
-                "algorithm": "quantization",
-                "initializer": {
-                    "range": {
-                        "num_init_samples": 8192, # Number of samples from the training dataset
-                                                  # to consume as sample model inputs for purposes of setting initial
-                                                  # minimum and maximum quantization ranges
-                        },
-                    "batchnorm_adaptation": {
-                        "num_bn_adaptation_samples": 8192, # Number of samples from the training
-                                                           # dataset to pass through the model at initialization in order to update
-                                                           # batchnorm statistics of the original model. The actual number of samples
-                                                           # will be a closest multiple of the batch size.
-                        #"num_bn_forget_samples": 1024, # Number of samples from the training
-                                                        # dataset to pass through the model at initialization in order to erase
-                                                        # batchnorm statistics of the original model (using large momentum value
-                                                        # for rolling mean updates). The actual number of samples will be a
-                                                        # closest multiple of the batch size.
-                        }
-                    }
-                }
-            ],
-        "log_dir": "."
-    }
     h, w = cfg.data.height, cfg.data.width
-    nncf_config_data.setdefault('input_info', {})
-    nncf_config_data['input_info']['sample_size'] = [1, 3, h, w]
+    nncf_config_data = get_default_nncf_compression_config(h, w)
 
     nncf_metainfo = {
             'nncf_compression_enabled': True,
             'nncf_config': nncf_config_data
-        }
+    }
     checkpoint['nncf_metainfo'] = nncf_metainfo
     res_path = save_checkpoint(checkpoint, args.dst_folder)
 

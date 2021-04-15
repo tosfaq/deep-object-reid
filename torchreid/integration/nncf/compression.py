@@ -8,6 +8,8 @@ from pprint import pformat
 
 import torch
 
+from torchreid.utils.tools import random_image
+
 
 @contextmanager
 def nullcontext():
@@ -77,6 +79,42 @@ def _load_checkpoint_for_nncf(model, filename, map_location=None, strict=False):
     _ = load_state(model, state_dict, strict)
     return checkpoint
 
+def get_default_nncf_compression_config(h, w):
+    """
+    This function returns the default NNCF config for this repository.
+    The config makes NNCF int8 quantization.
+    """
+    nncf_config_data = {
+        'input_info': {
+            'sample_size': [1, 3, h, w]
+        },
+        'compression': [
+            {
+                'algorithm': 'quantization',
+                'initializer': {
+                    'range': {
+                        'num_init_samples': 8192, # Number of samples from the training dataset
+                                                  # to consume as sample model inputs for purposes of setting initial
+                                                  # minimum and maximum quantization ranges
+                        },
+                    'batchnorm_adaptation': {
+                        'num_bn_adaptation_samples': 8192, # Number of samples from the training
+                                                           # dataset to pass through the model at initialization in order to update
+                                                           # batchnorm statistics of the original model. The actual number of samples
+                                                           # will be a closest multiple of the batch size.
+                        #'num_bn_forget_samples': 1024, # Number of samples from the training
+                                                        # dataset to pass through the model at initialization in order to erase
+                                                        # batchnorm statistics of the original model (using large momentum value
+                                                        # for rolling mean updates). The actual number of samples will be a
+                                                        # closest multiple of the batch size.
+                        }
+                    }
+                }
+            ],
+        'log_dir': '.'
+    }
+    return nncf_config_data
+
 def wrap_nncf_model(model, cfg, datamanager_for_init,
                     checkpoint_path=None):
     # Note that we require to import it here to avoid cyclic imports when import get_no_nncf_trace_context_manager
@@ -110,7 +148,7 @@ def wrap_nncf_model(model, cfg, datamanager_for_init,
     if nncf_metainfo and nncf_metainfo.get('nncf_compression_enabled'):
         nncf_config_data = nncf_metainfo['nncf_config']
         datamanager_for_init = None
-        print(f'Read NNCF metainfo from the checkpoint: nncf_metainfo=\n{pformat(nncf_metainfo)}')
+        print(f'Read NNCF metainfo with NNCF config from the checkpoint: nncf_metainfo=\n{pformat(nncf_metainfo)}')
     else:
         checkpoint_path = None # it is non-NNCF model
 
@@ -118,49 +156,23 @@ def wrap_nncf_model(model, cfg, datamanager_for_init,
         if nncf_external_config and nncf_external_config.get('nncf_config_path'):
             nncf_config_path = nncf_external_config.get('nncf_config_path')
             nncf_config_data = read_json(nncf_config_path)
-            print(f'Read nncf config from the NNCF config file {nncf_config_path}:\n nncf_config=\n{pformat(nncf_config_data)}')
+            print(f'Read nncf config from the NNCF config file {nncf_config_path}:\n'
+                  f' nncf_config=\n{pformat(nncf_config_data)}')
         if nncf_config_data is None:
             print('Cannot read nncf_config from config file')
 
     if datamanager_for_init and checkpoint_path:
         raise RuntimeError(f'Only ONE of datamanager_for_init or checkpoint_path should be set: '
                            f'datamanager_for_init={datamanager_for_init} checkpoint_path={checkpoint_path}')
+
+    h, w = cfg.data.height, cfg.data.width
     if not nncf_config_data:
         print('Using the default NNCF int8 quantization config')
-        nncf_config_data = {
-#            "input_info": {
-#                "sample_size": [1, 3, h, w]
-#                },
-            "compression": [
-                {
-                    "algorithm": "quantization",
-                    "initializer": {
-                        "range": {
-                            "num_init_samples": 8192, # Number of samples from the training dataset
-                                                      # to consume as sample model inputs for purposes of setting initial
-                                                      # minimum and maximum quantization ranges
-                            },
-                        "batchnorm_adaptation": {
-                            "num_bn_adaptation_samples": 8192, # Number of samples from the training
-                                                               # dataset to pass through the model at initialization in order to update
-                                                               # batchnorm statistics of the original model. The actual number of samples
-                                                               # will be a closest multiple of the batch size.
-                            #"num_bn_forget_samples": 1024, # Number of samples from the training
-                                                            # dataset to pass through the model at initialization in order to erase
-                                                            # batchnorm statistics of the original model (using large momentum value
-                                                            # for rolling mean updates). The actual number of samples will be a
-                                                            # closest multiple of the batch size.
-                            }
-                        }
-                    }
-                ],
-            "log_dir": "."
-        }
+        nncf_config_data = get_default_nncf_compression_config(h, w)
 
     # do it even if nncf_config_data is loaded from a checkpoint -- for the rare case when
     # the width and height of the model's input was changed in the config
     # and then finetuning of NNCF model is run
-    h, w = cfg.data.height, cfg.data.width
     nncf_config_data.setdefault('input_info', {})
     nncf_config_data['input_info']['sample_size'] = [1, 3, h, w]
 
@@ -201,14 +213,6 @@ def wrap_nncf_model(model, cfg, datamanager_for_init,
         norm_mean=cfg.data.norm_mean,
         norm_std=cfg.data.norm_std,
     )
-    def random_image(height, width):
-        input_size = (height, width, 3)
-        img = np.random.rand(*input_size).astype(np.float32)
-        img = np.uint8(img * 255)
-
-        out_img = Image.fromarray(img)
-
-        return out_img
 
     def dummy_forward(model):
         prev_training_state = model.training
