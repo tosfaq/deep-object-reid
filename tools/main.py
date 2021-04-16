@@ -2,7 +2,6 @@ import argparse
 import os.path as osp
 import sys
 import time
-from pprint import pformat
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
@@ -23,7 +22,9 @@ from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              set_random_seed, load_pretrained_weights)
 
 from torchreid.integration.nncf.compression import is_checkpoint_nncf
-from torchreid.integration.nncf.compression_script_utils import make_nncf_changes_in_training
+from torchreid.integration.nncf.compression_script_utils import (get_nncf_changes_in_aux_training_config,
+                                                                 make_nncf_changes_in_training,
+                                                                 make_nncf_changes_in_main_training_config)
 
 
 def main():
@@ -45,7 +46,14 @@ def main():
         cfg.merge_from_file(args.config_file)
     reset_config(cfg, args)
     cfg.merge_from_list(args.opts)
-    is_initial_lr_set_from_opts = is_config_parameter_set_from_command_line(args.opts, 'train.lr')
+
+    is_nncf_used = args.nncf or is_checkpoint_nncf(cfg.model.load_weights)
+    if is_nncf_used:
+        print(f'Using NNCF -- making NNCF changes in config')
+        cfg = make_nncf_changes_in_main_training_config(cfg, args.opts)
+        nncf_changes_in_aux_train_config = get_nncf_changes_in_aux_training_config(cfg)
+    else:
+        nncf_changes_in_aux_train_config = None
 
     set_random_seed(cfg.train.seed)
 
@@ -71,17 +79,16 @@ def main():
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
     aux_lr = None # placeholder, needed for aux models, may be filled by nncf part below
-    if args.nncf or is_checkpoint_nncf(cfg.model.load_weights):
-        print(f'using NNCF')
+    if is_nncf_used:
+        print('Begin making NNCF changes in model')
         model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
                                                                           args.classes,
-                                                                          is_initial_lr_set_from_opts)
+                                                                          args.opts)
 
-        is_nncf_used = True
         should_freeze_aux_models = True
         print(f'should_freeze_aux_models = {should_freeze_aux_models}')
+        print('End making NNCF changes in model')
     else:
-        is_nncf_used = False
         should_freeze_aux_models = False
         nncf_metainfo = None
 
@@ -180,6 +187,7 @@ def main():
         for config_file, device_ids in zip(cfg.mutual_learning.aux_configs, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
                 config_file, num_train_classes, cfg.use_gpu, device_ids, lr=aux_lr,
+                nncf_aux_config_file=nncf_changes_in_aux_train_config,
                 aux_config_opts=args.aux_config_opts
             )
 

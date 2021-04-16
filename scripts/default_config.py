@@ -403,9 +403,17 @@ def get_default_config():
     cfg.data.transforms.test.resize_first = False
     cfg.data.transforms.test.resize_scale = 1.0
 
+    # NNCF part
     cfg.nncf = CN()
+    # coefficient to decrease LR for NNCF training
+    # (the original initial LR for training will be read from the checkpoint's metainfo)
     cfg.nncf.coeff_decrease_lr_for_nncf = 0.035
+    # path to a json file with NNCF config
     cfg.nncf.nncf_config_path = ''
+    # path to a YAML file with changes to be applied to the main train config for NNCF training
+    cfg.nncf.changes_in_main_train_config = ''
+    # path to a YAML file with changes to be applied to the aux train config for NNCF training
+    cfg.nncf.changes_in_aux_train_config = ''
 
     return cfg
 

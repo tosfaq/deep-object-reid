@@ -1,6 +1,7 @@
 import argparse
 
 from PIL import Image
+from pprint import pformat
 import numpy as np
 from torch.onnx.symbolic_helper import parse_args
 
@@ -80,11 +81,17 @@ def build_datamanager(cfg, classification_classes_filter=None):
 
 
 def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr=None,
+                          nncf_aux_config_file=None,
                           aux_config_opts=None):
     aux_cfg = get_default_config()
     aux_cfg.use_gpu = use_gpu
     aux_cfg.merge_from_file(config_file)
+    if nncf_aux_config_file:
+        print(f'applying to aux config changes from NNCF aux config file {nncf_aux_config_file}')
+        aux_cfg.merge_from_file(nncf_aux_config_file)
     if aux_config_opts:
+        print(f'applying to aux config changes from command line arguments, '
+                f'the changes are:\n{pformat(aux_config_opts)}')
         aux_cfg.merge_from_list(aux_config_opts)
 
     print('\nShow auxiliary configuration\n{}\n'.format(aux_cfg))
@@ -140,5 +147,7 @@ def group_norm_symbolic(g, input_blob, num_groups, weight, bias, eps, cudnn_enab
 def is_config_parameter_set_from_command_line(cmd_line_opts, parameter_name):
     # Note that cmd_line_opts here should be compatible with
     # the function yacs.config.CfgNode.merge_from_list
+    if not cmd_line_opts:
+        return False
     key_names = cmd_line_opts[0::2]
     return (parameter_name in key_names)

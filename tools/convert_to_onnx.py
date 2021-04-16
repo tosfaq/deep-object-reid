@@ -26,7 +26,9 @@ from torch.onnx.symbolic_registry import register_op
 from torchreid.data.transforms import build_inference_transform
 from torchreid.models import build_model
 from torchreid.utils import check_isfile, load_checkpoint, load_pretrained_weights, random_image
-from torchreid.integration.nncf.compression import wrap_nncf_model, is_checkpoint_nncf
+from torchreid.integration.nncf.compression import is_checkpoint_nncf
+from torchreid.integration.nncf.compression_script_utils import (make_nncf_changes_in_eval,
+                                                                 make_nncf_changes_in_main_training_config)
 
 
 def parse_num_classes(source_datasets, classification=False, num_classes=None, snap_path=None):
@@ -76,8 +78,6 @@ def main():
     parser.add_argument('--verbose', default=False, action='store_true',
                         help='Verbose mode for onnx.export')
     parser.add_argument('--disable-dyn-axes', default=False, action='store_true')
-    parser.add_argument('--nncf', action='store_true',
-                        help='If nncf compression should be used')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help='Modify config options using the command-line')
     args = parser.parse_args()
@@ -88,27 +88,22 @@ def main():
         cfg.merge_from_file(args.config_file)
     reset_config(cfg)
     cfg.merge_from_list(args.opts)
+
+    is_nncf_used = is_checkpoint_nncf(cfg.model.load_weights)
+    if is_nncf_used:
+        print(f'Using NNCF -- making NNCF changes in config')
+        cfg = make_nncf_changes_in_main_training_config(cfg, args.opts)
     cfg.freeze()
 
     num_classes = parse_num_classes(cfg.data.sources, cfg.model.classification, args.num_classes, cfg.model.load_weights)
     model = build_model(**model_kwargs(cfg, num_classes))
     load_pretrained_weights(model, cfg.model.load_weights)
 
-    is_current_checkpoint_nncf = is_checkpoint_nncf(cfg.model.load_weights)
-    if args.nncf is not None or is_current_checkpoint_nncf:
-        print('Using NNCF')
+    if is_nncf_used:
+        print('Begin making NNCF changes in model')
+        model = make_nncf_changes_in_eval(model, cfg)
+        print('End making NNCF changes in model')
 
-        checkpoint_path = cfg.model.load_weights
-        if not check_isfile(checkpoint_path):
-            raise RuntimeError(f'File {checkpoint_path} is absent')
-        if not is_current_checkpoint_nncf:
-            print(f'** WARNING: the checkpoint {checkpoint_path} does not contain NNCF metainfo, '
-                  f'the NNCF config will be filled either from the model config or from the default values')
-
-        datamanager_for_nncf = None
-
-        compression_ctrl, model, _, _ = wrap_nncf_model(model, cfg, datamanager_for_nncf,
-                                                        checkpoint_path=checkpoint_path)
     model.eval()
 
     transform = build_inference_transform(
