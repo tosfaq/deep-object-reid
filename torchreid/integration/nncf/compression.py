@@ -169,7 +169,7 @@ def wrap_nncf_model(model, cfg, datamanager_for_init,
         # update it just to be on the safe side
         nncf_metainfo['nncf_config'] = nncf_config_data
 
-    class ReidInitializeDataLoader(InitializingDataLoader): #TODO: check is it correct
+    class ReidInitializeDataLoader(InitializingDataLoader):
         def get_inputs(self, dataloader_output):
             # define own InitializingDataLoader class using approach like
             # parse_data_for_train and parse_data_for_eval in the class Engine
@@ -209,8 +209,8 @@ def wrap_nncf_model(model, cfg, datamanager_for_init,
         model(input_blob)
         model.train(prev_training_state)
 
-    # TODO: think if this is required
-    #       (NNCF has the default wrap_inputs builder)
+    # TODO(lbeynens): improve this function to
+    # avoid possible NNCF graph nodes duplication
     def wrap_inputs(args, kwargs):
         assert not kwargs
         assert len(args) == 1
