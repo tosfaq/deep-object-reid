@@ -8,6 +8,7 @@ import random
 import sys
 import time
 import warnings
+import yaml
 
 import numpy as np
 import PIL
@@ -15,9 +16,9 @@ import torch
 from PIL import Image
 
 __all__ = [
-    'mkdir_if_missing', 'check_isfile', 'read_json', 'write_json',
+    'mkdir_if_missing', 'check_isfile', 'read_json', 'write_json', 'read_yaml',
     'set_random_seed', 'download_url', 'read_image', 'collect_env_info',
-    'get_model_attr', 'StateCacher',
+    'get_model_attr', 'StateCacher', 'random_image'
 ]
 
 
@@ -55,6 +56,12 @@ def write_json(obj, fpath):
     mkdir_if_missing(osp.dirname(fpath))
     with open(fpath, 'w') as f:
         json.dump(obj, f, indent=4, separators=(',', ': '))
+
+def read_yaml(fpath):
+    """Reads YAML file from a path."""
+    with open(fpath, 'r') as f:
+        obj = yaml.safe_load(f)
+    return obj
 
 def set_random_seed(seed):
     torch.manual_seed(seed)
@@ -118,6 +125,15 @@ def read_image(path, grayscale=False):
             print('IOError incurred when reading "{}". Will redo. Don\'t worry. Just chill.'.format(path))
 
     return img
+
+def random_image(height, width):
+    input_size = (height, width, 3)
+    img = np.random.rand(*input_size).astype(np.float32)
+    img = np.uint8(img * 255)
+
+    out_img = Image.fromarray(img)
+
+    return out_img
 
 
 def collect_env_info():

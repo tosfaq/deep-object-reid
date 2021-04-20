@@ -49,9 +49,15 @@ class ImageAMSoftmaxEngine(Engine):
                  margin_type='cos', epsilon=0.1, aug_type=None, decay_power=3, alpha=1., size=(224, 224), max_soft=0.0,
                  reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, s=10, compute_s=False, end_s=None,
                  duration_s=None, skip_steps_s=None, enable_masks=False, adaptive_margins=False, class_weighting=False,
-                 attr_cfg=None, base_num_classes=-1, symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False):
+                 attr_cfg=None, base_num_classes=-1, symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False,
+                 should_freeze_aux_models=False,
+                 nncf_metainfo=None,
+                 initial_lr=None):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt,
-                                                    train_patience, lb_lr, early_stoping)
+                                                   train_patience, lb_lr, early_stoping,
+                                                   should_freeze_aux_models=should_freeze_aux_models,
+                                                   nncf_metainfo=nncf_metainfo,
+                                                   initial_lr=initial_lr)
 
         assert softmax_type in ['stock', 'am']
         if compute_s and softmax_type == 'am':
@@ -236,7 +242,11 @@ class ImageAMSoftmaxEngine(Engine):
                         loss_summary['mutual_{}/{}'.format(trg_id, model_names[model_id])] = m_loss.item()
                         num_mutual_losses += 1
 
-                total_loss += mutual_loss / float(num_mutual_losses)
+                should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
+                coeff_mutual_learning = int(not should_turn_off_mutual_learning)
+
+                total_loss += coeff_mutual_learning * mutual_loss / float(num_mutual_losses)
+
 
             total_loss.backward(retain_graph=self.enable_metric_losses)
 

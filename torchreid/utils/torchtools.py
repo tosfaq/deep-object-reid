@@ -5,6 +5,7 @@ import shutil
 import warnings
 from collections import OrderedDict
 from functools import partial
+from pprint import pformat
 
 import torch
 import torch.nn as nn
@@ -185,6 +186,9 @@ def open_all_layers(model):
     """
     model.train()
     for p in model.parameters():
+        if p.dtype in (torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.bool):
+            # only Tensors of floating point dtype can require gradients
+            continue
         p.requires_grad = True
 
 
@@ -259,6 +263,18 @@ def count_num_param(model):
     return num_param
 
 
+def _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers):
+    if discarded_layers:
+        print(
+            '** The following layers are discarded '
+            'due to unmatched keys or layer size: {}'.
+            format(pformat(discarded_layers))
+        )
+    if unmatched_layers:
+        print(
+            '** The following layers were not loaded from checkpoint: {}'.
+            format(pformat(unmatched_layers))
+        )
 def load_pretrained_weights(model, file_path='', pretrained_dict=None):
     r"""Loads pretrianed weights to model.
     Features::
@@ -272,6 +288,12 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None):
         >>> file_path = 'log/my_model/model-best.pth.tar'
         >>> load_pretrained_weights(model, file_path)
     """
+    def _remove_prefix(key, prefix):
+        prefix = prefix + '.'
+        if key.startswith(prefix):
+            key = key[len(prefix):]
+        return key
+
     if file_path:
         check_isfile(file_path)
     checkpoint = (load_checkpoint(file_path)
@@ -290,8 +312,10 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None):
     matched_layers, discarded_layers = [], []
 
     for k, v in state_dict.items():
-        if k.startswith('module.'):
-            k = k[7:]  # discard module.
+        # discard known prefixes: 'nncf_module.' from NNCF, 'module.' from DataParallel
+        k = _remove_prefix(k, 'nncf_module')
+        k = _remove_prefix(k, 'module')
+
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
             matched_layers.append(k)
@@ -300,21 +324,20 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None):
 
     model_dict.update(new_state_dict)
     model.load_state_dict(model_dict)
+
     message = file_path if file_path else "pretrained dict"
+    unmatched_layers = sorted(set(model_dict.keys()) - set(new_state_dict))
     if len(matched_layers) == 0:
-        warnings.warn(
+        print(
             'The pretrained weights "{}" cannot be loaded, '
-            'please check the key names manually '
-            '(** ignored and continue **)'.format(message)
+            'please check the key names manually'.format(message)
         )
+        _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
+
+        raise RuntimeError(f'The pretrained weights {message} cannot be loaded')
     else:
         print(
             'Successfully loaded pretrained weights from "{}"'.
             format(message)
         )
-        if len(discarded_layers) > 0:
-            print(
-                '** The following layers are discarded '
-                'due to unmatched keys or layer size: {}'.
-                format(discarded_layers)
-            )
+        _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)

@@ -1,6 +1,7 @@
 import argparse
 
 from PIL import Image
+from pprint import pformat
 import numpy as np
 from torch.onnx.symbolic_helper import parse_args
 
@@ -79,10 +80,21 @@ def build_datamanager(cfg, classification_classes_filter=None):
         return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
 
 
-def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr=None):
+def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr=None,
+                          nncf_aux_config_file=None,
+                          aux_config_opts=None):
     aux_cfg = get_default_config()
     aux_cfg.use_gpu = use_gpu
     aux_cfg.merge_from_file(config_file)
+    if nncf_aux_config_file:
+        print(f'applying to aux config changes from NNCF aux config file {nncf_aux_config_file}')
+        aux_cfg.merge_from_file(nncf_aux_config_file)
+    if aux_config_opts:
+        print(f'applying to aux config changes from command line arguments, '
+                f'the changes are:\n{pformat(aux_config_opts)}')
+        aux_cfg.merge_from_list(aux_config_opts)
+
+    print('\nShow auxiliary configuration\n{}\n'.format(aux_cfg))
 
     if lr is not None:
         aux_cfg.train.lr = lr
@@ -101,7 +113,11 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
 
     if aux_cfg.use_gpu:
         assert device_ids is not None
-        model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
+
+        if len(device_ids) > 1:
+            model = DataParallel(model, device_ids=device_ids, output_device=0).cuda(device_ids[0])
+        else:
+            model = model.cuda(device_ids[0])
 
     return model, optimizer, scheduler
 
@@ -128,12 +144,10 @@ def group_norm_symbolic(g, input_blob, num_groups, weight, bias, eps, cudnn_enab
 
     return output
 
-
-def random_image(height, width):
-    input_size = (height, width, 3)
-    img = np.random.rand(*input_size).astype(np.float32)
-    img = np.uint8(img * 255)
-
-    out_img = Image.fromarray(img)
-
-    return out_img
+def is_config_parameter_set_from_command_line(cmd_line_opts, parameter_name):
+    # Note that cmd_line_opts here should be compatible with
+    # the function yacs.config.CfgNode.merge_from_list
+    if not cmd_line_opts:
+        return False
+    key_names = cmd_line_opts[0::2]
+    return (parameter_name in key_names)

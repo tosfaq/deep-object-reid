@@ -29,6 +29,9 @@ from torchreid.models import build_model
 from torchreid.utils import (Logger, set_random_seed,
                              load_pretrained_weights, get_model_attr)
 from torchreid.engine import build_engine
+from torchreid.integration.nncf.compression import is_checkpoint_nncf
+from torchreid.integration.nncf.compression_script_utils import (make_nncf_changes_in_eval,
+                                                                 make_nncf_changes_in_main_training_config)
 
 
 def main():
@@ -41,6 +44,13 @@ def main():
         cfg.merge_from_file(args.config_file)
     reset_config(cfg, args)
     cfg.merge_from_list(args.opts)
+
+    is_ie_model = cfg.model.load_weights.endswith('.xml')
+    is_nncf_used = (not is_ie_model) and is_checkpoint_nncf(cfg.model.load_weights)
+    if is_nncf_used:
+        print(f'Using NNCF -- making NNCF changes in config')
+        cfg = make_nncf_changes_in_main_training_config(cfg, args.opts)
+
     set_random_seed(cfg.train.seed)
 
     log_name = 'test.log' + time.strftime('-%Y-%m-%d-%H-%M-%S')
@@ -49,10 +59,13 @@ def main():
     datamanager = torchreid.data.ImageDataManager(filter_classes=args.classes, **imagedata_kwargs(cfg))
     num_classes = len(datamanager.test_loader[cfg.data.targets[0]]['query'].dataset.classes)
 
-    is_ie_model = cfg.model.load_weights.endswith('.xml')
     if not is_ie_model:
         model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
         load_pretrained_weights(model, cfg.model.load_weights)
+        if is_nncf_used:
+            print('Begin making NNCF changes in model')
+            model = make_nncf_changes_in_eval(model, cfg)
+            print('End making NNCF changes in model')
         if cfg.use_gpu:
             num_devices = min(torch.cuda.device_count(), args.gpu_num)
             main_device_ids = list(range(num_devices))

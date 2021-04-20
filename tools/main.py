@@ -11,14 +11,20 @@ from scripts.default_config import (engine_run_kwargs, get_default_config,
                                     optimizer_kwargs)
 from scripts.script_utils import (build_base_argparser, reset_config,
                                   check_classes_consistency,
-                                  build_datamanager, build_auxiliary_model)
+                                  build_datamanager, build_auxiliary_model,
+                                  is_config_parameter_set_from_command_line)
 
 import torchreid
-from torchreid.engine import build_engine
+from torchreid.engine import build_engine, get_initial_lr_from_checkpoint
 from torchreid.ops import DataParallel
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              compute_model_complexity, resume_from_checkpoint,
                              set_random_seed, load_pretrained_weights)
+
+from torchreid.integration.nncf.compression import is_checkpoint_nncf
+from torchreid.integration.nncf.compression_script_utils import (get_nncf_changes_in_aux_training_config,
+                                                                 make_nncf_changes_in_training,
+                                                                 make_nncf_changes_in_main_training_config)
 
 
 def main():
@@ -27,6 +33,11 @@ def main():
                         help='path to extra config files')
     parser.add_argument('--split-models', action='store_true',
                         help='whether to split models on own gpu')
+
+    parser.add_argument('--nncf', action='store_true',
+                        help='If nncf compression should be used')
+    parser.add_argument('--aux-config-opts', nargs='+', default=None,
+                        help='Modify aux config options using the command-line')
     args = parser.parse_args()
 
     cfg = get_default_config()
@@ -35,6 +46,15 @@ def main():
         cfg.merge_from_file(args.config_file)
     reset_config(cfg, args)
     cfg.merge_from_list(args.opts)
+
+    is_nncf_used = args.nncf or is_checkpoint_nncf(cfg.model.load_weights)
+    if is_nncf_used:
+        print(f'Using NNCF -- making NNCF changes in config')
+        cfg = make_nncf_changes_in_main_training_config(cfg, args.opts)
+        nncf_changes_in_aux_train_config = get_nncf_changes_in_aux_training_config(cfg)
+    else:
+        nncf_changes_in_aux_train_config = None
+
     set_random_seed(cfg.train.seed)
 
     log_name = 'test.log' if cfg.test.evaluate else 'train.log'
@@ -58,6 +78,22 @@ def main():
     num_params, flops = compute_model_complexity(model, (1, 3, cfg.data.height, cfg.data.width))
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
+    aux_lr = None # placeholder, needed for aux models, may be filled by nncf part below
+    if is_nncf_used:
+        print('Begin making NNCF changes in model')
+        model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
+                                                                          args.classes,
+                                                                          args.opts)
+
+        should_freeze_aux_models = True
+        print(f'should_freeze_aux_models = {should_freeze_aux_models}')
+        print('End making NNCF changes in model')
+    else:
+        should_freeze_aux_models = False
+        nncf_metainfo = None
+
+    # creating optimizer and scheduler -- it should be done after NNCF part, since
+    # NNCF could change some parameters
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
 
     if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
@@ -65,12 +101,13 @@ def main():
     else:
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 
-    if cfg.model.resume and check_isfile(cfg.model.resume):
+    # Loading model (and optimizer and scheduler in case of resuming training).
+    # Note that if NNCF is used, loading is done inside NNCF part, so loading here is not required.
+    if cfg.model.resume and check_isfile(cfg.model.resume) and not is_nncf_used:
         cfg.train.start_epoch = resume_from_checkpoint(
             cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
             )
-
-    elif cfg.model.load_weights and check_isfile(cfg.model.load_weights):
+    elif cfg.model.load_weights and check_isfile(cfg.model.load_weights) and not is_nncf_used:
         load_pretrained_weights(model, cfg.model.load_weights)
 
     if cfg.model.classification:
@@ -115,26 +152,28 @@ def main():
             main_device_ids = list(range(num_devices))
             extra_device_ids = [main_device_ids for _ in range(len(cfg.mutual_learning.aux_configs))]
 
-        model = DataParallel(model, device_ids=main_device_ids, output_device=0).cuda(main_device_ids[0])
+        if num_devices > 1:
+            model = DataParallel(model, device_ids=main_device_ids, output_device=0).cuda(main_device_ids[0])
+        else:
+            model = model.cuda(main_device_ids[0])
     else:
         extra_device_ids = [None for _ in range(len(cfg.mutual_learning.aux_configs))]
 
-    lr = None # placeholder, needed for aux models
     if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
         if enable_mutual_learning:
             print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
 
         # build new engine
         engine = build_engine(cfg, datamanager, model, optimizer, scheduler)
-        lr = engine.find_lr(**lr_finder_run_kwargs(cfg))
+        aux_lr = engine.find_lr(**lr_finder_run_kwargs(cfg))
 
-        print(f"Estimated learning rate: {lr}")
+        print(f"Estimated learning rate: {aux_lr}")
         if cfg.lr_finder.stop_after:
             print("Finding learning rate finished. Terminate the training process")
             exit()
 
         # reload random seeds, optimizer with new lr and scheduler for it
-        cfg.train.lr = lr
+        cfg.train.lr = aux_lr
         cfg.lr_finder.enable = False
         set_random_seed(cfg.train.seed)
 
@@ -147,7 +186,9 @@ def main():
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
         for config_file, device_ids in zip(cfg.mutual_learning.aux_configs, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                config_file, num_train_classes, cfg.use_gpu, device_ids, lr=lr
+                config_file, num_train_classes, cfg.use_gpu, device_ids, lr=aux_lr,
+                nncf_aux_config_file=nncf_changes_in_aux_train_config,
+                aux_config_opts=args.aux_config_opts
             )
 
             models.append(aux_model)
@@ -157,7 +198,10 @@ def main():
         models, optimizers, schedulers = model, optimizer, scheduler
 
     print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
-    engine = build_engine(cfg, datamanager, models, optimizers, schedulers)
+    engine = build_engine(cfg, datamanager, models, optimizers, schedulers,
+                          should_freeze_aux_models=should_freeze_aux_models,
+                          nncf_metainfo=nncf_metainfo,
+                          initial_lr=cfg.train.lr)
 
     log_dir = cfg.data.tb_log_dir if cfg.data.tb_log_dir else cfg.data.save_dir
     engine.run(**engine_run_kwargs(cfg), tb_writer=SummaryWriter(log_dir=log_dir))

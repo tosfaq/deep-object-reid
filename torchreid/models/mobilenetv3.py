@@ -7,6 +7,8 @@ from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, EvalModeSetter, rsc
 from .common import HSigmoid, HSwish, ModelInterface, make_divisible
 
+from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
+
 __all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150', 'mobilenetv3_large_125']
 
 pretrained_urls = {
@@ -18,6 +20,11 @@ pretrained_urls = {
     'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-large-0.75-9632d2a8.pth?raw=true',
 }
 
+
+SHOULD_NNCF_SKIP_SE_LAYERS = False
+SHOULD_NNCF_SKIP_HEAD = False
+no_nncf_se_layer_context = get_no_nncf_trace_context_manager() if SHOULD_NNCF_SKIP_SE_LAYERS else nullcontext
+no_nncf_head_context = get_no_nncf_trace_context_manager() if SHOULD_NNCF_SKIP_HEAD else nullcontext
 
 class SELayer(nn.Module):
     def __init__(self, channel, reduction=4):
@@ -31,9 +38,10 @@ class SELayer(nn.Module):
         )
 
     def forward(self, x):
-        b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.fc(y).view(b, c, 1, 1)
+        with no_nncf_se_layer_context():
+            b, c, _, _ = x.size()
+            y = self.avg_pool(x).view(b, c)
+            y = self.fc(y).view(b, c, 1, 1)
         return x * y
 
 
@@ -182,8 +190,9 @@ class MobileNetV3(ModelInterface):
         if return_featuremaps:
             return y
 
-        glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
-        logits = self.classifier(glob_features.view(x.shape[0], -1))
+        with no_nncf_head_context():
+            glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
+            logits = self.classifier(glob_features.view(x.shape[0], -1))
 
         if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
             glob_features = rsc(

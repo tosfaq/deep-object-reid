@@ -3,7 +3,14 @@ from torchreid.engine import (ImageAMSoftmaxEngine, ImageContrastiveEngine,
                               VideoTripletEngine)
 
 
-def build_engine(cfg, datamanager, model, optimizer, scheduler):
+def build_engine(cfg, datamanager, model, optimizer, scheduler,
+                 should_freeze_aux_models=False,
+                 nncf_metainfo=None,
+                 initial_lr=None):
+    if should_freeze_aux_models or nncf_metainfo:
+        if (cfg.data.type != 'image') or (cfg.loss.name not in ['softmax', 'am_softmax']):
+            raise NotImplementedError('Freezing of aux models or NNCF compression are supported only for '
+                                      'softmax and am_softmax losses for data.type = image')
     if cfg.data.type == 'image':
         if cfg.loss.name in ['softmax', 'am_softmax']:
             softmax_type = 'stock' if cfg.loss.name == 'softmax' else 'am'
@@ -46,6 +53,9 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler):
                 mix_weight=cfg.mixing_loss.enable * cfg.mixing_loss.weight,
                 enable_rsc=cfg.model.self_challenging_cfg.enable,
                 enable_sam=cfg.sam.enable,
+                should_freeze_aux_models=should_freeze_aux_models,
+                nncf_metainfo=nncf_metainfo,
+                initial_lr=initial_lr
             )
         elif cfg.loss.name == 'contrastive':
             engine = ImageContrastiveEngine(
