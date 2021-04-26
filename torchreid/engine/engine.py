@@ -312,7 +312,6 @@ class Engine:
         self.writer = tb_writer
 
         time_start = time.time()
-        top1 = None
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch
         self.fixbase_epoch = fixbase_epoch
@@ -355,10 +354,10 @@ class Engine:
                 if lr_finder:
                     print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
 
-            if (self.early_stoping and
-                not lr_finder and
-                self.exit_on_plataeu(top1, top5, mAP)):
-                    break
+                if (self.early_stoping and
+                    not lr_finder and
+                    self.exit_on_plataeu(top1, top5, mAP)):
+                        break
 
         if self.max_epoch > 0:
             print('=> Final test')
