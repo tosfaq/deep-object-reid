@@ -20,7 +20,7 @@ import time
 import sys
 
 import torch
-from scripts.default_config import get_default_config, model_kwargs, imagedata_kwargs
+from scripts.default_config import get_default_config, model_kwargs, imagedata_kwargs, merge_from_files_with_base
 from scripts.script_utils import reset_config, build_base_argparser, check_classes_consistency
 
 import torchreid
@@ -41,7 +41,7 @@ def main():
     cfg = get_default_config()
     cfg.use_gpu = torch.cuda.is_available() and args.gpu_num > 0
     if args.config_file:
-        cfg.merge_from_file(args.config_file)
+        merge_from_files_with_base(cfg, args.config_file)
     reset_config(cfg, args)
     cfg.merge_from_list(args.opts)
 

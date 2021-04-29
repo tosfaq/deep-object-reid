@@ -10,7 +10,9 @@ from torchreid.ops import DataParallel
 from torchreid.utils import load_pretrained_weights, check_isfile, resume_from_checkpoint
 
 from scripts.default_config import (imagedata_kwargs, videodata_kwargs,
-                             get_default_config, model_kwargs, optimizer_kwargs, lr_scheduler_kwargs)
+                                    get_default_config, model_kwargs,
+                                    optimizer_kwargs, lr_scheduler_kwargs,
+                                    merge_from_files_with_base)
 
 
 def build_base_argparser():
@@ -85,10 +87,10 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
                           aux_config_opts=None):
     aux_cfg = get_default_config()
     aux_cfg.use_gpu = use_gpu
-    aux_cfg.merge_from_file(config_file)
+    merge_from_files_with_base(aux_cfg, config_file)
     if nncf_aux_config_file:
         print(f'applying to aux config changes from NNCF aux config file {nncf_aux_config_file}')
-        aux_cfg.merge_from_file(nncf_aux_config_file)
+        merge_from_files_with_base(aux_cfg, nncf_aux_config_file)
     if aux_config_opts:
         print(f'applying to aux config changes from command line arguments, '
                 f'the changes are:\n{pformat(aux_config_opts)}')

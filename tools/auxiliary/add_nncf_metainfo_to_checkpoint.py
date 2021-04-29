@@ -3,7 +3,7 @@ import os
 
 import torch
 
-from scripts.default_config import get_default_config
+from scripts.default_config import get_default_config, merge_from_files_with_base
 from torchreid.utils import save_checkpoint
 from torchreid.integration.nncf.compression import get_default_nncf_compression_config
 
@@ -22,7 +22,7 @@ def main():
     args = parser.parse_args()
 
     cfg = get_default_config()
-    cfg.merge_from_file(args.config_file)
+    merge_from_files_with_base(cfg, args.config_file)
     checkpoint = torch.load(args.checkpoint, map_location='cpu')
     if not isinstance(checkpoint, dict):
         raise RuntimeError('Wrong format of checkpoint -- it is not the result of deep-object-reid training')

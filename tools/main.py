@@ -8,7 +8,8 @@ import torch
 from scripts.default_config import (engine_run_kwargs, get_default_config,
                                     lr_finder_run_kwargs,
                                     lr_scheduler_kwargs, model_kwargs,
-                                    optimizer_kwargs)
+                                    optimizer_kwargs,
+                                    merge_from_files_with_base)
 from scripts.script_utils import (build_base_argparser, reset_config,
                                   check_classes_consistency,
                                   build_datamanager, build_auxiliary_model,
@@ -43,11 +44,11 @@ def main():
     cfg = get_default_config()
     cfg.use_gpu = torch.cuda.is_available() and args.gpu_num > 0
     if args.config_file:
-        cfg.merge_from_file(args.config_file)
+        merge_from_files_with_base(cfg, args.config_file)
     reset_config(cfg, args)
     cfg.merge_from_list(args.opts)
 
-    is_nncf_used = args.nncf or is_checkpoint_nncf(cfg.model.load_weights)
+    is_nncf_used = args.nncf or cfg.nncf.enable or is_checkpoint_nncf(cfg.model.load_weights)
     if is_nncf_used:
         print(f'Using NNCF -- making NNCF changes in config')
         cfg = make_nncf_changes_in_main_training_config(cfg, args.opts)

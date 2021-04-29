@@ -7,7 +7,7 @@ from PIL import Image
 
 from torchreid.models import build_model
 from torchreid.utils import check_isfile, compute_model_complexity, load_pretrained_weights
-from scripts.default_config import model_kwargs, get_default_config
+from scripts.default_config import model_kwargs, get_default_config, merge_from_files_with_base
 
 
 class FeatureExtractor(object):
@@ -62,7 +62,7 @@ class FeatureExtractor(object):
     ):
         # Build model
         cfg = get_default_config()
-        cfg.merge_from_file(config_path)
+        merge_from_files_with_base(cfg, config_path)
         cfg.use_gpu = device.startswith('cuda')
         model = build_model(**model_kwargs(cfg, 1))
         model.eval()

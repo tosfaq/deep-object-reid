@@ -3,6 +3,7 @@ from pprint import pformat
 from torchreid.engine import get_initial_lr_from_checkpoint
 from torchreid.utils import check_isfile, load_pretrained_weights, read_yaml
 
+from scripts.default_config import merge_from_files_with_base
 from scripts.script_utils import build_datamanager, is_config_parameter_set_from_command_line
 
 from .compression import (is_checkpoint_nncf, wrap_nncf_model)
@@ -76,7 +77,7 @@ def make_nncf_changes_in_main_training_config(cfg, command_line_cfg_opts):
         _sanity_check_nncf_changes_in_config(nncf_changes_in_main_train_config)
 
         print(f'applying changes to the main training config from the file {nncf_changes_in_main_train_config}')
-        cfg.merge_from_file(nncf_changes_in_main_train_config)
+        merge_from_files_with_base(cfg, nncf_changes_in_main_train_config)
         # then command line options should be applied again,
         # since the options set from the command line should have preference
         print(f'applying changes to the main training config from the command line options just after that. '

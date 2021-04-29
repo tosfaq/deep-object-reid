@@ -1,9 +1,17 @@
+import os
+import yaml
+
 from yacs.config import CfgNode as CN
 
 
 def get_default_config():
 
     cfg = CN()
+
+    # special slot for inheritance implementation
+    #  -- see the function merge_from_files_with_base below
+    cfg._base_ = ''
+
     # lr finder
     cfg.lr_finder = CN()
     cfg.lr_finder.enable = False
@@ -405,6 +413,8 @@ def get_default_config():
 
     # NNCF part
     cfg.nncf = CN()
+    # this flag forces using NNCF
+    cfg.nncf.enable = False
     # coefficient to decrease LR for NNCF training
     # (the original initial LR for training will be read from the checkpoint's metainfo)
     cfg.nncf.coeff_decrease_lr_for_nncf = 0.035
@@ -416,6 +426,52 @@ def get_default_config():
     cfg.nncf.changes_in_aux_train_config = ''
 
     return cfg
+
+def merge_from_files_with_base(cfg, cfg_path):
+    if not (cfg_path.lower().endswith('.yml') or cfg_path.lower().endswith('.yaml')):
+            raise RuntimeError(f'Wrong extension of config file {cfg_path}')
+
+    def _get_list_of_files(cfg_path, set_of_files=None):
+        if set_of_files is None:
+            set_of_files = {cfg_path}
+
+        if not os.path.isfile(cfg_path):
+            raise FileNotFoundError(f'Config file {cfg_path} not found')
+
+        with open(cfg_path) as f:
+            d = yaml.safe_load(f)
+
+        base = d.get('_base_')
+        if not base:
+            return [cfg_path]
+
+        if not isinstance(base, (list, str)):
+            raise RuntimeError(f'Wrong type of field "_base_" in config {cfg_path}')
+
+        if isinstance(base, list) and len(b) > 1:
+            raise NotImplementedError(f'Multiple inheritance of configs is not implemented. '
+                                      f'Please, fix the config {cfg_path}')
+        if isinstance(base, list):
+            base = base[0]
+            if not isinstance(base, str):
+                raise RuntimeError(f'Wrong type of the element in the field "_base_" in config {cfg_path}')
+
+        if base in set_of_files:
+            raise RuntimeError(f'Cyclic inheritance of config files found in {cfg_path}')
+        set_of_files.add(base)
+
+        cur_list_files = _get_list_of_files(base, set_of_files)
+        cur_list_files += [cfg_path]
+        return cur_list_files
+
+    cur_list_files = _get_list_of_files(cfg_path)
+    assert len(cur_list_files) >= 1
+
+    print('Begin merging of config files with inheritance')
+    for cur_path in cur_list_files:
+        print(f'    merging config file {cur_path}')
+        cfg.merge_from_file(cur_path)
+    print('End merging of config files with inheritance')
 
 
 def imagedata_kwargs(cfg):
