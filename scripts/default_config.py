@@ -428,40 +428,39 @@ def get_default_config():
     return cfg
 
 def merge_from_files_with_base(cfg, cfg_path):
-    if not (cfg_path.lower().endswith('.yml') or cfg_path.lower().endswith('.yaml')):
-            raise RuntimeError(f'Wrong extension of config file {cfg_path}')
-
-    def _get_list_of_files(cfg_path, set_of_files=None):
+    def _get_list_of_files(cur_path, set_of_files=None):
+        if not (cur_path.lower().endswith('.yml') or cur_path.lower().endswith('.yaml')):
+                raise RuntimeError(f'Wrong extension of config file {cur_path}')
         if set_of_files is None:
-            set_of_files = {cfg_path}
+            set_of_files = {cur_path}
+        elif cur_path in set_of_files:
+            raise RuntimeError(f'Cyclic inheritance of config files found in {cur_path}')
+        set_of_files.add(cur_path)
 
-        if not os.path.isfile(cfg_path):
-            raise FileNotFoundError(f'Config file {cfg_path} not found')
+        if not os.path.isfile(cur_path):
+            raise FileNotFoundError(f'Config file {cur_path} not found')
 
-        with open(cfg_path) as f:
+        with open(cur_path) as f:
             d = yaml.safe_load(f)
 
         base = d.get('_base_')
         if not base:
-            return [cfg_path]
+            return [cur_path]
 
         if not isinstance(base, (list, str)):
-            raise RuntimeError(f'Wrong type of field "_base_" in config {cfg_path}')
+            raise RuntimeError(f'Wrong type of field "_base_" in config {cur_path}')
 
-        if isinstance(base, list) and len(b) > 1:
+        if isinstance(base, list) and len(base) > 1:
             raise NotImplementedError(f'Multiple inheritance of configs is not implemented. '
-                                      f'Please, fix the config {cfg_path}')
+                                      f'Please, fix the config {cur_path}')
         if isinstance(base, list):
             base = base[0]
             if not isinstance(base, str):
-                raise RuntimeError(f'Wrong type of the element in the field "_base_" in config {cfg_path}')
+                raise RuntimeError(f'Wrong type of the element in the field "_base_" in config {cur_path}')
 
-        if base in set_of_files:
-            raise RuntimeError(f'Cyclic inheritance of config files found in {cfg_path}')
-        set_of_files.add(base)
 
         cur_list_files = _get_list_of_files(base, set_of_files)
-        cur_list_files += [cfg_path]
+        cur_list_files += [cur_path]
         return cur_list_files
 
     cur_list_files = _get_list_of_files(cfg_path)
