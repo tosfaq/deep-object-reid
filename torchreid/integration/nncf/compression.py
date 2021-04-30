@@ -126,7 +126,7 @@ def wrap_nncf_model(model, cfg, datamanager_for_init,
     from nncf import (NNCFConfig, create_compressed_model,
                       register_default_init_args)
     from nncf.initialization import InitializingDataLoader
-    from nncf.dynamic_graph.input_wrapping import nncf_model_input
+    from nncf.dynamic_graph.io_handling import nncf_model_input
     from nncf.dynamic_graph.trace_tensor import TracedTensor
 
     nncf_metainfo = _get_nncf_metainfo_from_checkpoint(checkpoint_path)
