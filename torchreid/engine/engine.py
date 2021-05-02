@@ -395,7 +395,8 @@ class Engine:
                 lr_finder=lr_finder
             )
             if self.save_chkpt and not lr_finder:
-                self.save_model(self.epoch, save_dir)
+                _, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1_final, top5, mAP)
+                self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best)
             if lr_finder:
                 print(f"epoch: {self.epoch}\t top1: {top1_final}\t lr: {self.get_current_lr()}")
 
