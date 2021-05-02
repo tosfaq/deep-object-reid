@@ -212,18 +212,24 @@ class Engine:
             name = self.get_model_names()[0]
             current_lr = self.get_current_lr()
 
-            if current_lr == self.lb_lr:
-                current_metric = np.round(top1, 4)
-                if (self.best_metric >= current_metric):
-                    self.iter_to_wait += 1
-                    if self.iter_to_wait >= self.train_patience:
-                        print("The training stopped due to no improvements for {} epochs".format(self.train_patience))
-                        return True
-                else:
-                    self.best_metric = current_metric
-                    self.iter_to_wait = 0
+            should_exit = False
+            is_candidate_for_best = False
 
-            return False
+            if current_lr > self.lb_lr:
+                return should_exit, is_candidate_for_best
+
+            current_metric = np.round(top1, 4)
+            if (self.best_metric >= current_metric):
+                self.iter_to_wait += 1
+                if self.iter_to_wait >= self.train_patience:
+                    print("The training stopped due to no improvements for {} epochs".format(self.train_patience))
+                    should_exit = True
+            else:
+                self.best_metric = current_metric
+                self.iter_to_wait = 0
+                is_candidate_for_best = True
+
+            return should_exit, is_candidate_for_best
 
     def run(
         self,
@@ -348,15 +354,18 @@ class Engine:
                     ranks=ranks,
                     lr_finder = lr_finder
                 )
-                if self.save_chkpt and not lr_finder:
-                    self.save_model(self.epoch, save_dir)
 
                 if lr_finder:
                     print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
 
-                if (self.early_stoping and
-                    not lr_finder and
-                    self.exit_on_plataeu(top1, top5, mAP)):
+                if not lr_finder:
+                    should_exit, is_candidate_for_best = self.exit_on_plataeu(top1, top5, mAP)
+                    should_exit = self.early_stoping and should_exit
+
+                    if self.save_chkpt:
+                        self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best)
+
+                    if should_exit:
                         break
 
         if self.max_epoch > 0:
