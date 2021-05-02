@@ -61,8 +61,9 @@ def save_checkpoint(
         best_link_path = osp.join(osp.dirname(fpath), 'model-best.pth.tar')
         if osp.lexists(best_link_path):
             os.remove(best_link_path)
-        print(f'Creating best link {fpath} -> {best_link_path}')
-        os.symlink(fpath, best_link_path)
+        basename_fpath = osp.basename(fpath)
+        print(f'Creating best link {basename_fpath} -> {best_link_path}')
+        os.symlink(basename_fpath, best_link_path)
     return fpath
 
 
