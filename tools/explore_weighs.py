@@ -20,7 +20,7 @@ from argparse import REMAINDER, ArgumentDefaultsHelpFormatter, ArgumentParser
 import numpy as np
 import torch
 import torch.nn as nn
-from scripts.default_config import get_default_config, model_kwargs
+from scripts.default_config import get_default_config, model_kwargs, merge_from_files_with_base
 
 import torchreid
 from torchreid.utils import load_pretrained_weights
@@ -148,7 +148,7 @@ def main():
 
     cfg = get_default_config()
     cfg.use_gpu = torch.cuda.is_available()
-    cfg.merge_from_file(args.config)
+    merge_from_files_with_base(cfg, args.config)
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 

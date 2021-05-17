@@ -70,6 +70,7 @@ class Engine:
         self.fixbase_epoch = 0
         self.iter_to_wait = 0
         self.best_metric = 0.0
+        self.lr_prev_best_metric = None
         self.max_epoch = None
         self.num_batches = None
         self.epoch = None
@@ -208,22 +209,40 @@ class Engine:
                 else:
                     self.scheds[name].step()
 
-    def exit_on_plataeu(self, top1, top5, mAP):
-            name = self.get_model_names()[0]
-            current_lr = self.get_current_lr()
+    def exit_on_plateau_and_choose_best(self, top1, top5, mAP):
+        '''
+        The function returns a pair (should_exit, is_candidate_for_best).
 
-            if current_lr == self.lb_lr:
-                current_metric = np.round(top1, 4)
-                if (self.best_metric >= current_metric):
-                    self.iter_to_wait += 1
-                    if self.iter_to_wait >= self.train_patience:
-                        print("The training stopped due to no improvements for {} epochs".format(self.train_patience))
-                        return True
-                else:
-                    self.best_metric = current_metric
-                    self.iter_to_wait = 0
+        The function sets this checkpoint as a candidate for best if either it is the first checkpoint
+        for this LR or this checkpoint is better then the previous best.
 
-            return False
+        The function sets should_exit = True if the LR is the minimal allowed
+        LR (i.e. self.lb_lr) and the best checkpoint is not changed for self.train_patience
+        epochs.
+        '''
+        name = self.get_model_names()[0]
+        current_lr = self.get_current_lr()
+
+        should_exit = False
+        is_candidate_for_best = False
+
+        current_metric = np.round(top1, 4)
+
+        if self.lr_prev_best_metric == current_lr and self.best_metric >= current_metric:
+            # not best
+            self.iter_to_wait += 1
+
+            if (current_lr <= self.lb_lr) and (self.iter_to_wait >= self.train_patience):
+                print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
+                should_exit = True
+        else:
+            # best for this LR
+            self.best_metric = current_metric
+            self.iter_to_wait = 0
+            self.lr_prev_best_metric = current_lr
+            is_candidate_for_best = True
+
+        return should_exit, is_candidate_for_best
 
     def run(
         self,
@@ -348,15 +367,18 @@ class Engine:
                     ranks=ranks,
                     lr_finder = lr_finder
                 )
-                if self.save_chkpt and not lr_finder:
-                    self.save_model(self.epoch, save_dir)
 
                 if lr_finder:
                     print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
 
-                if (self.early_stoping and
-                    not lr_finder and
-                    self.exit_on_plataeu(top1, top5, mAP)):
+                if not lr_finder:
+                    should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1, top5, mAP)
+                    should_exit = self.early_stoping and should_exit
+
+                    if self.save_chkpt:
+                        self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best)
+
+                    if should_exit:
                         break
 
         if self.max_epoch > 0:
@@ -373,7 +395,8 @@ class Engine:
                 lr_finder=lr_finder
             )
             if self.save_chkpt and not lr_finder:
-                self.save_model(self.epoch, save_dir)
+                _, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1_final, top5, mAP)
+                self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best)
             if lr_finder:
                 print(f"epoch: {self.epoch}\t top1: {top1_final}\t lr: {self.get_current_lr()}")
 

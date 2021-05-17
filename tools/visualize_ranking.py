@@ -24,7 +24,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from scripts.default_config import (get_default_config, imagedata_kwargs,
-                                    model_kwargs)
+                                    model_kwargs, merge_from_files_with_base)
 from tqdm import tqdm, trange
 
 import torchreid
@@ -209,7 +209,7 @@ def main():
     cfg = get_default_config()
     cfg.use_gpu = torch.cuda.is_available()
     if args.config_file:
-        cfg.merge_from_file(args.config_file)
+        merge_from_files_with_base(cfg, args.config_file)
     reset_config(cfg, args)
     cfg.merge_from_list(args.opts)
 

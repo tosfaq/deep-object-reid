@@ -19,7 +19,7 @@ import argparse
 import onnx
 import torch
 
-from scripts.default_config import get_default_config, model_kwargs
+from scripts.default_config import get_default_config, model_kwargs, merge_from_files_with_base
 from scripts.script_utils import group_norm_symbolic
 from torch.onnx.symbolic_registry import register_op
 
@@ -85,7 +85,7 @@ def main():
     cfg = get_default_config()
     cfg.use_gpu = torch.cuda.is_available()
     if args.config_file:
-        cfg.merge_from_file(args.config_file)
+        merge_from_files_with_base(cfg, args.config_file)
     reset_config(cfg)
     cfg.merge_from_list(args.opts)
 

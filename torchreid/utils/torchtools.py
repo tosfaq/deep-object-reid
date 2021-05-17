@@ -1,4 +1,5 @@
 from __future__ import absolute_import, division, print_function
+import os
 import os.path as osp
 import pickle
 import shutil
@@ -57,7 +58,12 @@ def save_checkpoint(
     torch.save(state, fpath)
     print('Checkpoint saved to "{}"'.format(fpath))
     if is_best:
-        shutil.copy(fpath, osp.join(osp.dirname(fpath), 'model-best.pth.tar'))
+        best_link_path = osp.join(osp.dirname(fpath), 'model-best.pth.tar')
+        if osp.lexists(best_link_path):
+            os.remove(best_link_path)
+        basename_fpath = osp.basename(fpath)
+        print(f'Creating best link {basename_fpath} -> {best_link_path}')
+        os.symlink(basename_fpath, best_link_path)
     return fpath
 
 
