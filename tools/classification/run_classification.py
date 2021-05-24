@@ -80,7 +80,7 @@ def main():
         SVHN=dict(
             resolution=(32, 32),
             epochs=50,
-            roots=['SVHN/train.txt', 'SVHN/val.txt'],
+            roots=['SVHN/train', 'SVHN/val'],
             names=['SVHN_train', 'SVHN_val'],
             types=['classification', 'classification'],
             sources='SVHN_train',
@@ -175,7 +175,7 @@ def main():
         if key in to_skip:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
-
+        path_to_exp_folder = cfg['data']['save_dir']
         name_train = params['names'][0]
         name_val = params['names'][1]
         type_train = params['types'][0]
@@ -216,7 +216,6 @@ def main():
 
     # after training combine all outputs in one file
     if args.dump_results:
-        path_to_class_folder = f"outputs/classification_out/exp_{num_exp}"
         path_to_bash = str(Path.cwd() / 'parse_output.sh')
         run(f'bash {path_to_bash} {path_to_exp_folder}', shell=True)
         saver = dict()
