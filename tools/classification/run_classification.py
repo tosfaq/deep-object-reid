@@ -81,7 +81,7 @@ def main():
             epochs=50,
             roots=['SVHN/train', 'SVHN/val'],
             names=['SVHN_train', 'SVHN_val'],
-            types=['classification', 'classification'],
+            types=['classification_image_folder', 'classification_image_folder'],
             sources='SVHN_train',
             targets='SVHN_val',
             batch_size=128,
@@ -168,10 +168,10 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to skip
-    to_skip = {'Xray'}
+    to_train = {'CIFAR100', 'DTD', 'cars', 'caltech101', 'pets'}
 
     for key, params in datasets.items():
-        if key in to_skip:
+        if key not in to_train:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
         path_to_exp_folder = cfg['data']['save_dir']
@@ -181,6 +181,14 @@ def main():
         type_val = params['types'][1]
         root_train = args.data_root + os.sep + params['roots'][0]
         root_val = args.data_root + os.sep + params['roots'][1]
+        if key in ["CIFAR100"]:
+            cfg["train"]["lr"] = 0.02
+        elif key in ["DTD", "cars"]:
+            cfg["train"]["lr"] = 0.03
+        elif key in ["caltech101"]:
+            cfg["train"]["lr"] = 0.025
+        elif key in ["pets"]:
+            cfg["train"]["lr"] = 0.015
 
         cfg['custom_datasets']['roots'] = [root_train, root_val]
         cfg['custom_datasets']['types'] = [type_train, type_val]
