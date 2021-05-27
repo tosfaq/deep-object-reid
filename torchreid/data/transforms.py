@@ -7,6 +7,7 @@ from os.path import exists, join
 import cv2
 import numpy as np
 import torch
+import re
 from PIL import Image, ImageOps, ImageEnhance, ImageChops
 from torchvision.transforms import (ColorJitter, Compose, Normalize, Resize,
                                     ToPILImage, ToTensor, InterpolationMode)
@@ -935,6 +936,17 @@ _HPARAMS_DEFAULT = dict(
 
 _RANDOM_INTERPOLATION = (Image.BILINEAR, Image.BICUBIC)
 
+def _interpolation(kwargs):
+    interpolation = kwargs.pop('resample', Image.BILINEAR)
+    if isinstance(interpolation, (list, tuple)):
+        return random.choice(interpolation)
+    else:
+        return interpolation
+
+
+def _check_args_tf(kwargs):
+    kwargs['resample'] = _interpolation(kwargs)
+
 def shear_x(img, factor, **kwargs):
     _check_args_tf(kwargs)
     return img.transform(img.size, Image.AFFINE, (1, factor, 0, 0, 1, 0), **kwargs)
@@ -1090,7 +1102,7 @@ NAME_TO_OP = {
     'TranslateYRel': translate_y_rel,
 }
 
-AUGMIX_TRANSFORMS = [
+_AUGMIX_TRANSFORMS = [
     'AutoContrast',
     'ColorIncreasing',  # not in paper
     'ContrastIncreasing',  # not in paper
@@ -1157,7 +1169,6 @@ class AugMixAugment:
         self.alpha = alpha
         self.width = width
         self.depth = depth
-        self.magnitude = random.uniform(0, magnitude)
         self.blended = blended  # blended mode is faster but not well tested
         self.p = 1.
 
@@ -1204,14 +1215,15 @@ class AugMixAugment:
         mixed = Image.fromarray(mixed.astype(np.uint8))
         return Image.blend(img, mixed, m)
 
-    def __call__(self, img):
+    def __call__(self, input_tuple):
+        img, mask = input_tuple
         mixing_weights = np.float32(np.random.dirichlet([self.alpha] * self.width))
         m = np.float32(np.random.beta(self.alpha, self.alpha))
         if self.blended:
             mixed = self._apply_blended(img, mixing_weights, m)
         else:
             mixed = self._apply_basic(img, mixing_weights, m)
-        return mixed
+        return mixed, mask
 
 def augment_and_mix_transform(config_str, hparams=_HPARAMS_DEFAULT):
     """ Create AugMix PyTorch transform
@@ -1434,10 +1446,9 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.coarse_dropout.enable:
         print('+ coarse_dropout')
         transform_tr += [CoarseDropout(**transforms.coarse_dropout)]
-    # if augmix is on - all of the above augmentations will be applyed in augmix maner
     if transforms.augmix.enable:
-        print('all of the above augmentations will be applyed in augmix pipeline')
-        transform_tr = [AugMix(transform_tr, **transforms.augmix)]
+        print('+ AugMix')
+        transform_tr += [augment_and_mix_transform(transforms.augmix.cfg_str)]
 
     print('+ to torch tensor of range [0, 1]')
     transform_tr += [PairToTensor()]

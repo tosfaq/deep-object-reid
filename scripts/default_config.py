@@ -358,10 +358,7 @@ def get_default_config():
 
     cfg.data.transforms.augmix = CN()
     cfg.data.transforms.augmix.enable = False
-    cfg.data.transforms.augmix.p = 1.
-    cfg.data.transforms.augmix.width = 3
-    cfg.data.transforms.augmix.depth = -1
-    cfg.data.transforms.augmix.alpha = 1.
+    cfg.data.transforms.augmix.cfg_str = "augmix-m5-w3"
 
     cfg.data.transforms.random_figures = CN()
     cfg.data.transforms.random_figures.enable = False
