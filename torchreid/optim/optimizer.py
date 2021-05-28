@@ -144,7 +144,7 @@ def _build_optim(model,
         param_groups = [{'params': bias_no_decay, 'lr': bias_lr, 'weight_decay': 0.0}, {'params': weight_no_decay, 'lr': lr, 'weight_decay': 0.0}, {'params': decay, 'lr': lr, 'weight_decay': weight_decay}]
 
     else:
-        param_groups = {'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay}
+        param_groups = [{'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay}]
 
     if optim == 'adam':
         optimizer = torch.optim.AdamW(
