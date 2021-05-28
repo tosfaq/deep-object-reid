@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 import math
+from os import stat
 import random
 from collections import deque
 from os.path import exists, join
@@ -936,199 +937,212 @@ _HPARAMS_DEFAULT = dict(
 
 _RANDOM_INTERPOLATION = (Image.BILINEAR, Image.BICUBIC)
 
-def _interpolation(kwargs):
-    interpolation = kwargs.pop('resample', Image.BILINEAR)
-    if isinstance(interpolation, (list, tuple)):
-        return random.choice(interpolation)
-    else:
-        return interpolation
+class AugmentMixingFabric:
+    def __init__(self, image_mean, translate_const) -> None:
+        self._max_level = 10.
+        self._random_interpolation = (Image.BILINEAR, Image.BICUBIC)
+        self._hparams_default = dict(
+            translate_const=translate_const,
+            img_mean=image_mean,
+        )
+
+        self._random_interpolation = (Image.BILINEAR, Image.BICUBIC)
+
+        self.LEVEL_TO_ARG = {
+        'AutoContrast': None,
+        'Equalize': None,
+        'Rotate': _rotate_level_to_arg,
+        'PosterizeIncreasing': _posterize_increasing_level_to_arg,
+        'SolarizeIncreasing': _solarize_increasing_level_to_arg,
+        'ColorIncreasing': _enhance_increasing_level_to_arg,
+        'ContrastIncreasing': _enhance_increasing_level_to_arg,
+        'BrightnessIncreasing': _enhance_increasing_level_to_arg,
+        'SharpnessIncreasing': _enhance_increasing_level_to_arg,
+        'ShearX': _shear_level_to_arg,
+        'ShearY': _shear_level_to_arg,
+        'TranslateXRel': _translate_rel_level_to_arg,
+        'TranslateYRel': _translate_rel_level_to_arg,
+    }
+
+    NAME_TO_OP = {
+        'AutoContrast': auto_contrast,
+        'Equalize': equalize,
+        'Rotate': rotate,
+        'PosterizeIncreasing': posterize,
+        'SolarizeIncreasing': solarize,
+        'ColorIncreasing': color,
+        'ContrastIncreasing': contrast,
+        'BrightnessIncreasing': brightness,
+        'SharpnessIncreasing': sharpness,
+        'ShearX': self.shear_x,
+        'ShearY': self.shear_y,
+        'TranslateXRel': translate_x_rel,
+        'TranslateYRel': translate_y_rel,
+    }
+
+    _AUGMIX_TRANSFORMS = [
+        'AutoContrast',
+        'ColorIncreasing',  # not in paper
+        'ContrastIncreasing',  # not in paper
+        'BrightnessIncreasing',  # not in paper
+        'SharpnessIncreasing',  # not in paper
+        'Equalize',
+        'Rotate',
+        'PosterizeIncreasing',
+        'SolarizeIncreasing',
+        'ShearX',
+        'ShearY',
+        'TranslateXRel',
+        'TranslateYRel',
+    ]
 
 
-def _check_args_tf(kwargs):
-    kwargs['resample'] = _interpolation(kwargs)
+    @staticmethod
+    def _interpolation(kwargs):
+        interpolation = kwargs.pop('resample', Image.BILINEAR)
+        if isinstance(interpolation, (list, tuple)):
+            return random.choice(interpolation)
+        else:
+            return interpolation
 
-def shear_x(img, factor, **kwargs):
-    _check_args_tf(kwargs)
-    return img.transform(img.size, Image.AFFINE, (1, factor, 0, 0, 1, 0), **kwargs)
+    @staticmethod
+    def _check_args_tf(kwargs):
+        kwargs['resample'] = self._interpolation(kwargs)
 
+    @staticmethod
+    def shear_x(img, factor, **kwargs):
+        _check_args_tf(kwargs)
+        return img.transform(img.size, Image.AFFINE, (1, factor, 0, 0, 1, 0), **kwargs)
 
-def shear_y(img, factor, **kwargs):
-    _check_args_tf(kwargs)
-    return img.transform(img.size, Image.AFFINE, (1, 0, 0, factor, 1, 0), **kwargs)
+    @staticmethod
+    def shear_y(img, factor, **kwargs):
+        _check_args_tf(kwargs)
+        return img.transform(img.size, Image.AFFINE, (1, 0, 0, factor, 1, 0), **kwargs)
 
+    @staticmethod
+    def translate_x_rel(img, pct, **kwargs):
+        pixels = pct * img.size[0]
+        _check_args_tf(kwargs)
+        return img.transform(img.size, Image.AFFINE, (1, 0, pixels, 0, 1, 0), **kwargs)
 
-def translate_x_rel(img, pct, **kwargs):
-    pixels = pct * img.size[0]
-    _check_args_tf(kwargs)
-    return img.transform(img.size, Image.AFFINE, (1, 0, pixels, 0, 1, 0), **kwargs)
+    @staticmethod
+    def translate_y_rel(img, pct, **kwargs):
+        pixels = pct * img.size[1]
+        _check_args_tf(kwargs)
+        return img.transform(img.size, Image.AFFINE, (1, 0, 0, 0, 1, pixels), **kwargs)
 
+    @staticmethod
+    def rotate(img, degrees, **kwargs):
+        _check_args_tf(kwargs)
+        return img.rotate(degrees, **kwargs)
 
-def translate_y_rel(img, pct, **kwargs):
-    pixels = pct * img.size[1]
-    _check_args_tf(kwargs)
-    return img.transform(img.size, Image.AFFINE, (1, 0, 0, 0, 1, pixels), **kwargs)
+    @staticmethod
+    def auto_contrast(img, **__):
+        return ImageOps.autocontrast(img)
 
+    @staticmethod
+    def equalize(img, **__):
+        return ImageOps.equalize(img)
 
-def rotate(img, degrees, **kwargs):
-    _check_args_tf(kwargs)
-    return img.rotate(degrees, **kwargs)
+    @staticmethod
+    def solarize(img, thresh, **__):
+        return ImageOps.solarize(img, thresh)
 
+    @staticmethod
+    def posterize(img, bits_to_keep, **__):
+        if bits_to_keep >= 8:
+            return img
+        return ImageOps.posterize(img, bits_to_keep)
 
-def auto_contrast(img, **__):
-    return ImageOps.autocontrast(img)
+    @staticmethod
+    def contrast(img, factor, **__):
+        return ImageEnhance.Contrast(img).enhance(factor)
 
+    @staticmethod
+    def color(img, factor, **__):
+        return ImageEnhance.Color(img).enhance(factor)
 
-def equalize(img, **__):
-    return ImageOps.equalize(img)
+    @staticmethod
+    def brightness(img, factor, **__):
+        return ImageEnhance.Brightness(img).enhance(factor)
 
+    @staticmethod
+    def sharpness(img, factor, **__):
+        return ImageEnhance.Sharpness(img).enhance(factor)
 
-def solarize(img, thresh, **__):
-    return ImageOps.solarize(img, thresh)
+    @staticmethod
+    def _randomly_negate(v):
+        """With 50% prob, negate the value"""
+        return -v if random.random() > 0.5 else v
 
+    @staticmethod
+    def _rotate_level_to_arg(level, _hparams):
+        # range [-30, 30]
+        level = (level / _MAX_LEVEL) * 30.
+        level = _randomly_negate(level)
+        return level,
 
-def posterize(img, bits_to_keep, **__):
-    if bits_to_keep >= 8:
-        return img
-    return ImageOps.posterize(img, bits_to_keep)
+    @staticmethod
+    def _enhance_increasing_level_to_arg(level, _hparams):
+        # the 'no change' level is 1.0, moving away from that towards 0. or 2.0 increases the enhancement blend
+        # range [0.1, 1.9]
+        level = (level / _MAX_LEVEL) * .9
+        level = 1.0 + _randomly_negate(level)
+        return level,
 
+    @staticmethod
+    def _shear_level_to_arg(level, _hparams):
+        # range [-0.3, 0.3]
+        level = (level / _MAX_LEVEL) * 0.3
+        level = _randomly_negate(level)
+        return level,
 
-def contrast(img, factor, **__):
-    return ImageEnhance.Contrast(img).enhance(factor)
+    @staticmethod
+    def _translate_rel_level_to_arg(level, hparams):
+        # default range [-0.45, 0.45]
+        translate_pct = hparams.get('translate_pct', 0.45)
+        level = (level / _MAX_LEVEL) * translate_pct
+        level = _randomly_negate(level)
+        return level,
 
+    @staticmethod
+    def _posterize_level_to_arg(level, _hparams):
+        # As per Tensorflow TPU EfficientNet impl
+        # range [0, 4], 'keep 0 up to 4 MSB of original image'
+        # intensity/severity of augmentation decreases with level
+        return int((level / _MAX_LEVEL) * 4),
 
-def color(img, factor, **__):
-    return ImageEnhance.Color(img).enhance(factor)
+    @staticmethod
+    def _posterize_increasing_level_to_arg(level, hparams):
+        # As per Tensorflow models research and UDA impl
+        # range [4, 0], 'keep 4 down to 0 MSB of original image',
+        # intensity/severity of augmentation increases with level
+        return 4 - _posterize_level_to_arg(level, hparams)[0],
 
+    @staticmethod
+    def _solarize_level_to_arg(level, _hparams):
+        # range [0, 256]
+        # intensity/severity of augmentation decreases with level
+        return int((level / _MAX_LEVEL) * 256),
 
-def brightness(img, factor, **__):
-    return ImageEnhance.Brightness(img).enhance(factor)
+    @staticmethod
+    def _solarize_increasing_level_to_arg(level, _hparams):
+        # range [0, 256]
+        # intensity/severity of augmentation increases with level
+        return 256 - _solarize_level_to_arg(level, _hparams)[0],
 
-
-def sharpness(img, factor, **__):
-    return ImageEnhance.Sharpness(img).enhance(factor)
-
-
-def _randomly_negate(v):
-    """With 50% prob, negate the value"""
-    return -v if random.random() > 0.5 else v
-
-
-def _rotate_level_to_arg(level, _hparams):
-    # range [-30, 30]
-    level = (level / _MAX_LEVEL) * 30.
-    level = _randomly_negate(level)
-    return level,
-
-
-def _enhance_increasing_level_to_arg(level, _hparams):
-    # the 'no change' level is 1.0, moving away from that towards 0. or 2.0 increases the enhancement blend
-    # range [0.1, 1.9]
-    level = (level / _MAX_LEVEL) * .9
-    level = 1.0 + _randomly_negate(level)
-    return level,
-
-
-def _shear_level_to_arg(level, _hparams):
-    # range [-0.3, 0.3]
-    level = (level / _MAX_LEVEL) * 0.3
-    level = _randomly_negate(level)
-    return level,
-
-
-def _translate_rel_level_to_arg(level, hparams):
-    # default range [-0.45, 0.45]
-    translate_pct = hparams.get('translate_pct', 0.45)
-    level = (level / _MAX_LEVEL) * translate_pct
-    level = _randomly_negate(level)
-    return level,
-
-
-def _posterize_level_to_arg(level, _hparams):
-    # As per Tensorflow TPU EfficientNet impl
-    # range [0, 4], 'keep 0 up to 4 MSB of original image'
-    # intensity/severity of augmentation decreases with level
-    return int((level / _MAX_LEVEL) * 4),
-
-
-def _posterize_increasing_level_to_arg(level, hparams):
-    # As per Tensorflow models research and UDA impl
-    # range [4, 0], 'keep 4 down to 0 MSB of original image',
-    # intensity/severity of augmentation increases with level
-    return 4 - _posterize_level_to_arg(level, hparams)[0],
-
-
-def _solarize_level_to_arg(level, _hparams):
-    # range [0, 256]
-    # intensity/severity of augmentation decreases with level
-    return int((level / _MAX_LEVEL) * 256),
-
-
-def _solarize_increasing_level_to_arg(level, _hparams):
-    # range [0, 256]
-    # intensity/severity of augmentation increases with level
-    return 256 - _solarize_level_to_arg(level, _hparams)[0],
-
-
-LEVEL_TO_ARG = {
-    'AutoContrast': None,
-    'Equalize': None,
-    'Rotate': _rotate_level_to_arg,
-    # There are several variations of the posterize level scaling in various Tensorflow/Google repositories/papers
-    'PosterizeIncreasing': _posterize_increasing_level_to_arg,
-    'SolarizeIncreasing': _solarize_increasing_level_to_arg,
-    'ColorIncreasing': _enhance_increasing_level_to_arg,
-    'ContrastIncreasing': _enhance_increasing_level_to_arg,
-    'BrightnessIncreasing': _enhance_increasing_level_to_arg,
-    'SharpnessIncreasing': _enhance_increasing_level_to_arg,
-    'ShearX': _shear_level_to_arg,
-    'ShearY': _shear_level_to_arg,
-    'TranslateXRel': _translate_rel_level_to_arg,
-    'TranslateYRel': _translate_rel_level_to_arg,
-}
-
-NAME_TO_OP = {
-    'AutoContrast': auto_contrast,
-    'Equalize': equalize,
-    'Rotate': rotate,
-    'PosterizeIncreasing': posterize,
-    'SolarizeIncreasing': solarize,
-    'ColorIncreasing': color,
-    'ContrastIncreasing': contrast,
-    'BrightnessIncreasing': brightness,
-    'SharpnessIncreasing': sharpness,
-    'ShearX': shear_x,
-    'ShearY': shear_y,
-    'TranslateXRel': translate_x_rel,
-    'TranslateYRel': translate_y_rel,
-}
-
-_AUGMIX_TRANSFORMS = [
-    'AutoContrast',
-    'ColorIncreasing',  # not in paper
-    'ContrastIncreasing',  # not in paper
-    'BrightnessIncreasing',  # not in paper
-    'SharpnessIncreasing',  # not in paper
-    'Equalize',
-    'Rotate',
-    'PosterizeIncreasing',
-    'SolarizeIncreasing',
-    'ShearX',
-    'ShearY',
-    'TranslateXRel',
-    'TranslateYRel',
-]
 
 class AugmentOp:
     def __init__(self, name, prob=0.5, magnitude=10, hparams=None):
-        hparams = hparams or _HPARAMS_DEFAULT
+        hparams = hparams
         self.aug_fn = NAME_TO_OP[name]
         self.level_fn = LEVEL_TO_ARG[name]
         self.prob = prob
         self.magnitude = magnitude
         self.hparams = hparams.copy()
         self.kwargs = dict(
-            fillcolor=hparams['img_mean'] if 'img_mean' in hparams else _FILL,
-            resample=hparams['interpolation'] if 'interpolation' in hparams else _RANDOM_INTERPOLATION,
+            fillcolor=hparams['img_mean'],
+            resample=hparams['interpolation'],
         )
 
         # If magnitude_std is > 0, we introduce some randomness
@@ -1152,7 +1166,7 @@ class AugmentOp:
         return self.aug_fn(img, *level_args, **self.kwargs)
 
 def augmix_ops(magnitude=10, hparams=None, transforms=None):
-    hparams = hparams or _HPARAMS_DEFAULT
+    hparams = hparams or _hparams_default
     transforms = transforms or _AUGMIX_TRANSFORMS
     return [AugmentOp(
         name, prob=1.0, magnitude=magnitude, hparams=hparams) for name in transforms]
@@ -1225,7 +1239,7 @@ class AugMixAugment:
             mixed = self._apply_basic(img, mixing_weights, m)
         return mixed, mask
 
-def augment_and_mix_transform(config_str, hparams=_HPARAMS_DEFAULT):
+def augment_and_mix_transform(config_str, hparams=_hparams_default):
     """ Create AugMix PyTorch transform
     :param config_str: String defining configuration of random augmentation. Consists of multiple sections separated by
     dashes ('-'). The first section defines the specific variant of rand augment (currently only 'rand'). The remaining
