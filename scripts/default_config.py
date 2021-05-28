@@ -141,6 +141,7 @@ def get_default_config():
     cfg.train.cycle_mult = 1.
     cfg.train.min_lr = 1e-5
     cfg.train.max_lr = 0.1
+    cfg.train.nbd = False
     cfg.train.patience = 5 # define how much epochs to wait for reduce on plateau
     cfg.train.multiplier = 10
     cfg.train.print_freq = 20  # print frequency

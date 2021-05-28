@@ -79,7 +79,7 @@ def main():
     num_params, flops = compute_model_complexity(model, (1, 3, cfg.data.height, cfg.data.width))
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
-    aux_lr = None # placeholder, needed for aux models, may be filled by nncf part below
+    aux_lr = None if cfg.lr_finder.enable else cfg.train.lr # placeholder, needed for aux models, may be filled by nncf part below
     if is_nncf_used:
         print('Begin making NNCF changes in model')
         model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
