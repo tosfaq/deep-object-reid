@@ -101,7 +101,6 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
     if lr is not None:
         aux_cfg.train.lr = lr
         print(f"setting learning rate from main model, estimated by lr finder: {lr}")
-    print(f'bias_lr_twice: {aux_cfg.train.bias_lr_twice}')
     model = torchreid.models.build_model(**model_kwargs(aux_cfg, num_classes))
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
     scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
