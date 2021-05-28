@@ -142,6 +142,7 @@ def get_default_config():
     cfg.train.min_lr = 1e-5
     cfg.train.max_lr = 0.1
     cfg.train.nbd = False
+    cfg.train.lr_bias_twice = False
     cfg.train.patience = 5 # define how much epochs to wait for reduce on plateau
     cfg.train.multiplier = 10
     cfg.train.print_freq = 20  # print frequency
@@ -544,6 +545,8 @@ def optimizer_kwargs(cfg):
         'staged_lr': cfg.train.staged_lr,
         'new_layers': cfg.train.new_layers,
         'base_lr_mult': cfg.train.base_lr_mult,
+        'nbd': cfg.train.nbd,
+        'lr_bias_twice': cfg.train.lr_bias_twice,
         'sam_rho': cfg.sam.rho
     }
 
