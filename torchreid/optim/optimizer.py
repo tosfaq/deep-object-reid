@@ -88,9 +88,9 @@ def _build_optim(model,
             'Invalid base optimizer. SAM cannot be the base one'
         )
 
-    if not isinstance(model, torch.nn):
+    if not isinstance(model,nn.Module):
         raise ValueError(
-            'model should be a torch.nn instance'
+            'model should be a nn.Module instance'
         )
 
     if staged_lr:
@@ -123,6 +123,7 @@ def _build_optim(model,
         ]
 
     elif nbd:
+        print('here')
         decay, bias_no_decay, weight_no_decay = [], [], []
         for m in model.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -139,6 +140,7 @@ def _build_optim(model,
 
         # bias using 2*lr
         bias_lr = 2 * lr if lr_bias_twice else lr
+        print(f"bias_lr : {bias_lr}")
         param_groups = [{'params': bias_no_decay, 'lr': bias_lr, 'weight_decay': 0.0}, {'params': weight_no_decay, 'lr': lr, 'weight_decay': 0.0}, {'params': decay, 'lr': lr, 'weight_decay': weight_decay}]
 
     else:
