@@ -66,7 +66,7 @@ def main():
             num_C=102
         ),
         fashionMNIST=dict(
-            resolution=(28, 28),
+            resolution=(224, 224),
             epochs=35,
             roots=['fashionMNIST/train', 'fashionMNIST/val'],
             names=['fashionMNIST_train', 'fashionMNIST_val'],
@@ -77,7 +77,7 @@ def main():
             num_C=10
         ),
         SVHN=dict(
-            resolution=(32, 32),
+            resolution=(224, 224),
             epochs=50,
             roots=['SVHN/train', 'SVHN/val'],
             names=['SVHN_train', 'SVHN_val'],
@@ -168,7 +168,7 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to skip
-    to_train = {'CIFAR100', 'DTD', 'cars', 'caltech101', 'pets'}
+    to_train = {'CIFAR100', 'DTD', 'cars', 'caltech101', 'pets', 'SVHN'}
 
     for key, params in datasets.items():
         if key not in to_train:
@@ -187,6 +187,8 @@ def main():
             cfg["train"]["lr"] = 0.03
         elif key in ["caltech101"]:
             cfg["train"]["lr"] = 0.025
+        elif key in ["SVHN"]:
+            cfg["train"]["lr"] = 0.01
         elif key in ["pets"]:
             cfg["train"]["lr"] = 0.015
 

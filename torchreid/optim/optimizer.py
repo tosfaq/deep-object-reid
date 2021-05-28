@@ -73,6 +73,7 @@ def _build_optim(model,
                 staged_lr=False,
                 new_layers='',
                 base_lr_mult=0.1,
+                nbd=False,
                 sam_rho = 0.05):
     if optim not in AVAI_OPTIMS:
         raise ValueError(
@@ -86,9 +87,9 @@ def _build_optim(model,
             'Invalid base optimizer. SAM cannot be the base one'
         )
 
-    if not isinstance(model, nn.Module):
-        raise TypeError(
-            'model given to build_optimizer must be an instance of nn.Module'
+    if not isinstance(model, torch.nn):
+        raise ValueError(
+            'model should be a torch.nn instance'
         )
 
     if staged_lr:
@@ -98,9 +99,6 @@ def _build_optim(model,
                     'new_layers is empty, therefore, staged_lr is useless'
                 )
             new_layers = [new_layers]
-
-        if isinstance(model, nn.DataParallel):
-            model = model.module
 
         base_params = []
         base_layers = []
@@ -123,21 +121,37 @@ def _build_optim(model,
             },
         ]
 
+    elif nbd:
+        decay, bias_no_decay, weight_no_decay = [], [], []
+        for m in model.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                decay.append(m.weight)
+                if m.bias is not None:
+                    bias_no_decay.append(m.bias)
+            else:
+                if hasattr(m, 'weight'):
+                    weight_no_decay.append(m.weight)
+                if hasattr(m, 'bias'):
+                    bias_no_decay.append(m.bias)
+
+        assert len(list(model.parameters())) == len(decay) + len(bias_no_decay) + len(weight_no_decay)
+
+        # bias using 2*lr
+        bias_lr = 2 * lr
+        param_groups = [{'params': bias_no_decay, 'lr': bias_lr, 'weight_decay': 0.0}, {'params': weight_no_decay, 'lr': lr, 'weight_decay': 0.0}, {'params': decay, 'lr': lr, 'weight_decay': weight_decay}]
+
     else:
-        param_groups = model.parameters()
+        param_groups = {'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay}
+
     if optim == 'adam':
-        optimizer = torch.optim.Adam(
+        optimizer = torch.optim.AdamW(
             param_groups,
-            lr=lr,
-            weight_decay=weight_decay,
             betas=(adam_beta1, adam_beta2),
         )
 
     elif optim == 'amsgrad':
-        optimizer = torch.optim.Adam(
+        optimizer = torch.optim.AdamW(
             param_groups,
-            lr=lr,
-            weight_decay=weight_decay,
             betas=(adam_beta1, adam_beta2),
             amsgrad=True,
         )
@@ -145,9 +159,7 @@ def _build_optim(model,
     elif optim == 'sgd':
         optimizer = torch.optim.SGD(
             param_groups,
-            lr=lr,
             momentum=momentum,
-            weight_decay=weight_decay,
             dampening=sgd_dampening,
             nesterov=sgd_nesterov,
         )
@@ -155,16 +167,13 @@ def _build_optim(model,
     elif optim == 'rmsprop':
         optimizer = torch.optim.RMSprop(
             param_groups,
-            lr=lr,
             momentum=momentum,
-            weight_decay=weight_decay,
             alpha=rmsprop_alpha,
         )
 
     elif optim == 'radam':
         optimizer = RAdam(
             param_groups,
-            lr=lr,
             weight_decay=weight_decay,
             betas=(adam_beta1, adam_beta2)
         )
