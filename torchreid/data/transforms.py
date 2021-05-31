@@ -54,7 +54,8 @@ class CenterCrop(object):
 
 
 class RandomCrop(object):
-    def __init__(self, p=0.5, scale=0.9, static=False, margin=None, target_ar=None, align_ar=False, align_center=False, **kwargs):
+    def __init__(self, p=0.5, scale=0.9, static=False, margin=None,
+                    target_ar=None, align_ar=False, align_center=False, **kwargs):
         self.p = p
         assert 0.0 <= self.p <= 1.0
         self.scale = scale
