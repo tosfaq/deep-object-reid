@@ -272,6 +272,9 @@ def get_default_config():
     cfg.data.transforms.random_crop.align_ar = False
     cfg.data.transforms.random_crop.align_center = False
 
+    cfg.data.transforms.crop_pad = CN()
+    cfg.data.transforms.crop_pad.enable = False
+
     cfg.data.transforms.center_crop = CN()
     cfg.data.transforms.center_crop.enable = False
     cfg.data.transforms.center_crop.margin = 0
