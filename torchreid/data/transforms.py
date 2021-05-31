@@ -1143,22 +1143,6 @@ class AugMixAugment:
             rws.append(alpha)
         return np.array(rws[::-1], dtype=np.float32)
 
-    def _apply_blended(self, img, mixing_weights, m):
-        # This is my first crack and implementing a slightly faster mixed augmentation. Instead
-        # of accumulating the mix for each chain in a Numpy array and then blending with original,
-        # it recomputes the blending coefficients and applies one PIL image blend per chain.
-        # TODO the results appear in the right ballpark but they differ by more than rounding.
-        img_orig = img.copy()
-        ws = self._calc_blended_weights(mixing_weights, m)
-        for w in ws:
-            depth = self.depth if self.depth > 0 else np.random.randint(1, 4)
-            ops = np.random.choice(self.ops, depth, replace=True)
-            img_aug = img_orig  # no ops are in-place, deep copy not necessary
-            for op in ops:
-                img_aug = op(img_aug)
-            img = Image.blend(img, img_aug, w)
-        return img
-
     def _apply_basic(self, img, mixing_weights, m):
         # This is a literal adaptation of the paper/official implementation without normalizations and
         # PIL <-> Numpy conversions between every op. It is still quite CPU compute heavy compared to the
@@ -1180,10 +1164,7 @@ class AugMixAugment:
         img, mask = input_tuple
         mixing_weights = np.float32(np.random.dirichlet([self.alpha] * self.width))
         m = np.float32(np.random.beta(self.alpha, self.alpha))
-        if self.blended:
-            mixed = self._apply_blended(img, mixing_weights, m)
-        else:
-            mixed = self._apply_basic(img, mixing_weights, m)
+        mixed = self._apply_basic(img, mixing_weights, m)
         return mixed, mask
 
 def augment_and_mix_transform(config_str, image_mean, translate_const=250):
@@ -1208,11 +1189,10 @@ def augment_and_mix_transform(config_str, image_mean, translate_const=250):
     width = 3
     depth = -1
     alpha = 1.
-    blended = False
     p=1.0
     hparams = dict(
             translate_const=translate_const,
-            img_mean=tuple(map(int, image_mean)),
+            img_mean=tuple([int(c * 256) for c in image_mean]),
             magnitude_std=float('inf')
         )
     config = config_str.split('-')
@@ -1233,14 +1213,12 @@ def augment_and_mix_transform(config_str, image_mean, translate_const=250):
             depth = int(val)
         elif key == 'a':
             alpha = float(val)
-        elif key == 'b':
-            blended = bool(val)
         elif key == 'p':
             p = float(val)
         else:
             assert False, 'Unknown AugMix config section'
     ops = augmix_ops(magnitude=magnitude, hparams=hparams, prob=p)
-    return AugMixAugment(ops, alpha=alpha, width=width, depth=depth, blended=blended)
+    return AugMixAugment(ops, alpha=alpha, width=width, depth=depth)
 
 
 def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.406),
