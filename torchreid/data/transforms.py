@@ -12,6 +12,7 @@ import re
 from PIL import Image, ImageOps, ImageEnhance, ImageChops
 from torchvision.transforms import (ColorJitter, Compose, Normalize, Resize,
                                     ToPILImage, ToTensor, InterpolationMode)
+from torchvision.transforms import RandomCrop as TorchRandomCrop
 from torchvision.transforms import functional as F
 
 from torchreid.utils.tools import read_image
@@ -889,6 +890,15 @@ class DisableBackground(object):
 
         return Image.fromarray(img), mask
 
+class RandomCropPad(TorchRandomCrop):
+    def __init__(self, size, padding):
+        super().__init__(size=size, padding=padding)
+
+    def __call__(self, input_tuple):
+        image, mask = input_tuple
+        image = self.forward(image)
+
+        return image, mask
 
 class PairResize(object):
     def __init__(self, size, interpolation=InterpolationMode.BILINEAR):
@@ -1329,6 +1339,9 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.augmix.enable:
         print('+ AugMix')
         transform_tr += [augment_and_mix_transform(transforms.augmix.cfg_str, norm_mean)]
+    if transforms.crop_pad.enable:
+        print('+ crop_pad')
+        transform_tr += [RandomCropPad((height, width), padding=int(0.125*height))]
 
     print('+ to torch tensor of range [0, 1]')
     transform_tr += [PairToTensor()]
