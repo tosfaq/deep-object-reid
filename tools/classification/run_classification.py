@@ -168,7 +168,7 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to skip
-    to_train = {'CIFAR100', 'DTD', 'cars', 'caltech101', 'pets'}
+    to_train = {'CIFAR100', 'DTD', 'cars', 'caltech101', 'pets', 'SVHN'}
 
     for key, params in datasets.items():
         if key not in to_train:
