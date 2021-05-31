@@ -90,6 +90,8 @@ class Engine:
         self.epoch_interval_for_turn_off_mutual_learning = epoch_interval_for_turn_off_mutual_learning
         self.model_names_to_freeze = []
 
+        self.lr_of_previous_iter = None
+
         if isinstance(models, (tuple, list)):
             assert isinstance(optimizers, (tuple, list))
             assert isinstance(schedulers, (tuple, list))
@@ -221,25 +223,33 @@ class Engine:
         epochs.
         '''
         name = self.get_model_names()[0]
-        current_lr = self.get_current_lr()
+
+        # Note that we take LR of the previous iter, not self.get_current_lr(),
+        # since typically the method exit_on_plateau_and_choose_best is called after
+        # the method update_lr, so LR drop happens before.
+        # If we had used the method self.get_current_lr(), the last epoch
+        # before LR drop would be used as the first epoch with the new LR.
+        last_lr = self.lr_of_previous_iter
+        if last_lr is None:
+            print('WARNING: The method exit_on_plateau_and_choose_best should be called after the method train')
 
         should_exit = False
         is_candidate_for_best = False
 
         current_metric = np.round(top1, 4)
 
-        if self.lr_prev_best_metric == current_lr and self.best_metric >= current_metric:
+        if self.lr_prev_best_metric == last_lr and self.best_metric >= current_metric:
             # not best
             self.iter_to_wait += 1
 
-            if (current_lr <= self.lb_lr) and (self.iter_to_wait >= self.train_patience):
+            if (last_lr is not None) and (last_lr <= self.lb_lr) and (self.iter_to_wait >= self.train_patience):
                 print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
                 should_exit = True
         else:
             # best for this LR
             self.best_metric = current_metric
             self.iter_to_wait = 0
-            self.lr_prev_best_metric = current_lr
+            self.lr_prev_best_metric = last_lr
             is_candidate_for_best = True
 
         return should_exit, is_candidate_for_best
@@ -315,18 +325,19 @@ class Engine:
                                     )
             return test_results
 
-        print('Test before training')
-        self.test(
-                  0,
-                  dist_metric=dist_metric,
-                  normalize_feature=normalize_feature,
-                  visrank=visrank,
-                  visrank_topk=visrank_topk,
-                  save_dir=save_dir,
-                  use_metric_cuhk03=use_metric_cuhk03,
-                  ranks=ranks,
-                  rerank=rerank,
-        )
+        if not lr_finder:
+            print('Test before training')
+            self.test(
+                      0,
+                      dist_metric=dist_metric,
+                      normalize_feature=normalize_feature,
+                      visrank=visrank,
+                      visrank_topk=visrank_topk,
+                      save_dir=save_dir,
+                      use_metric_cuhk03=use_metric_cuhk03,
+                      ranks=ranks,
+                      rerank=rerank,
+            )
 
         self.writer = tb_writer
 
@@ -413,14 +424,12 @@ class Engine:
 
     def _freeze_aux_models(self):
         for model_name in self.model_names_to_freeze:
-            print(f'Freezing model {model_name}')
             model = self.models[model_name]
             model.eval()
             open_specified_layers(model, [])
 
     def _unfreeze_aux_models(self):
         for model_name in self.model_names_to_freeze:
-            print(f'Unfreezing model {model_name}')
             model = self.models[model_name]
             model.train()
             open_all_layers(model)
@@ -438,7 +447,6 @@ class Engine:
             # NB: it should be done before `two_stepped_transfer_learning`
             # to give possibility to freeze some layers in the unlikely event
             # that `two_stepped_transfer_learning` is used together with nncf
-            print('Unfreezing aux models')
             self._unfreeze_aux_models()
 
         self.two_stepped_transfer_learning(
@@ -446,7 +454,6 @@ class Engine:
         )
 
         if self._should_freeze_aux_models(self.epoch):
-            print('Freezing aux models')
             self._freeze_aux_models()
 
         self.num_batches = len(self.train_loader)
@@ -499,6 +506,7 @@ class Engine:
                     self.writer.add_scalar('Loss/' + name, meter.avg, n_iter)
 
             end = time.time()
+            self.lr_of_previous_iter = self.get_current_lr()
             if stop_callback and stop_callback.check_stop():
                 break
 
@@ -537,13 +545,14 @@ class Engine:
         self.set_model_mode('eval')
         targets = list(self.test_loader.keys())
         top1, mAP, top5 = [None]*3
+        cur_top1, cur_mAP, cur_top5 = [None]*3
         for dataset_name in targets:
             domain = 'source' if dataset_name in self.datamanager.sources else 'target'
             print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
 
-            for model_name, model in self.models.items():
+            for model_id, (model_name, model) in enumerate(self.models.items()):
                 if get_model_attr(model, 'classification'):
-                    top1, top5, mAP = self._evaluate_classification(
+                    cur_top1, cur_top5, cur_mAP = self._evaluate_classification(
                         model=model,
                         epoch=epoch,
                         data_loader=self.test_loader[dataset_name]['query'],
@@ -562,7 +571,7 @@ class Engine:
                         model_name=model_name
                     )
                 else:
-                    top1, top5, mAP = self._evaluate_reid(
+                    cur_top1, cur_top5, cur_mAP = self._evaluate_reid(
                         model=model,
                         epoch=epoch,
                         model_name=model_name,
@@ -579,7 +588,13 @@ class Engine:
                         rerank=rerank,
                         lr_finder = lr_finder
                     )
-        return  top1, top5, mAP
+
+                if model_id == 0:
+                    # the function should return accuracy results for the first (main) model only
+                    top1 = cur_top1
+                    top5 = cur_top5
+                    mAP = cur_mAP
+        return top1, top5, mAP
 
     @torch.no_grad()
     def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks, lr_finder):
