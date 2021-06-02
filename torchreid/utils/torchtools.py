@@ -16,7 +16,7 @@ from .tools import mkdir_if_missing, check_isfile
 __all__ = [
     'save_checkpoint', 'load_checkpoint', 'resume_from_checkpoint',
     'open_all_layers', 'open_specified_layers', 'count_num_param',
-    'load_pretrained_weights', 'noBiasDecay'
+    'load_pretrained_weights', 'EMA'
 ]
 
 
@@ -350,28 +350,36 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None):
 
 import torch.nn as nn
 
-def noBiasDecay(model, lr, weight_decay, use_2=False):
-    '''
-    no bias decay : only apply weight decay to the weights in convolution and fully-connected layers
-    In paper [Bag of Tricks for Image Classification with Convolutional Neural Networks](https://arxiv.org/abs/1812.01187)
-    Ref: https://github.com/weiaicunzai/Bag_of_Tricks_for_Image_Classification_with_Convolutional_Neural_Networks/blob/master/utils.py
-    '''
-    decay, bias_no_decay, weight_no_decay = [], [], []
-    for m in model.modules():
-        if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-            decay.append(m.weight)
-            if m.bias is not None:
-                bias_no_decay.append(m.bias)
-        else:
-            if hasattr(m, 'weight'):
-                weight_no_decay.append(m.weight)
-            if hasattr(m, 'bias'):
-                bias_no_decay.append(m.bias)
 
-    assert len(list(model.parameters())) == len(decay) + len(bias_no_decay) + len(weight_no_decay)
+class EMA():
+    def __init__(self, model, decay):
+        self.model = model
+        self.decay = decay
+        self.shadow = {}
+        self.backup = {}
 
-    # bias using 2*lr
-    print(use_2)
-    bias_lr = 2 * lr if use_2 else lr
-    print(f"bias_lr: {bias_lr}")
-    return [{'params': bias_no_decay, 'lr': bias_lr, 'weight_decay': 0.0}, {'params': weight_no_decay, 'lr': lr, 'weight_decay': 0.0}, {'params': decay, 'lr': lr, 'weight_decay': weight_decay}]
+    def register(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name] = param.data.clone()
+
+    def update(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                assert name in self.shadow
+                new_average = (1.0 - self.decay) * param.data + self.decay * self.shadow[name]
+                self.shadow[name] = new_average.clone()
+
+    def apply_shadow(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                assert name in self.shadow
+                self.backup[name] = param.data
+                param.data = self.shadow[name]
+
+    def restore(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                assert name in self.backup
+                param.data = self.backup[name]
+        self.backup = {}

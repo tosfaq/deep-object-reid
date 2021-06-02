@@ -22,6 +22,7 @@ from __future__ import absolute_import, division, print_function
 import copy
 import os
 import operator
+from torchreid.losses.am_softmax import AngleSimpleLinear
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,7 +30,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_lr_finder import LRFinder
-from torchvision.transforms import ToPILImage
+from icecream import ic
 
 from torchreid import metrics
 from torchreid.engine import Engine
@@ -50,20 +51,16 @@ class ImageAMSoftmaxEngine(Engine):
                  reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, s=10, compute_s=False, end_s=None,
                  duration_s=None, skip_steps_s=None, enable_masks=False, adaptive_margins=False, class_weighting=False,
                  attr_cfg=None, base_num_classes=-1, symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False,
-                 should_freeze_aux_models=False,
-                 nncf_metainfo=None,
-                 initial_lr=None):
+                 should_freeze_aux_models=False, nncf_metainfo=None, initial_lr=None, use_ema_decay=False, ema_decay=0.999):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt,
                                                    train_patience, lb_lr, early_stoping,
                                                    should_freeze_aux_models=should_freeze_aux_models,
                                                    nncf_metainfo=nncf_metainfo,
-                                                   initial_lr=initial_lr)
+                                                   initial_lr=initial_lr,
+                                                   use_ema_decay=use_ema_decay,
+                                                   ema_decay=ema_decay)
 
         assert softmax_type in ['stock', 'am']
-        if compute_s and softmax_type == 'am':
-            s = self.compute_s(num_class[0])
-            print(f"computed margin scale for dataset: {s}")
-
         assert s > 0.0
         if softmax_type == 'am':
             assert m >= 0.0
@@ -88,7 +85,20 @@ class ImageAMSoftmaxEngine(Engine):
         num_classes = self.datamanager.num_train_pids
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
+
         self.num_classes = num_classes
+        scales = dict()
+        if compute_s:
+            scale = self.compute_s(num_classes[0])
+            print(f"computed margin scale for dataset: {scale}")
+        else:
+            scale = s
+        for model_name, model in self.models.items():
+            if model.use_angle_simple_linear:
+                scales[model_name] = scale
+            else:
+                scales[model_name] = 1.
+        self.scales = scales
         self.num_targets = len(self.num_classes)
 
         self.main_losses = nn.ModuleList()
@@ -277,6 +287,7 @@ class ImageAMSoftmaxEngine(Engine):
 
         num_trg_losses = 0
         avg_acc = 0
+
         for trg_id in range(self.num_targets):
             trg_mask = train_records['dataset_id'] == trg_id
 
@@ -287,9 +298,8 @@ class ImageAMSoftmaxEngine(Engine):
                 continue
 
             trg_logits = all_logits[trg_id][trg_mask]
-
             main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, aug_index=self.aug_index,
-                                                lam=self.lam, iteration=n_iter)
+                                                lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
 
             avg_acc += metrics.accuracy(trg_logits, trg_obj_ids)[0].item()
             loss_summary['main_{}/{}'.format(trg_id, model_name)] = main_loss.item()

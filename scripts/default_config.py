@@ -148,6 +148,9 @@ def get_default_config():
     cfg.train.print_freq = 20  # print frequency
     cfg.train.seed = 5  # random seed
     cfg.train.warmup = 1  # After fixbase_epoch
+    cfg.train.ema = CN()
+    cfg.train.ema.enable = False
+    cfg.train.ema.ema_decay = 0.999
 
     # optimizer
     cfg.sgd = CN()
@@ -624,7 +627,7 @@ def engine_run_kwargs(cfg):
         'visrank_topk': cfg.test.visrank_topk,
         'use_metric_cuhk03': cfg.cuhk03.use_metric_cuhk03,
         'ranks': cfg.test.ranks,
-        'rerank': cfg.test.rerank
+        'rerank': cfg.test.rerank,
     }
 
 def lr_finder_run_kwargs(cfg):

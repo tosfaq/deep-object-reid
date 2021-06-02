@@ -26,6 +26,7 @@ def main():
     parser.add_argument('--config', type=str, required=False, help='path to config file')
     parser.add_argument('--path_to_main', type=str, default='./tools/main.py',required=False, help='path to main.py file')
     parser.add_argument('--gpu-num', type=int, default=1, help='Number of GPUs for training. 0 is for CPU mode')
+    parser.add_argument('--use_hardcoded_lr', type=int, default=True)
     parser.add_argument('--dump_results', type=bool, default=True, help='whether or not to dump results of the experiment')
     args = parser.parse_args()
     yaml = YAML()
@@ -181,16 +182,18 @@ def main():
         type_val = params['types'][1]
         root_train = args.data_root + os.sep + params['roots'][0]
         root_val = args.data_root + os.sep + params['roots'][1]
-        if key in ["CIFAR100"]:
-            cfg["train"]["lr"] = 0.02
-        elif key in ["DTD", "cars"]:
-            cfg["train"]["lr"] = 0.03
-        elif key in ["caltech101"]:
-            cfg["train"]["lr"] = 0.025
-        elif key in ["SVHN"]:
-            cfg["train"]["lr"] = 0.01
-        elif key in ["pets"]:
-            cfg["train"]["lr"] = 0.015
+        if args.use_hardcoded_lr:
+            print("WARNING: Using hardcoded LR")
+            if key in ["CIFAR100"]:
+                cfg["train"]["lr"] = 0.02
+            elif key in ["DTD", "cars"]:
+                cfg["train"]["lr"] = 0.03
+            elif key in ["caltech101"]:
+                cfg["train"]["lr"] = 0.025
+            elif key in ["SVHN"]:
+                cfg["train"]["lr"] = 0.01
+            elif key in ["pets"]:
+                cfg["train"]["lr"] = 0.015
 
         cfg['custom_datasets']['roots'] = [root_train, root_val]
         cfg['custom_datasets']['types'] = [type_train, type_val]
