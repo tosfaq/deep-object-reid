@@ -17,7 +17,7 @@ from torchreid.losses import DeepSupervision
 from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
                              open_all_layers, open_specified_layers,
                              re_ranking, save_checkpoint,
-                             visualize_ranked_results)
+                             visualize_ranked_results, EMA)
 
 
 EpochIntervalToValue = namedtuple('EpochIntervalToValue', ['first', 'last', 'value_inside', 'value_outside'])
@@ -43,13 +43,7 @@ def get_initial_lr_from_checkpoint(filename):
     return checkpoint.get('initial_lr')
 
 class Engine:
-    r"""A generic base Engine class for both image- and video-reid.
-
-    Args:
-        datamanager (DataManager): an instance of ``torchreid.data.ImageDataManager``
-            or ``torchreid.data.VideoDataManager``.
-        use_gpu (bool, optional): use gpu. Default is True.
-    """
+    r"""A generic base Engine class for both image- and video-reid."""
 
     def __init__(self, datamanager, models, optimizers, schedulers,
                  use_gpu=True, save_chkpt=True, train_patience = 10, lb_lr = 1e-5, early_stoping=False,
@@ -57,7 +51,9 @@ class Engine:
                  nncf_metainfo=None,
                  initial_lr=None,
                  epoch_interval_for_aux_model_freeze=None,
-                 epoch_interval_for_turn_off_mutual_learning=None):
+                 epoch_interval_for_turn_off_mutual_learning=None,
+                 use_ema_decay=False,
+                 ema_decay=0.999):
 
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
@@ -65,7 +61,7 @@ class Engine:
         self.use_gpu = (torch.cuda.is_available() and use_gpu)
         self.save_chkpt = save_chkpt
         self.writer = None
-
+        self.use_ema_decay = use_ema_decay
         self.start_epoch = 0
         self.fixbase_epoch = 0
         self.iter_to_wait = 0
@@ -89,6 +85,7 @@ class Engine:
         self.epoch_interval_for_aux_model_freeze = epoch_interval_for_aux_model_freeze
         self.epoch_interval_for_turn_off_mutual_learning = epoch_interval_for_turn_off_mutual_learning
         self.model_names_to_freeze = []
+        self.ema_wrapped_models = []
 
         self.lr_of_previous_iter = None
 
@@ -103,12 +100,19 @@ class Engine:
             for model_id, (model, optimizer, scheduler) in enumerate(zip(models, optimizers, schedulers)):
                 model_name = f'model_{model_id}'
                 self.register_model(model_name, model, optimizer, scheduler)
+                if use_ema_decay:
+                    ema = EMA(model, decay=ema_decay)
+                    ema.register()
+                    self.ema_wrapped_models.append(ema)
                 if should_freeze_aux_models and model_id > 0:
                     self.model_names_to_freeze.append(model_name)
         else:
             assert not isinstance(optimizers, (tuple, list))
             assert not isinstance(schedulers, (tuple, list))
-
+            if use_ema_decay:
+                ema = EMA(models, decay=ema_decay)
+                ema.register()
+                self.ema_wrapped_models.append(ema)
             self.register_model('model', models, optimizers, schedulers)
 
     def _should_freeze_aux_models(self, epoch):
@@ -251,6 +255,9 @@ class Engine:
             self.iter_to_wait = 0
             self.lr_prev_best_metric = last_lr
             is_candidate_for_best = True
+            if self.use_ema_decay:
+                for ema in self.ema_wrapped_models:
+                    ema.apply_shadow()
 
         return should_exit, is_candidate_for_best
 
@@ -356,7 +363,7 @@ class Engine:
                 open_layers=open_layers,
                 lr_finder = lr_finder,
                 perf_monitor=perf_monitor,
-                stop_callback=stop_callback
+                stop_callback=stop_callback,
             )
             if stop_callback and stop_callback.check_stop():
                 break
@@ -376,7 +383,7 @@ class Engine:
                     save_dir=save_dir,
                     use_metric_cuhk03=use_metric_cuhk03,
                     ranks=ranks,
-                    lr_finder = lr_finder
+                    lr_finder=lr_finder,
                 )
 
                 if lr_finder:
@@ -388,7 +395,9 @@ class Engine:
 
                     if self.save_chkpt:
                         self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best)
-
+                        if self.use_ema_decay and is_candidate_for_best:
+                            for ema in self.ema_wrapped_models:
+                                ema.restore()
                     if should_exit:
                         break
 
@@ -403,11 +412,14 @@ class Engine:
                 save_dir=save_dir,
                 use_metric_cuhk03=use_metric_cuhk03,
                 ranks=ranks,
-                lr_finder=lr_finder
+                lr_finder=lr_finder,
             )
             if self.save_chkpt and not lr_finder:
                 _, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1_final, top5, mAP)
                 self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best)
+                if self.use_ema_decay and is_candidate_for_best:
+                    for ema in self.ema_wrapped_models:
+                        ema.restore()
             if lr_finder:
                 print(f"epoch: {self.epoch}\t top1: {top1_final}\t lr: {self.get_current_lr()}")
 
@@ -510,6 +522,10 @@ class Engine:
             if stop_callback and stop_callback.check_stop():
                 break
 
+            if not lr_finder and self.use_ema_decay:
+                for ema in self.ema_wrapped_models:
+                    ema.update()
+
         if not lr_finder:
             self.update_lr(output_avg_metric = losses.meters['loss'].avg)
 
@@ -527,7 +543,8 @@ class Engine:
         use_metric_cuhk03=False,
         ranks=(1, 5, 10, 20),
         rerank=False,
-        lr_finder = False
+        lr_finder = False,
+        test_before_train=False
     ):
         r"""Tests model on target datasets.
 
@@ -542,6 +559,9 @@ class Engine:
             ``extract_features()`` and ``parse_data_for_eval()`` (most of the time),
             but not a must. Please refer to the source code for more details.
         """
+        if self.use_ema_decay and not lr_finder and not test_before_train:
+            for ema in self.ema_wrapped_models:
+                ema.apply_shadow()
         self.set_model_mode('eval')
         targets = list(self.test_loader.keys())
         top1, mAP, top5 = [None]*3
@@ -662,7 +682,7 @@ class Engine:
     ):
         def _feature_extraction(data_loader):
             f_, pids_, camids_ = [], [], []
-            for batch_idx, data in enumerate(data_loader):
+            for _, data in enumerate(data_loader):
                 imgs, pids, camids = self.parse_data_for_eval(data)
                 if self.use_gpu:
                     imgs = imgs.cuda()

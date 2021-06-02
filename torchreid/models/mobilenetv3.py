@@ -162,6 +162,7 @@ class MobileNetV3(ModelInterface):
         output_channel = make_divisible(output_channel[mode] * width_mult, 8) if width_mult > 1.0 else output_channel[mode]
 
         if self.loss == 'softmax':
+            self.use_angle_simple_linear = False
             self.classifier = nn.Sequential(
                 nn.Linear(exp_size, self.feature_dim),
                 nn.BatchNorm1d(self.feature_dim),
@@ -171,6 +172,7 @@ class MobileNetV3(ModelInterface):
             )
         else:
             assert self.loss == 'am_softmax'
+            self.use_angle_simple_linear = True
             self.classifier = nn.Sequential(
                 nn.Linear(exp_size, self.feature_dim),
                 nn.BatchNorm1d(self.feature_dim),
