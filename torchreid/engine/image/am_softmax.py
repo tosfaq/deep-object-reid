@@ -94,7 +94,7 @@ class ImageAMSoftmaxEngine(Engine):
         else:
             scale = s
         for model_name, model in self.models.items():
-            if model.use_angle_simple_linear:
+            if get_model_attr(model, 'use_angle_simple_linear'):
                 scales[model_name] = scale
             else:
                 scales[model_name] = 1.
