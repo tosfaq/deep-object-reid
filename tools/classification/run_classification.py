@@ -26,7 +26,7 @@ def main():
     parser.add_argument('--config', type=str, required=False, help='path to config file')
     parser.add_argument('--path_to_main', type=str, default='./tools/main.py',required=False, help='path to main.py file')
     parser.add_argument('--gpu-num', type=int, default=1, help='Number of GPUs for training. 0 is for CPU mode')
-    parser.add_argument('--use_hardcoded_lr', type=int, default=True)
+    parser.add_argument('--use_hardcoded_lr', type=bool, default=True)
     parser.add_argument('--dump_results', type=bool, default=True, help='whether or not to dump results of the experiment')
     args = parser.parse_args()
     yaml = YAML()
