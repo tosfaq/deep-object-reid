@@ -26,6 +26,7 @@ from .shufflenet import *
 from .shufflenetv2 import *
 from .squeezenet import *
 from .xception import *
+from .mobilenetv3_small import mobilenetv3_small_v2
 
 __model_factory = {
     # image classification models
@@ -56,6 +57,7 @@ __model_factory = {
     'mobilenetv2_x1_0': mobilenetv2_x1_0,
     'mobilenetv2_x1_4': mobilenetv2_x1_4,
     'mobilenetv3_small': mobilenetv3_small,
+    'mobilenetv3_small_v2': mobilenetv3_small_v2,
     'mobilenetv3_large': mobilenetv3_large,
     'mobilenetv3_large_075': mobilenetv3_large_075,
     'mobilenetv3_large_150': mobilenetv3_large_150,
