@@ -1136,22 +1136,11 @@ class AugMixAugment:
     From paper: 'AugMix: A Simple Data Processing Method to Improve Robustness and Uncertainty -
     https://arxiv.org/abs/1912.02781
     """
-    def __init__(self, ops, alpha=1., width=3, depth=-1, blended=False, **kwargs):
+    def __init__(self, ops, alpha=1., width=3, depth=-1, **kwargs):
         self.ops = ops
         self.alpha = alpha
         self.width = width
         self.depth = depth
-        self.blended = blended  # blended mode is faster but not well tested
-
-    def _calc_blended_weights(self, ws, m):
-        ws = ws * m
-        cump = 1.
-        rws = []
-        for w in ws[::-1]:
-            alpha = w / cump
-            cump *= (1 - alpha)
-            rws.append(alpha)
-        return np.array(rws[::-1], dtype=np.float32)
 
     def _apply_basic(self, img, mixing_weights, m):
         # This is a literal adaptation of the paper/official implementation without normalizations and
@@ -1275,6 +1264,9 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
                                     target_ar=float(height)/float(width))]
     print('+ resize to {}x{}'.format(height, width))
     transform_tr += [PairResize((height, width))]
+    if transforms.augmix.enable:
+        print('+ AugMix')
+        transform_tr += [augment_and_mix_transform(transforms.augmix.cfg_str, norm_mean)]
     if transforms.random_background_substitution.enable:
         aug_module = RandomBackgroundSubstitution(**transforms.random_background_substitution)
         if aug_module.enable:
@@ -1336,9 +1328,6 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.coarse_dropout.enable:
         print('+ coarse_dropout')
         transform_tr += [CoarseDropout(**transforms.coarse_dropout)]
-    if transforms.augmix.enable:
-        print('+ AugMix')
-        transform_tr += [augment_and_mix_transform(transforms.augmix.cfg_str, norm_mean)]
     if transforms.crop_pad.enable:
         print('+ crop_pad')
         transform_tr += [RandomCropPad((height, width), padding=int(0.125*height))]
