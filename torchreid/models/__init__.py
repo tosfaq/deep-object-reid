@@ -26,7 +26,7 @@ from .shufflenet import *
 from .shufflenetv2 import *
 from .squeezenet import *
 from .xception import *
-from .mobilenetv3_small import mobilenetv3_small_v2
+from .mobilenetv3_small_v2 import *
 
 __model_factory = {
     # image classification models
@@ -133,5 +133,5 @@ def build_model(name, **kwargs):
     avai_models = list(__model_factory.keys())
     if name not in avai_models:
         raise KeyError('Unknown model: {}. Must be one of {}'.format(name, avai_models))
-
+    print(__model_factory[name])
     return __model_factory[name](**kwargs)
