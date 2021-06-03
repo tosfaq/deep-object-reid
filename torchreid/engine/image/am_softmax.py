@@ -30,8 +30,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_lr_finder import LRFinder
-from icecream import ic
-
 from torchreid import metrics
 from torchreid.engine import Engine
 from torchreid.utils import get_model_attr
