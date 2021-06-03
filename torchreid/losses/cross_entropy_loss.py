@@ -1,10 +1,8 @@
 from __future__ import absolute_import, division
-import icecream
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from icecream import ic
 
 
 class CrossEntropyLoss(nn.Module):
