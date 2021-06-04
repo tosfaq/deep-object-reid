@@ -169,10 +169,10 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to skip
-    to_train = {'DTD', 'cars', 'caltech101', 'pets'}
+    to_pass = {}
 
     for key, params in datasets.items():
-        if key not in to_train:
+        if key in to_pass:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
         path_to_exp_folder = cfg['data']['save_dir']
@@ -182,18 +182,18 @@ def main():
         type_val = params['types'][1]
         root_train = args.data_root + os.sep + params['roots'][0]
         root_val = args.data_root + os.sep + params['roots'][1]
-        if args.use_hardcoded_lr:
-            print("WARNING: Using hardcoded LR")
-            if key in ["CIFAR100"]:
-                cfg["train"]["lr"] = 0.02
-            elif key in ["DTD", "cars"]:
-                cfg["train"]["lr"] = 0.03
-            elif key in ["caltech101"]:
-                cfg["train"]["lr"] = 0.025
-            elif key in ["SVHN"]:
-                cfg["train"]["lr"] = 0.01
-            elif key in ["pets"]:
-                cfg["train"]["lr"] = 0.015
+        # if args.use_hardcoded_lr:
+        #     print("WARNING: Using hardcoded LR")
+        #     if key in ["CIFAR100"]:
+        #         cfg["train"]["lr"] = 0.02
+        #     elif key in ["DTD", "cars"]:
+        #         cfg["train"]["lr"] = 0.03
+        #     elif key in ["caltech101"]:
+        #         cfg["train"]["lr"] = 0.025
+        #     elif key in ["SVHN"]:
+        #         cfg["train"]["lr"] = 0.01
+        #     elif key in ["pets"]:
+        #         cfg["train"]["lr"] = 0.015
 
         cfg['custom_datasets']['roots'] = [root_train, root_val]
         cfg['custom_datasets']['types'] = [type_train, type_val]
