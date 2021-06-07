@@ -169,10 +169,10 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to skip
-    to_train = {"FOOD101", "SVHN", "fashionMNIST", "pets", "SUN397", "CIFAR100"}
+    to_skip = {}
 
     for key, params in datasets.items():
-        if key not in to_train:
+        if key in to_skip:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
         path_to_exp_folder = cfg['data']['save_dir']
