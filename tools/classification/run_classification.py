@@ -182,18 +182,17 @@ def main():
         type_val = params['types'][1]
         root_train = args.data_root + os.sep + params['roots'][0]
         root_val = args.data_root + os.sep + params['roots'][1]
-        # if args.use_hardcoded_lr:
-        #     print("WARNING: Using hardcoded LR")
-        #     if key in ["CIFAR100"]:
-        #         cfg["train"]["lr"] = 0.02
-        #     elif key in ["DTD", "cars"]:
-        #         cfg["train"]["lr"] = 0.03
-        #     elif key in ["caltech101"]:
-        #         cfg["train"]["lr"] = 0.025
-        #     elif key in ["SVHN"]:
-        #         cfg["train"]["lr"] = 0.01
-        #     elif key in ["pets"]:
-        #         cfg["train"]["lr"] = 0.015
+        print("WARNING: Using hardcoded LR")
+        if key in ["birdsnap", "SVHN"]:
+            cfg["train"]["lr"] = 0.02
+        elif key in ["pets", "SUN397"]:
+            cfg["train"]["lr"] = 0.03
+        elif key in ["Xray"]:
+            cfg["train"]["lr"] = 0.035
+        elif key in ["caltech101", "DTD", "FashionMNIST", "flowers"]:
+            cfg["train"]["lr"] = 0.01
+        elif key in ["cars", "CIFAR100", "FOOD101"]:
+            cfg["train"]["lr"] = 0.015
 
         cfg['custom_datasets']['roots'] = [root_train, root_val]
         cfg['custom_datasets']['types'] = [type_train, type_val]
