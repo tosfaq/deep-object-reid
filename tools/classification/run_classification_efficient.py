@@ -183,16 +183,10 @@ def main():
         root_train = args.data_root + os.sep + params['roots'][0]
         root_val = args.data_root + os.sep + params['roots'][1]
         print("WARNING: Using hardcoded LR")
-        if key in ["birdsnap", "SVHN"]:
-            cfg["train"]["lr"] = 0.02
-        elif key in ["pets", "SUN397"]:
-            cfg["train"]["lr"] = 0.03
-        elif key in ["Xray"]:
-            cfg["train"]["lr"] = 0.035
-        elif key in ["caltech101", "DTD", "FashionMNIST", "flowers"]:
-            cfg["train"]["lr"] = 0.01
-        elif key in ["cars", "CIFAR100", "FOOD101"]:
-            cfg["train"]["lr"] = 0.015
+        if key in ["SUN397"]:
+            cfg["train"]["lr"] = 0.008
+        else:
+            cfg['lr_finder']['enable'] = True
 
         cfg['custom_datasets']['roots'] = [root_train, root_val]
         cfg['custom_datasets']['types'] = [type_train, type_val]
