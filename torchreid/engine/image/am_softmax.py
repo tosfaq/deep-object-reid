@@ -20,16 +20,16 @@
 
 from __future__ import absolute_import, division, print_function
 import copy
-import os
 import operator
-from torchreid.losses.am_softmax import AngleSimpleLinear
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_lr_finder import LRFinder
+from functools import partial
+import optuna
+from optuna.trial import TrialState
 from torchreid import metrics
 from torchreid.engine import Engine
 from torchreid.utils import get_model_attr
@@ -557,9 +557,40 @@ class ImageAMSoftmaxEngine(Engine):
 
             return optim_lr
 
+        elif mode == "optuna":
+            import time
+            if num_epochs < 3:
+                raise ValueError("Number of epochs to find an optimal learning rate less than 3. It's pointless")
+            study = optuna.create_study(study_name='classification task', direction="maximize")
+            lr_finder_cfg = dict(max_lr=max_lr, min_lr=min_lr)
+            objective_partial = partial(self.run, max_epoch=num_epochs, lr_finder=True, lr_finder_cfg=lr_finder_cfg, start_eval=0, eval_freq=1,
+                                  stop_callback=stop_callback)
+            try:
+                start_time = time.time()
+                study.optimize(objective_partial, n_trials=30, timeout=None)
+                print("--- %s seconds ---" % (time.time() - start_time))
+
+            finally:
+                pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
+                complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
+
+                print("Study statistics: ")
+                print("  Number of finished trials: ", len(study.trials))
+                print("  Number of pruned trials: ", len(pruned_trials))
+                print("  Number of complete trials: ", len(complete_trials))
+
+                print("Best trial:")
+                trial = study.best_trial
+
+                print("  Value: ", trial.value)
+
+                print("  Params: ")
+                for key, value in trial.params.items():
+                    print("    {}: {}".format(key, value))
+
+                return trial.value
+
         assert mode == 'brute_force'
-        if num_epochs < 3:
-            raise ValueError("Number of epochs to find an optimal learning rate less than 3. It's pointless")
         acc_store = dict()
         state_cacher = StateCacher(in_memory=True, cache_dir=None)
         state_cacher.store("model", get_model_attr(self.models[name],'cpu')().state_dict())

@@ -1,11 +1,11 @@
 from __future__ import absolute_import, division, print_function
-import copy
 import datetime
 import os
 import os.path as osp
 import time
 from collections import namedtuple, OrderedDict
 from copy import deepcopy
+import optuna
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -263,6 +263,7 @@ class Engine:
 
     def run(
         self,
+        trial=None,
         save_dir='log',
         tb_writer=None,
         max_epoch=0,
@@ -281,6 +282,7 @@ class Engine:
         ranks=(1, 5, 10, 20),
         rerank=False,
         lr_finder=False,
+        lr_finder_cfg=dict(),
         perf_monitor=None,
         stop_callback=None,
         **kwargs
@@ -315,6 +317,7 @@ class Engine:
             rerank (bool, optional): uses person re-ranking (by Zhong et al. CVPR'17).
                 Default is False. This is only enabled when test_only=True.
         """
+        lr_finder.configure_lr_finder(trial, lr_finder_cfg)
         if visrank and not test_only:
             raise ValueError('visrank can be set to True only if test_only=True')
 
@@ -335,6 +338,7 @@ class Engine:
         if not lr_finder:
             print('Test before training')
             self.test(
+<<<<<<< HEAD
                       0,
                       dist_metric=dist_metric,
                       normalize_feature=normalize_feature,
@@ -344,6 +348,18 @@ class Engine:
                       use_metric_cuhk03=use_metric_cuhk03,
                       ranks=ranks,
                       rerank=rerank,
+=======
+                    0,
+                    dist_metric=dist_metric,
+                    normalize_feature=normalize_feature,
+                    visrank=visrank,
+                    visrank_topk=visrank_topk,
+                    save_dir=save_dir,
+                    use_metric_cuhk03=use_metric_cuhk03,
+                    ranks=ranks,
+                    rerank=rerank,
+                    test_before_train=True
+>>>>>>> added not working optuna
             )
 
         self.writer = tb_writer
@@ -388,6 +404,10 @@ class Engine:
 
                 if lr_finder:
                     print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
+                    if trial:
+                        trial.report(top1, self.epoch)
+                        if trial.should_prune():
+                            raise optuna.exceptions.TrialPruned()
 
                 if not lr_finder:
                     should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1, top5, mAP)
@@ -422,6 +442,10 @@ class Engine:
                         ema.restore()
             if lr_finder:
                 print(f"epoch: {self.epoch}\t top1: {top1_final}\t lr: {self.get_current_lr()}")
+                if trial:
+                    trial.report(top1, self.epoch)
+                    if trial.should_prune():
+                        raise optuna.exceptions.TrialPruned()
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_end()
 
@@ -445,6 +469,14 @@ class Engine:
             model = self.models[model_name]
             model.train()
             open_all_layers(model)
+
+    def configure_lr_finder(self, trial, finder_cfg):
+        if trial is None:
+            return
+        lr = trial.suggest_float("lr", finder_cfg["min_lr"], finder_cfg["max_lr"])
+        name = self.get_model_names()[0]
+        for param_group in self.optims[name].param_groups:
+                param_group["lr"] = round(lr,6)
 
     def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False, perf_monitor=None,
               stop_callback=None):

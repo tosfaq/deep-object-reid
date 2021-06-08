@@ -123,7 +123,6 @@ def _build_optim(model,
         ]
 
     elif nbd:
-        print('here')
         decay, bias_no_decay, weight_no_decay = [], [], []
         for m in model.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
