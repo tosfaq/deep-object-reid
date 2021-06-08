@@ -11,13 +11,13 @@ from scripts.default_config import (engine_run_kwargs, get_default_config,
                                     optimizer_kwargs,
                                     merge_from_files_with_base)
 from scripts.script_utils import (build_base_argparser, reset_config,
-                                  check_classes_consistency,
+                                  check_classification_classes,
                                   build_datamanager, build_auxiliary_model,
-                                  is_config_parameter_set_from_command_line)
+                                  is_config_parameter_set_from_command_line,
+                                  put_on_the_device)
 
 import torchreid
 from torchreid.engine import build_engine, get_initial_lr_from_checkpoint
-from torchreid.ops import DataParallel
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              compute_model_complexity, resume_from_checkpoint,
                              set_random_seed, load_pretrained_weights)
@@ -69,8 +69,7 @@ def main():
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True
 
-    enable_mutual_learning = len(cfg.mutual_learning.aux_configs) > 0
-
+    num_aux_models = len(cfg.mutual_learning.aux_configs)
     datamanager = build_datamanager(cfg, args.classes)
     num_train_classes = datamanager.num_train_pids
 
@@ -80,18 +79,6 @@ def main():
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
     aux_lr = None if cfg.lr_finder.enable else cfg.train.lr # placeholder, needed for aux models, may be filled by nncf part below
-    if is_nncf_used:
-        print('Begin making NNCF changes in model')
-        model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
-                                                                          args.classes,
-                                                                          args.opts)
-
-        should_freeze_aux_models = True
-        print(f'should_freeze_aux_models = {should_freeze_aux_models}')
-        print('End making NNCF changes in model')
-    else:
-        should_freeze_aux_models = False
-        nncf_metainfo = None
 
     # creating optimizer and scheduler -- it should be done after NNCF part, since
     # NNCF could change some parameters
@@ -112,56 +99,12 @@ def main():
         load_pretrained_weights(model, cfg.model.load_weights)
 
     if cfg.model.classification:
-        classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
-        if cfg.test.evaluate:
-            for name, dataloader in datamanager.test_loader.items():
-                if not len(dataloader['query'].dataset.classes): # current text annotation doesn't contain classes names
-                    print(f'Warning: classes are not defined for validation dataset {name}')
-                    continue
-                if not len(model.classification_classes):
-                    print(f'Warning: classes are not provided in the current snapshot. Consistency checks are skipped.')
-                    continue
-                if not check_classes_consistency(model.classification_classes,
-                                                 dataloader['query'].dataset.classes, strict=False):
-                    raise ValueError('Inconsistent classes in evaluation dataset')
-                if args.classes and not check_classes_consistency(classes_map,
-                                                                  model.classification_classes, strict=True):
-                    raise ValueError('Classes provided via --classes should be the same as in the loaded model')
-        elif args.classes:
-            if not check_classes_consistency(classes_map,
-                                             datamanager.train_loader.dataset.classes, strict=True):
-                raise ValueError('Inconsistent classes in training dataset')
+        check_classification_classes(model, datamanager, args.classes, test_only=cfg.test.evaluate)
 
-    if cfg.use_gpu:
-        num_devices = min(torch.cuda.device_count(), args.gpu_num)
-        if enable_mutual_learning and args.split_models:
-            num_models = len(cfg.mutual_learning.aux_configs) + 1
-            assert num_devices >= num_models
-            assert num_devices % num_models == 0
-
-            num_devices_per_model = num_devices // num_models
-            device_splits = []
-            for model_id in range(num_models):
-                device_splits.append([
-                    model_id * num_devices_per_model + i
-                    for i in range(num_devices_per_model)
-                ])
-
-            main_device_ids = device_splits[0]
-            extra_device_ids = device_splits[1:]
-        else:
-            main_device_ids = list(range(num_devices))
-            extra_device_ids = [main_device_ids for _ in range(len(cfg.mutual_learning.aux_configs))]
-
-        if num_devices > 1:
-            model = DataParallel(model, device_ids=main_device_ids, output_device=0).cuda(main_device_ids[0])
-        else:
-            model = model.cuda(main_device_ids[0])
-    else:
-        extra_device_ids = [None for _ in range(len(cfg.mutual_learning.aux_configs))]
+    model, extra_device_ids = put_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
 
     if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
-        if enable_mutual_learning:
+        if num_aux_models > 0:
             print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
 
         # build new engine
@@ -178,10 +121,22 @@ def main():
         cfg.lr_finder.enable = False
         set_random_seed(cfg.train.seed)
 
+        model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
+        if is_nncf_used:
+            print('Begin making NNCF changes in model')
+            model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
+                                                                            args.classes,
+                                                                            args.opts)
+            should_freeze_aux_models = True
+            print(f'should_freeze_aux_models = {should_freeze_aux_models}')
+            print('End making NNCF changes in model')
+        else:
+            should_freeze_aux_models = False
+            nncf_metainfo = None
         optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 
-    if enable_mutual_learning:
+    if num_aux_models > 0:
         print('Enabled mutual learning between {} models.'.format(len(cfg.mutual_learning.aux_configs) + 1))
 
         models, optimizers, schedulers = [model], [optimizer], [scheduler]

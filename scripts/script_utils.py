@@ -1,19 +1,18 @@
 import argparse
 
-from PIL import Image
 from pprint import pformat
-import numpy as np
 from torch.onnx.symbolic_helper import parse_args
+import torch
 
 import torchreid
 from torchreid.ops import DataParallel
-from torchreid.utils import load_pretrained_weights, check_isfile, resume_from_checkpoint
+from torchreid.utils import (load_pretrained_weights, check_isfile,
+                                resume_from_checkpoint, get_model_attr)
 
 from scripts.default_config import (imagedata_kwargs, videodata_kwargs,
                                     get_default_config, model_kwargs,
                                     optimizer_kwargs, lr_scheduler_kwargs,
                                     merge_from_files_with_base)
-
 
 def build_base_argparser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -58,21 +57,6 @@ def reset_config(cfg, args):
 
     if hasattr(args, 'auxiliary_models_cfg') and args.auxiliary_models_cfg:
         cfg.mutual_learning.aux_configs = args.auxiliary_models_cfg
-
-
-def check_classes_consistency(ref_classes, probe_classes, strict=False):
-    if strict:
-        if len(ref_classes) != len(probe_classes):
-            return False
-        return sorted(probe_classes.keys()) == sorted(ref_classes.keys())
-    else:
-        if len(ref_classes) > len(probe_classes):
-            return False
-        probe_names = probe_classes.keys()
-        for cl in ref_classes.keys():
-            if cl not in probe_names:
-                return False
-    return True
 
 
 def build_datamanager(cfg, classification_classes_filter=None):
@@ -145,6 +129,7 @@ def group_norm_symbolic(g, input_blob, num_groups, weight, bias, eps, cudnn_enab
 
     return output
 
+
 def is_config_parameter_set_from_command_line(cmd_line_opts, parameter_name):
     # Note that cmd_line_opts here should be compatible with
     # the function yacs.config.CfgNode.merge_from_list
@@ -152,3 +137,71 @@ def is_config_parameter_set_from_command_line(cmd_line_opts, parameter_name):
         return False
     key_names = cmd_line_opts[0::2]
     return (parameter_name in key_names)
+
+
+def put_on_the_device(model, use_gpu=True, gpu_num=1, num_aux_models=0, split_models=False):
+    if use_gpu:
+        num_devices = min(torch.cuda.device_count(), gpu_num)
+        if num_aux_models > 0 and split_models:
+            num_models = num_aux_models + 1
+            assert num_devices >= num_models
+            assert num_devices % num_models == 0
+
+            num_devices_per_model = num_devices // num_models
+            device_splits = []
+            for model_id in range(num_models):
+                device_splits.append([
+                    model_id * num_devices_per_model + i
+                    for i in range(num_devices_per_model)
+                ])
+
+            main_device_ids = device_splits[0]
+            extra_device_ids = device_splits[1:]
+        else:
+            main_device_ids = list(range(num_devices))
+            extra_device_ids = [main_device_ids for _ in range(num_aux_models)]
+
+        if num_devices > 1:
+            model = DataParallel(model, device_ids=main_device_ids, output_device=0).cuda(main_device_ids[0])
+        else:
+            model = model.cuda(main_device_ids[0])
+    else:
+        extra_device_ids = [None for _ in range()]
+
+    return model, extra_device_ids
+
+
+def check_classification_classes(model, datamanager, classes, test_only=False):
+    def check_classes_consistency(ref_classes, probe_classes, strict=False):
+        if strict:
+            if len(ref_classes) != len(probe_classes):
+                return False
+            return sorted(probe_classes.keys()) == sorted(ref_classes.keys())
+        else:
+            if len(ref_classes) > len(probe_classes):
+                return False
+            probe_names = probe_classes.keys()
+            for cl in ref_classes.keys():
+                if cl not in probe_names:
+                    return False
+        return True
+
+    classes_map = {v : k for k, v in enumerate(sorted(classes))} if classes else {}
+    if test_only:
+        for name, dataloader in datamanager.test_loader.items():
+            if not len(dataloader['query'].dataset.classes): # current text annotation doesn't contain classes names
+                print(f'Warning: classes are not defined for validation dataset {name}')
+                continue
+            if not len(get_model_attr(model, 'classification_classes')):
+                print(f'Warning: classes are not provided in the current snapshot. Consistency checks are skipped.')
+                continue
+            if not check_classes_consistency(get_model_attr(model, 'classification_classes'),
+                                                dataloader['query'].dataset.classes, strict=False):
+                raise ValueError('Inconsistent classes in evaluation dataset')
+            if classes and not check_classes_consistency(classes_map,
+                                                                get_model_attr(model, 'classification_classes'), strict=True):
+                raise ValueError('Classes provided via --classes should be the same as in the loaded model')
+    elif classes:
+        if not check_classes_consistency(classes_map,
+                                            datamanager.train_loader.dataset.classes, strict=True):
+            raise ValueError('Inconsistent classes in training dataset')
