@@ -2,6 +2,7 @@ import argparse
 import os.path as osp
 import sys
 import time
+from torchreid.utils.lr_finder import LrFinder
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
@@ -84,7 +85,7 @@ def main():
     # NNCF could change some parameters
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
 
-    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
+    if cfg.lr_finder.enable and not cfg.model.resume:
         scheduler = None
     else:
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
@@ -109,7 +110,8 @@ def main():
 
         # build new engine
         engine = build_engine(cfg, datamanager, model, optimizer, scheduler)
-        aux_lr = engine.find_lr(**lr_finder_run_kwargs(cfg))
+        lr_finder = LrFinder(engine=engine, **lr_finder_run_kwargs(cfg))
+        aux_lr = lr_finder.process()
 
         print(f"Estimated learning rate: {aux_lr}")
         if cfg.lr_finder.stop_after:
@@ -120,19 +122,7 @@ def main():
         cfg.train.lr = aux_lr
         cfg.lr_finder.enable = False
         set_random_seed(cfg.train.seed)
-
-        model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
-        if is_nncf_used:
-            print('Begin making NNCF changes in model')
-            model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
-                                                                            args.classes,
-                                                                            args.opts)
-            should_freeze_aux_models = True
-            print(f'should_freeze_aux_models = {should_freeze_aux_models}')
-            print('End making NNCF changes in model')
-        else:
-            should_freeze_aux_models = False
-            nncf_metainfo = None
+        model = torchreid.
         optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 

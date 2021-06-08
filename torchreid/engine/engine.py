@@ -5,6 +5,7 @@ import os.path as osp
 import time
 from collections import namedtuple, OrderedDict
 from copy import deepcopy
+from torchreid.utils.tools import StateCacher, set_random_seed
 import optuna
 
 import matplotlib.pyplot as plt
@@ -53,7 +54,8 @@ class Engine:
                  epoch_interval_for_aux_model_freeze=None,
                  epoch_interval_for_turn_off_mutual_learning=None,
                  use_ema_decay=False,
-                 ema_decay=0.999):
+                 ema_decay=0.999,
+                 seed=5):
 
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
@@ -73,6 +75,8 @@ class Engine:
         self.lb_lr = lb_lr
         self.train_patience = train_patience
         self.early_stoping = early_stoping
+        self.state_cacher = StateCacher
+        self.seed = seed
 
         self.models = OrderedDict()
         self.optims = OrderedDict()
@@ -281,8 +285,7 @@ class Engine:
         use_metric_cuhk03=False,
         ranks=(1, 5, 10, 20),
         rerank=False,
-        lr_finder=False,
-        lr_finder_cfg=dict(),
+        lr_finder=dict(enabled=False),
         perf_monitor=None,
         stop_callback=None,
         **kwargs
@@ -317,7 +320,6 @@ class Engine:
             rerank (bool, optional): uses person re-ranking (by Zhong et al. CVPR'17).
                 Default is False. This is only enabled when test_only=True.
         """
-        lr_finder.configure_lr_finder(trial, lr_finder_cfg)
         if visrank and not test_only:
             raise ValueError('visrank can be set to True only if test_only=True')
 
@@ -335,7 +337,7 @@ class Engine:
                                     )
             return test_results
 
-        if not lr_finder:
+        if not lr_finder.enabled:
             print('Test before training')
             self.test(
 <<<<<<< HEAD
@@ -361,34 +363,39 @@ class Engine:
                     test_before_train=True
 >>>>>>> added not working optuna
             )
+        else:
+            self.backup_model()
+            self.configure_lr_finder(trial, lr_finder)
 
         self.writer = tb_writer
 
         time_start = time.time()
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch
+        assert start_epoch != max_epoch, "the last epoch number cannot be equal the start one"
         self.fixbase_epoch = fixbase_epoch
         print('=> Start training')
 
-        if perf_monitor and not lr_finder: perf_monitor.on_train_begin()
+        if perf_monitor and not lr_finder.enabled: perf_monitor.on_train_begin()
         for self.epoch in range(self.start_epoch, self.max_epoch):
-            if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_begin()
+            if perf_monitor and not lr_finder.enabled: perf_monitor.on_train_epoch_begin()
             self.train(
                 print_freq=print_freq,
                 fixbase_epoch=fixbase_epoch,
                 open_layers=open_layers,
-                lr_finder = lr_finder,
+                lr_finder = lr_finder.enabled,
                 perf_monitor=perf_monitor,
                 stop_callback=stop_callback,
             )
             if stop_callback and stop_callback.check_stop():
                 break
-            if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_end()
+            if perf_monitor and not lr_finder.enabled: perf_monitor.on_train_epoch_end()
 
-            if ((self.epoch + 1) >= start_eval
+            if (((self.epoch + 1) >= start_eval
                and eval_freq > 0
                and (self.epoch+1) % eval_freq == 0
-               and (self.epoch + 1) != self.max_epoch):
+               and (self.epoch + 1) != self.max_epoch)
+               or self.epoch == self.max_epoch):
 
                 top1, top5, mAP = self.test(
                     self.epoch,
@@ -399,17 +406,17 @@ class Engine:
                     save_dir=save_dir,
                     use_metric_cuhk03=use_metric_cuhk03,
                     ranks=ranks,
-                    lr_finder=lr_finder,
+                    lr_finder=lr_finder.enabled,
                 )
 
-                if lr_finder:
+                if lr_finder.enabled:
                     print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
                     if trial:
                         trial.report(top1, self.epoch)
                         if trial.should_prune():
                             raise optuna.exceptions.TrialPruned()
 
-                if not lr_finder:
+                if not lr_finder.enabled:
                     should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1, top5, mAP)
                     should_exit = self.early_stoping and should_exit
 
@@ -421,34 +428,8 @@ class Engine:
                     if should_exit:
                         break
 
-        if self.max_epoch > 0:
-            print('=> Final test')
-            top1_final, top5, mAP = self.test(
-                self.epoch,
-                dist_metric=dist_metric,
-                normalize_feature=normalize_feature,
-                visrank=visrank,
-                visrank_topk=visrank_topk,
-                save_dir=save_dir,
-                use_metric_cuhk03=use_metric_cuhk03,
-                ranks=ranks,
-                lr_finder=lr_finder,
-            )
-            if self.save_chkpt and not lr_finder:
-                _, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1_final, top5, mAP)
-                self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best)
-                if self.use_ema_decay and is_candidate_for_best:
-                    for ema in self.ema_wrapped_models:
-                        ema.restore()
-            if lr_finder:
-                print(f"epoch: {self.epoch}\t top1: {top1_final}\t lr: {self.get_current_lr()}")
-                if trial:
-                    trial.report(top1, self.epoch)
-                    if trial.should_prune():
-                        raise optuna.exceptions.TrialPruned()
-
-        if perf_monitor and not lr_finder: perf_monitor.on_train_end()
-
+        if perf_monitor and not lr_finder.enabled: perf_monitor.on_train_end()
+        if lr_finder.enabled and lr_finder.mode != 'fast_ai': self.restore_model()
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
         print('Elapsed {}'.format(elapsed))
@@ -456,7 +437,7 @@ class Engine:
         if self.writer is not None:
             self.writer.close()
 
-        return top1_final
+        return top1
 
     def _freeze_aux_models(self):
         for model_name in self.model_names_to_freeze:
@@ -473,10 +454,20 @@ class Engine:
     def configure_lr_finder(self, trial, finder_cfg):
         if trial is None:
             return
-        lr = trial.suggest_float("lr", finder_cfg["min_lr"], finder_cfg["max_lr"])
+        lr = trial.suggest_float("lr", finder_cfg.min_lr, finder_cfg.max_lr, step=finder_cfg.step)
         name = self.get_model_names()[0]
         for param_group in self.optims[name].param_groups:
-                param_group["lr"] = round(lr,6)
+            param_group["lr"] = round(lr,6)
+
+    def backup_model(self):
+        self.state_cacher.store("model", get_model_attr(self.model, 'cpu')().state_dict())
+        self.state_cacher.store("optimizer", self.optimizer.state_dict())
+
+    def restore_model(self):
+        get_model_attr(self.model, 'load_state_dict')(self.state_cacher.retrieve("model"))
+        self.optimizer.load_state_dict(self.state_cacher.retrieve("optimizer"))
+        get_model_attr(self.model,'to')(self.model_device)
+        set_random_seed(self.seed)
 
     def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False, perf_monitor=None,
               stop_callback=None):
