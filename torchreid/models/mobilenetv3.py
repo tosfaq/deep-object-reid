@@ -6,6 +6,7 @@ import torch.nn as nn
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, EvalModeSetter, rsc
 from .common import HSigmoid, HSwish, ModelInterface, make_divisible
+from timm.models.mobilenetv3 import mobilenetv3_large_100
 
 from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
 
@@ -18,6 +19,8 @@ pretrained_urls = {
     'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-large-1cd25616.pth?raw=true',
     'mobilenetv3_large_075':
     'https://github.com/d-li14/mobilenetv3.pytorch/blob/master/pretrained/mobilenetv3-large-0.75-9632d2a8.pth?raw=true',
+    'mobilenetv3_large_21k':
+    'https://miil-public-eu.oss-eu-central-1.aliyuncs.com/model-zoo/ImageNet_21K_P/models/mobilenetv3_large_100_miil_21k.pth'
 }
 
 
@@ -226,6 +229,27 @@ class MobileNetV3(ModelInterface):
         if self.lr_finder.enable and self.lr_finder.mode == 'automatic':
             return out_data
         return tuple(out_data)
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                n = m.weight.size(1)
+                m.weight.data.normal_(0, 0.01)
+                m.bias.data.zero_()
+
+class MobileNetV3_large_100_timm(nn.Module):
+    def __init__(self, pretrained=False):
+        super().__init__()
+        self.model = mobilenetv3_large_100(pretrained)
+        self.model.classifier = None
 
     def _initialize_weights(self):
         for m in self.modules():

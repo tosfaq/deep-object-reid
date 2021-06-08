@@ -496,7 +496,7 @@ class ImageAMSoftmaxEngine(Engine):
 
     def find_lr(
         self,
-        mode='automatic',
+        mode='fast_ai',
         epochs_warmup=2,
         max_lr=0.03,
         min_lr=4e-3,
@@ -509,14 +509,14 @@ class ImageAMSoftmaxEngine(Engine):
         r"""A  pipeline for learning rate search.
 
         Args:
-            mode (str, optional): mode for learning rate finder, "automatic" or "brute_force".
-                Default is "automatic".
+            mode (str, optional): mode for learning rate finder, "fast_ai", "grid_search", "TPE".
+                Default is "fast_ai".
             max_lr (float): upper bound for leaning rate
             min_lr (float): lower bound for leaning rate
             num_iter (int, optional): number of iterations for learning rate searching space. Default is 10
             num_epochs (int, optional): number of epochs to train for each learning rate. Default is 3
             pretrained (bool): whether or not the model is pretrained
-            path_to_savefig (str): if path given save plot loss/lr (only for automatic mode). Default: ''
+            path_to_savefig (str): if path given save plot loss/lr (only for fast_ai mode). Default: ''
         """
         print('=> Start learning rate search. Mode: {}'.format(mode))
 
@@ -524,7 +524,7 @@ class ImageAMSoftmaxEngine(Engine):
         model_device = next(self.models[name].parameters()).device
         self.num_batches = len(self.train_loader)
 
-        if mode == 'automatic':
+        if mode == 'fast_ai':
             wd = self.optims[name].param_groups[0]['weight_decay']
             criterion = self.main_losses[0]
             if self.enable_sam:

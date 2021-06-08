@@ -10,6 +10,7 @@ from pprint import pformat
 
 import torch
 import torch.nn as nn
+from torch.nn.modules import module
 
 from .tools import mkdir_if_missing, check_isfile
 
