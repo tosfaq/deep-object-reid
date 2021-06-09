@@ -7,6 +7,7 @@ from collections import namedtuple, OrderedDict
 from copy import deepcopy
 from torchreid.utils.tools import StateCacher, set_random_seed
 import optuna
+from addict import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -285,7 +286,7 @@ class Engine:
         use_metric_cuhk03=False,
         ranks=(1, 5, 10, 20),
         rerank=False,
-        lr_finder=dict(enabled=False),
+        lr_finder=None,
         perf_monitor=None,
         stop_callback=None,
         initial_seed=5,
@@ -338,7 +339,7 @@ class Engine:
                                     )
             return test_results
 
-        if not lr_finder.enabled:
+        if not lr_finder:
             print('Test before training')
             self.test(
 <<<<<<< HEAD
@@ -377,22 +378,22 @@ class Engine:
         self.fixbase_epoch = fixbase_epoch
         print('=> Start training')
 
-        if perf_monitor and not lr_finder.enabled: perf_monitor.on_train_begin()
+        if perf_monitor and not lr_finder: perf_monitor.on_train_begin()
         for self.epoch in range(self.start_epoch, self.max_epoch):
             # change the NumPy’s seed at every epoch
             np.random.seed(initial_seed + self.epoch)
-            if perf_monitor and not lr_finder.enabled: perf_monitor.on_train_epoch_begin()
+            if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_begin()
             self.train(
                 print_freq=print_freq,
                 fixbase_epoch=fixbase_epoch,
                 open_layers=open_layers,
-                lr_finder = lr_finder.enabled,
+                lr_finder = lr_finder,
                 perf_monitor=perf_monitor,
                 stop_callback=stop_callback,
             )
             if stop_callback and stop_callback.check_stop():
                 break
-            if perf_monitor and not lr_finder.enabled: perf_monitor.on_train_epoch_end()
+            if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_end()
 
             if (((self.epoch + 1) >= start_eval
                and eval_freq > 0
@@ -409,17 +410,17 @@ class Engine:
                     save_dir=save_dir,
                     use_metric_cuhk03=use_metric_cuhk03,
                     ranks=ranks,
-                    lr_finder=lr_finder.enabled,
+                    lr_finder=lr_finder,
                 )
 
-                if lr_finder.enabled:
+                if lr_finder:
                     print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
                     if trial:
                         trial.report(top1, self.epoch)
                         if trial.should_prune():
                             raise optuna.exceptions.TrialPruned()
 
-                if not lr_finder.enabled:
+                if not lr_finder:
                     should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1, top5, mAP)
                     should_exit = self.early_stoping and should_exit
 
@@ -431,8 +432,8 @@ class Engine:
                     if should_exit:
                         break
 
-        if perf_monitor and not lr_finder.enabled: perf_monitor.on_train_end()
-        if lr_finder.enabled and lr_finder.mode != 'fast_ai': self.restore_model()
+        if perf_monitor and not lr_finder: perf_monitor.on_train_end()
+        if lr_finder and lr_finder.mode != 'fast_ai': self.restore_model()
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
         print('Elapsed {}'.format(elapsed))

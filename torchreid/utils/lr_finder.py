@@ -1,5 +1,4 @@
 from functools import partial
-from torchreid import engine
 
 import torch
 from torch_lr_finder import LRFinder
@@ -50,14 +49,14 @@ class LrFinder:
         self.step = step
         self.n_trials = n_trials
         self.num_epochs = num_epochs
-        assert self.num_epochs < 3, "Number of epochs to find an optimal learning rate less than 3. It's pointless"
+        assert self.num_epochs > 3, "Number of epochs to find an optimal learning rate less than 3. It's pointless"
         self.path_to_savefig = path_to_savefig
         self.seed = seed
         self.stop_callback = stop_callback
         self.epochs_warmup = epochs_warmup
         self.enable_sam = engine.enable_sam
         self.smooth_f = smooth_f
-        self.engine_cfg = Dict(enabled=enabled, min_lr=min_lr, max_lr=max_lr, mode=mode)
+        self.engine_cfg = Dict(min_lr=min_lr, max_lr=max_lr, mode=mode)
         self.samplers = {'grid_search': GridSampler, 'TPE': TPESampler}
 
     def process(self):
@@ -71,7 +70,7 @@ class LrFinder:
         return lr
 
     def fast_ai(self):
-        wd = self.model.param_groups[0]['weight_decay']
+        wd = self.optimizer.param_groups[0]['weight_decay']
         criterion = self.engine.main_losses[0]
         if self.enable_sam:
             optimizer = torch.optim.SGD(self.model.parameters(), lr=self.min_lr, weight_decay=wd)
@@ -85,9 +84,10 @@ class LrFinder:
             print("Finished warmuping the model. Continue to find learning rate:")
 
         # run lr finder
+        num_iter = len(self.engine.train_loader)
         lr_finder = LRFinder(self.model, optimizer, criterion, device=self.model_device)
-        lr_finder.range_test(engine.train_loader, start_lr=self.min_lr, end_lr=self.max_lr,
-                                smooth_f=self.smooth_f, num_iter=self.num_batches, step_mode='exp')
+        lr_finder.range_test(self.engine.train_loader, start_lr=self.min_lr, end_lr=self.max_lr,
+                                smooth_f=self.smooth_f, num_iter=num_iter, step_mode='exp')
         ax, optim_lr = lr_finder.plot(suggest_lr=True)
         # save plot if needed
         if self.path_to_savefig:
@@ -96,7 +96,7 @@ class LrFinder:
 
         # reset weights and optimizer state
         if self.epochs_warmup != 0:
-            engine.restore_model()
+            self.engine.restore_model()
         else:
             lr_finder.reset()
 

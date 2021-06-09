@@ -18,13 +18,13 @@ def get_default_config():
     cfg.lr_finder.mode = 'fast_ai'
     cfg.lr_finder.max_lr = 0.03
     cfg.lr_finder.min_lr = 0.004
-    cfg.lr_finder.num_iter = 10
+    cfg.lr_finder.step = 0.001
     cfg.lr_finder.num_epochs = 3
     cfg.lr_finder.epochs_warmup = 2
     cfg.lr_finder.stop_after = False
     cfg.lr_finder.path_to_savefig = ''
-    cfg.lr_finder.smooth_f=0.01,
-    cfg.lr_finder.n_trials=100
+    cfg.lr_finder.smooth_f = 0.01
+    cfg.lr_finder.n_trials = 100
 
     # model
     cfg.model = CN()
@@ -554,7 +554,7 @@ def optimizer_kwargs(cfg):
         'new_layers': cfg.train.new_layers,
         'base_lr_mult': cfg.train.base_lr_mult,
         'nbd': cfg.train.nbd,
-        'lr_finder': cfg.lr_finder.enabled,
+        'lr_finder': cfg.lr_finder.enable,
         'sam_rho': cfg.sam.rho
     }
 
