@@ -6,7 +6,7 @@ import torch
 from torchreid.data.datasets import init_image_dataset, init_video_dataset
 from torchreid.data.sampler import build_train_sampler
 from torchreid.data.transforms import build_transforms
-
+from torchreid.utils import worker_init_fn
 
 class DataManager(object):
     r"""Base data manager.
@@ -250,6 +250,7 @@ class ImageDataManager(DataManager):
             ),
             batch_size=batch_size_train,
             shuffle=False,
+            worker_init_fn=worker_init_fn,
             num_workers=workers,
             pin_memory=self.use_gpu,
             drop_last=True
@@ -272,6 +273,7 @@ class ImageDataManager(DataManager):
                     shuffle=False,
                     num_workers=workers,
                     pin_memory=self.use_gpu,
+                    worker_init_fn=worker_init_fn,
                     drop_last=False
                 )
             else:
@@ -296,6 +298,7 @@ class ImageDataManager(DataManager):
                     batch_size=batch_size_test,
                     shuffle=False,
                     num_workers=workers,
+                    worker_init_fn=worker_init_fn,
                     pin_memory=self.use_gpu,
                     drop_last=False
                 )
@@ -320,6 +323,7 @@ class ImageDataManager(DataManager):
                 self.test_loader[name]['gallery'] = torch.utils.data.DataLoader(
                     gallery_dataset,
                     batch_size=batch_size_test,
+                    worker_init_fn=worker_init_fn,
                     shuffle=False,
                     num_workers=workers,
                     pin_memory=self.use_gpu,
@@ -458,6 +462,7 @@ class VideoDataManager(DataManager):
             trainset,
             sampler=train_sampler,
             batch_size=batch_size_train,
+            worker_init_fn=worker_init_fn,
             shuffle=False,
             num_workers=workers,
             pin_memory=self.use_gpu,
@@ -494,6 +499,7 @@ class VideoDataManager(DataManager):
             self.test_loader[name]['query'] = torch.utils.data.DataLoader(
                 queryset,
                 batch_size=batch_size_test,
+                worker_init_fn=worker_init_fn,
                 shuffle=False,
                 num_workers=workers,
                 pin_memory=self.use_gpu,
@@ -514,6 +520,7 @@ class VideoDataManager(DataManager):
             self.test_loader[name]['gallery'] = torch.utils.data.DataLoader(
                 galleryset,
                 batch_size=batch_size_test,
+                worker_init_fn=worker_init_fn,
                 shuffle=False,
                 num_workers=workers,
                 pin_memory=self.use_gpu,

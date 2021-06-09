@@ -57,7 +57,7 @@ def main():
     else:
         nncf_changes_in_aux_train_config = None
 
-    set_random_seed(cfg.train.seed)
+    set_random_seed(cfg.train.seed, cfg.train.deterministic)
 
     log_name = 'test.log' if cfg.test.evaluate else 'train.log'
     log_name += time.strftime('-%Y-%m-%d-%H-%M-%S')
@@ -80,7 +80,18 @@ def main():
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
     aux_lr = None if cfg.lr_finder.enable else cfg.train.lr # placeholder, needed for aux models, may be filled by nncf part below
+    if is_nncf_used:
+        print('Begin making NNCF changes in model')
+        model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
+                                                                          args.classes,
+                                                                          args.opts)
 
+        should_freeze_aux_models = True
+        print(f'should_freeze_aux_models = {should_freeze_aux_models}')
+        print('End making NNCF changes in model')
+    else:
+        should_freeze_aux_models = False
+        nncf_metainfo = None
     # creating optimizer and scheduler -- it should be done after NNCF part, since
     # NNCF could change some parameters
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
@@ -107,8 +118,9 @@ def main():
     if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
         if num_aux_models > 0:
             print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
+        assert not is_nncf_used, "lr finder is incompatible with nncf"
 
-        # build new engine
+        # build  engine for learning rate estimation
         engine = build_engine(cfg, datamanager, model, optimizer, scheduler)
         lr_finder = LrFinder(engine=engine, **lr_finder_run_kwargs(cfg))
         aux_lr = lr_finder.process()
@@ -118,11 +130,20 @@ def main():
             print("Finding learning rate finished. Terminate the training process")
             exit()
 
-        # reload random seeds, optimizer with new lr and scheduler for it
+        # reload all parts of the training
+        # we do not check classification parameters
+        # and do not get num_train_classes the second time
+        # since it's done above and lr finder cannot change parameters of the datasets
         cfg.train.lr = aux_lr
         cfg.lr_finder.enable = False
+<<<<<<< HEAD
         set_random_seed(cfg.train.seed)
         model = torchreid.
+=======
+        set_random_seed(cfg.train.seed, cfg.train.deterministic)
+        datamanager = build_datamanager(cfg, args.classes)
+        model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
+>>>>>>> Lr finder refactoring, timm for MNv3 added, other changes
         optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 

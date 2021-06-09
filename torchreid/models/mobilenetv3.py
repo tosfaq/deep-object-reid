@@ -10,7 +10,7 @@ from timm.models.mobilenetv3 import mobilenetv3_large_100
 
 from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
 
-__all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150', 'mobilenetv3_large_125']
+__all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150', 'mobilenetv3_large_125', "MobileNetV3_large_100_timm"]
 
 pretrained_urls = {
     'mobilenetv3_small':
@@ -217,7 +217,7 @@ class MobileNetV3(ModelInterface):
         if get_embeddings:
             out_data = [logits, glob_features]
         elif self.loss in ['softmax', 'am_softmax']:
-            if self.lr_finder.enable and self.lr_finder.mode == 'automatic':
+            if self.lr_finder.enable and self.lr_finder.mode == 'fast_ai':
                 out_data = logits
             else:
                 out_data = [logits]
@@ -226,7 +226,7 @@ class MobileNetV3(ModelInterface):
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
-        if self.lr_finder.enable and self.lr_finder.mode == 'automatic':
+        if self.lr_finder.enable and self.lr_finder.mode == 'fast_ai':
             return out_data
         return tuple(out_data)
 
@@ -245,11 +245,99 @@ class MobileNetV3(ModelInterface):
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
-class MobileNetV3_large_100_timm(nn.Module):
-    def __init__(self, pretrained=False):
-        super().__init__()
+
+class MobileNetV3_large_100_timm(ModelInterface):
+    def __init__(self,
+                pretrained=False,
+                num_classes=1000,
+                width_mult=1.,
+                in_channels=3,
+                input_size=(224, 224),
+                dropout_cls = None,
+                dropout_cfg = None,
+                pooling_type='avg',
+                bn_eval=False,
+                bn_frozen=False,
+                feature_dim=1280,
+                loss='softmax',
+                IN_first=False,
+                IN_conv1=False,
+                self_challenging_cfg=False,
+                lr_finder=None,
+                **kwargs):
+
+        super().__init__(**kwargs)
+        self.in_size = input_size
+        self.num_classes = num_classes
+        self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
+        self.bn_eval = bn_eval
+        self.bn_frozen = bn_frozen
+        self.pooling_type = pooling_type
+        self.self_challenging_cfg = self_challenging_cfg
+        self.lr_finder = lr_finder
+        self.loss = loss
+        self.feature_dim = 1280 # hardcoded since it's implementation from timm
+
         self.model = mobilenetv3_large_100(pretrained)
-        self.model.classifier = None
+        if self.loss == 'softmax':
+            self.use_angle_simple_linear = False
+            self.classifier = nn.Sequential(
+                Dropout(**dropout_cls),
+                nn.Linear(self.feature_dim, num_classes),
+            )
+        else:
+            assert self.loss == 'am_softmax'
+            self.use_angle_simple_linear = True
+            self.classifier = nn.Sequential(
+                Dropout(**dropout_cls),
+                AngleSimpleLinear(self.feature_dim, num_classes),
+            )
+
+        self._initialize_weights()
+
+    def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None):
+        if self.input_IN is not None:
+            x = self.input_IN(x)
+
+        y = self.model.forward_features(x)
+
+        if return_featuremaps:
+            return y
+
+        with no_nncf_head_context():
+            glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
+            logits = self.classifier(glob_features.view(x.shape[0], -1))
+
+        if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
+            glob_features = rsc(
+                features = glob_features,
+                scores = logits,
+                labels = gt_labels,
+                retain_p = 1.0 - self.self_challenging_cfg.drop_p,
+                retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
+            )
+
+            with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
+                logits = self.classifier(glob_features.view(x.shape[0], -1))
+
+        if not self.training and self.classification:
+            return [logits]
+
+        if get_embeddings:
+            out_data = [logits, glob_features]
+        elif self.loss in ['softmax', 'am_softmax']:
+            if self.lr_finder.enable and self.lr_finder.mode == 'fast_ai':
+                out_data = logits
+            else:
+                out_data = [logits]
+        elif self.loss in ['triplet']:
+            out_data = [logits, glob_features]
+        else:
+            raise KeyError("Unsupported loss: {}".format(self.loss))
+
+        if self.lr_finder.enable and self.lr_finder.mode == 'fast_ai':
+            return out_data
+        return tuple(out_data)
 
     def _initialize_weights(self):
         for m in self.modules():

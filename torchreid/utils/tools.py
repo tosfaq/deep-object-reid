@@ -17,7 +17,7 @@ from PIL import Image
 
 __all__ = [
     'mkdir_if_missing', 'check_isfile', 'read_json', 'write_json', 'read_yaml',
-    'set_random_seed', 'download_url', 'read_image', 'collect_env_info',
+    'set_random_seed', "worker_init_fn", 'download_url', 'read_image', 'collect_env_info',
     'get_model_attr', 'StateCacher', 'random_image'
 ]
 
@@ -63,14 +63,18 @@ def read_yaml(fpath):
         obj = yaml.safe_load(f)
     return obj
 
-def set_random_seed(seed):
+def set_random_seed(seed, deterministic=False):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    if deterministic:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
     np.random.seed(seed)
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
+
+def worker_init_fn(worker_id):
+    np.random.seed(np.random.get_state()[1][0] + worker_id)
 
 def download_url(url, dst):
     """Downloads file from a url to a destination.

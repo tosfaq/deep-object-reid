@@ -1,4 +1,5 @@
 from __future__ import print_function, absolute_import
+from torchreid.utils import lr_finder
 import torch
 import torch.nn as nn
 
@@ -9,7 +10,7 @@ from .radam import RAdam
 
 AVAI_OPTIMS = {'adam', 'amsgrad', 'sgd', 'rmsprop', 'radam', 'sam'}
 
-def build_optimizer(model, optim, base_optim, **kwargs):
+def build_optimizer(model, optim, base_optim, lr_finder, **kwargs):
     """A wrapper function for building an optimizer.
 
     Args:
@@ -52,10 +53,13 @@ def build_optimizer(model, optim, base_optim, **kwargs):
         >>> )
     """
     if optim == 'sam':
+        if lr_finder:
+            optimizer = _build_optim(model, optim=base_optim, base_optim=None, lr_finder=lr_finder, **kwargs)
+            return optimizer
         base_optim = _build_optim(model, optim=base_optim, base_optim=None, **kwargs)
         optimizer = _build_optim(model, optim=optim, base_optim=base_optim, **kwargs)
     else:
-        optimizer = _build_optim(model, optim=optim, base_optim=None, **kwargs)
+        optimizer = _build_optim(model, optim=optim, base_optim=None,  lr_finder=lr_finder, **kwargs)
 
     return optimizer
 
@@ -74,7 +78,7 @@ def _build_optim(model,
                 new_layers='',
                 base_lr_mult=0.1,
                 nbd=False,
-                lr_bias_twice=False,
+                lr_finder=False,
                 sam_rho = 0.05):
     if optim not in AVAI_OPTIMS:
         raise ValueError(
@@ -122,7 +126,9 @@ def _build_optim(model,
             },
         ]
 
-    elif nbd:
+    # we switch off nbd when lr_finder enabled
+    # because optimizer builded once and lr in biases isn't changed
+    elif nbd and not lr_finder:
         decay, bias_no_decay, weight_no_decay = [], [], []
         for m in model.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -137,10 +143,9 @@ def _build_optim(model,
 
         assert len(list(model.parameters())) == len(decay) + len(bias_no_decay) + len(weight_no_decay)
 
-        # bias using 2*lr
-        bias_lr = 2 * lr if lr_bias_twice else lr
-        print(f"bias_lr : {bias_lr}")
-        param_groups = [{'params': bias_no_decay, 'lr': bias_lr, 'weight_decay': 0.0}, {'params': weight_no_decay, 'lr': lr, 'weight_decay': 0.0}, {'params': decay, 'lr': lr, 'weight_decay': weight_decay}]
+        param_groups = [{'params': bias_no_decay, 'lr': 2 * lr, 'weight_decay': 0.0},
+                        {'params': weight_no_decay, 'lr': lr, 'weight_decay': 0.0},
+                        {'params': decay, 'lr': lr, 'weight_decay': weight_decay}]
 
     else:
         param_groups = [{'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay}]

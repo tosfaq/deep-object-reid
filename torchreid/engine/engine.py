@@ -288,6 +288,7 @@ class Engine:
         lr_finder=dict(enabled=False),
         perf_monitor=None,
         stop_callback=None,
+        initial_seed=5,
         **kwargs
     ):
         r"""A unified pipeline for training and evaluating a model.
@@ -378,6 +379,8 @@ class Engine:
 
         if perf_monitor and not lr_finder.enabled: perf_monitor.on_train_begin()
         for self.epoch in range(self.start_epoch, self.max_epoch):
+            # change the NumPy’s seed at every epoch
+            np.random.seed(initial_seed + self.epoch)
             if perf_monitor and not lr_finder.enabled: perf_monitor.on_train_epoch_begin()
             self.train(
                 print_freq=print_freq,

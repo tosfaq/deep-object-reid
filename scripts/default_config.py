@@ -15,7 +15,7 @@ def get_default_config():
     # lr finder
     cfg.lr_finder = CN()
     cfg.lr_finder.enable = False
-    cfg.lr_finder.mode = 'automatic'
+    cfg.lr_finder.mode = 'fast_ai'
     cfg.lr_finder.max_lr = 0.03
     cfg.lr_finder.min_lr = 0.004
     cfg.lr_finder.num_iter = 10
@@ -23,6 +23,8 @@ def get_default_config():
     cfg.lr_finder.epochs_warmup = 2
     cfg.lr_finder.stop_after = False
     cfg.lr_finder.path_to_savefig = ''
+    cfg.lr_finder.smooth_f=0.01,
+    cfg.lr_finder.n_trials=100
 
     # model
     cfg.model = CN()
@@ -142,11 +144,11 @@ def get_default_config():
     cfg.train.min_lr = 1e-5
     cfg.train.max_lr = 0.1
     cfg.train.nbd = False
-    cfg.train.lr_bias_twice = False
     cfg.train.patience = 5 # define how much epochs to wait for reduce on plateau
     cfg.train.multiplier = 10
     cfg.train.print_freq = 20  # print frequency
     cfg.train.seed = 5  # random seed
+    cfg.train.deterministic = False # degine to use cuda.deterministic
     cfg.train.warmup = 1  # After fixbase_epoch
     cfg.train.ema = CN()
     cfg.train.ema.enable = False
@@ -552,7 +554,7 @@ def optimizer_kwargs(cfg):
         'new_layers': cfg.train.new_layers,
         'base_lr_mult': cfg.train.base_lr_mult,
         'nbd': cfg.train.nbd,
-        'lr_bias_twice': cfg.train.lr_bias_twice,
+        'lr_finder': cfg.lr_finder.enabled,
         'sam_rho': cfg.sam.rho
     }
 
@@ -628,7 +630,9 @@ def engine_run_kwargs(cfg):
         'use_metric_cuhk03': cfg.cuhk03.use_metric_cuhk03,
         'ranks': cfg.test.ranks,
         'rerank': cfg.test.rerank,
+        'initial_seed': cfg.train.seed
     }
+
 
 def lr_finder_run_kwargs(cfg):
     return {
@@ -636,10 +640,12 @@ def lr_finder_run_kwargs(cfg):
         'epochs_warmup': cfg.lr_finder.epochs_warmup,
         'max_lr': cfg.lr_finder.max_lr,
         'min_lr': cfg.lr_finder.min_lr,
-        'num_iter': cfg.lr_finder.num_iter,
+        'step': cfg.lr_finder.step,
         'num_epochs': cfg.lr_finder.num_epochs,
         'path_to_savefig': cfg.lr_finder.path_to_savefig,
-        'seed': cfg.train.seed
+        'seed': cfg.train.seed,
+        'smooth_f': cfg.lr_finder.smooth_f,
+        'n_trials': cfg.lr_finder.n_trials
     }
 
 def transforms(cfg):
