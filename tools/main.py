@@ -136,14 +136,10 @@ def main():
         # since it's done above and lr finder cannot change parameters of the datasets
         cfg.train.lr = aux_lr
         cfg.lr_finder.enable = False
-<<<<<<< HEAD
-        set_random_seed(cfg.train.seed)
-        model = torchreid.
-=======
         set_random_seed(cfg.train.seed, cfg.train.deterministic)
         datamanager = build_datamanager(cfg, args.classes)
         model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
->>>>>>> Lr finder refactoring, timm for MNv3 added, other changes
+        model, _ = put_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
         optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 

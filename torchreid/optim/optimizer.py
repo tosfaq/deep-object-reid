@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 
 import warnings
+from icecream import ic
 
 from .sam import SAM
 from .radam import RAdam
@@ -129,6 +130,7 @@ def _build_optim(model,
     # we switch off nbd when lr_finder enabled
     # because optimizer builded once and lr in biases isn't changed
     elif nbd and not lr_finder:
+        ic()
         decay, bias_no_decay, weight_no_decay = [], [], []
         for m in model.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):

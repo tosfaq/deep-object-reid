@@ -182,20 +182,20 @@ def main():
         type_val = params['types'][1]
         root_train = args.data_root + os.sep + params['roots'][0]
         root_val = args.data_root + os.sep + params['roots'][1]
-        print("WARNING: Using hardcoded LR")
-        if key in ["birdsnap"]:
-            cfg['lr_finder']['enable'] = True
-            # cfg["train"]["lr"] = 0.02
-        if key in ["caltech101"]:
-            cfg["train"]["lr"] = 0.025
-        elif key in ["pets", "SUN397"]:
-            cfg["train"]["lr"] = 0.03
-        elif key in ["Xray", "SVHN"]:
-            cfg["train"]["lr"] = 0.035
-        elif key in ["DTD", "FashionMNIST", "flowers"]:
-            cfg['lr_finder']['enable'] = True
-        elif key in ["cars", "CIFAR100", "FOOD101"]:
-            cfg["train"]["lr"] = 0.015
+        # print("WARNING: Using hardcoded LR")
+        # if key in ["birdsnap"]:
+        #     cfg['lr_finder']['enable'] = True
+        #     # cfg["train"]["lr"] = 0.02
+        # if key in ["caltech101"]:
+        #     cfg["train"]["lr"] = 0.025
+        # elif key in ["pets", "SUN397"]:
+        #     cfg["train"]["lr"] = 0.03
+        # elif key in ["Xray", "SVHN"]:
+        #     cfg["train"]["lr"] = 0.035
+        # elif key in ["DTD", "FashionMNIST", "flowers"]:
+        #     cfg['lr_finder']['enable'] = True
+        # elif key in ["cars", "CIFAR100", "FOOD101"]:
+        #     cfg["train"]["lr"] = 0.015
 
         cfg['custom_datasets']['roots'] = [root_train, root_val]
         cfg['custom_datasets']['types'] = [type_train, type_val]

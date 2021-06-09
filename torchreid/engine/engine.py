@@ -7,9 +7,8 @@ from collections import namedtuple, OrderedDict
 from copy import deepcopy
 from torchreid.utils.tools import StateCacher, set_random_seed
 import optuna
-from addict import Dict
+from icecream import ic
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.nn import functional as F
@@ -76,7 +75,7 @@ class Engine:
         self.lb_lr = lb_lr
         self.train_patience = train_patience
         self.early_stoping = early_stoping
-        self.state_cacher = StateCacher
+        self.state_cacher = StateCacher(in_memory=True, cache_dir=None)
         self.seed = seed
 
         self.models = OrderedDict()
@@ -119,6 +118,8 @@ class Engine:
                 ema.register()
                 self.ema_wrapped_models.append(ema)
             self.register_model('model', models, optimizers, schedulers)
+        self.main_model_name = self.get_model_names()[0]
+        self.model_device = next(self.models[self.main_model_name].parameters()).device
 
     def _should_freeze_aux_models(self, epoch):
         if not self.should_freeze_aux_models:
@@ -369,8 +370,8 @@ class Engine:
             self.backup_model()
             self.configure_lr_finder(trial, lr_finder)
 
+        ic(self.optims[self.main_model_name])
         self.writer = tb_writer
-
         time_start = time.time()
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch
@@ -399,7 +400,7 @@ class Engine:
                and eval_freq > 0
                and (self.epoch+1) % eval_freq == 0
                and (self.epoch + 1) != self.max_epoch)
-               or self.epoch == self.max_epoch):
+               or self.epoch == (self.max_epoch - 1)):
 
                 top1, top5, mAP = self.test(
                     self.epoch,
@@ -462,15 +463,21 @@ class Engine:
         name = self.get_model_names()[0]
         for param_group in self.optims[name].param_groups:
             param_group["lr"] = round(lr,6)
+        print(f"training with next lr: {lr}")
 
     def backup_model(self):
-        self.state_cacher.store("model", get_model_attr(self.model, 'cpu')().state_dict())
-        self.state_cacher.store("optimizer", self.optimizer.state_dict())
+        print("backuping model...")
+        # explicitly put the model on the CPU before storing it in memory
+        self.state_cacher.store(key="model", state_dict=get_model_attr(self.models[self.main_model_name], 'cpu')().state_dict())
+        self.state_cacher.store(key="optimizer", state_dict=self.optims[self.main_model_name].state_dict())
+        # restore the model device
+        get_model_attr(self.models[self.main_model_name],'to')(self.model_device)
 
     def restore_model(self):
-        get_model_attr(self.model, 'load_state_dict')(self.state_cacher.retrieve("model"))
-        self.optimizer.load_state_dict(self.state_cacher.retrieve("optimizer"))
-        get_model_attr(self.model,'to')(self.model_device)
+        print("restoring model and seeds to initial state")
+        get_model_attr(self.models[self.main_model_name], 'load_state_dict')(self.state_cacher.retrieve("model"))
+        self.optims[self.main_model_name].load_state_dict(self.state_cacher.retrieve("optimizer"))
+        get_model_attr(self.models[self.main_model_name],'to')(self.model_device)
         set_random_seed(self.seed)
 
     def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False, perf_monitor=None,

@@ -10,7 +10,7 @@ from timm.models.mobilenetv3 import mobilenetv3_large_100
 
 from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
 
-__all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150', 'mobilenetv3_large_125', "MobileNetV3_large_100_timm"]
+__all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150', 'mobilenetv3_large_125', "mobilenetv3_large_100_timm"]
 
 pretrained_urls = {
     'mobilenetv3_small':
@@ -115,7 +115,6 @@ class MobileNetV3(ModelInterface):
                  in_channels=3,
                  input_size=(224, 224),
                  dropout_cls = None,
-                 dropout_cfg = None,
                  pooling_type='avg',
                  bn_eval=False,
                  bn_frozen=False,
@@ -132,7 +131,7 @@ class MobileNetV3(ModelInterface):
         self.cfgs = cfgs
         self.in_size = input_size
         self.num_classes = num_classes
-        self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
+        self.input_IN = nn.InstanceNorm2d(in_channels, affine=True) if IN_first else None
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
         self.pooling_type = pooling_type
@@ -250,18 +249,14 @@ class MobileNetV3_large_100_timm(ModelInterface):
     def __init__(self,
                 pretrained=False,
                 num_classes=1000,
-                width_mult=1.,
                 in_channels=3,
                 input_size=(224, 224),
                 dropout_cls = None,
-                dropout_cfg = None,
                 pooling_type='avg',
                 bn_eval=False,
                 bn_frozen=False,
-                feature_dim=1280,
                 loss='softmax',
                 IN_first=False,
-                IN_conv1=False,
                 self_challenging_cfg=False,
                 lr_finder=None,
                 **kwargs):
@@ -269,7 +264,7 @@ class MobileNetV3_large_100_timm(ModelInterface):
         super().__init__(**kwargs)
         self.in_size = input_size
         self.num_classes = num_classes
-        self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
+        self.input_IN = nn.InstanceNorm2d(in_channels, affine=True) if IN_first else None
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
         self.pooling_type = pooling_type
@@ -278,7 +273,7 @@ class MobileNetV3_large_100_timm(ModelInterface):
         self.loss = loss
         self.feature_dim = 1280 # hardcoded since it's implementation from timm
 
-        self.model = mobilenetv3_large_100(pretrained)
+        self.model = mobilenetv3_large_100(pretrained=pretrained)
         if self.loss == 'softmax':
             self.use_angle_simple_linear = False
             self.classifier = nn.Sequential(
@@ -354,7 +349,7 @@ class MobileNetV3_large_100_timm(ModelInterface):
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
-def init_pretrained_weights(model, key=''):
+def init_pretrained_weights(model, key='', prefix='', **kwargs):
     """Initializes model with pretrained weights.
 
     Layers that don't match with pretrained layers in name or size are kept unchanged.
@@ -392,8 +387,17 @@ def init_pretrained_weights(model, key=''):
     cached_file = os.path.join(model_dir, filename)
     if not os.path.exists(cached_file):
         gdown.download(pretrained_urls[key], cached_file)
+    model = load_pretrained_weights(model, cached_file, extra_prefix=prefix, **kwargs)
 
-    model = load_pretrained_weights(model, cached_file)
+def mobilenetv3_large_100_timm(pretrained=False, **kwargs):
+    """
+    Constructs a MobileNetV3-Large_timm model
+    """
+    net = MobileNetV3_large_100_timm(pretrained=pretrained, **kwargs)
+    if pretrained:
+        init_pretrained_weights(net, key='mobilenetv3_large_21k', prefix="model.")
+
+    return net
 
 def mobilenetv3_large_075(pretrained=False, **kwargs):
     """

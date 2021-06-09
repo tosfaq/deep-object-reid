@@ -49,15 +49,16 @@ class LrFinder:
         self.step = step
         self.n_trials = n_trials
         self.num_epochs = num_epochs
-        assert self.num_epochs > 3, "Number of epochs to find an optimal learning rate less than 3. It's pointless"
+        # assert self.num_epochs > 3, "Number of epochs to find an optimal learning rate less than 3. It's pointless"
         self.path_to_savefig = path_to_savefig
         self.seed = seed
         self.stop_callback = stop_callback
         self.epochs_warmup = epochs_warmup
         self.enable_sam = engine.enable_sam
         self.smooth_f = smooth_f
-        self.engine_cfg = Dict(min_lr=min_lr, max_lr=max_lr, mode=mode)
-        self.samplers = {'grid_search': GridSampler, 'TPE': TPESampler}
+        self.engine_cfg = Dict(min_lr=min_lr, max_lr=max_lr, mode=mode, step=step)
+        self.samplers = {'grid_search': GridSampler(search_space={'lr': [0.01, 0.007, 0.02, 0.016, 0.025, 0.03]}),
+                            'TPE': TPESampler(multivariate=True, group=True, n_startup_trials=5, seed=True)}
 
     def process(self):
         print('=> Start learning rate search. Mode: {}'.format(self.mode))
@@ -65,7 +66,7 @@ class LrFinder:
            lr = self.fast_ai()
            return lr
 
-        assert self.mode in ['grid', 'TPE']
+        assert self.mode in ['grid_search', 'TPE']
         lr = self.optuna_optim()
         return lr
 
@@ -104,7 +105,7 @@ class LrFinder:
 
     def optuna_optim(self):
         study = optuna.create_study(study_name='classification task', direction="maximize", sampler=self.samplers[self.mode])
-        objective_partial = partial(self.run, max_epoch=self.num_epochs, lr_finder_cfg=self.engine_cfg, start_eval=0, eval_freq=1,
+        objective_partial = partial(self.engine.run, max_epoch=self.num_epochs, lr_finder=self.engine_cfg, start_eval=0, eval_freq=1,
                                 stop_callback=self.stop_callback)
         try:
             start_time = time.time()
@@ -130,4 +131,4 @@ class LrFinder:
             for key, value in trial.params.items():
                 print("    {}: {}".format(key, value))
 
-            return trial.value
+            return trial.params['lr']
