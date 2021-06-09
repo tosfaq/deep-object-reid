@@ -97,7 +97,7 @@ def main():
     # NNCF could change some parameters
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
 
-    if cfg.lr_finder.enable and cfg.lr_finder.mode == 'automatic' and not cfg.model.resume:
+    if cfg.lr_finder.enable and not cfg.model.resume:
         scheduler = None
     else:
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))

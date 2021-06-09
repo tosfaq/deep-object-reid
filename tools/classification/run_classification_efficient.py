@@ -169,7 +169,7 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to skip
-    to_train = {"FOOD101", "SVHN", "fashionMNIST", "pets", "SUN397"}
+    to_train = {'SVHN', "FashionMNIST", "FOOD101"}
 
     for key, params in datasets.items():
         if key not in to_train:
@@ -185,6 +185,10 @@ def main():
         print("WARNING: Using hardcoded LR")
         if key in ["SUN397"]:
             cfg["train"]["lr"] = 0.008
+        if key in ["DTD", "cars"]:
+            cfg["train"]["lr"] = 0.0064
+        if key in ["pets", "flowers"]:
+            cfg["train"]["lr"] = 0.001
         else:
             cfg['lr_finder']['enable'] = True
 
