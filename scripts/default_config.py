@@ -129,7 +129,6 @@ def get_default_config():
     cfg.train.batch_size = 32
     cfg.train.early_stoping = False # switch on exit on metric plataeu method
     cfg.train.train_patience = 10 # define how much epochs to wait after scheduler process
-    cfg.train.fixbase_epoch = 0  # number of epochs to fix base layers
     cfg.train.open_layers = ['classifier']  # layers for training while keeping others frozen
     cfg.train.staged_lr = False  # set different lr to different layers
     cfg.train.new_layers = ['classifier']  # newly added layers with default lr
@@ -138,11 +137,11 @@ def get_default_config():
     cfg.train.base_scheduler = ''
     cfg.train.stepsize = [20]  # stepsize to decay learning rate
     cfg.train.gamma = 0.1  # learning rate decay multiplier
-    cfg.train.lr_scales = []
     cfg.train.first_cycle_steps = 5
     cfg.train.cycle_mult = 1.
     cfg.train.min_lr = 1e-5
     cfg.train.max_lr = 0.1
+    cfg.train.lr_decay_factor = 100
     cfg.train.nbd = False
     cfg.train.patience = 5 # define how much epochs to wait for reduce on plateau
     cfg.train.multiplier = 10
@@ -565,7 +564,6 @@ def lr_scheduler_kwargs(cfg):
         'base_scheduler': cfg.train.base_scheduler,
         'stepsize': cfg.train.stepsize,
         'gamma': cfg.train.gamma,
-        'lr_scales': cfg.train.lr_scales,
         'max_epoch': cfg.train.max_epoch,
         'warmup': cfg.train.warmup,
         'multiplier': cfg.train.multiplier,
@@ -574,7 +572,7 @@ def lr_scheduler_kwargs(cfg):
         'min_lr': cfg.train.min_lr,
         'max_lr': cfg.train.max_lr,
         'patience': cfg.train.patience,
-        'frozen': cfg.train.fixbase_epoch,
+        'lr_decay_factor': cfg.train.lr_decay_factor,
     }
 
 

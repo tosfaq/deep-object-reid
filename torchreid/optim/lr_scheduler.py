@@ -1,8 +1,6 @@
 from __future__ import absolute_import, print_function
 import math
-from bisect import bisect_right
 
-import torch
 from torch import optim
 from torch.optim.lr_scheduler import _LRScheduler
 
@@ -22,9 +20,7 @@ def _build_scheduler(optimizer,
                 base_scheduler=None,
                 stepsize=1,
                 gamma=0.1,
-                lr_scales=None,
                 max_epoch=1,
-                frozen=20,
                 warmup=10,
                 multiplier = 10,
                 first_cycle_steps=10,
@@ -32,8 +28,9 @@ def _build_scheduler(optimizer,
                 min_lr = 1e-4,
                 max_lr = 0.1,
                 patience = 5,
-                warmup_factor_base=0.1,
-                frozen_factor_base=0.1):
+                lr_decay_factor= 100):
+
+    init_learning_rate = optimizer.param_groups[0]['lr']
 
     if lr_scheduler not in AVAI_SCH:
         raise ValueError('Unsupported scheduler: {}. Must be one of {}'.format(lr_scheduler, AVAI_SCH))
@@ -83,8 +80,9 @@ def _build_scheduler(optimizer,
         max_lr=max_lr, min_lr=min_lr, warmup_steps=warmup, gamma=gamma)
 
     elif lr_scheduler == 'reduce_on_plateau':
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=patience, verbose=True, min_lr=min_lr)
-
+        min_lr = init_learning_rate / lr_decay_factor
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=patience,
+                                                            threshold=0.0003, verbose=True, min_lr=min_lr)
     else:
         raise ValueError('Unknown scheduler: {}'.format(lr_scheduler))
 

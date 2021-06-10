@@ -67,8 +67,11 @@ class Engine:
         self.start_epoch = 0
         self.fixbase_epoch = 0
         self.iter_to_wait = 0
+        self.iter_after_drop = 0
         self.best_metric = 0.0
         self.lr_prev_best_metric = None
+        self.after_drop_top1 = AverageMeter()
+        self.before_drop_top1 = AverageMeter()
         self.max_epoch = None
         self.num_batches = None
         self.epoch = None
@@ -91,7 +94,8 @@ class Engine:
         self.model_names_to_freeze = []
         self.ema_wrapped_models = []
 
-        self.lr_of_previous_iter = None
+        self.current_lr = None
+        self.last_lr = None
 
         if isinstance(models, (tuple, list)):
             assert isinstance(optimizers, (tuple, list))
@@ -232,39 +236,70 @@ class Engine:
         LR (i.e. self.lb_lr) and the best checkpoint is not changed for self.train_patience
         epochs.
         '''
-        name = self.get_model_names()[0]
 
         # Note that we take LR of the previous iter, not self.get_current_lr(),
         # since typically the method exit_on_plateau_and_choose_best is called after
         # the method update_lr, so LR drop happens before.
         # If we had used the method self.get_current_lr(), the last epoch
         # before LR drop would be used as the first epoch with the new LR.
-        last_lr = self.lr_of_previous_iter
-        if last_lr is None:
-            print('WARNING: The method exit_on_plateau_and_choose_best should be called after the method train')
-
+        if self.last_lr is not None:
+            lr_changed = self.last_lr != self.current_lr
+        else:
+            # first epoch
+            lr_changed = False
         should_exit = False
         is_candidate_for_best = False
-
         current_metric = np.round(top1, 4)
+        last_before_drop_top1 = float('inf')
+        reducing_lr_procedure = self.scheds[self.main_model_name].num_bad_epochs > 0
+        ic(self.best_metric, current_metric, reducing_lr_procedure)
 
-        if self.lr_prev_best_metric == last_lr and self.best_metric >= current_metric:
-            # not best
+        if reducing_lr_procedure:
+            self.before_drop_top1.update(current_metric)
+        else:
+            last_before_drop_top1 = self.before_drop_top1.avg
+            self.before_drop_top1.reset()
+
+        if lr_changed:
+            ic()
+            # assert that reducing lr procedure finished
+            assert not reducing_lr_procedure and last_before_drop_top1 != float('inf')
+            # we trigger that lr have been changed, but we don't accumulate
+            # metric since the training with new lr hasn't passed yet
+            self.iter_after_drop += 1
+
+        if self.iter_after_drop > 1:
+            # accumulate metric to decide to leave
+            self.after_drop_top1.update(current_metric)
+            self.iter_after_drop += 1
+
+        ic(self.iter_after_drop, self.train_patience, self.after_drop_top1.avg, last_before_drop_top1)
+        if self.iter_after_drop >= (self.train_patience + 1): # + 1 for triggered one above
+            if ((abs(self.after_drop_top1.avg - last_before_drop_top1) < 0.0002) or # 0.02% are insignificant changes
+                (self.after_drop_top1.avg <= last_before_drop_top1)): # or got even worse
+
+                print("The training should be stopped due to no improvements after droping learning rate")
+                should_exit = True
+            else:
+                self.after_drop_top1.reset()
+                last_before_drop_top1 = float('inf')
+                self.iter_after_drop = 0
+
+        if self.best_metric >= current_metric:
             self.iter_to_wait += 1
 
-            if (last_lr is not None) and (last_lr <= self.lb_lr) and (self.iter_to_wait >= self.train_patience):
+            if (self.current_lr <= self.lb_lr) and (self.iter_to_wait >= self.train_patience):
                 print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
                 should_exit = True
         else:
-            # best for this LR
             self.best_metric = current_metric
             self.iter_to_wait = 0
-            self.lr_prev_best_metric = last_lr
             is_candidate_for_best = True
             if self.use_ema_decay:
                 for ema in self.ema_wrapped_models:
                     ema.apply_shadow()
 
+        self.last_lr = self.current_lr
         return should_exit, is_candidate_for_best
 
     def run(
@@ -343,7 +378,6 @@ class Engine:
         if not lr_finder:
             print('Test before training')
             self.test(
-<<<<<<< HEAD
                       0,
                       dist_metric=dist_metric,
                       normalize_feature=normalize_feature,
@@ -353,18 +387,6 @@ class Engine:
                       use_metric_cuhk03=use_metric_cuhk03,
                       ranks=ranks,
                       rerank=rerank,
-=======
-                    0,
-                    dist_metric=dist_metric,
-                    normalize_feature=normalize_feature,
-                    visrank=visrank,
-                    visrank_topk=visrank_topk,
-                    save_dir=save_dir,
-                    use_metric_cuhk03=use_metric_cuhk03,
-                    ranks=ranks,
-                    rerank=rerank,
-                    test_before_train=True
->>>>>>> added not working optuna
             )
         else:
             self.backup_model()
@@ -552,7 +574,7 @@ class Engine:
                     self.writer.add_scalar('Loss/' + name, meter.avg, n_iter)
 
             end = time.time()
-            self.lr_of_previous_iter = self.get_current_lr()
+            self.current_lr = self.get_current_lr()
             if stop_callback and stop_callback.check_stop():
                 break
 
