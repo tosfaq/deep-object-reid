@@ -57,8 +57,8 @@ class LrFinder:
         self.enable_sam = engine.enable_sam
         self.smooth_f = smooth_f
         self.engine_cfg = Dict(min_lr=min_lr, max_lr=max_lr, mode=mode, step=step)
-        self.samplers = {'grid_search': GridSampler(search_space={'lr': [0.01, 0.007, 0.02, 0.016, 0.025, 0.03]}),
-                            'TPE': TPESampler(multivariate=True, group=True, n_startup_trials=5, seed=True)}
+        self.samplers = {'grid_search': GridSampler(search_space={'lr': [0.005, 0.007, 0.01, 0.015, 0.02, 0.025, 0.03]}),
+                            'TPE': TPESampler(n_startup_trials=5, seed=True)}
 
     def process(self):
         print('=> Start learning rate search. Mode: {}'.format(self.mode))

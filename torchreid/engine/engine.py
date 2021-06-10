@@ -474,7 +474,7 @@ class Engine:
         get_model_attr(self.models[self.main_model_name],'to')(self.model_device)
 
     def restore_model(self):
-        print("restoring model and seeds to initial state")
+        print("restoring model and seeds to initial state...")
         get_model_attr(self.models[self.main_model_name], 'load_state_dict')(self.state_cacher.retrieve("model"))
         self.optims[self.main_model_name].load_state_dict(self.state_cacher.retrieve("optimizer"))
         get_model_attr(self.models[self.main_model_name],'to')(self.model_device)
