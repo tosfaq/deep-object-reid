@@ -142,6 +142,7 @@ def get_default_config():
     cfg.train.min_lr = 1e-5
     cfg.train.max_lr = 0.1
     cfg.train.lr_decay_factor = 100
+    cfg.train.fixbase_epoch = 0
     cfg.train.nbd = False
     cfg.train.patience = 5 # define how much epochs to wait for reduce on plateau
     cfg.train.multiplier = 10

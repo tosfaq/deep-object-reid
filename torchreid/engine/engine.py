@@ -79,6 +79,7 @@ class Engine:
         self.train_patience = train_patience
         self.early_stoping = early_stoping
         self.state_cacher = StateCacher(in_memory=True, cache_dir=None)
+        self.param_history = set()
         self.seed = seed
 
         self.models = OrderedDict()
@@ -242,48 +243,48 @@ class Engine:
         # the method update_lr, so LR drop happens before.
         # If we had used the method self.get_current_lr(), the last epoch
         # before LR drop would be used as the first epoch with the new LR.
-        if self.last_lr is not None:
-            lr_changed = self.last_lr != self.current_lr
-        else:
-            # first epoch
-            lr_changed = False
+        # if self.last_lr is not None:
+        #     lr_changed = self.last_lr != self.current_lr and self.current_lr < self.last_lr
+        # else:
+        #     # first epoch
+        #     lr_changed = False
         should_exit = False
         is_candidate_for_best = False
         current_metric = np.round(top1, 4)
-        last_before_drop_top1 = float('inf')
-        reducing_lr_procedure = self.scheds[self.main_model_name].num_bad_epochs > 0
-        ic(self.best_metric, current_metric, reducing_lr_procedure)
+        # last_before_drop_top1 = float('inf')
+        # reducing_lr_procedure = self.scheds[self.main_model_name].num_bad_epochs > 0
+        # ic(self.best_metric, current_metric, reducing_lr_procedure, self.last_lr, self.current_lr, lr_changed)
 
-        if reducing_lr_procedure:
-            self.before_drop_top1.update(current_metric)
-        else:
-            last_before_drop_top1 = self.before_drop_top1.avg
-            self.before_drop_top1.reset()
+        # if reducing_lr_procedure:
+        #     self.before_drop_top1.update(current_metric)
+        # else:
+        #     last_before_drop_top1 = self.before_drop_top1.avg
+        #     self.before_drop_top1.reset()
 
-        if lr_changed:
-            ic()
-            # assert that reducing lr procedure finished
-            assert not reducing_lr_procedure and last_before_drop_top1 != float('inf')
-            # we trigger that lr have been changed, but we don't accumulate
-            # metric since the training with new lr hasn't passed yet
-            self.iter_after_drop += 1
+        # if lr_changed:
+        #     ic()
+        #     # assert that reducing lr procedure finished
+        #     assert not reducing_lr_procedure and last_before_drop_top1 != float('inf')
+        #     # we trigger that lr have been changed, but we don't accumulate
+        #     # metric since the training with new lr hasn't passed yet
+        #     self.iter_after_drop += 1
 
-        if self.iter_after_drop > 1:
-            # accumulate metric to decide to leave
-            self.after_drop_top1.update(current_metric)
-            self.iter_after_drop += 1
+        # if self.iter_after_drop > 1:
+        #     # accumulate metric to decide to leave
+        #     self.after_drop_top1.update(current_metric)
+        #     self.iter_after_drop += 1
 
-        ic(self.iter_after_drop, self.train_patience, self.after_drop_top1.avg, last_before_drop_top1)
-        if self.iter_after_drop >= (self.train_patience + 1): # + 1 for triggered one above
-            if ((abs(self.after_drop_top1.avg - last_before_drop_top1) < 0.0002) or # 0.02% are insignificant changes
-                (self.after_drop_top1.avg <= last_before_drop_top1)): # or got even worse
+        # ic(self.iter_after_drop, self.train_patience, self.after_drop_top1.avg, last_before_drop_top1)
+        # if self.iter_after_drop >= (self.train_patience + 1): # + 1 for triggered one above
+        #     if ((abs(self.after_drop_top1.avg - last_before_drop_top1) < 0.0002) or # 0.02% are insignificant changes
+        #         (self.after_drop_top1.avg <= last_before_drop_top1)): # or got even worse
 
-                print("The training should be stopped due to no improvements after droping learning rate")
-                should_exit = True
-            else:
-                self.after_drop_top1.reset()
-                last_before_drop_top1 = float('inf')
-                self.iter_after_drop = 0
+        #         print("The training should be stopped due to no improvements after droping learning rate")
+        #         should_exit = True
+        #     else:
+        #         self.after_drop_top1.reset()
+        #         last_before_drop_top1 = float('inf')
+        #         self.iter_after_drop = 0
 
         if self.best_metric >= current_metric:
             self.iter_to_wait += 1
@@ -390,9 +391,8 @@ class Engine:
             )
         else:
             self.backup_model()
-            self.configure_lr_finder(trial, lr_finder)
+            should_prune = self.configure_lr_finder(trial, lr_finder)
 
-        ic(self.optims[self.main_model_name])
         self.writer = tb_writer
         time_start = time.time()
         self.start_epoch = start_epoch
@@ -482,10 +482,14 @@ class Engine:
         if trial is None:
             return
         lr = trial.suggest_float("lr", finder_cfg.min_lr, finder_cfg.max_lr, step=finder_cfg.step)
+        if lr in self.param_history:
+            raise optuna.exceptions.TrialPruned()
+        self.param_history.add(lr)
         name = self.get_model_names()[0]
         for param_group in self.optims[name].param_groups:
             param_group["lr"] = round(lr,6)
         print(f"training with next lr: {lr}")
+
 
     def backup_model(self):
         print("backuping model...")

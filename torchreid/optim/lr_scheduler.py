@@ -179,6 +179,7 @@ class WarmupScheduler(_LRScheduler):
         self.multiplier = multiplier
         self.total_epoch = total_epoch
         self.after_scheduler = after_scheduler
+        self.num_bad_epochs = 0
         self.finished = False
         super().__init__(optimizer)
         # scale down initial learning rate
@@ -208,6 +209,7 @@ class WarmupScheduler(_LRScheduler):
                     self.after_scheduler.step(metrics=metrics, epoch=None)
                 else:
                     self.after_scheduler.step(metrics=metrics, epoch=epoch - self.total_epoch)
+                self.num_bad_epochs = self.after_scheduler.num_bad_epochs
             else:
                 if epoch is None:
                     self.after_scheduler.step(None)
