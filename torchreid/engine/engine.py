@@ -358,6 +358,7 @@ class Engine:
                       rerank=rerank,
             )
         else:
+            self.configure_lr_finder(trial, lr_finder)
             self.backup_model()
 
         self.writer = tb_writer
@@ -454,8 +455,7 @@ class Engine:
             self.restore_model()
             raise optuna.exceptions.TrialPruned()
         self.param_history.add(lr)
-        name = self.get_model_names()[0]
-        for param_group in self.optims[name].param_groups:
+        for param_group in self.optims[self.main_model_name].param_groups:
             param_group["lr"] = round(lr,6)
         print(f"training with next lr: {lr}")
 
