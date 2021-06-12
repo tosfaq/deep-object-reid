@@ -6,7 +6,7 @@ import torch.nn as nn
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, EvalModeSetter, rsc
 from .common import HSigmoid, HSwish, ModelInterface, make_divisible
-from timm.models.mobilenetv3 import mobilenetv3_large_100
+from timm.models.mobilenetv3 import mobilenetv3_large_100_miil_in21k
 
 from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
 
@@ -273,7 +273,7 @@ class MobileNetV3_large_100_timm(ModelInterface):
         self.loss = loss
         self.feature_dim = 1280 # hardcoded since it's implementation from timm
 
-        self.model = mobilenetv3_large_100(pretrained=pretrained)
+        self.model = mobilenetv3_large_100_miil_in21k(pretrained=pretrained)
         if self.loss == 'softmax':
             self.use_angle_simple_linear = False
             self.classifier = nn.Sequential(
@@ -290,11 +290,45 @@ class MobileNetV3_large_100_timm(ModelInterface):
 
         self._initialize_weights()
 
+
+class MobileNetV3Base(ModelInterface):
+    def __init__(self,
+                num_classes=1000,
+                width_mult=1.,
+                in_channels=3,
+                input_size=(224, 224),
+                dropout_cls = None,
+                pooling_type='avg',
+                bn_eval=False,
+                bn_frozen=False,
+                feature_dim=1280,
+                loss='softmax',
+                IN_first=False,
+                self_challenging_cfg=False,
+                lr_finder=None,
+                **kwargs):
+        super().__init__(**kwargs)
+        self.in_size = input_size
+        self.num_classes = num_classes
+        self.input_IN = nn.InstanceNorm2d(in_channels, affine=True) if IN_first else None
+        self.bn_eval = bn_eval
+        self.bn_frozen = bn_frozen
+        self.pooling_type = pooling_type
+        self.self_challenging_cfg = self_challenging_cfg
+        self.width_mult = width_mult
+        self.dropout_cls = dropout_cls
+        self.lr_finder = lr_finder
+        self.loss = loss
+        self.feature_dim = feature_dim
+
+    def extract_features(self, x):
+        raise NotImplementedError
+
     def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None):
         if self.input_IN is not None:
             x = self.input_IN(x)
 
-        y = self.model.forward_features(x)
+        y = self.extract_features(x)
 
         if return_featuremaps:
             return y

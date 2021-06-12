@@ -7,7 +7,6 @@ from collections import namedtuple, OrderedDict
 from copy import deepcopy
 from torchreid.utils.tools import StateCacher, set_random_seed
 import optuna
-from icecream import ic
 
 import numpy as np
 import torch
@@ -46,8 +45,16 @@ def get_initial_lr_from_checkpoint(filename):
 class Engine:
     r"""A generic base Engine class for both image- and video-reid."""
 
-    def __init__(self, datamanager, models, optimizers, schedulers,
-                 use_gpu=True, save_chkpt=True, train_patience = 10, lb_lr = 1e-5, early_stoping=False,
+    def __init__(self,
+                 datamanager,
+                 models,
+                 optimizers,
+                 schedulers,
+                 use_gpu=True,
+                 save_chkpt=True,
+                 train_patience = 10,
+                 lr_decay_factor = 1000,
+                 early_stoping=False,
                  should_freeze_aux_models=False,
                  nncf_metainfo=None,
                  initial_lr=None,
@@ -75,7 +82,6 @@ class Engine:
         self.max_epoch = None
         self.num_batches = None
         self.epoch = None
-        self.lb_lr = lb_lr
         self.train_patience = train_patience
         self.early_stoping = early_stoping
         self.state_cacher = StateCacher(in_memory=True, cache_dir=None)
@@ -125,6 +131,7 @@ class Engine:
             self.register_model('model', models, optimizers, schedulers)
         self.main_model_name = self.get_model_names()[0]
         self.model_device = next(self.models[self.main_model_name].parameters()).device
+        self.lb_lr = [param_group['lr'] / lr_decay_factor for param_group in self.optims[self.main_model_name].param_groups]
 
     def _should_freeze_aux_models(self, epoch):
         if not self.should_freeze_aux_models:
@@ -243,55 +250,16 @@ class Engine:
         # the method update_lr, so LR drop happens before.
         # If we had used the method self.get_current_lr(), the last epoch
         # before LR drop would be used as the first epoch with the new LR.
-        # if self.last_lr is not None:
-        #     lr_changed = self.last_lr != self.current_lr and self.current_lr < self.last_lr
-        # else:
-        #     # first epoch
-        #     lr_changed = False
         should_exit = False
         is_candidate_for_best = False
         current_metric = np.round(top1, 4)
-        # last_before_drop_top1 = float('inf')
-        # reducing_lr_procedure = self.scheds[self.main_model_name].num_bad_epochs > 0
-        # ic(self.best_metric, current_metric, reducing_lr_procedure, self.last_lr, self.current_lr, lr_changed)
-
-        # if reducing_lr_procedure:
-        #     self.before_drop_top1.update(current_metric)
-        # else:
-        #     last_before_drop_top1 = self.before_drop_top1.avg
-        #     self.before_drop_top1.reset()
-
-        # if lr_changed:
-        #     ic()
-        #     # assert that reducing lr procedure finished
-        #     assert not reducing_lr_procedure and last_before_drop_top1 != float('inf')
-        #     # we trigger that lr have been changed, but we don't accumulate
-        #     # metric since the training with new lr hasn't passed yet
-        #     self.iter_after_drop += 1
-
-        # if self.iter_after_drop > 1:
-        #     # accumulate metric to decide to leave
-        #     self.after_drop_top1.update(current_metric)
-        #     self.iter_after_drop += 1
-
-        # ic(self.iter_after_drop, self.train_patience, self.after_drop_top1.avg, last_before_drop_top1)
-        # if self.iter_after_drop >= (self.train_patience + 1): # + 1 for triggered one above
-        #     if ((abs(self.after_drop_top1.avg - last_before_drop_top1) < 0.0002) or # 0.02% are insignificant changes
-        #         (self.after_drop_top1.avg <= last_before_drop_top1)): # or got even worse
-
-        #         print("The training should be stopped due to no improvements after droping learning rate")
-        #         should_exit = True
-        #     else:
-        #         self.after_drop_top1.reset()
-        #         last_before_drop_top1 = float('inf')
-        #         self.iter_after_drop = 0
 
         if self.best_metric >= current_metric:
-            self.iter_to_wait += 1
-
-            if (self.current_lr <= self.lb_lr) and (self.iter_to_wait >= self.train_patience):
-                print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
-                should_exit = True
+            if (round(self.current_lr, 8) <= round(self.lb_lr[0], 8)):
+                self.iter_to_wait += 1
+                if self.iter_to_wait >= self.train_patience:
+                    print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
+                    should_exit = True
         else:
             self.best_metric = current_metric
             self.iter_to_wait = 0
@@ -391,7 +359,6 @@ class Engine:
             )
         else:
             self.backup_model()
-            should_prune = self.configure_lr_finder(trial, lr_finder)
 
         self.writer = tb_writer
         time_start = time.time()
@@ -441,6 +408,7 @@ class Engine:
                     if trial:
                         trial.report(top1, self.epoch)
                         if trial.should_prune():
+                            self.restore_model()
                             raise optuna.exceptions.TrialPruned()
 
                 if not lr_finder:
@@ -483,6 +451,7 @@ class Engine:
             return
         lr = trial.suggest_float("lr", finder_cfg.min_lr, finder_cfg.max_lr, step=finder_cfg.step)
         if lr in self.param_history:
+            self.restore_model()
             raise optuna.exceptions.TrialPruned()
         self.param_history.add(lr)
         name = self.get_model_names()[0]
@@ -542,7 +511,8 @@ class Engine:
             accuracy.update(avg_acc)
             if perf_monitor and not lr_finder: perf_monitor.on_train_batch_end()
 
-            if not lr_finder and ((self.batch_idx + 1) % print_freq) == 0:
+            if not lr_finder and (((self.batch_idx + 1) % print_freq) == 0 or
+                                        self.batch_idx == self.num_batches - 1):
                 nb_this_epoch = self.num_batches - (self.batch_idx + 1)
                 nb_future_epochs = (self.max_epoch - (self.epoch + 1)) * self.num_batches
                 eta_seconds = batch_time.avg * (nb_this_epoch+nb_future_epochs)
