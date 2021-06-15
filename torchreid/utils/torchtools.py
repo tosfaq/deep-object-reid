@@ -55,11 +55,11 @@ def save_checkpoint(
         state['state_dict'] = new_state_dict
     # save
     epoch = state['epoch']
-    fpath = osp.join(save_dir, 'model.pth.tar-' + str(epoch))
+    fpath = osp.join(save_dir, '{name}.pth.tar-' + str(epoch))
     torch.save(state, fpath)
     print('Checkpoint saved to "{}"'.format(fpath))
     if is_best:
-        best_link_path = osp.join(osp.dirname(fpath), 'model-best.pth.tar')
+        best_link_path = osp.join(osp.dirname(fpath), '{name}-best.pth.tar')
         if osp.lexists(best_link_path):
             os.remove(best_link_path)
         basename_fpath = osp.basename(fpath)

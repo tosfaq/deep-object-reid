@@ -6,11 +6,12 @@ import torch.nn as nn
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, EvalModeSetter, rsc
 from .common import HSigmoid, HSwish, ModelInterface, make_divisible
-from timm.models.mobilenetv3 import mobilenetv3_large_100_miil_in21k
+import timm
+from icecream import ic
 
 from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
 
-__all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150', 'mobilenetv3_large_125', "mobilenetv3_large_100_timm"]
+__all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150', 'mobilenetv3_large_125', "mobilenetv3_large_21k"]
 
 pretrained_urls = {
     'mobilenetv3_small':
@@ -106,191 +107,6 @@ class InvertedResidual(nn.Module):
         else:
             return self.conv(x)
 
-class MobileNetV3(ModelInterface):
-    def __init__(self,
-                 cfgs,
-                 mode,
-                 num_classes=1000,
-                 width_mult=1.,
-                 in_channels=3,
-                 input_size=(224, 224),
-                 dropout_cls = None,
-                 pooling_type='avg',
-                 bn_eval=False,
-                 bn_frozen=False,
-                 feature_dim=1280,
-                 loss='softmax',
-                 IN_first=False,
-                 IN_conv1=False,
-                 self_challenging_cfg=False,
-                 lr_finder=None,
-                 **kwargs):
-
-        super().__init__(**kwargs)
-        # setting of inverted residual blocks
-        self.cfgs = cfgs
-        self.in_size = input_size
-        self.num_classes = num_classes
-        self.input_IN = nn.InstanceNorm2d(in_channels, affine=True) if IN_first else None
-        self.bn_eval = bn_eval
-        self.bn_frozen = bn_frozen
-        self.pooling_type = pooling_type
-        self.self_challenging_cfg = self_challenging_cfg
-        self.lr_finder = lr_finder
-
-        self.loss = loss
-        self.feature_dim = feature_dim
-        assert self.feature_dim is not None and self.feature_dim > 0
-        assert mode in ['large', 'small']
-        # building first layer
-        input_channel = make_divisible(16 * width_mult, 8)
-        stride = 1 if self.in_size[0] < 100 else 2
-        layers = [conv_3x3_bn(3, input_channel, stride, IN_conv1)]
-        # building inverted residual blocks
-        block = InvertedResidual
-        flag = True
-        for k, t, c, use_se, use_hs, s in self.cfgs:
-            if (self.in_size[0] < 100) and (s == 2) and flag:
-                s = 1
-                flag = False
-            output_channel = make_divisible(c * width_mult, 8)
-            exp_size = make_divisible(input_channel * t, 8)
-            layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs))
-            input_channel = output_channel
-        self.features = nn.Sequential(*layers)
-        # building last several layers
-        self.conv = conv_1x1_bn(input_channel, exp_size, self.loss)
-        output_channel = {'large': 1280, 'small': 1024}
-        output_channel = make_divisible(output_channel[mode] * width_mult, 8) if width_mult > 1.0 else output_channel[mode]
-
-        if self.loss == 'softmax':
-            self.use_angle_simple_linear = False
-            self.classifier = nn.Sequential(
-                nn.Linear(exp_size, self.feature_dim),
-                nn.BatchNorm1d(self.feature_dim),
-                HSwish(),
-                Dropout(**dropout_cls),
-                nn.Linear(self.feature_dim, num_classes),
-            )
-        else:
-            assert self.loss == 'am_softmax'
-            self.use_angle_simple_linear = True
-            self.classifier = nn.Sequential(
-                nn.Linear(exp_size, self.feature_dim),
-                nn.BatchNorm1d(self.feature_dim),
-                nn.PReLU(),
-                Dropout(**dropout_cls),
-                AngleSimpleLinear(self.feature_dim, num_classes),
-            )
-
-        self._initialize_weights()
-
-    def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None):
-        if self.input_IN is not None:
-            x = self.input_IN(x)
-
-        y = self.conv(self.features(x))
-
-        if return_featuremaps:
-            return y
-
-        with no_nncf_head_context():
-            glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
-            logits = self.classifier(glob_features.view(x.shape[0], -1))
-
-        if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
-            glob_features = rsc(
-                features = glob_features,
-                scores = logits,
-                labels = gt_labels,
-                retain_p = 1.0 - self.self_challenging_cfg.drop_p,
-                retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
-            )
-
-            with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
-                logits = self.classifier(glob_features.view(x.shape[0], -1))
-
-        if not self.training and self.classification:
-            return [logits]
-
-        if get_embeddings:
-            out_data = [logits, glob_features]
-        elif self.loss in ['softmax', 'am_softmax']:
-            if self.lr_finder.enable and self.lr_finder.mode == 'fast_ai':
-                out_data = logits
-            else:
-                out_data = [logits]
-        elif self.loss in ['triplet']:
-            out_data = [logits, glob_features]
-        else:
-            raise KeyError("Unsupported loss: {}".format(self.loss))
-
-        if self.lr_finder.enable and self.lr_finder.mode == 'fast_ai':
-            return out_data
-        return tuple(out_data)
-
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                n = m.weight.size(1)
-                m.weight.data.normal_(0, 0.01)
-                m.bias.data.zero_()
-
-
-class MobileNetV3_large_100_timm(ModelInterface):
-    def __init__(self,
-                pretrained=False,
-                num_classes=1000,
-                in_channels=3,
-                input_size=(224, 224),
-                dropout_cls = None,
-                pooling_type='avg',
-                bn_eval=False,
-                bn_frozen=False,
-                loss='softmax',
-                IN_first=False,
-                self_challenging_cfg=False,
-                lr_finder=None,
-                **kwargs):
-
-        super().__init__(**kwargs)
-        self.in_size = input_size
-        self.num_classes = num_classes
-        self.input_IN = nn.InstanceNorm2d(in_channels, affine=True) if IN_first else None
-        self.bn_eval = bn_eval
-        self.bn_frozen = bn_frozen
-        self.pooling_type = pooling_type
-        self.self_challenging_cfg = self_challenging_cfg
-        self.lr_finder = lr_finder
-        self.loss = loss
-        self.feature_dim = 1280 # hardcoded since it's implementation from timm
-
-        self.model = mobilenetv3_large_100_miil_in21k(pretrained=pretrained)
-        if self.loss == 'softmax':
-            self.use_angle_simple_linear = False
-            self.classifier = nn.Sequential(
-                Dropout(**dropout_cls),
-                nn.Linear(self.feature_dim, num_classes),
-            )
-        else:
-            assert self.loss == 'am_softmax'
-            self.use_angle_simple_linear = True
-            self.classifier = nn.Sequential(
-                Dropout(**dropout_cls),
-                AngleSimpleLinear(self.feature_dim, num_classes),
-            )
-
-        self._initialize_weights()
-
-
 class MobileNetV3Base(ModelInterface):
     def __init__(self,
                 num_classes=1000,
@@ -299,20 +115,17 @@ class MobileNetV3Base(ModelInterface):
                 input_size=(224, 224),
                 dropout_cls = None,
                 pooling_type='avg',
-                bn_eval=False,
-                bn_frozen=False,
                 feature_dim=1280,
                 loss='softmax',
                 IN_first=False,
                 self_challenging_cfg=False,
                 lr_finder=None,
                 **kwargs):
+
         super().__init__(**kwargs)
         self.in_size = input_size
         self.num_classes = num_classes
         self.input_IN = nn.InstanceNorm2d(in_channels, affine=True) if IN_first else None
-        self.bn_eval = bn_eval
-        self.bn_frozen = bn_frozen
         self.pooling_type = pooling_type
         self.self_challenging_cfg = self_challenging_cfg
         self.width_mult = width_mult
@@ -320,6 +133,9 @@ class MobileNetV3Base(ModelInterface):
         self.lr_finder = lr_finder
         self.loss = loss
         self.feature_dim = feature_dim
+
+    def infer_head(self, x, skip_pool=False):
+        raise NotImplementedError
 
     def extract_features(self, x):
         raise NotImplementedError
@@ -329,14 +145,11 @@ class MobileNetV3Base(ModelInterface):
             x = self.input_IN(x)
 
         y = self.extract_features(x)
-
         if return_featuremaps:
             return y
 
         with no_nncf_head_context():
-            glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
-            logits = self.classifier(glob_features.view(x.shape[0], -1))
-
+            glob_features, logits = self.infer_head(y, skip_pool=False)
         if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
             glob_features = rsc(
                 features = glob_features,
@@ -347,7 +160,7 @@ class MobileNetV3Base(ModelInterface):
             )
 
             with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
-                logits = self.classifier(glob_features.view(x.shape[0], -1))
+                _, logits = self.infer_head(x, skip_pool=True)
 
         if not self.training and self.classification:
             return [logits]
@@ -368,6 +181,74 @@ class MobileNetV3Base(ModelInterface):
             return out_data
         return tuple(out_data)
 
+
+class MobileNetV3(MobileNetV3Base):
+    def __init__(self,
+                 cfgs,
+                 mode,
+                 IN_conv1=False,
+                 **kwargs):
+
+        super().__init__(**kwargs)
+        # setting of inverted residual blocks
+        self.cfgs = cfgs
+        assert mode in ['large', 'small']
+        # building first layer
+        input_channel = make_divisible(16 * self.width_mult, 8)
+        stride = 1 if self.in_size[0] < 100 else 2
+        layers = [conv_3x3_bn(3, input_channel, stride, IN_conv1)]
+        # building inverted residual blocks
+        block = InvertedResidual
+        flag = True
+        for k, t, c, use_se, use_hs, s in self.cfgs:
+            if (self.in_size[0] < 100) and (s == 2) and flag:
+                s = 1
+                flag = False
+            output_channel = make_divisible(c * self.width_mult, 8)
+            exp_size = make_divisible(input_channel * t, 8)
+            layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs))
+            input_channel = output_channel
+        self.features = nn.Sequential(*layers)
+        # building last several layers
+        self.conv = conv_1x1_bn(input_channel, exp_size, self.loss)
+        output_channel = {'large': 1280, 'small': 1024}
+        output_channel = make_divisible(output_channel[mode] * self.width_mult, 8) if self.width_mult > 1.0 else output_channel[mode]
+
+        if self.loss == 'softmax':
+            self.use_angle_simple_linear = False
+            self.classifier = nn.Sequential(
+                nn.Linear(exp_size, self.feature_dim),
+                nn.BatchNorm1d(self.feature_dim),
+                HSwish(),
+                Dropout(**self.dropout_cls),
+                nn.Linear(self.feature_dim, self.num_classes),
+            )
+        else:
+            assert self.loss == 'am_softmax'
+            self.use_angle_simple_linear = True
+            self.classifier = nn.Sequential(
+                nn.Linear(exp_size, self.feature_dim),
+                nn.BatchNorm1d(self.feature_dim),
+                nn.PReLU(),
+                Dropout(**self.dropout_cls),
+                AngleSimpleLinear(self.feature_dim, self.num_classes),
+            )
+
+        self._initialize_weights()
+
+    def extract_features(self, x):
+        y = self.conv(self.features(x))
+        return y
+
+    def infer_head(self, x, skip_pool=False):
+        if not skip_pool:
+            glob_features = self._glob_feature_vector(x, self.pooling_type, reduce_dims=False)
+        else:
+            glob_features = x
+
+        logits = self.classifier(glob_features.view(x.shape[0], -1))
+        return glob_features, logits
+
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -382,6 +263,35 @@ class MobileNetV3Base(ModelInterface):
                 n = m.weight.size(1)
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
+
+
+class MobileNetV3LargeTimm(MobileNetV3Base):
+    def __init__(self,
+                pretrained=False,
+                **kwargs):
+
+        super().__init__(**kwargs)
+        self.model = timm.create_model('mobilenetv3_large_100_miil_in21k', pretrained=pretrained, num_classes=self.num_classes)
+        self.use_angle_simple_linear = False
+        self.dropout = Dropout(**self.dropout_cls)
+        self.loss = 'softmax'
+
+    def extract_features(self, x):
+        x = self.model.conv_stem(x)
+        x = self.model.bn1(x)
+        x = self.model.act1(x)
+        y = self.model.blocks(x)
+        return y
+
+    def infer_head(self, x, skip_pool=False):
+        glob_features = self.model.global_pool(x) if not skip_pool else x
+        x = self.model.conv_head(glob_features)
+        x = self.model.act2(x)
+        x = x.flatten(1)
+        x = self.dropout(x)
+        logits = self.model.classifier(x)
+        return glob_features, logits
+
 
 def init_pretrained_weights(model, key='', prefix='', **kwargs):
     """Initializes model with pretrained weights.
@@ -423,14 +333,11 @@ def init_pretrained_weights(model, key='', prefix='', **kwargs):
         gdown.download(pretrained_urls[key], cached_file)
     model = load_pretrained_weights(model, cached_file, extra_prefix=prefix, **kwargs)
 
-def mobilenetv3_large_100_timm(pretrained=False, **kwargs):
+def mobilenetv3_large_21k(pretrained=False, **kwargs):
     """
     Constructs a MobileNetV3-Large_timm model
     """
-    net = MobileNetV3_large_100_timm(pretrained=pretrained, **kwargs)
-    if pretrained:
-        init_pretrained_weights(net, key='mobilenetv3_large_21k', prefix="model.")
-
+    net = MobileNetV3LargeTimm(pretrained=pretrained, **kwargs)
     return net
 
 def mobilenetv3_large_075(pretrained=False, **kwargs):

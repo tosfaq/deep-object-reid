@@ -1,5 +1,4 @@
 from __future__ import print_function, absolute_import
-from torchreid.utils import lr_finder
 import torch
 import torch.nn as nn
 
@@ -80,6 +79,7 @@ def _build_optim(model,
                 nbd=False,
                 lr_finder=False,
                 sam_rho = 0.05):
+
     if optim not in AVAI_OPTIMS:
         raise ValueError(
             'Unsupported optimizer: {}. Must be one of {}'.format(
@@ -92,9 +92,9 @@ def _build_optim(model,
             'Invalid base optimizer. SAM cannot be the base one'
         )
 
-    if not isinstance(model,nn.Module):
-        raise ValueError(
-            'model should be a nn.Module instance'
+    if not isinstance(model, nn.Module):
+        raise TypeError(
+            'model given to build_optimizer must be an instance of nn.Module'
         )
 
     if staged_lr:
@@ -181,7 +181,6 @@ def _build_optim(model,
     elif optim == 'radam':
         optimizer = RAdam(
             param_groups,
-            weight_decay=weight_decay,
             betas=(adam_beta1, adam_beta2)
         )
 

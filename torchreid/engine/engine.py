@@ -44,7 +44,6 @@ def get_initial_lr_from_checkpoint(filename):
 
 class Engine:
     r"""A generic base Engine class for both image- and video-reid."""
-
     def __init__(self,
                  datamanager,
                  models,
@@ -74,11 +73,7 @@ class Engine:
         self.start_epoch = 0
         self.fixbase_epoch = 0
         self.iter_to_wait = 0
-        self.iter_after_drop = 0
         self.best_metric = 0.0
-        self.lr_prev_best_metric = None
-        self.after_drop_top1 = AverageMeter()
-        self.before_drop_top1 = AverageMeter()
         self.max_epoch = None
         self.num_batches = None
         self.epoch = None
@@ -100,9 +95,7 @@ class Engine:
         self.epoch_interval_for_turn_off_mutual_learning = epoch_interval_for_turn_off_mutual_learning
         self.model_names_to_freeze = []
         self.ema_wrapped_models = []
-
         self.current_lr = None
-        self.last_lr = None
 
         if isinstance(models, (tuple, list)):
             assert isinstance(optimizers, (tuple, list))
@@ -183,8 +176,12 @@ class Engine:
             return names_real
 
     def save_model(self, epoch, save_dir, is_best=False):
+        def create_sym_link(path,name):
+            if osp.lexists(name):
+                os.remove(name)
+            os.symlink(path, name)
+
         names = self.get_model_names()
-        main_model_name = names[0]
 
         for name in names:
             ckpt_path = save_checkpoint(
@@ -202,11 +199,12 @@ class Engine:
                             is_best=is_best
                         )
 
-            if name == main_model_name:
+            if name == self.main_model_name:
                 latest_name = osp.join(save_dir, 'latest.pth')
-                if osp.lexists(latest_name):
-                    os.remove(latest_name)
-                os.symlink(ckpt_path, latest_name)
+                create_sym_link(ckpt_path, latest_name)
+                if is_best:
+                    best_model = osp.join(save_dir, 'best.pth')
+                    create_sym_link(ckpt_path, best_model)
 
     def set_model_mode(self, mode='train', names=None):
         assert mode in ['train', 'eval', 'test']
