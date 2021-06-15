@@ -22,12 +22,12 @@ def dump_config(yaml: YAML, config_path: str, cfg: dict):
 
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument( '--data_root', type=str, required=False, default='/media/cluster_fs/datasets/classification', help='path to folder with datasets')
+    parser.add_argument( '--root', type=str, required=False, default='/datasets/classification', help='path to folder with datasets')
     parser.add_argument('--config', type=str, required=False, help='path to config file')
-    parser.add_argument('--path_to_main', type=str, default='./tools/main.py',required=False, help='path to main.py file')
+    parser.add_argument('--path-to-main', type=str, default='./tools/main.py',required=False, help='path to main.py file')
     parser.add_argument('--gpu-num', type=int, default=1, help='Number of GPUs for training. 0 is for CPU mode')
-    parser.add_argument('--use_hardcoded_lr', type=bool, default=True)
-    parser.add_argument('--dump_results', type=bool, default=True, help='whether or not to dump results of the experiment')
+    parser.add_argument('--use-hardcoded-lr', action='store_true')
+    parser.add_argument('--dump-results', type=bool, default=True, help='whether or not to dump results of the experiment')
     args = parser.parse_args()
     yaml = YAML()
 
@@ -169,7 +169,7 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to skip
-    to_train = {"pets", "CIFAR100", "DTD", "flowers", "cars"}
+    to_train = {"pets", "caltech101", "DTD", "flowers", "cars"}
 
     for key, params in datasets.items():
         if key not in to_train:
@@ -180,22 +180,19 @@ def main():
         name_val = params['names'][1]
         type_train = params['types'][0]
         type_val = params['types'][1]
-        root_train = args.data_root + os.sep + params['roots'][0]
-        root_val = args.data_root + os.sep + params['roots'][1]
-        # print("WARNING: Using hardcoded LR")
-        # if key in ["birdsnap"]:
-        #     cfg['lr_finder']['enable'] = True
-        #     # cfg["train"]["lr"] = 0.02
-        # if key in ["caltech101"]:
-        #     cfg["train"]["lr"] = 0.025
-        # elif key in ["pets", "SUN397"]:
-        #     cfg["train"]["lr"] = 0.03
-        # elif key in ["Xray", "SVHN"]:
-        #     cfg["train"]["lr"] = 0.035
-        # elif key in ["DTD", "FashionMNIST", "flowers"]:
-        #     cfg['lr_finder']['enable'] = True
-        # elif key in ["cars", "CIFAR100", "FOOD101"]:
-        #     cfg["train"]["lr"] = 0.015
+        root_train = args.root + os.sep + params['roots'][0]
+        root_val = args.root + os.sep + params['roots'][1]
+        if args.use_hardcoded_lr:
+            print("WARNING: Using hardcoded LR")
+            if key in ["cars", "caltech101"]:
+                cfg["train"]["lr"] = 0.025
+            elif key in ["pets", "CIFAR100"]:
+                cfg["train"]["lr"] = 0.005
+            elif key in ["flowers"]:
+                cfg['train']['lr'] = 0.021
+            elif key in ["DTD"]:
+                cfg["train"]["lr"] = 0.009
+
 
         cfg['custom_datasets']['roots'] = [root_train, root_val]
         cfg['custom_datasets']['types'] = [type_train, type_val]

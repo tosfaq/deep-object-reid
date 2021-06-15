@@ -143,9 +143,9 @@ def _build_optim(model,
 
         assert len(list(model.parameters())) == len(decay) + len(bias_no_decay) + len(weight_no_decay)
 
-        param_groups = [{'params': bias_no_decay, 'lr': 2 * lr, 'weight_decay': 0.0},
-                        {'params': weight_no_decay, 'lr': lr, 'weight_decay': 0.0},
-                        {'params': decay, 'lr': lr, 'weight_decay': weight_decay}]
+        param_groups = [{'params': decay, 'lr': lr, 'weight_decay': weight_decay},
+                        {'params': bias_no_decay, 'lr': 2 * lr, 'weight_decay': 0.0},
+                        {'params': weight_no_decay, 'lr': lr, 'weight_decay': 0.0}]
 
     else:
         param_groups = [{'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay}]

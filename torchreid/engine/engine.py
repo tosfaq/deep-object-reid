@@ -131,7 +131,7 @@ class Engine:
             self.register_model('model', models, optimizers, schedulers)
         self.main_model_name = self.get_model_names()[0]
         self.model_device = next(self.models[self.main_model_name].parameters()).device
-        self.lb_lr = [param_group['lr'] / lr_decay_factor for param_group in self.optims[self.main_model_name].param_groups]
+        self.lb_lr = initial_lr / lr_decay_factor
 
     def _should_freeze_aux_models(self, epoch):
         if not self.should_freeze_aux_models:
@@ -253,9 +253,8 @@ class Engine:
         should_exit = False
         is_candidate_for_best = False
         current_metric = np.round(top1, 4)
-
         if self.best_metric >= current_metric:
-            if (round(self.current_lr, 8) <= round(self.lb_lr[0], 8)):
+            if (round(self.current_lr, 8) <= round(self.lb_lr, 8)):
                 self.iter_to_wait += 1
                 if self.iter_to_wait >= self.train_patience:
                     print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
@@ -268,7 +267,6 @@ class Engine:
                 for ema in self.ema_wrapped_models:
                     ema.apply_shadow()
 
-        self.last_lr = self.current_lr
         return should_exit, is_candidate_for_best
 
     def run(
