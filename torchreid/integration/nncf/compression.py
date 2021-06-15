@@ -29,7 +29,6 @@ def get_no_nncf_trace_context_manager():
 def _get_nncf_metainfo_from_checkpoint(filename):
     if not filename:
         return None
-    print(filename)
     checkpoint = torch.load(filename, map_location='cpu')
     if not isinstance(checkpoint, dict):
         return None

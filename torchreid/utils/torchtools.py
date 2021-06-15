@@ -22,7 +22,7 @@ __all__ = [
 
 
 def save_checkpoint(
-    state, save_dir, is_best=False, remove_module_from_keys=False
+    state, save_dir, is_best=False, remove_module_from_keys=False, name='model'
 ):
     r"""Saves checkpoint.
 
@@ -284,7 +284,7 @@ def _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers):
         )
 
 
-def load_pretrained_weights(model, file_path='', pretrained_dict=None, extra_prefix=''):
+def load_pretrained_weights(model, file_path='', pretrained_dict=None):
     r"""Loads pretrianed weights to model.
     Features::
         - Incompatible layers (unmatched in name or size) will be ignored.
@@ -323,7 +323,7 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None, extra_pre
     for k, v in state_dict.items():
         # discard known prefixes: 'nncf_module.' from NNCF, 'module.' from DataParallel
         k = _remove_prefix(k, 'nncf_module')
-        k = extra_prefix + _remove_prefix(k, 'module')
+        k = _remove_prefix(k, 'module')
 
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
@@ -350,8 +350,6 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None, extra_pre
             format(message)
         )
         _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
-
-import torch.nn as nn
 
 
 class EMA():

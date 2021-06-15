@@ -196,7 +196,8 @@ class Engine:
                                 'initial_lr': self.initial_lr
                             },
                             osp.join(save_dir, name),
-                            is_best=is_best
+                            is_best=is_best,
+                            name=name
                         )
 
             if name == self.main_model_name:
@@ -405,6 +406,7 @@ class Engine:
                     if trial:
                         trial.report(top1, self.epoch)
                         if trial.should_prune():
+                            # restore model before pruning
                             self.restore_model()
                             raise optuna.exceptions.TrialPruned()
 
@@ -448,6 +450,7 @@ class Engine:
             return
         lr = trial.suggest_float("lr", finder_cfg.min_lr, finder_cfg.max_lr, step=finder_cfg.step)
         if lr in self.param_history:
+            # restore model before pruning
             self.restore_model()
             raise optuna.exceptions.TrialPruned()
         self.param_history.add(lr)

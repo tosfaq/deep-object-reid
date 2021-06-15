@@ -159,7 +159,6 @@ def main():
             schedulers.append(aux_scheduler)
     else:
         models, optimizers, schedulers = model, optimizer, scheduler
-    print(aux_lr)
     print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers,
                           should_freeze_aux_models=should_freeze_aux_models,

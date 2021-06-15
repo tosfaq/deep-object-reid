@@ -7,7 +7,6 @@ from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, EvalModeSetter, rsc
 from .common import HSigmoid, HSwish, ModelInterface, make_divisible
 import timm
-from icecream import ic
 
 from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
 
@@ -293,7 +292,7 @@ class MobileNetV3LargeTimm(MobileNetV3Base):
         return glob_features, logits
 
 
-def init_pretrained_weights(model, key='', prefix='', **kwargs):
+def init_pretrained_weights(model, key='', **kwargs):
     """Initializes model with pretrained weights.
 
     Layers that don't match with pretrained layers in name or size are kept unchanged.
@@ -331,7 +330,7 @@ def init_pretrained_weights(model, key='', prefix='', **kwargs):
     cached_file = os.path.join(model_dir, filename)
     if not os.path.exists(cached_file):
         gdown.download(pretrained_urls[key], cached_file)
-    model = load_pretrained_weights(model, cached_file, extra_prefix=prefix, **kwargs)
+    model = load_pretrained_weights(model, cached_file, **kwargs)
 
 def mobilenetv3_large_21k(pretrained=False, **kwargs):
     """
