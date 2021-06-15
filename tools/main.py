@@ -79,7 +79,7 @@ def main():
     num_params, flops = compute_model_complexity(model, (1, 3, cfg.data.height, cfg.data.width))
     print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
 
-    aux_lr = None if cfg.lr_finder.enable else cfg.train.lr # placeholder, needed for aux models, may be filled by nncf part below
+    aux_lr = cfg.train.lr # placeholder, needed for aux models, may be filled by nncf part below
     if is_nncf_used:
         print('Begin making NNCF changes in model')
         model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
@@ -121,7 +121,7 @@ def main():
         assert not is_nncf_used, "lr finder is incompatible with nncf"
 
         # build  engine for learning rate estimation
-        engine = build_engine(cfg, datamanager, model, optimizer, scheduler)
+        engine = build_engine(cfg, datamanager, model, optimizer, scheduler, initial_lr=aux_lr)
         lr_finder = LrFinder(engine=engine, **lr_finder_run_kwargs(cfg))
         aux_lr = lr_finder.process()
 
@@ -159,12 +159,12 @@ def main():
             schedulers.append(aux_scheduler)
     else:
         models, optimizers, schedulers = model, optimizer, scheduler
-
+    print(aux_lr)
     print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers,
                           should_freeze_aux_models=should_freeze_aux_models,
                           nncf_metainfo=nncf_metainfo,
-                          initial_lr=cfg.train.lr)
+                          initial_lr=aux_lr)
 
     log_dir = cfg.data.tb_log_dir if cfg.data.tb_log_dir else cfg.data.save_dir
     engine.run(**engine_run_kwargs(cfg), tb_writer=SummaryWriter(log_dir=log_dir))

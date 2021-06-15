@@ -897,6 +897,7 @@ class RandomCropPad(TorchRandomCrop):
     def __call__(self, input_tuple):
         image, mask = input_tuple
         image = self.forward(image)
+        mask = self.forward(mask) if mask else ''
 
         return image, mask
 
@@ -1164,6 +1165,7 @@ class AugMixAugment:
         mixing_weights = np.float32(np.random.dirichlet([self.alpha] * self.width))
         m = np.float32(np.random.beta(self.alpha, self.alpha))
         mixed = self._apply_basic(img, mixing_weights, m)
+        mask = self._apply_basic(mask, mixing_weights, m) if mask else ''
         return mixed, mask
 
 def augment_and_mix_transform(config_str, image_mean, translate_const=250):
