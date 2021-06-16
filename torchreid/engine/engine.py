@@ -12,6 +12,7 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 
+from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler
 from torchreid import metrics
 from torchreid.losses import DeepSupervision
 from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
@@ -227,7 +228,7 @@ class Engine:
 
         for name in names:
             if self.scheds[name] is not None:
-                if self.scheds[name].__class__.__name__ in ['ReduceLROnPlateau', 'WarmupScheduler']:
+                if isinstance(self.scheds[name], (ReduceLROnPlateauV2, WarmupScheduler)):
                     self.scheds[name].step(metrics=output_avg_metric)
                 else:
                     self.scheds[name].step()

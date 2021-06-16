@@ -270,10 +270,12 @@ class MobileNetV3LargeTimm(MobileNetV3Base):
                 **kwargs):
 
         super().__init__(**kwargs)
-        self.model = timm.create_model('mobilenetv3_large_100_miil_in21k', pretrained=pretrained, num_classes=self.num_classes)
+        self.model = timm.create_model('mobilenetv3_large_100_miil_in21k',
+                                        pretrained=pretrained,
+                                        num_classes=self.num_classes)
         self.use_angle_simple_linear = False
         self.dropout = Dropout(**self.dropout_cls)
-        self.loss = 'softmax'
+        assert self.loss == 'softmax', "mobilenetv3_large_100_miil_in21k supports only softmax loss"
 
     def extract_features(self, x):
         x = self.model.conv_stem(x)

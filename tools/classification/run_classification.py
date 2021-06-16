@@ -169,7 +169,7 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to skip
-    to_train = {"pets", "caltech101", "DTD", "flowers", "cars"}
+    to_train = {"pets", "caltech101", "DTD","flowers", "cars"}
 
     for key, params in datasets.items():
         if key not in to_train:
@@ -189,9 +189,9 @@ def main():
             elif key in ["pets", "CIFAR100"]:
                 cfg["train"]["lr"] = 0.005
             elif key in ["flowers"]:
-                cfg['train']['lr'] = 0.021
+                cfg['train']['lr'] = 0.028
             elif key in ["DTD"]:
-                cfg["train"]["lr"] = 0.009
+                cfg["train"]["lr"] = 0.03
 
 
         cfg['custom_datasets']['roots'] = [root_train, root_val]

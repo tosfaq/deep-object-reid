@@ -75,6 +75,7 @@ def set_random_seed(seed, deterministic=False):
 
 def worker_init_fn(worker_id):
     np.random.seed(np.random.get_state()[1][0] + worker_id)
+    random.seed(random.getstate()[1][0] + worker_id)
 
 def download_url(url, dst):
     """Downloads file from a url to a destination.

@@ -85,13 +85,15 @@ class ImageAMSoftmaxEngine(Engine):
         num_classes = self.datamanager.num_train_pids
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
-
+        from icecream import ic
         self.num_classes = num_classes
         scales = dict()
         if compute_s:
+            ic()
             scale = self.compute_s(num_classes[0])
             print(f"computed margin scale for dataset: {scale}")
         else:
+            ic(s)
             scale = s
         for model_name, model in self.models.items():
             if get_model_attr(model, 'use_angle_simple_linear'):

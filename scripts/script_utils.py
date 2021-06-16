@@ -139,7 +139,7 @@ def is_config_parameter_set_from_command_line(cmd_line_opts, parameter_name):
     return (parameter_name in key_names)
 
 
-def put_on_the_device(model, use_gpu=True, gpu_num=1, num_aux_models=0, split_models=False):
+def put_main_model_on_the_device(model, use_gpu=True, gpu_num=1, num_aux_models=0, split_models=False):
     if use_gpu:
         num_devices = min(torch.cuda.device_count(), gpu_num)
         if num_aux_models > 0 and split_models:

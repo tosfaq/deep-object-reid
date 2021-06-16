@@ -113,7 +113,7 @@ class LrFinder:
             elapsed = round(time.time() - start_time)
             print(f"--- learning rate estimation finished with elapsed time: {datetime.timedelta(seconds=elapsed)} ---")
 
-        finally:
+        except KeyboardInterrupt:
             pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
             complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
 

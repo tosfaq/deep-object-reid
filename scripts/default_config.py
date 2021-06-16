@@ -148,7 +148,7 @@ def get_default_config():
     cfg.train.multiplier = 10
     cfg.train.print_freq = 20  # print frequency
     cfg.train.seed = 5  # random seed
-    cfg.train.deterministic = False # degine to use cuda.deterministic
+    cfg.train.deterministic = False # define to use cuda.deterministic
     cfg.train.warmup = 1  # After fixbase_epoch
     cfg.train.ema = CN()
     cfg.train.ema.enable = False

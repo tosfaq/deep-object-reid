@@ -15,7 +15,7 @@ from scripts.script_utils import (build_base_argparser, reset_config,
                                   check_classification_classes,
                                   build_datamanager, build_auxiliary_model,
                                   is_config_parameter_set_from_command_line,
-                                  put_on_the_device)
+                                  put_main_model_on_the_device)
 
 import torchreid
 from torchreid.engine import build_engine, get_initial_lr_from_checkpoint
@@ -113,7 +113,7 @@ def main():
     if cfg.model.classification:
         check_classification_classes(model, datamanager, args.classes, test_only=cfg.test.evaluate)
 
-    model, extra_device_ids = put_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
+    model, extra_device_ids = put_main_model_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
 
     if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
         if num_aux_models > 0:
@@ -139,7 +139,7 @@ def main():
         set_random_seed(cfg.train.seed, cfg.train.deterministic)
         datamanager = build_datamanager(cfg, args.classes)
         model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
-        model, _ = put_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
+        model, _ = put_main_model_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
         optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
         scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
 
