@@ -357,11 +357,13 @@ class EfficientNet(ModelInterface):
         if dropout_cls:
             self.output.add_module("dropout", Dropout(**dropout_cls))
         if self.loss == 'softmax':
+            self.use_angle_simple_linear = False
             self.output.add_module("fc", nn.Linear(
                 in_features=in_channels,
                 out_features=num_classes))
         else:
             assert self.loss == 'am_softmax'
+            self.use_angle_simple_linear = True
             self.output.add_module("asl", AngleSimpleLinear(
                 in_features=in_channels,
                 out_features=num_classes))

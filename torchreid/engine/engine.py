@@ -1,23 +1,24 @@
 from __future__ import absolute_import, division, print_function
-import copy
 import datetime
 import os
 import os.path as osp
 import time
 from collections import namedtuple, OrderedDict
 from copy import deepcopy
+from torchreid.utils.tools import StateCacher, set_random_seed
+import optuna
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.nn import functional as F
 
+from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler
 from torchreid import metrics
 from torchreid.losses import DeepSupervision
 from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
                              open_all_layers, open_specified_layers,
                              re_ranking, save_checkpoint,
-                             visualize_ranked_results)
+                             visualize_ranked_results, EMA)
 
 
 EpochIntervalToValue = namedtuple('EpochIntervalToValue', ['first', 'last', 'value_inside', 'value_outside'])
@@ -43,21 +44,25 @@ def get_initial_lr_from_checkpoint(filename):
     return checkpoint.get('initial_lr')
 
 class Engine:
-    r"""A generic base Engine class for both image- and video-reid.
-
-    Args:
-        datamanager (DataManager): an instance of ``torchreid.data.ImageDataManager``
-            or ``torchreid.data.VideoDataManager``.
-        use_gpu (bool, optional): use gpu. Default is True.
-    """
-
-    def __init__(self, datamanager, models, optimizers, schedulers,
-                 use_gpu=True, save_chkpt=True, train_patience = 10, lb_lr = 1e-5, early_stoping=False,
+    r"""A generic base Engine class for both image- and video-reid."""
+    def __init__(self,
+                 datamanager,
+                 models,
+                 optimizers,
+                 schedulers,
+                 use_gpu=True,
+                 save_chkpt=True,
+                 train_patience = 10,
+                 lr_decay_factor = 1000,
+                 early_stoping=False,
                  should_freeze_aux_models=False,
                  nncf_metainfo=None,
                  initial_lr=None,
                  epoch_interval_for_aux_model_freeze=None,
-                 epoch_interval_for_turn_off_mutual_learning=None):
+                 epoch_interval_for_turn_off_mutual_learning=None,
+                 use_ema_decay=False,
+                 ema_decay=0.999,
+                 seed=5):
 
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
@@ -65,18 +70,19 @@ class Engine:
         self.use_gpu = (torch.cuda.is_available() and use_gpu)
         self.save_chkpt = save_chkpt
         self.writer = None
-
+        self.use_ema_decay = use_ema_decay
         self.start_epoch = 0
         self.fixbase_epoch = 0
         self.iter_to_wait = 0
         self.best_metric = 0.0
-        self.lr_prev_best_metric = None
         self.max_epoch = None
         self.num_batches = None
         self.epoch = None
-        self.lb_lr = lb_lr
         self.train_patience = train_patience
         self.early_stoping = early_stoping
+        self.state_cacher = StateCacher(in_memory=True, cache_dir=None)
+        self.param_history = set()
+        self.seed = seed
 
         self.models = OrderedDict()
         self.optims = OrderedDict()
@@ -89,8 +95,8 @@ class Engine:
         self.epoch_interval_for_aux_model_freeze = epoch_interval_for_aux_model_freeze
         self.epoch_interval_for_turn_off_mutual_learning = epoch_interval_for_turn_off_mutual_learning
         self.model_names_to_freeze = []
-
-        self.lr_of_previous_iter = None
+        self.ema_wrapped_models = []
+        self.current_lr = None
 
         if isinstance(models, (tuple, list)):
             assert isinstance(optimizers, (tuple, list))
@@ -103,13 +109,23 @@ class Engine:
             for model_id, (model, optimizer, scheduler) in enumerate(zip(models, optimizers, schedulers)):
                 model_name = f'model_{model_id}'
                 self.register_model(model_name, model, optimizer, scheduler)
+                if use_ema_decay:
+                    ema = EMA(model, decay=ema_decay)
+                    ema.register()
+                    self.ema_wrapped_models.append(ema)
                 if should_freeze_aux_models and model_id > 0:
                     self.model_names_to_freeze.append(model_name)
         else:
             assert not isinstance(optimizers, (tuple, list))
             assert not isinstance(schedulers, (tuple, list))
-
+            if use_ema_decay:
+                ema = EMA(models, decay=ema_decay)
+                ema.register()
+                self.ema_wrapped_models.append(ema)
             self.register_model('model', models, optimizers, schedulers)
+        self.main_model_name = self.get_model_names()[0]
+        self.model_device = next(self.models[self.main_model_name].parameters()).device
+        self.lb_lr = initial_lr / lr_decay_factor
 
     def _should_freeze_aux_models(self, epoch):
         if not self.should_freeze_aux_models:
@@ -161,8 +177,12 @@ class Engine:
             return names_real
 
     def save_model(self, epoch, save_dir, is_best=False):
+        def create_sym_link(path,name):
+            if osp.lexists(name):
+                os.remove(name)
+            os.symlink(path, name)
+
         names = self.get_model_names()
-        main_model_name = names[0]
 
         for name in names:
             ckpt_path = save_checkpoint(
@@ -177,14 +197,16 @@ class Engine:
                                 'initial_lr': self.initial_lr
                             },
                             osp.join(save_dir, name),
-                            is_best=is_best
+                            is_best=is_best,
+                            name=name
                         )
 
-            if name == main_model_name:
+            if name == self.main_model_name:
                 latest_name = osp.join(save_dir, 'latest.pth')
-                if osp.lexists(latest_name):
-                    os.remove(latest_name)
-                os.symlink(ckpt_path, latest_name)
+                create_sym_link(ckpt_path, latest_name)
+                if is_best:
+                    best_model = osp.join(save_dir, 'best.pth')
+                    create_sym_link(ckpt_path, best_model)
 
     def set_model_mode(self, mode='train', names=None):
         assert mode in ['train', 'eval', 'test']
@@ -206,7 +228,7 @@ class Engine:
 
         for name in names:
             if self.scheds[name] is not None:
-                if self.scheds[name].__class__.__name__ in ['ReduceLROnPlateau', 'WarmupScheduler']:
+                if isinstance(self.scheds[name], (ReduceLROnPlateauV2, WarmupScheduler)):
                     self.scheds[name].step(metrics=output_avg_metric)
                 else:
                     self.scheds[name].step()
@@ -222,40 +244,34 @@ class Engine:
         LR (i.e. self.lb_lr) and the best checkpoint is not changed for self.train_patience
         epochs.
         '''
-        name = self.get_model_names()[0]
 
         # Note that we take LR of the previous iter, not self.get_current_lr(),
         # since typically the method exit_on_plateau_and_choose_best is called after
         # the method update_lr, so LR drop happens before.
         # If we had used the method self.get_current_lr(), the last epoch
         # before LR drop would be used as the first epoch with the new LR.
-        last_lr = self.lr_of_previous_iter
-        if last_lr is None:
-            print('WARNING: The method exit_on_plateau_and_choose_best should be called after the method train')
-
         should_exit = False
         is_candidate_for_best = False
-
         current_metric = np.round(top1, 4)
-
-        if self.lr_prev_best_metric == last_lr and self.best_metric >= current_metric:
-            # not best
-            self.iter_to_wait += 1
-
-            if (last_lr is not None) and (last_lr <= self.lb_lr) and (self.iter_to_wait >= self.train_patience):
-                print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
-                should_exit = True
+        if self.best_metric >= current_metric:
+            if (round(self.current_lr, 8) <= round(self.lb_lr, 8)):
+                self.iter_to_wait += 1
+                if self.iter_to_wait >= self.train_patience:
+                    print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
+                    should_exit = True
         else:
-            # best for this LR
             self.best_metric = current_metric
             self.iter_to_wait = 0
-            self.lr_prev_best_metric = last_lr
             is_candidate_for_best = True
+            if self.use_ema_decay:
+                for ema in self.ema_wrapped_models:
+                    ema.apply_shadow()
 
         return should_exit, is_candidate_for_best
 
     def run(
         self,
+        trial=None,
         save_dir='log',
         tb_writer=None,
         max_epoch=0,
@@ -273,9 +289,10 @@ class Engine:
         use_metric_cuhk03=False,
         ranks=(1, 5, 10, 20),
         rerank=False,
-        lr_finder=False,
+        lr_finder=None,
         perf_monitor=None,
         stop_callback=None,
+        initial_seed=5,
         **kwargs
     ):
         r"""A unified pipeline for training and evaluating a model.
@@ -338,17 +355,22 @@ class Engine:
                       ranks=ranks,
                       rerank=rerank,
             )
+        else:
+            self.configure_lr_finder(trial, lr_finder)
+            self.backup_model()
 
         self.writer = tb_writer
-
         time_start = time.time()
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch
+        assert start_epoch != max_epoch, "the last epoch number cannot be equal the start one"
         self.fixbase_epoch = fixbase_epoch
         print('=> Start training')
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_begin()
         for self.epoch in range(self.start_epoch, self.max_epoch):
+            # change the NumPy’s seed at every epoch
+            np.random.seed(initial_seed + self.epoch)
             if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_begin()
             self.train(
                 print_freq=print_freq,
@@ -356,16 +378,17 @@ class Engine:
                 open_layers=open_layers,
                 lr_finder = lr_finder,
                 perf_monitor=perf_monitor,
-                stop_callback=stop_callback
+                stop_callback=stop_callback,
             )
             if stop_callback and stop_callback.check_stop():
                 break
             if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_end()
 
-            if ((self.epoch + 1) >= start_eval
+            if (((self.epoch + 1) >= start_eval
                and eval_freq > 0
                and (self.epoch+1) % eval_freq == 0
-               and (self.epoch + 1) != self.max_epoch):
+               and (self.epoch + 1) != self.max_epoch)
+               or self.epoch == (self.max_epoch - 1)):
 
                 top1, top5, mAP = self.test(
                     self.epoch,
@@ -376,11 +399,17 @@ class Engine:
                     save_dir=save_dir,
                     use_metric_cuhk03=use_metric_cuhk03,
                     ranks=ranks,
-                    lr_finder = lr_finder
+                    lr_finder=lr_finder,
                 )
 
                 if lr_finder:
                     print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
+                    if trial:
+                        trial.report(top1, self.epoch)
+                        if trial.should_prune():
+                            # restore model before pruning
+                            self.restore_model()
+                            raise optuna.exceptions.TrialPruned()
 
                 if not lr_finder:
                     should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1, top5, mAP)
@@ -388,31 +417,14 @@ class Engine:
 
                     if self.save_chkpt:
                         self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best)
-
+                        if self.use_ema_decay and is_candidate_for_best:
+                            for ema in self.ema_wrapped_models:
+                                ema.restore()
                     if should_exit:
                         break
 
-        if self.max_epoch > 0:
-            print('=> Final test')
-            top1_final, top5, mAP = self.test(
-                self.epoch,
-                dist_metric=dist_metric,
-                normalize_feature=normalize_feature,
-                visrank=visrank,
-                visrank_topk=visrank_topk,
-                save_dir=save_dir,
-                use_metric_cuhk03=use_metric_cuhk03,
-                ranks=ranks,
-                lr_finder=lr_finder
-            )
-            if self.save_chkpt and not lr_finder:
-                _, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1_final, top5, mAP)
-                self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best)
-            if lr_finder:
-                print(f"epoch: {self.epoch}\t top1: {top1_final}\t lr: {self.get_current_lr()}")
-
         if perf_monitor and not lr_finder: perf_monitor.on_train_end()
-
+        if lr_finder and lr_finder.mode != 'fast_ai': self.restore_model()
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
         print('Elapsed {}'.format(elapsed))
@@ -420,7 +432,7 @@ class Engine:
         if self.writer is not None:
             self.writer.close()
 
-        return top1_final
+        return top1
 
     def _freeze_aux_models(self):
         for model_name in self.model_names_to_freeze:
@@ -433,6 +445,35 @@ class Engine:
             model = self.models[model_name]
             model.train()
             open_all_layers(model)
+
+    def configure_lr_finder(self, trial, finder_cfg):
+        if trial is None:
+            return
+        lr = trial.suggest_float("lr", finder_cfg.min_lr, finder_cfg.max_lr, step=finder_cfg.step)
+        if lr in self.param_history:
+            # restore model before pruning
+            self.restore_model()
+            raise optuna.exceptions.TrialPruned()
+        self.param_history.add(lr)
+        for param_group in self.optims[self.main_model_name].param_groups:
+            param_group["lr"] = round(lr,6)
+        print(f"training with next lr: {lr}")
+
+
+    def backup_model(self):
+        print("backuping model...")
+        # explicitly put the model on the CPU before storing it in memory
+        self.state_cacher.store(key="model", state_dict=get_model_attr(self.models[self.main_model_name], 'cpu')().state_dict())
+        self.state_cacher.store(key="optimizer", state_dict=self.optims[self.main_model_name].state_dict())
+        # restore the model device
+        get_model_attr(self.models[self.main_model_name],'to')(self.model_device)
+
+    def restore_model(self):
+        print("restoring model and seeds to initial state...")
+        get_model_attr(self.models[self.main_model_name], 'load_state_dict')(self.state_cacher.retrieve("model"))
+        self.optims[self.main_model_name].load_state_dict(self.state_cacher.retrieve("optimizer"))
+        get_model_attr(self.models[self.main_model_name],'to')(self.model_device)
+        set_random_seed(self.seed)
 
     def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False, perf_monitor=None,
               stop_callback=None):
@@ -470,7 +511,8 @@ class Engine:
             accuracy.update(avg_acc)
             if perf_monitor and not lr_finder: perf_monitor.on_train_batch_end()
 
-            if not lr_finder and ((self.batch_idx + 1) % print_freq) == 0:
+            if not lr_finder and (((self.batch_idx + 1) % print_freq) == 0 or
+                                        self.batch_idx == self.num_batches - 1):
                 nb_this_epoch = self.num_batches - (self.batch_idx + 1)
                 nb_future_epochs = (self.max_epoch - (self.epoch + 1)) * self.num_batches
                 eta_seconds = batch_time.avg * (nb_this_epoch+nb_future_epochs)
@@ -506,9 +548,13 @@ class Engine:
                     self.writer.add_scalar('Loss/' + name, meter.avg, n_iter)
 
             end = time.time()
-            self.lr_of_previous_iter = self.get_current_lr()
+            self.current_lr = self.get_current_lr()
             if stop_callback and stop_callback.check_stop():
                 break
+
+            if not lr_finder and self.use_ema_decay:
+                for ema in self.ema_wrapped_models:
+                    ema.update()
 
         if not lr_finder:
             self.update_lr(output_avg_metric = losses.meters['loss'].avg)
@@ -527,7 +573,8 @@ class Engine:
         use_metric_cuhk03=False,
         ranks=(1, 5, 10, 20),
         rerank=False,
-        lr_finder = False
+        lr_finder = False,
+        test_before_train=False
     ):
         r"""Tests model on target datasets.
 
@@ -542,6 +589,9 @@ class Engine:
             ``extract_features()`` and ``parse_data_for_eval()`` (most of the time),
             but not a must. Please refer to the source code for more details.
         """
+        if self.use_ema_decay and not lr_finder and not test_before_train:
+            for ema in self.ema_wrapped_models:
+                ema.apply_shadow()
         self.set_model_mode('eval')
         targets = list(self.test_loader.keys())
         top1, mAP, top5 = [None]*3
@@ -662,7 +712,7 @@ class Engine:
     ):
         def _feature_extraction(data_loader):
             f_, pids_, camids_ = [], [], []
-            for batch_idx, data in enumerate(data_loader):
+            for _, data in enumerate(data_loader):
                 imgs, pids, camids = self.parse_data_for_eval(data)
                 if self.use_gpu:
                     imgs = imgs.cuda()

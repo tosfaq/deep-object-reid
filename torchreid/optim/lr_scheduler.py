@@ -1,8 +1,6 @@
 from __future__ import absolute_import, print_function
 import math
-from bisect import bisect_right
 
-import torch
 from torch import optim
 from torch.optim.lr_scheduler import _LRScheduler
 
@@ -22,9 +20,7 @@ def _build_scheduler(optimizer,
                 base_scheduler=None,
                 stepsize=1,
                 gamma=0.1,
-                lr_scales=None,
                 max_epoch=1,
-                frozen=20,
                 warmup=10,
                 multiplier = 10,
                 first_cycle_steps=10,
@@ -32,8 +28,10 @@ def _build_scheduler(optimizer,
                 min_lr = 1e-4,
                 max_lr = 0.1,
                 patience = 5,
-                warmup_factor_base=0.1,
-                frozen_factor_base=0.1):
+                lr_decay_factor= 100):
+
+    init_learning_rate = [param_group['lr'] for param_group in optimizer.param_groups]
+    min_lr = [lr / lr_decay_factor for lr in init_learning_rate]
 
     if lr_scheduler not in AVAI_SCH:
         raise ValueError('Unsupported scheduler: {}. Must be one of {}'.format(lr_scheduler, AVAI_SCH))
@@ -83,8 +81,9 @@ def _build_scheduler(optimizer,
         max_lr=max_lr, min_lr=min_lr, warmup_steps=warmup, gamma=gamma)
 
     elif lr_scheduler == 'reduce_on_plateau':
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=gamma, patience=patience, verbose=True, min_lr=min_lr)
-
+        epoch_treshold = int(max_epoch * 0.75) - warmup # 75% of the training - warmup epochs
+        scheduler = ReduceLROnPlateauV2(optimizer, epoch_treshold, factor=gamma, patience=patience,
+                                            threshold=2e-4, verbose=True, min_lr=min_lr, )
     else:
         raise ValueError('Unknown scheduler: {}'.format(lr_scheduler))
 
@@ -108,7 +107,7 @@ class CosineAnnealingCycleRestart(_LRScheduler):
                  first_cycle_steps : int,
                  cycle_mult : float = 1.,
                  max_lr : float = 0.1,
-                 min_lr : float = 0.001,
+                 min_lr : list = 0.001,
                  warmup_steps : int = 0,
                  gamma : float = 1.,
                  last_epoch : int = -1
@@ -134,9 +133,9 @@ class CosineAnnealingCycleRestart(_LRScheduler):
 
     def init_lr(self):
         self.base_lrs = []
-        for param_group in self.optimizer.param_groups:
-            param_group['lr'] = self.min_lr
-            self.base_lrs.append(self.min_lr)
+        for lr, param_group in zip(self.min_lr, self.optimizer.param_groups):
+            param_group['lr'] = lr
+            self.base_lrs.append(lr)
 
     def get_lr(self):
         if self.step_in_cycle == -1:
@@ -181,6 +180,7 @@ class WarmupScheduler(_LRScheduler):
         self.multiplier = multiplier
         self.total_epoch = total_epoch
         self.after_scheduler = after_scheduler
+        self.num_bad_epochs = 0
         self.finished = False
         super().__init__(optimizer)
         # scale down initial learning rate
@@ -205,11 +205,12 @@ class WarmupScheduler(_LRScheduler):
 
     def step(self, epoch=None, metrics=None):
         if self.finished and self.after_scheduler:
-            if self.after_scheduler.__class__.__name__ == 'ReduceLROnPlateau':
+            if isinstance(self.after_scheduler, ReduceLROnPlateauV2):
                 if epoch is None:
                     self.after_scheduler.step(metrics=metrics, epoch=None)
                 else:
                     self.after_scheduler.step(metrics=metrics, epoch=epoch - self.total_epoch)
+                self.num_bad_epochs = self.after_scheduler.num_bad_epochs
             else:
                 if epoch is None:
                     self.after_scheduler.step(None)
@@ -227,3 +228,31 @@ class WarmupScheduler(_LRScheduler):
         self.multiplier = state_dict['multiplier']
 
         self.after_scheduler.load_state_dict(state_dict)
+
+class ReduceLROnPlateauV2(optim.lr_scheduler.ReduceLROnPlateau):
+    def __init__(self,
+                 optimizer: optim.Optimizer,
+                 epoch_treshold: int,
+                 **kwargs) -> None:
+
+        super().__init__(optimizer, **kwargs)
+        self.epoch_treshold = epoch_treshold
+        self.init_lr = [group['lr'] for group in self.optimizer.param_groups]
+
+    def step(self, metrics, epoch=None):
+        super().step(metrics, epoch=epoch)
+
+        lr_reduced_flag = self.is_reduced()
+        # if there is no learning rate decay for more than {self.epoch_treshold} epochs
+        # we force to do that
+        if self.last_epoch >= self.epoch_treshold and not lr_reduced_flag:
+            print("Force learning rate decaying...")
+            self._reduce_lr(epoch)
+            self.cooldown_counter = self.cooldown
+            self.num_bad_epochs = 0
+            self._last_lr = [group['lr'] for group in self.optimizer.param_groups]
+
+    def is_reduced(self):
+        if any([current_lr < init_lr for  init_lr, current_lr in zip(self.init_lr, self._last_lr)]):
+            return True
+        return False

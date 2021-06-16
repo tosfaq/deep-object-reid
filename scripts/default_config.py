@@ -15,14 +15,16 @@ def get_default_config():
     # lr finder
     cfg.lr_finder = CN()
     cfg.lr_finder.enable = False
-    cfg.lr_finder.mode = 'automatic'
+    cfg.lr_finder.mode = 'fast_ai'
     cfg.lr_finder.max_lr = 0.03
     cfg.lr_finder.min_lr = 0.004
-    cfg.lr_finder.num_iter = 10
+    cfg.lr_finder.step = 0.001
     cfg.lr_finder.num_epochs = 3
     cfg.lr_finder.epochs_warmup = 2
     cfg.lr_finder.stop_after = False
     cfg.lr_finder.path_to_savefig = ''
+    cfg.lr_finder.smooth_f = 0.01
+    cfg.lr_finder.n_trials = 100
 
     # model
     cfg.model = CN()
@@ -127,7 +129,6 @@ def get_default_config():
     cfg.train.batch_size = 32
     cfg.train.early_stoping = False # switch on exit on metric plataeu method
     cfg.train.train_patience = 10 # define how much epochs to wait after scheduler process
-    cfg.train.fixbase_epoch = 0  # number of epochs to fix base layers
     cfg.train.open_layers = ['classifier']  # layers for training while keeping others frozen
     cfg.train.staged_lr = False  # set different lr to different layers
     cfg.train.new_layers = ['classifier']  # newly added layers with default lr
@@ -136,16 +137,22 @@ def get_default_config():
     cfg.train.base_scheduler = ''
     cfg.train.stepsize = [20]  # stepsize to decay learning rate
     cfg.train.gamma = 0.1  # learning rate decay multiplier
-    cfg.train.lr_scales = []
     cfg.train.first_cycle_steps = 5
     cfg.train.cycle_mult = 1.
     cfg.train.min_lr = 1e-5
     cfg.train.max_lr = 0.1
+    cfg.train.lr_decay_factor = 100
+    cfg.train.fixbase_epoch = 0
+    cfg.train.nbd = False
     cfg.train.patience = 5 # define how much epochs to wait for reduce on plateau
     cfg.train.multiplier = 10
     cfg.train.print_freq = 20  # print frequency
     cfg.train.seed = 5  # random seed
+    cfg.train.deterministic = False # define to use cuda.deterministic
     cfg.train.warmup = 1  # After fixbase_epoch
+    cfg.train.ema = CN()
+    cfg.train.ema.enable = False
+    cfg.train.ema.ema_decay = 0.999
 
     # optimizer
     cfg.sgd = CN()
@@ -270,6 +277,9 @@ def get_default_config():
     cfg.data.transforms.random_crop.align_ar = False
     cfg.data.transforms.random_crop.align_center = False
 
+    cfg.data.transforms.crop_pad = CN()
+    cfg.data.transforms.crop_pad.enable = False
+
     cfg.data.transforms.center_crop = CN()
     cfg.data.transforms.center_crop.enable = False
     cfg.data.transforms.center_crop.margin = 0
@@ -358,10 +368,7 @@ def get_default_config():
 
     cfg.data.transforms.augmix = CN()
     cfg.data.transforms.augmix.enable = False
-    cfg.data.transforms.augmix.p = 1.
-    cfg.data.transforms.augmix.width = 3
-    cfg.data.transforms.augmix.depth = -1
-    cfg.data.transforms.augmix.alpha = 1.
+    cfg.data.transforms.augmix.cfg_str = "augmix-m5-w3"
 
     cfg.data.transforms.random_figures = CN()
     cfg.data.transforms.random_figures.enable = False
@@ -546,6 +553,8 @@ def optimizer_kwargs(cfg):
         'staged_lr': cfg.train.staged_lr,
         'new_layers': cfg.train.new_layers,
         'base_lr_mult': cfg.train.base_lr_mult,
+        'nbd': cfg.train.nbd,
+        'lr_finder': cfg.lr_finder.enable,
         'sam_rho': cfg.sam.rho
     }
 
@@ -556,7 +565,6 @@ def lr_scheduler_kwargs(cfg):
         'base_scheduler': cfg.train.base_scheduler,
         'stepsize': cfg.train.stepsize,
         'gamma': cfg.train.gamma,
-        'lr_scales': cfg.train.lr_scales,
         'max_epoch': cfg.train.max_epoch,
         'warmup': cfg.train.warmup,
         'multiplier': cfg.train.multiplier,
@@ -565,7 +573,7 @@ def lr_scheduler_kwargs(cfg):
         'min_lr': cfg.train.min_lr,
         'max_lr': cfg.train.max_lr,
         'patience': cfg.train.patience,
-        'frozen': cfg.train.fixbase_epoch,
+        'lr_decay_factor': cfg.train.lr_decay_factor,
     }
 
 
@@ -620,8 +628,10 @@ def engine_run_kwargs(cfg):
         'visrank_topk': cfg.test.visrank_topk,
         'use_metric_cuhk03': cfg.cuhk03.use_metric_cuhk03,
         'ranks': cfg.test.ranks,
-        'rerank': cfg.test.rerank
+        'rerank': cfg.test.rerank,
+        'initial_seed': cfg.train.seed
     }
+
 
 def lr_finder_run_kwargs(cfg):
     return {
@@ -629,10 +639,12 @@ def lr_finder_run_kwargs(cfg):
         'epochs_warmup': cfg.lr_finder.epochs_warmup,
         'max_lr': cfg.lr_finder.max_lr,
         'min_lr': cfg.lr_finder.min_lr,
-        'num_iter': cfg.lr_finder.num_iter,
+        'step': cfg.lr_finder.step,
         'num_epochs': cfg.lr_finder.num_epochs,
         'path_to_savefig': cfg.lr_finder.path_to_savefig,
-        'seed': cfg.train.seed
+        'seed': cfg.train.seed,
+        'smooth_f': cfg.lr_finder.smooth_f,
+        'n_trials': cfg.lr_finder.n_trials
     }
 
 def transforms(cfg):

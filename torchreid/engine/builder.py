@@ -16,16 +16,16 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             softmax_type = 'stock' if cfg.loss.name == 'softmax' else 'am'
             engine = ImageAMSoftmaxEngine(
                 datamanager,
-                model,
-                optimizer=optimizer,
+                models=model,
+                optimizers=optimizer,
                 reg_cfg=cfg.reg,
                 metric_cfg=cfg.metric_losses,
-                scheduler=scheduler,
+                schedulers=scheduler,
                 use_gpu=cfg.use_gpu,
                 save_chkpt = cfg.model.save_chkpt,
                 train_patience = cfg.train.train_patience,
                 early_stoping = cfg.train.early_stoping,
-                lb_lr = cfg.train.min_lr,
+                lr_decay_factor = cfg.train.lr_decay_factor,
                 conf_penalty=cfg.loss.softmax.conf_penalty,
                 label_smooth=cfg.loss.softmax.label_smooth,
                 aug_type=cfg.loss.softmax.augmentations.aug_type,
@@ -55,7 +55,9 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
                 enable_sam=cfg.sam.enable,
                 should_freeze_aux_models=should_freeze_aux_models,
                 nncf_metainfo=nncf_metainfo,
-                initial_lr=initial_lr
+                initial_lr=initial_lr,
+                use_ema_decay=cfg.train.ema.enable,
+                ema_decay=cfg.train.ema.ema_decay
             )
         elif cfg.loss.name == 'contrastive':
             engine = ImageContrastiveEngine(

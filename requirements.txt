@@ -23,3 +23,5 @@ torch-lr-finder
 onnx
 torchvision==0.9.1
 torch==1.8.1
+optuna
+timm

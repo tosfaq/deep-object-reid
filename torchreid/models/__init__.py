@@ -60,6 +60,7 @@ __model_factory = {
     'mobilenetv3_large_075': mobilenetv3_large_075,
     'mobilenetv3_large_150': mobilenetv3_large_150,
     'mobilenetv3_large_125': mobilenetv3_large_125,
+    'mobilenetv3_large_21k': mobilenetv3_large_21k,
     'shufflenet': shufflenet,
     'squeezenet1_0': squeezenet1_0,
     'squeezenet1_0_fc512': squeezenet1_0_fc512,
@@ -131,5 +132,4 @@ def build_model(name, **kwargs):
     avai_models = list(__model_factory.keys())
     if name not in avai_models:
         raise KeyError('Unknown model: {}. Must be one of {}'.format(name, avai_models))
-
     return __model_factory[name](**kwargs)

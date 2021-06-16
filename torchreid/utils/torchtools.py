@@ -10,18 +10,19 @@ from pprint import pformat
 
 import torch
 import torch.nn as nn
+from torch.nn.modules import module
 
 from .tools import mkdir_if_missing, check_isfile
 
 __all__ = [
     'save_checkpoint', 'load_checkpoint', 'resume_from_checkpoint',
     'open_all_layers', 'open_specified_layers', 'count_num_param',
-    'load_pretrained_weights'
+    'load_pretrained_weights', 'EMA'
 ]
 
 
 def save_checkpoint(
-    state, save_dir, is_best=False, remove_module_from_keys=False
+    state, save_dir, is_best=False, remove_module_from_keys=False, name='model'
 ):
     r"""Saves checkpoint.
 
@@ -54,11 +55,11 @@ def save_checkpoint(
         state['state_dict'] = new_state_dict
     # save
     epoch = state['epoch']
-    fpath = osp.join(save_dir, 'model.pth.tar-' + str(epoch))
+    fpath = osp.join(save_dir, '{name}.pth.tar-' + str(epoch))
     torch.save(state, fpath)
     print('Checkpoint saved to "{}"'.format(fpath))
     if is_best:
-        best_link_path = osp.join(osp.dirname(fpath), 'model-best.pth.tar')
+        best_link_path = osp.join(osp.dirname(fpath), '{name}-best.pth.tar')
         if osp.lexists(best_link_path):
             os.remove(best_link_path)
         basename_fpath = osp.basename(fpath)
@@ -281,6 +282,8 @@ def _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers):
             '** The following layers were not loaded from checkpoint: {}'.
             format(pformat(unmatched_layers))
         )
+
+
 def load_pretrained_weights(model, file_path='', pretrained_dict=None):
     r"""Loads pretrianed weights to model.
     Features::
@@ -347,3 +350,37 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None):
             format(message)
         )
         _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
+
+
+class EMA():
+    def __init__(self, model, decay):
+        self.model = model
+        self.decay = decay
+        self.shadow = {}
+        self.backup = {}
+
+    def register(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name] = param.data.clone()
+
+    def update(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                assert name in self.shadow
+                new_average = (1.0 - self.decay) * param.data + self.decay * self.shadow[name]
+                self.shadow[name] = new_average.clone()
+
+    def apply_shadow(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                assert name in self.shadow
+                self.backup[name] = param.data
+                param.data = self.shadow[name]
+
+    def restore(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                assert name in self.backup
+                param.data = self.backup[name]
+        self.backup = {}

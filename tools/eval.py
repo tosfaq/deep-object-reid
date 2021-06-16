@@ -21,13 +21,12 @@ import sys
 
 import torch
 from scripts.default_config import get_default_config, model_kwargs, imagedata_kwargs, merge_from_files_with_base
-from scripts.script_utils import reset_config, build_base_argparser, check_classes_consistency
+from scripts.script_utils import reset_config, build_base_argparser, check_classification_classes
 
 import torchreid
 from torchreid.ops import DataParallel
 from torchreid.models import build_model
-from torchreid.utils import (Logger, set_random_seed,
-                             load_pretrained_weights, get_model_attr)
+from torchreid.utils import (Logger, set_random_seed, load_pretrained_weights,)
 from torchreid.engine import build_engine
 from torchreid.integration.nncf.compression import is_checkpoint_nncf
 from torchreid.integration.nncf.compression_script_utils import (make_nncf_changes_in_eval,
@@ -78,24 +77,12 @@ def main():
         model.classification_classes = []
         model.classification = True
         model.eval = lambda : None
-        for name, dataloader in datamanager.test_loader.items():
+        for _, dataloader in datamanager.test_loader.items():
             dataloader['query'].dataset.transform.transforms = \
                 dataloader['query'].dataset.transform.transforms[:-2]
 
     if cfg.model.classification:
-        classes_map = {v : k for k, v in enumerate(sorted(args.classes))} if args.classes else {}
-        for name, dataloader in datamanager.test_loader.items():
-            if not len(dataloader['query'].dataset.classes): # current text annotation doesn't contain classes names
-                print(f'Warning: classes are not defined for validation dataset {name}')
-            elif not len(get_model_attr(model, 'classification_classes')):
-                print(f'Warning: classes are not provided in the current snapshot. Consistency checks are skipped.')
-            else:
-                if not check_classes_consistency(get_model_attr(model, 'classification_classes'),
-                                                 dataloader['query'].dataset.classes, strict=False):
-                    raise ValueError('Inconsistent classes in evaluation dataset')
-                if args.classes and not check_classes_consistency(classes_map,
-                                                                  get_model_attr(model, 'classification_classes'), strict=True):
-                    raise ValueError('Classes provided via --classes should be the same as in the loaded model')
+        check_classification_classes(model, datamanager, args.classes, test_only=True)
 
     engine = build_engine(cfg, datamanager, model, None, None)
     engine.test(0,

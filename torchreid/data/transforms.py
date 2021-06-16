@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 import math
+from os import stat
 import random
 from collections import deque
 from os.path import exists, join
@@ -7,9 +8,11 @@ from os.path import exists, join
 import cv2
 import numpy as np
 import torch
-from PIL import Image, ImageOps
+import re
+from PIL import Image, ImageOps, ImageEnhance, ImageChops
 from torchvision.transforms import (ColorJitter, Compose, Normalize, Resize,
                                     ToPILImage, ToTensor, InterpolationMode)
+from torchvision.transforms import RandomCrop as TorchRandomCrop
 from torchvision.transforms import functional as F
 
 from torchreid.utils.tools import read_image
@@ -53,7 +56,8 @@ class CenterCrop(object):
 
 
 class RandomCrop(object):
-    def __init__(self, p=0.5, scale=0.9, static=False, margin=None, target_ar=None, align_ar=False, align_center=False, **kwargs):
+    def __init__(self, p=0.5, scale=0.9, static=False, margin=None,
+                    target_ar=None, align_ar=False, align_center=False, **kwargs):
         self.p = p
         assert 0.0 <= self.p <= 1.0
         self.scale = scale
@@ -886,6 +890,16 @@ class DisableBackground(object):
 
         return Image.fromarray(img), mask
 
+class RandomCropPad(TorchRandomCrop):
+    def __init__(self, size, padding):
+        super().__init__(size=size, padding=padding)
+
+    def __call__(self, input_tuple):
+        image, mask = input_tuple
+        image = self.forward(image)
+        mask = self.forward(mask) if mask else ''
+
+        return image, mask
 
 class PairResize(object):
     def __init__(self, size, interpolation=InterpolationMode.BILINEAR):
@@ -923,71 +937,290 @@ class PairToTensor(object):
 
         return image, mask
 
-class AugMix(object):
-    def __init__(self, transforms: list, width=3, depth=-1, alpha=1., p=1., **kwargs):
-        self.transforms = transforms
+
+_AUGMIX_TRANSFORMS = [
+            'AutoContrast',
+            'ColorIncreasing',  # not in paper
+            'ContrastIncreasing',  # not in paper
+            'BrightnessIncreasing',  # not in paper
+            'SharpnessIncreasing',  # not in paper
+            'Equalize',
+            'Rotate',
+            'PosterizeIncreasing',
+            'SolarizeIncreasing',
+            'ShearX',
+            'ShearY',
+            'TranslateXRel',
+            'TranslateYRel',
+        ]
+
+
+class OpsFabric:
+    def __init__(self, name, magnitude, hparams, prob=1.0):
+        self.max_level = 10
+        self.prob = prob
+        self.hparams = hparams
+        # kwargs for augment functions
+        self.aug_kwargs = dict(
+            fillcolor=hparams['img_mean'],
+            resample=(Image.BILINEAR, Image.BICUBIC)
+        )
+        self.LEVEL_TO_ARG = {
+            'AutoContrast': None,
+            'Equalize': None,
+            'Rotate': self._rotate_level_to_arg,
+            'PosterizeIncreasing': self._posterize_increasing_level_to_arg,
+            'SolarizeIncreasing': self._solarize_increasing_level_to_arg,
+            'ColorIncreasing': self._enhance_increasing_level_to_arg,
+            'ContrastIncreasing': self._enhance_increasing_level_to_arg,
+            'BrightnessIncreasing': self._enhance_increasing_level_to_arg,
+            'SharpnessIncreasing': self._enhance_increasing_level_to_arg,
+            'ShearX': self._shear_level_to_arg,
+            'ShearY': self._shear_level_to_arg,
+            'TranslateXRel': self._translate_rel_level_to_arg,
+            'TranslateYRel': self._translate_rel_level_to_arg,
+        }
+        self.NAME_TO_OP = {
+            'AutoContrast': self.auto_contrast,
+            'Equalize': self.equalize,
+            'Rotate': self.rotate,
+            'PosterizeIncreasing': self.posterize,
+            'SolarizeIncreasing': self.solarize,
+            'ColorIncreasing': self.color,
+            'ContrastIncreasing': self.contrast,
+            'BrightnessIncreasing': self.brightness,
+            'SharpnessIncreasing': self.sharpness,
+            'ShearX': self.shear_x,
+            'ShearY': self.shear_y,
+            'TranslateXRel': self.translate_x_rel,
+            'TranslateYRel': self.translate_y_rel,
+        }
+        self.aug_fn = self.NAME_TO_OP[name]
+        self.level_fn = self.LEVEL_TO_ARG[name]
+        self.magnitude = magnitude
+        self.magnitude_std = self.hparams.get('magnitude_std', float('inf'))
+
+    @staticmethod
+    def check_args_tf(kwargs):
+        def _interpolation(kwargs):
+            interpolation = kwargs.pop('resample', Image.BILINEAR)
+            if isinstance(interpolation, (list, tuple)):
+                return random.choice(interpolation)
+            else:
+                return interpolation
+
+        kwargs['resample'] = _interpolation(kwargs)
+
+    @staticmethod
+    def auto_contrast(img, **__):
+        return ImageOps.autocontrast(img)
+
+    @staticmethod
+    def equalize(img, **__):
+        return ImageOps.equalize(img)
+
+    @staticmethod
+    def solarize(img, thresh, **__):
+        return ImageOps.solarize(img, thresh)
+
+    @staticmethod
+    def posterize(img, bits_to_keep, **__):
+        if bits_to_keep >= 8:
+            return img
+        return ImageOps.posterize(img, bits_to_keep)
+
+    @staticmethod
+    def contrast(img, factor, **__):
+        return ImageEnhance.Contrast(img).enhance(factor)
+
+    @staticmethod
+    def color(img, factor, **__):
+        return ImageEnhance.Color(img).enhance(factor)
+
+    @staticmethod
+    def brightness(img, factor, **__):
+        return ImageEnhance.Brightness(img).enhance(factor)
+
+    @staticmethod
+    def sharpness(img, factor, **__):
+        return ImageEnhance.Sharpness(img).enhance(factor)
+
+    @staticmethod
+    def randomly_negate(v):
+        """With 50% prob, negate the value"""
+        return -v if random.random() > 0.5 else v
+
+    def shear_x(self, img, factor, **kwargs):
+        self.check_args_tf(kwargs)
+        return img.transform(img.size, Image.AFFINE, (1, factor, 0, 0, 1, 0), **kwargs)
+
+    def shear_y(self, img, factor, **kwargs):
+        self.check_args_tf(kwargs)
+        return img.transform(img.size, Image.AFFINE, (1, 0, 0, factor, 1, 0), **kwargs)
+
+    def translate_x_rel(self, img, pct, **kwargs):
+        pixels = pct * img.size[0]
+        self.check_args_tf(kwargs)
+        return img.transform(img.size, Image.AFFINE, (1, 0, pixels, 0, 1, 0), **kwargs)
+
+    def translate_y_rel(self, img, pct, **kwargs):
+        pixels = pct * img.size[1]
+        self.check_args_tf(kwargs)
+        return img.transform(img.size, Image.AFFINE, (1, 0, 0, 0, 1, pixels), **kwargs)
+
+    def rotate(self, img, degrees, **kwargs):
+        self.check_args_tf(kwargs)
+        return img.rotate(degrees, **kwargs)
+
+    def _rotate_level_to_arg(self, level, _hparams):
+        # range [-30, 30]
+        level = (level / self.max_level) * 30.
+        level = self.randomly_negate(level)
+        return level,
+
+    def _enhance_increasing_level_to_arg(self, level, _hparams):
+        # range [0.1, 1.9]
+        level = (level / self.max_level) * .9
+        level = 1.0 + self.randomly_negate(level)
+        return level,
+
+    def _shear_level_to_arg(self, level, _hparams):
+        # range [-0.3, 0.3]
+        level = (level / self.max_level) * 0.3
+        level = self.randomly_negate(level)
+        return level,
+
+    def _translate_rel_level_to_arg(self, level, hparams):
+        # default range [-0.45, 0.45]
+        translate_pct = hparams.get('translate_pct', 0.45)
+        level = (level / self.max_level) * translate_pct
+        level = self.randomly_negate(level)
+        return level,
+
+    def _posterize_level_to_arg(self, level, _hparams):
+        # range [0, 4], 'keep 0 up to 4 MSB of original image'
+        # intensity/severity of augmentation decreases with level
+        return int((level / self.max_level) * 4),
+
+    def _posterize_increasing_level_to_arg(self, level, hparams):
+        # range [4, 0], 'keep 4 down to 0 MSB of original image',
+        # intensity/severity of augmentation increases with level
+        return 4 - self._posterize_level_to_arg(level, hparams)[0],
+
+    def _solarize_level_to_arg(self, level, _hparams):
+        # range [0, 256]
+        # intensity/severity of augmentation decreases with level
+        return int((level / self.max_level) * 256),
+
+    def _solarize_increasing_level_to_arg(self, level, _hparams):
+        # range [0, 256]
+        # intensity/severity of augmentation increases with level
+        return 256 - self._solarize_level_to_arg(level, _hparams)[0],
+
+    def __call__(self, img):
+        if self.prob < 1.0 and random.random() > self.prob:
+            return img
+        magnitude = self.magnitude
+        if self.magnitude_std:
+            if self.magnitude_std == float('inf'):
+                magnitude = random.uniform(0, magnitude)
+            elif self.magnitude_std > 0:
+                magnitude = random.gauss(magnitude, self.magnitude_std)
+        magnitude = min(self.max_level, max(0, magnitude))  # clip to valid range
+        level_args = self.level_fn(magnitude, self.hparams) if self.level_fn is not None else tuple()
+        return self.aug_fn(img, *level_args, **self.aug_kwargs)
+
+
+class AugMixAugment:
+    """ AugMix Transform
+    Adapted and improved from impl here: https://github.com/google-research/augmix/blob/master/imagenet.py
+    From paper: 'AugMix: A Simple Data Processing Method to Improve Robustness and Uncertainty -
+    https://arxiv.org/abs/1912.02781
+    """
+    def __init__(self, ops, alpha=1., width=3, depth=-1, **kwargs):
+        self.ops = ops
+        self.alpha = alpha
         self.width = width
         self.depth = depth
-        self.alpha = alpha
-        self.p = p
-        self.random_flip = None
-        self.random_crop = None
-        self.center_crop = None
-        self.coarse_dropout = None
-        self.train_transforms = []
-        for aug in self.transforms:
-            if aug.__class__.__name__ == 'PairResize':
-                self.resize = aug
-            elif aug.__class__.__name__ == 'RandomHorizontalFlip':
-                self.random_flip = aug
-            elif aug.__class__.__name__ == 'RandomCrop':
-                self.random_crop = aug
-            elif aug.__class__.__name__ == 'CenterCrop':
-                self.center_crop = aug
-            elif aug.__class__.__name__ == 'CoarseDropout':
-                self.coarse_dropout = aug
-            else:
-                self.train_transforms.append(aug)
+
+    def _apply_basic(self, img, mixing_weights, m):
+        # This is a literal adaptation of the paper/official implementation without normalizations and
+        # PIL <-> Numpy conversions between every op. It is still quite CPU compute heavy compared to the
+        # typical augmentation transforms, could use a GPU / Kornia implementation.
+        img_shape = img.size[0], img.size[1], len(img.getbands())
+        mixed = np.zeros(img_shape, dtype=np.float32)
+        for mw in mixing_weights:
+            depth = self.depth if self.depth > 0 else np.random.randint(1, 4)
+            ops = np.random.choice(self.ops, depth, replace=True)
+            img_aug = img  # no ops are in-place, deep copy not necessary
+            for op in ops:
+                img_aug = op(img_aug)
+            mixed += mw * np.asarray(img_aug, dtype=np.float32)
+        np.clip(mixed, 0, 255., out=mixed)
+        mixed = Image.fromarray(mixed.astype(np.uint8))
+        return Image.blend(img, mixed, m)
 
     def __call__(self, input_tuple):
-        # do augmentation before resize
-        for augment in [self.random_crop, self.center_crop]:
-            if augment != None:
-                input_tuple = augment(input_tuple)
-        # resize image always
-        input_tuple = self.resize(input_tuple)
-        # do flip augmentation if it's avaible
-        input_tuple = self.random_flip(input_tuple) if self.random_flip else input_tuple
-        input_tuple = self.coarse_dropout(input_tuple) if self.coarse_dropout else input_tuple
-        image, mask = input_tuple
-        if self.train_transforms:
-            # run augmix pipeline
-            ws = np.float32(np.random.dirichlet([self.alpha] * self.width))
-            m = np.float32(np.random.beta(self.alpha, self.alpha))
+        img, mask = input_tuple
+        mixing_weights = np.float32(np.random.dirichlet([self.alpha] * self.width))
+        m = np.float32(np.random.beta(self.alpha, self.alpha))
+        mixed = self._apply_basic(img, mixing_weights, m)
+        mask = self._apply_basic(mask, mixing_weights, m) if mask else ''
+        return mixed, mask
 
-            mix_img = np.zeros_like(image)
-            mix_mask = np.zeros_like(mask) if mask != '' else mask
-            for i in range(self.width):
-                image_aug = image.copy()
-                mask_aug = mask.copy() if mask != '' else mask
-                depth = self.depth if self.depth > 0 else np.random.randint(1, 4)
+def augment_and_mix_transform(config_str, image_mean, translate_const=250):
+    """ Create AugMix PyTorch transform
+    :param config_str: String defining configuration of random augmentation. Consists of multiple sections separated by
+    dashes ('-'). The first section defines the specific variant of rand augment (currently only 'rand'). The remaining
+    sections, not order sepecific determine
+        'm' - integer magnitude (severity) of augmentation mix (default: 3)
+        'w' - integer width of augmentation chain (default: 3)
+        'd' - integer depth of augmentation chain (-1 is random [1, 3], default: -1)
+        'b' - integer (bool), blend each branch of chain into end result without a final blend, less CPU (default: 0)
+        'mstd' -  float std deviation of magnitude noise applied (default: 0)
+    Ex 'augmix-m5-w4-d2' results in AugMix with severity 5, chain width 4, chain depth 2
+    :param hparams: Other hparams (kwargs) for the Augmentation transforms
+    :return: A PyTorch compatible Transform
+    imported and modified from: https://github.com/rwightman/pytorch-image-models/blob/master/timm/data/auto_augment.py
+    """
+    def augmix_ops(magnitude, hparams, prob=1.0):
+        return [OpsFabric(name, magnitude, hparams, prob) for name in _AUGMIX_TRANSFORMS]
 
-                for _ in range(depth):
-                    op = np.random.choice(self.train_transforms)
-                    image_aug, mask_aug = op((image_aug, mask_aug))
+    magnitude = 3
+    width = 3
+    depth = -1
+    alpha = 1.
+    p=1.0
+    hparams = dict(
+            translate_const=translate_const,
+            img_mean=tuple([int(c * 256) for c in image_mean]),
+            magnitude_std=float('inf')
+        )
+    config = config_str.split('-')
+    assert config[0] == 'augmix'
+    config = config[1:]
+    for c in config:
+        cs = re.split(r'(\d.*)', c)
+        if len(cs) < 2:
+            continue
+        key, val = cs[:2]
+        if key == 'mstd':
+            hparams.setdefault('magnitude_std', float(val))
+        elif key == 'm':
+            magnitude = int(val)
+        elif key == 'w':
+            width = int(val)
+        elif key == 'd':
+            depth = int(val)
+        elif key == 'a':
+            alpha = float(val)
+        elif key == 'p':
+            p = float(val)
+        else:
+            assert False, 'Unknown AugMix config section'
+    ops = augmix_ops(magnitude=magnitude, hparams=hparams, prob=p)
+    return AugMixAugment(ops, alpha=alpha, width=width, depth=depth)
 
-                mix_img = mix_img + ws[i] * image_aug
-                mix_mask = mix_mask + ws[i] * mask_aug if mask != '' else mask
-            prob = np.random.rand(1)[0]
-            if prob <= self.p:
-                mixed_image = (1 - m) * image + m * mix_img
-                mixed_mask = (1 - m) * mask + m * mix_mask if mask != '' else mask
-                # # converting to PIL
-                mixed_mask = Image.fromarray(mixed_mask.astype(np.uint8)) if mixed_mask != '' else mixed_mask
-                return Image.fromarray(mixed_image.astype(np.uint8)), mixed_mask
-
-        assert not self.transforms or prob > self.p
-        return image, mask
 
 def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.406),
                      norm_std=(0.229, 0.224, 0.225), apply_masks_to_test=False, **kwargs):
@@ -1033,6 +1266,9 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
                                     target_ar=float(height)/float(width))]
     print('+ resize to {}x{}'.format(height, width))
     transform_tr += [PairResize((height, width))]
+    if transforms.augmix.enable:
+        print('+ AugMix')
+        transform_tr += [augment_and_mix_transform(transforms.augmix.cfg_str, norm_mean)]
     if transforms.random_background_substitution.enable:
         aug_module = RandomBackgroundSubstitution(**transforms.random_background_substitution)
         if aug_module.enable:
@@ -1094,10 +1330,9 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.coarse_dropout.enable:
         print('+ coarse_dropout')
         transform_tr += [CoarseDropout(**transforms.coarse_dropout)]
-    # if augmix is on - all of the above augmentations will be applyed in augmix maner
-    if transforms.augmix.enable:
-        print('all of the above augmentations will be applyed in augmix pipeline')
-        transform_tr = [AugMix(transform_tr, **transforms.augmix)]
+    if transforms.crop_pad.enable:
+        print('+ crop_pad')
+        transform_tr += [RandomCropPad((height, width), padding=int(0.125*height))]
 
     print('+ to torch tensor of range [0, 1]')
     transform_tr += [PairToTensor()]

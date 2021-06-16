@@ -22,11 +22,12 @@ def dump_config(yaml: YAML, config_path: str, cfg: dict):
 
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument( '--data_root', type=str, required=False, default='/media/cluster_fs/datasets/classification', help='path to folder with datasets')
+    parser.add_argument( '--root', type=str, required=False, default='/datasets/classification', help='path to folder with datasets')
     parser.add_argument('--config', type=str, required=False, help='path to config file')
-    parser.add_argument('--path_to_main', type=str, default='./tools/main.py',required=False, help='path to main.py file')
+    parser.add_argument('--path-to-main', type=str, default='./tools/main.py',required=False, help='path to main.py file')
     parser.add_argument('--gpu-num', type=int, default=1, help='Number of GPUs for training. 0 is for CPU mode')
-    parser.add_argument('--dump_results', type=bool, default=True, help='whether or not to dump results of the experiment')
+    parser.add_argument('--use-hardcoded-lr', action='store_true')
+    parser.add_argument('--dump-results', type=bool, default=True, help='whether or not to dump results of the experiment')
     args = parser.parse_args()
     yaml = YAML()
 
@@ -66,7 +67,7 @@ def main():
             num_C=102
         ),
         fashionMNIST=dict(
-            resolution=(28, 28),
+            resolution=(224, 224),
             epochs=35,
             roots=['fashionMNIST/train', 'fashionMNIST/val'],
             names=['fashionMNIST_train', 'fashionMNIST_val'],
@@ -77,11 +78,11 @@ def main():
             num_C=10
         ),
         SVHN=dict(
-            resolution=(32, 32),
+            resolution=(224, 224),
             epochs=50,
             roots=['SVHN/train', 'SVHN/val'],
             names=['SVHN_train', 'SVHN_val'],
-            types=['classification', 'classification'],
+            types=['classification_image_folder', 'classification_image_folder'],
             sources='SVHN_train',
             targets='SVHN_val',
             batch_size=128,
@@ -168,10 +169,10 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to skip
-    to_skip = {'Xray'}
+    to_train = {"pets", "caltech101", "DTD","flowers", "cars"}
 
     for key, params in datasets.items():
-        if key in to_skip:
+        if key not in to_train:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
         path_to_exp_folder = cfg['data']['save_dir']
@@ -179,8 +180,19 @@ def main():
         name_val = params['names'][1]
         type_train = params['types'][0]
         type_val = params['types'][1]
-        root_train = args.data_root + os.sep + params['roots'][0]
-        root_val = args.data_root + os.sep + params['roots'][1]
+        root_train = args.root + os.sep + params['roots'][0]
+        root_val = args.root + os.sep + params['roots'][1]
+        if args.use_hardcoded_lr:
+            print("WARNING: Using hardcoded LR")
+            if key in ["cars", "caltech101"]:
+                cfg["train"]["lr"] = 0.025
+            elif key in ["pets", "CIFAR100"]:
+                cfg["train"]["lr"] = 0.005
+            elif key in ["flowers"]:
+                cfg['train']['lr'] = 0.028
+            elif key in ["DTD"]:
+                cfg["train"]["lr"] = 0.03
+
 
         cfg['custom_datasets']['roots'] = [root_train, root_val]
         cfg['custom_datasets']['types'] = [type_train, type_val]

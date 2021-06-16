@@ -9,7 +9,7 @@ from .radam import RAdam
 
 AVAI_OPTIMS = {'adam', 'amsgrad', 'sgd', 'rmsprop', 'radam', 'sam'}
 
-def build_optimizer(model, optim, base_optim, **kwargs):
+def build_optimizer(model, optim, base_optim, lr_finder, **kwargs):
     """A wrapper function for building an optimizer.
 
     Args:
@@ -52,10 +52,13 @@ def build_optimizer(model, optim, base_optim, **kwargs):
         >>> )
     """
     if optim == 'sam':
+        if lr_finder:
+            optimizer = _build_optim(model, optim=base_optim, base_optim=None, lr_finder=lr_finder, **kwargs)
+            return optimizer
         base_optim = _build_optim(model, optim=base_optim, base_optim=None, **kwargs)
         optimizer = _build_optim(model, optim=optim, base_optim=base_optim, **kwargs)
     else:
-        optimizer = _build_optim(model, optim=optim, base_optim=None, **kwargs)
+        optimizer = _build_optim(model, optim=optim, base_optim=None,  lr_finder=lr_finder, **kwargs)
 
     return optimizer
 
@@ -73,7 +76,10 @@ def _build_optim(model,
                 staged_lr=False,
                 new_layers='',
                 base_lr_mult=0.1,
+                nbd=False,
+                lr_finder=False,
                 sam_rho = 0.05):
+
     if optim not in AVAI_OPTIMS:
         raise ValueError(
             'Unsupported optimizer: {}. Must be one of {}'.format(
@@ -99,9 +105,6 @@ def _build_optim(model,
                 )
             new_layers = [new_layers]
 
-        if isinstance(model, nn.DataParallel):
-            model = model.module
-
         base_params = []
         base_layers = []
         new_params = []
@@ -123,21 +126,39 @@ def _build_optim(model,
             },
         ]
 
+    # we switch off nbd when lr_finder enabled
+    # because optimizer builded once and lr in biases isn't changed
+    elif nbd and not lr_finder:
+        decay, bias_no_decay, weight_no_decay = [], [], []
+        for m in model.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                decay.append(m.weight)
+                if m.bias is not None:
+                    bias_no_decay.append(m.bias)
+            else:
+                if hasattr(m, 'weight'):
+                    weight_no_decay.append(m.weight)
+                if hasattr(m, 'bias'):
+                    bias_no_decay.append(m.bias)
+
+        assert len(list(model.parameters())) == len(decay) + len(bias_no_decay) + len(weight_no_decay)
+
+        param_groups = [{'params': decay, 'lr': lr, 'weight_decay': weight_decay},
+                        {'params': bias_no_decay, 'lr': 2 * lr, 'weight_decay': 0.0},
+                        {'params': weight_no_decay, 'lr': lr, 'weight_decay': 0.0}]
+
     else:
-        param_groups = model.parameters()
+        param_groups = [{'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay}]
+
     if optim == 'adam':
-        optimizer = torch.optim.Adam(
+        optimizer = torch.optim.AdamW(
             param_groups,
-            lr=lr,
-            weight_decay=weight_decay,
             betas=(adam_beta1, adam_beta2),
         )
 
     elif optim == 'amsgrad':
-        optimizer = torch.optim.Adam(
+        optimizer = torch.optim.AdamW(
             param_groups,
-            lr=lr,
-            weight_decay=weight_decay,
             betas=(adam_beta1, adam_beta2),
             amsgrad=True,
         )
@@ -145,9 +166,7 @@ def _build_optim(model,
     elif optim == 'sgd':
         optimizer = torch.optim.SGD(
             param_groups,
-            lr=lr,
             momentum=momentum,
-            weight_decay=weight_decay,
             dampening=sgd_dampening,
             nesterov=sgd_nesterov,
         )
@@ -155,17 +174,13 @@ def _build_optim(model,
     elif optim == 'rmsprop':
         optimizer = torch.optim.RMSprop(
             param_groups,
-            lr=lr,
             momentum=momentum,
-            weight_decay=weight_decay,
             alpha=rmsprop_alpha,
         )
 
     elif optim == 'radam':
         optimizer = RAdam(
             param_groups,
-            lr=lr,
-            weight_decay=weight_decay,
             betas=(adam_beta1, adam_beta2)
         )
 

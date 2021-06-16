@@ -20,23 +20,16 @@
 
 from __future__ import absolute_import, division, print_function
 import copy
-import os
-import operator
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_lr_finder import LRFinder
-from torchvision.transforms import ToPILImage
-
 from torchreid import metrics
 from torchreid.engine import Engine
 from torchreid.utils import get_model_attr
 from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss, MetricLosses,
                               get_regularizer, sample_mask)
-from torchreid.utils import StateCacher, set_random_seed
 from torchreid.optim import SAM
 
 
@@ -44,26 +37,29 @@ class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
 
-    def __init__(self, datamanager, model, optimizer, reg_cfg, metric_cfg, scheduler=None, use_gpu=False, save_chkpt=True,
-                 train_patience=10, early_stoping = False, lb_lr = 1e-5, softmax_type='stock', label_smooth=False,
+    def __init__(self, datamanager, models, optimizers, reg_cfg, metric_cfg, schedulers=None, use_gpu=False, save_chkpt=True,
+                 train_patience=10, early_stoping = False, lr_decay_factor = 1000, softmax_type='stock', label_smooth=False,
                  margin_type='cos', epsilon=0.1, aug_type=None, decay_power=3, alpha=1., size=(224, 224), max_soft=0.0,
                  reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, s=10, compute_s=False, end_s=None,
                  duration_s=None, skip_steps_s=None, enable_masks=False, adaptive_margins=False, class_weighting=False,
                  attr_cfg=None, base_num_classes=-1, symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False,
-                 should_freeze_aux_models=False,
-                 nncf_metainfo=None,
-                 initial_lr=None):
-        super(ImageAMSoftmaxEngine, self).__init__(datamanager, model, optimizer, scheduler, use_gpu, save_chkpt,
-                                                   train_patience, lb_lr, early_stoping,
+                 should_freeze_aux_models=False, nncf_metainfo=None, initial_lr=None, use_ema_decay=False, ema_decay=0.999):
+        super(ImageAMSoftmaxEngine, self).__init__(datamanager,
+                                                   models=models,
+                                                   optimizers=optimizers,
+                                                   schedulers=schedulers,
+                                                   use_gpu=use_gpu,
+                                                   save_chkpt=save_chkpt,
+                                                   train_patience=train_patience,
+                                                   lr_decay_factor=lr_decay_factor,
+                                                   early_stoping=early_stoping,
                                                    should_freeze_aux_models=should_freeze_aux_models,
                                                    nncf_metainfo=nncf_metainfo,
-                                                   initial_lr=initial_lr)
+                                                   initial_lr=initial_lr,
+                                                   use_ema_decay=use_ema_decay,
+                                                   ema_decay=ema_decay)
 
         assert softmax_type in ['stock', 'am']
-        if compute_s and softmax_type == 'am':
-            s = self.compute_s(num_class[0])
-            print(f"computed margin scale for dataset: {s}")
-
         assert s > 0.0
         if softmax_type == 'am':
             assert m >= 0.0
@@ -89,6 +85,18 @@ class ImageAMSoftmaxEngine(Engine):
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
         self.num_classes = num_classes
+        scales = dict()
+        if compute_s:
+            scale = self.compute_s(num_classes[0])
+            print(f"computed margin scale for dataset: {scale}")
+        else:
+            scale = s
+        for model_name, model in self.models.items():
+            if get_model_attr(model, 'use_angle_simple_linear'):
+                scales[model_name] = scale
+            else:
+                scales[model_name] = 1.
+        self.scales = scales
         self.num_targets = len(self.num_classes)
 
         self.main_losses = nn.ModuleList()
@@ -277,6 +285,7 @@ class ImageAMSoftmaxEngine(Engine):
 
         num_trg_losses = 0
         avg_acc = 0
+
         for trg_id in range(self.num_targets):
             trg_mask = train_records['dataset_id'] == trg_id
 
@@ -287,9 +296,8 @@ class ImageAMSoftmaxEngine(Engine):
                 continue
 
             trg_logits = all_logits[trg_id][trg_mask]
-
             main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, aug_index=self.aug_index,
-                                                lam=self.lam, iteration=n_iter)
+                                                lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
 
             avg_acc += metrics.accuracy(trg_logits, trg_obj_ids)[0].item()
             loss_summary['main_{}/{}'.format(trg_id, model_name)] = main_loss.item()
@@ -485,105 +493,3 @@ class ImageAMSoftmaxEngine(Engine):
         bby2 = np.clip(cy + cut_h // 2, 0, H)
 
         return bbx1, bby1, bbx2, bby2
-
-    def find_lr(
-        self,
-        mode='automatic',
-        epochs_warmup=2,
-        max_lr=0.03,
-        min_lr=4e-3,
-        num_iter=10,
-        num_epochs=3,
-        path_to_savefig='',
-        seed = 5,
-        stop_callback=None,
-        **kwargs):
-        r"""A  pipeline for learning rate search.
-
-        Args:
-            mode (str, optional): mode for learning rate finder, "automatic" or "brute_force".
-                Default is "automatic".
-            max_lr (float): upper bound for leaning rate
-            min_lr (float): lower bound for leaning rate
-            num_iter (int, optional): number of iterations for learning rate searching space. Default is 10
-            num_epochs (int, optional): number of epochs to train for each learning rate. Default is 3
-            pretrained (bool): whether or not the model is pretrained
-            path_to_savefig (str): if path given save plot loss/lr (only for automatic mode). Default: ''
-        """
-        print('=> Start learning rate search. Mode: {}'.format(mode))
-
-        name = self.get_model_names(None)[0]
-        model_device = next(self.models[name].parameters()).device
-        self.num_batches = len(self.train_loader)
-
-        if mode == 'automatic':
-            wd = self.optims[name].param_groups[0]['weight_decay']
-            criterion = self.main_losses[0]
-            if self.enable_sam:
-                optimizer = torch.optim.SGD(self.models[name].parameters(), lr=min_lr, weight_decay=wd)
-            else:
-                optimizer = self.optims[name]
-            if epochs_warmup != 0:
-                state_cacher = StateCacher(in_memory=True, cache_dir=None)
-                state_cacher.store("model", get_model_attr(self.models[name], 'cpu')().state_dict())
-                state_cacher.store("optimizer", self.optims[name].state_dict())
-                get_model_attr(self.models[name], 'to')(model_device)
-                print("Warmup the model's weights for {} epochs".format(epochs_warmup))
-                self.run(max_epoch=epochs_warmup, lr_finder=True, stop_callback=stop_callback)
-                print("Finished warmuping the model. Continue to find learning rate:")
-            # run lr finder
-            lr_finder = LRFinder(self.models[name], optimizer, criterion, device=model_device)
-            lr_finder.range_test(self.train_loader, start_lr=min_lr, end_lr=max_lr, smooth_f=0.01, num_iter=self.num_batches, step_mode='exp')
-            ax, optim_lr = lr_finder.plot(suggest_lr=True)
-            # save plot if needed
-            if path_to_savefig:
-                fig = ax.get_figure()
-                fig.savefig(path_to_savefig)
-            # reset weights and optimizer state
-            if epochs_warmup != 0:
-                get_model_attr(self.models[name], 'load_state_dict')(state_cacher.retrieve("model"))
-                self.optims[name].load_state_dict(state_cacher.retrieve("optimizer"))
-                get_model_attr(self.models[name],'to')(model_device)
-            else:
-                lr_finder.reset()
-
-            return optim_lr
-
-        assert mode == 'brute_force'
-        if num_epochs < 3:
-            raise ValueError("Number of epochs to find an optimal learning rate less than 3. It's pointless")
-        acc_store = dict()
-        state_cacher = StateCacher(in_memory=True, cache_dir=None)
-        state_cacher.store("model", get_model_attr(self.models[name],'cpu')().state_dict())
-        # save on cpu, run on gpu
-        get_model_attr(self.models[name],'to')(model_device)
-        state_cacher.store("optimizer", self.optims[name].state_dict())
-        range_lr = np.linspace(min_lr, max_lr, num_iter)
-        best_acc = 0.0
-        EPS = 0.017
-
-        for lr in range_lr:
-            print('Training with next lr: {}'.format(lr))
-            for param_group in self.optims[name].param_groups:
-                param_group["lr"] = round(lr,6)
-
-            top1 = round(self.run(max_epoch=num_epochs, lr_finder=True, start_eval=0, eval_freq=1,
-                                  stop_callback=stop_callback), 4)
-            acc_store[lr] = top1
-
-            get_model_attr(self.models[name], 'load_state_dict')(state_cacher.retrieve("model"))
-            self.optims[name].load_state_dict(state_cacher.retrieve("optimizer"))
-            get_model_attr(self.models[name],'to')(model_device)
-            set_random_seed(seed)
-            cur_acc = acc_store[lr]
-            # break if the results got worse with epsilon confidence
-            if (best_acc - cur_acc) >= EPS:
-                print("The results got worse. Breaking learning rate search")
-                break
-            best_acc = max(best_acc, cur_acc)
-            if stop_callback and stop_callback.check_stop():
-                break
-
-        opt_lr = max(acc_store.items(), key=operator.itemgetter(1))[0]
-
-        return float(opt_lr)
