@@ -308,7 +308,7 @@ def init_pretrained_weights(model, key='', **kwargs):
     def _get_torch_home():
         ENV_TORCH_HOME = 'TORCH_HOME'
         ENV_XDG_CACHE_HOME = 'XDG_CACHE_HOME'
-        DEFAULT_CACHE_DIR = './.cache'
+        DEFAULT_CACHE_DIR = '~/.cache'
         torch_home = os.path.expanduser(
             os.getenv(
                 ENV_TORCH_HOME,
