@@ -24,6 +24,7 @@ class ModelInterface(nn.Module):
                  classification=False,
                  contrastive=False,
                  pretrained=False,
+                 loss='softmax',
                  **kwargs):
           super().__init__()
 
@@ -31,6 +32,8 @@ class ModelInterface(nn.Module):
           self.contrastive = contrastive
           self.pretrained = pretrained
           self.classification_classes = {}
+          self.loss = loss
+          self.use_angle_simple_linear = True if loss == 'am_softmax' else False
 
      @staticmethod
      def _glob_feature_vector(x, mode, reduce_dims=True):

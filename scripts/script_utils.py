@@ -9,10 +9,9 @@ from torchreid.ops import DataParallel
 from torchreid.utils import (load_pretrained_weights, check_isfile,
                                 resume_from_checkpoint, get_model_attr)
 
-from scripts.default_config import (imagedata_kwargs, videodata_kwargs,
-                                    get_default_config, model_kwargs,
-                                    optimizer_kwargs, lr_scheduler_kwargs,
-                                    merge_from_files_with_base)
+from scripts.default_config import (imagedata_kwargs, get_default_config,
+                                    model_kwargs, optimizer_kwargs,
+                                    lr_scheduler_kwargs, merge_from_files_with_base)
 
 def build_base_argparser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -60,11 +59,7 @@ def reset_config(cfg, args):
 
 
 def build_datamanager(cfg, classification_classes_filter=None):
-    if cfg.data.type == 'image':
-        return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
-    else:
-        return torchreid.data.VideoDataManager(**videodata_kwargs(cfg))
-
+    return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
 
 def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr=None,
                           nncf_aux_config_file=None,

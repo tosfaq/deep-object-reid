@@ -74,7 +74,6 @@ def get_default_config():
 
     # data
     cfg.data = CN()
-    cfg.data.type = 'image'
     cfg.data.root = 'reid-data'
     cfg.data.sources = ['market1501']
     cfg.data.targets = ['market1501']
@@ -111,12 +110,6 @@ def get_default_config():
     cfg.sampler.batch_num_instances = 4  # number of instances per identity for RandomIdentitySampler
     cfg.sampler.epoch_num_instances = -1
     cfg.sampler.fill_instances = False
-
-    # video reid setting
-    cfg.video = CN()
-    cfg.video.seq_len = 15  # number of images to sample in a tracklet
-    cfg.video.sample_method = 'evenly'  # how to sample images from a tracklet
-    cfg.video.pooling_method = 'avg'  # how to pool features over a tracklet
 
     # train
     cfg.train = CN()
@@ -511,30 +504,6 @@ def imagedata_kwargs(cfg):
         'custom_dataset_names': cfg.custom_datasets.names,
         'custom_dataset_roots': cfg.custom_datasets.roots,
         'custom_dataset_types': cfg.custom_datasets.types,
-    }
-
-
-def videodata_kwargs(cfg):
-    return {
-        'root': cfg.data.root,
-        'sources': cfg.data.sources,
-        'targets': cfg.data.targets,
-        'height': cfg.data.height,
-        'width': cfg.data.width,
-        'transforms': cfg.data.transforms,
-        'norm_mean': cfg.data.norm_mean,
-        'norm_std': cfg.data.norm_std,
-        'use_gpu': cfg.use_gpu,
-        'split_id': cfg.data.split_id,
-        'combineall': cfg.data.combineall,
-        'batch_size_train': cfg.train.batch_size,
-        'batch_size_test': cfg.test.batch_size,
-        'workers': cfg.data.workers,
-        'batch_num_instances': cfg.sampler.batch_num_instances,
-        'train_sampler': cfg.sampler.train_sampler,
-        # video
-        'seq_len': cfg.video.seq_len,
-        'sample_method': cfg.video.sample_method
     }
 
 

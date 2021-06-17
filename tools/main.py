@@ -2,7 +2,6 @@ import argparse
 import os.path as osp
 import sys
 import time
-from torchreid.utils.lr_finder import LrFinder
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
@@ -22,7 +21,7 @@ from torchreid.engine import build_engine, get_initial_lr_from_checkpoint
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              compute_model_complexity, resume_from_checkpoint,
                              set_random_seed, load_pretrained_weights)
-
+from torchreid.optim import LrFinder
 from torchreid.integration.nncf.compression import is_checkpoint_nncf
 from torchreid.integration.nncf.compression_script_utils import (get_nncf_changes_in_aux_training_config,
                                                                  make_nncf_changes_in_training,
@@ -159,7 +158,7 @@ def main():
             schedulers.append(aux_scheduler)
     else:
         models, optimizers, schedulers = model, optimizer, scheduler
-    print('Building {}-engine for {}-reid'.format(cfg.loss.name, cfg.data.type))
+    print('Building {}-engine'.format(cfg.loss.name))
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers,
                           should_freeze_aux_models=should_freeze_aux_models,
                           nncf_metainfo=nncf_metainfo,
