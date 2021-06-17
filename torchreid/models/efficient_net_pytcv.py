@@ -275,19 +275,16 @@ class EfficientNet(ModelInterface):
                  kernel_sizes,
                  strides_per_stage,
                  expansion_factors,
-                 dropout_rate=0.2,
                  tf_mode=False,
                  bn_eps=1e-5,
                  in_channels=3,
                  in_size=(224, 224),
                  num_classes=1000,
                  dropout_cls = None,
-                 dropout_cfg = None,
                  pooling_type='avg',
                  bn_eval=False,
                  bn_frozen=False,
                  feature_dim=256,
-                 loss='softmax',
                  IN_first=False,
                  IN_conv1=False,
                  lr_finder = None,
@@ -302,7 +299,6 @@ class EfficientNet(ModelInterface):
         self.pooling_type = pooling_type
         self.lr_finder = lr_finder
 
-        self.loss = loss
         self.feature_dim = feature_dim
         assert self.feature_dim is not None and self.feature_dim > 0
 
@@ -357,13 +353,11 @@ class EfficientNet(ModelInterface):
         if dropout_cls:
             self.output.add_module("dropout", Dropout(**dropout_cls))
         if self.loss == 'softmax':
-            self.use_angle_simple_linear = False
             self.output.add_module("fc", nn.Linear(
                 in_features=in_channels,
                 out_features=num_classes))
         else:
             assert self.loss == 'am_softmax'
-            self.use_angle_simple_linear = True
             self.output.add_module("asl", AngleSimpleLinear(
                 in_features=in_channels,
                 out_features=num_classes))

@@ -4,7 +4,6 @@ from .efficient_net_pytcv import *
 from .inceptionv4_pytcv import *
 from .mobile_face_net_se import *
 from .mobilenetv3 import *
-from .mobilenetv3_ml import *
 from .osnet import *
 from .osnet_ain import *
 from .osnet_fpn import *
@@ -41,8 +40,6 @@ __model_factory = {
     'fpn_osnet_x0_5': fpn_osnet_x0_5,
     'fpn_osnet_x0_25': fpn_osnet_x0_25,
     'fpn_osnet_ibn_x1_0': fpn_osnet_ibn_x1_0,
-    'mobilenet_v3_ml_small': mobilenet_v3_ml_small,
-    'mobilenet_v3_ml_large': mobilenet_v3_ml_large,
 
     # face reid models
     'mobile_face_net_se_1x': mobile_face_net_se_1x,
