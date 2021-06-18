@@ -115,7 +115,6 @@ class MobileNetV3Base(ModelInterface):
                 dropout_cls = None,
                 pooling_type='avg',
                 feature_dim=1280,
-                loss='softmax',
                 IN_first=False,
                 self_challenging_cfg=False,
                 lr_finder=None,
@@ -130,7 +129,6 @@ class MobileNetV3Base(ModelInterface):
         self.width_mult = width_mult
         self.dropout_cls = dropout_cls
         self.lr_finder = lr_finder
-        self.loss = loss
         self.feature_dim = feature_dim
 
     def infer_head(self, x, skip_pool=False):
@@ -214,7 +212,6 @@ class MobileNetV3(MobileNetV3Base):
         output_channel = make_divisible(output_channel[mode] * self.width_mult, 8) if self.width_mult > 1.0 else output_channel[mode]
 
         if self.loss == 'softmax':
-            self.use_angle_simple_linear = False
             self.classifier = nn.Sequential(
                 nn.Linear(exp_size, self.feature_dim),
                 nn.BatchNorm1d(self.feature_dim),
@@ -224,7 +221,6 @@ class MobileNetV3(MobileNetV3Base):
             )
         else:
             assert self.loss == 'am_softmax'
-            self.use_angle_simple_linear = True
             self.classifier = nn.Sequential(
                 nn.Linear(exp_size, self.feature_dim),
                 nn.BatchNorm1d(self.feature_dim),
@@ -273,7 +269,6 @@ class MobileNetV3LargeTimm(MobileNetV3Base):
         self.model = timm.create_model('mobilenetv3_large_100_miil_in21k',
                                         pretrained=pretrained,
                                         num_classes=self.num_classes)
-        self.use_angle_simple_linear = False
         self.dropout = Dropout(**self.dropout_cls)
         assert self.loss == 'softmax', "mobilenetv3_large_100_miil_in21k supports only softmax loss"
 
