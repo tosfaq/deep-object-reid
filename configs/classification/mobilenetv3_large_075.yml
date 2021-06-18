@@ -1,0 +1,88 @@
+
+lr_finder:
+  enable: True
+  mode: TPE
+  stop_after: False
+  num_epochs: 6
+  step: 0.001
+  epochs_warmup: 1
+  path_to_savefig: 'lr_finder.jpg'
+  max_lr: 0.029
+  min_lr: 0.005
+  n_trials: 15
+
+model:
+  name: 'mobilenetv3_large_075'
+  classification: True
+  pretrained: True
+  save_chkpt: True
+  feature_dim: 1280
+  dropout_cls:
+    p: 0.2
+    dist: 'gaussian'
+    mu: 0.5
+    sigma: 0.3
+
+mutual_learning:
+  aux_configs: ['mobilenetv3_large_075_aux.yml']
+
+custom_datasets:
+  roots: ['/ssd/datasets/CIFAR100/train', '/ssd/datasets/CIFAR100/val']
+  types: ['classification_image_folder', 'classification_image_folder']
+  names: ['CIFAR100_train', 'CIFAR100_val']
+
+data:
+  root: './'
+  sources: ['CIFAR100_train']
+  targets: ['CIFAR100_val']
+  height: 224
+  width: 224
+  norm_mean: [0.485, 0.456, 0.406]
+  norm_std: [0.229, 0.224, 0.225]
+  save_dir: 'output/mobilenetv3_large_075/log'
+  workers: 6
+  transforms:
+    random_flip:
+      enable: True
+      p: 0.5
+    augmix:
+      enable: True
+      cfg_str: "augmix-m5-w3"
+
+loss:
+  name: 'softmax'
+  softmax:
+    s: 1.0
+    compute_s: False
+
+sampler:
+  train_sampler: 'RandomSampler'
+
+metric_losses:
+  enable: False
+
+train:
+  optim: 'sam'
+  lr: 0.009
+  nbd: True
+  max_epoch: 200
+  weight_decay: 5e-4
+  batch_size: 116
+  lr_scheduler: 'warmup'
+  warmup: 5
+  base_scheduler: 'reduce_on_plateau'
+  early_stoping: True
+  train_patience: 5
+  lr_decay_factor: 200
+  deterministic: True
+  patience: 5
+  gamma: 0.1
+
+sam:
+  enable: True
+  rho: 0.05
+
+test:
+  batch_size: 128
+  evaluate: False
+  eval_freq: 1
