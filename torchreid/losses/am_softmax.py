@@ -165,7 +165,7 @@ class AMSoftmaxLoss(nn.Module):
 
         return weighted_losses
 
-    def forward(self, cos_theta, target, aug_index=None, lam=None, iteration=None):
+    def forward(self, cos_theta, target, aug_index=None, lam=None, iteration=None, scale=None):
         """
         Args:
             cos_theta (torch.Tensor): prediction matrix (before softmax) with
@@ -200,7 +200,8 @@ class AMSoftmaxLoss(nn.Module):
             phi_theta = torch.where(cos_theta > self.th, phi_theta, cos_theta - self.sin_m * self.class_margins)
 
         output = phi_theta
-        self.last_scale = self._get_scale(self.start_s, self.end_s, self.duration_s, self.skip_steps_s, iteration)
+        scale = scale if scale else self.start_s
+        self.last_scale = self._get_scale(scale, self.end_s, self.duration_s, self.skip_steps_s, iteration)
 
         if self.gamma == 0.0 and self.t == 1.0:
             output *= self.last_scale

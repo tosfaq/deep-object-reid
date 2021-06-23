@@ -88,6 +88,7 @@ class ImageAMSoftmaxEngine(Engine):
         scales = dict()
         if compute_s:
             scale = self.compute_s(num_classes[0])
+            s = scale
             print(f"computed margin scale for dataset: {scale}")
         else:
             scale = s
@@ -118,6 +119,7 @@ class ImageAMSoftmaxEngine(Engine):
                     scale=scale_factor * s
                 ))
             elif softmax_type == 'am':
+                print(s*scale_factor)
                 trg_class_counts = datamanager.data_counts[trg_id]
                 assert len(trg_class_counts) == trg_num_classes
 
