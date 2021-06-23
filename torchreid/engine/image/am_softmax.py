@@ -88,9 +88,11 @@ class ImageAMSoftmaxEngine(Engine):
         scales = dict()
         if compute_s:
             scale = self.compute_s(num_classes[0])
+            s = scale
             print(f"computed margin scale for dataset: {scale}")
         else:
             scale = s
+
         for model_name, model in self.models.items():
             if get_model_attr(model, 'use_angle_simple_linear'):
                 scales[model_name] = scale

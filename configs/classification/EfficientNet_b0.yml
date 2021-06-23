@@ -1,0 +1,90 @@
+
+lr_finder:
+  enable: True
+  mode: TPE
+  stop_after: False
+  num_epochs: 6
+  step: 0.002
+  smooth_f: 0.01
+  epochs_warmup: 1
+  path_to_savefig: 'lr_finder.jpg'
+  max_lr: 0.01
+  min_lr: 0.001
+  n_trials: 15
+
+model:
+  name: 'efficientnet_b0'
+  classification: True
+  pretrained: True
+  save_chkpt: True
+  feature_dim: 1280
+  dropout_cls:
+    p: 0.2
+    dist: 'gaussian'
+    mu: 0.5
+    sigma: 0.3
+
+custom_datasets:
+  roots: ['/media/cluster_fs/datasets/classification/CIFAR100/train', '/media/cluster_fs/datasets/classification/CIFAR100/val']
+  types: ['classification_image_folder', 'classification_image_folder']
+  names: ['CIFAR100_train', 'CIFAR100_val']
+
+data:
+  root: './'
+  type: 'image'
+  sources: ['CIFAR100_train']
+  targets: ['CIFAR100_val']
+  height: 224
+  width: 224
+  norm_mean: [0.485, 0.456, 0.406]
+  norm_std: [0.229, 0.224, 0.225]
+  save_dir: 'output/efficient_b0/log'
+  workers: 6
+  transforms:
+    random_flip:
+      enable: True
+      p: 0.5
+    augmix:
+      enable: True
+      cfg_str: "augmix-m5-w3"
+
+loss:
+  name: 'softmax'
+  softmax:
+    s: 1.
+    augmentations:
+      aug_type: 'fmix'
+
+sampler:
+  train_sampler: 'RandomSampler'
+
+metric_losses:
+  enable: False
+
+train:
+  optim: 'sam'
+  lr: 0.003
+  lr_bias_twice: True
+  nbd: True
+  max_epoch: 200
+  weight_decay: 5e-4
+  batch_size: 84
+  fixbase_epoch: 0
+  lr_scheduler: 'warmup'
+  warmup: 5
+  base_scheduler: 'reduce_on_plateau'
+  early_stoping: True
+  train_patience: 5
+  lr_decay_factor: 200
+  deterministic: True
+  patience: 5
+  gamma: 0.1
+
+sam:
+  enable: True
+  rho: 0.05
+
+test:
+  batch_size: 128
+  evaluate: False
+  eval_freq: 1
