@@ -184,15 +184,14 @@ def main():
         root_val = args.root + os.sep + params['roots'][1]
         if args.use_hardcoded_lr:
             print("WARNING: Using hardcoded LR")
-            if key in ["caltech101"]:
-                cfg["train"]["lr"] = 0.025
-            elif key in ["pets"]:
-                cfg["train"]["lr"] = 0.015
-            elif key in ["flowers"]:
-                cfg['train']['lr'] = 0.02
-            elif key in ["DTD", "cars"]:
-                cfg["train"]["lr"] = 0.03
-
+            if key in ["SUN397"]:
+                cfg["train"]["lr"] = 0.008
+            elif key in ["FOOD101"]:
+                if cfg['model']['name'] == "mobilenetv3_large":
+                    cfg["train"]["lr"] = 0.005
+                else:
+                    assert cfg['model']['name'] == "mobilenetv3_large_075"
+                    cfg["train"]["lr"] = 0.007
 
         cfg['custom_datasets']['roots'] = [root_train, root_val]
         cfg['custom_datasets']['types'] = [type_train, type_val]
