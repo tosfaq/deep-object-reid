@@ -183,6 +183,7 @@ def main():
         root_train = args.root + os.sep + params['roots'][0]
         root_val = args.root + os.sep + params['roots'][1]
         if args.use_hardcoded_lr:
+            cfg["lr_finder"]["enable"] = False
             print("WARNING: Using hardcoded LR")
             if key in ["SUN397"]:
                 cfg["train"]["lr"] = 0.008
