@@ -247,7 +247,7 @@ class ReduceLROnPlateauV2(optim.lr_scheduler.ReduceLROnPlateau):
         # we force to do that
         if self.last_epoch >= self.epoch_treshold and not lr_reduced_flag:
             print("Force learning rate decaying...")
-            self._reduce_lr(epoch)
+            self._reduce_lr(self.last_epoch)
             self.cooldown_counter = self.cooldown
             self.num_bad_epochs = 0
             self._last_lr = [group['lr'] for group in self.optimizer.param_groups]
