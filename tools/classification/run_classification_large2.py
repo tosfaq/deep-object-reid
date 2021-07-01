@@ -169,7 +169,7 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to train
-    to_pass = {"CIFAR100", "SUN397", "Xray", "flowers"}
+    to_pass = {"SUN397", "Xray"}
 
     for key, params in datasets.items():
         if key in to_pass:
