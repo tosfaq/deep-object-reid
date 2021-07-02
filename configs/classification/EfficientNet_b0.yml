@@ -25,7 +25,7 @@ model:
     sigma: 0.3
 
 custom_datasets:
-  roots: ['/media/cluster_fs/datasets/classification/CIFAR100/train', '/media/cluster_fs/datasets/classification/CIFAR100/val']
+  roots: ['./data/CIFAR100/train', 'CIFAR100/val']
   types: ['classification_image_folder', 'classification_image_folder']
   names: ['CIFAR100_train', 'CIFAR100_val']
 
