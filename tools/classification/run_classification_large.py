@@ -169,7 +169,7 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to train
-    to_pass = {}
+    to_pass = {"SUN397", "Xray", "FashionMNIST", "SVHN"}
 
     for key, params in datasets.items():
         if key in to_pass:
@@ -256,7 +256,7 @@ def main():
         # dump in appropriate patern
         names = ''
         values = ''
-        with open(path_to_file, 'a') as f:
+        with open(path_to_file, 'w') as f:
             for key in sorted(datasets.keys()):
                 names += key + ' '
                 if key in saver:

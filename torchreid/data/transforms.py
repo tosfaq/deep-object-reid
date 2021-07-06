@@ -945,7 +945,6 @@ _AUGMIX_TRANSFORMS = [
             'BrightnessIncreasing',  # not in paper
             'SharpnessIncreasing',  # not in paper
             'Equalize',
-            'Rotate',
             'PosterizeIncreasing',
             'SolarizeIncreasing',
             'ShearX',

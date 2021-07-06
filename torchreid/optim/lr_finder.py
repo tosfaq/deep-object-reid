@@ -1,6 +1,7 @@
 from functools import partial
 
 import torch
+import numpy as np
 from torch_lr_finder import LRFinder
 import optuna
 from optuna.trial import TrialState
@@ -10,6 +11,7 @@ import time
 import datetime
 
 from torchreid.utils import get_model_attr
+from torchreid.models import MobileNetV3Base
 
 class LrFinder:
     def __init__(self,
@@ -56,7 +58,8 @@ class LrFinder:
         self.enable_sam = engine.enable_sam
         self.smooth_f = smooth_f
         self.engine_cfg = Dict(min_lr=min_lr, max_lr=max_lr, mode=mode, step=step)
-        self.samplers = {'grid_search': GridSampler(search_space={'lr': [0.005, 0.007, 0.01, 0.015, 0.02, 0.025, 0.03]}),
+        search_space = [0.005, 0.007, 0.01, 0.013, 0.015, 0.02, 0.022, 0.025, 0.03] if isinstance(self.model, MobileNetV3Base) else np.arange(0.001, 0.011, step=0.001)
+        self.samplers = {'grid_search': GridSampler(search_space={'lr': search_space}),
                             'TPE': TPESampler(n_startup_trials=5, seed=True)}
 
     def process(self):

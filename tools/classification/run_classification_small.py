@@ -164,7 +164,83 @@ def main():
             targets='FOOD101_val',
             batch_size=128,
             num_C=101
-        )
+        ),
+        LGChenck=dict(
+            resolution=(224, 224),
+            roots=['LGChenck/train', 'LGChenck/val'],
+            names=['LGChenck_train', 'LGChenck_val'],
+            types=['classification_image_folder', 'classification_image_folder'],
+            sources='LGChenck_train',
+            targets='LGChenck_val',
+            batch_size=128,
+            num_C=101
+        ),
+        brain_tumor=dict(
+            resolution=(224, 224),
+            epochs=35,
+            roots=['brain_tumor/train.txt', 'brain_tumor/val.txt'],
+            names=['brain_tumor_train', 'brain_tumor_val'],
+            types=['classification', 'classification'],
+            sources='brain_tumor_train',
+            targets='brain_tumor_val',
+            batch_size=128,
+            num_C=101
+        ),
+        autism=dict(
+            resolution=(224, 224),
+            epochs=35,
+            roots=['autism/train', 'autism/val'],
+            names=['autism_train', 'autism_val'],
+            types=['classification_image_folder', 'classification_image_folder'],
+            sources='autism_train',
+            targets='autism_val',
+            batch_size=128,
+            num_C=101
+        ),
+        medicalMNIST=dict(
+            resolution=(224, 224),
+            epochs=35,
+            roots=['medicalMNIST/train.txt', 'medicalMNIST/val.txt'],
+            names=['medicalMNIST_train', 'medicalMNIST_val'],
+            types=['classification', 'classification'],
+            sources='medicalMNIST_train',
+            targets='medicalMNIST_val',
+            batch_size=128,
+            num_C=101
+        ),
+        Covid19=dict(
+            resolution=(224, 224),
+            epochs=35,
+            roots=['Covid19/train', 'Covid19/val'],
+            names=['Covid19_train', 'Covid19_val'],
+            types=['classification_image_folder', 'classification_image_folder'],
+            sources='Covid19_train',
+            targets='Covid19_val',
+            batch_size=128,
+            num_C=101
+        ),
+        attd_mi04_v4=dict(
+            resolution=(224, 224),
+            epochs=35,
+            roots=['attd_mi04_v4/train.txt', 'attd_mi04_v4/val.txt'],
+            names=['attd_mi04_v4_train', 'attd_mi04_v4_val'],
+            types=['classification', 'classification'],
+            sources='attd_mi04_v4_train',
+            targets='attd_mi04_v4_val',
+            batch_size=128,
+            num_C=101
+        ),
+        attd_mi02_v3=dict(
+            resolution=(224, 224),
+            epochs=35,
+            roots=['attd_mi02_v3/train.txt', 'attd_mi02_v3/val.txt'],
+            names=['attd_mi02_v3_train', 'attd_mi02_v3_val'],
+            types=['classification', 'classification'],
+            sources='attd_mi02_v3_train',
+            targets='attd_mi02_v3_val',
+            batch_size=128,
+            num_C=101
+        ),
     )
 
     path_to_base_cfg = args.config
