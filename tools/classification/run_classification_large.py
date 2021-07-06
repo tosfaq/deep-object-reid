@@ -44,17 +44,6 @@ def main():
             batch_size=128,
             num_C=100
         ),
-        SUN397=dict(
-            resolution=(224, 224),
-            epochs=60,
-            roots=['SUN397/train.txt', 'SUN397/val.txt'],
-            names=['SUN397_train', 'SUN397_val'],
-            types=['classification', 'classification'],
-            sources='SUN397_train',
-            targets='SUN397_val',
-            batch_size=128,
-            num_C=397
-        ),
         flowers=dict(
             resolution=(224, 224),
             epochs=50,
@@ -164,12 +153,23 @@ def main():
             targets='FOOD101_val',
             batch_size=128,
             num_C=101
+        ),
+        SUN397=dict(
+            resolution=(224, 224),
+            epochs=60,
+            roots=['SUN397/train.txt', 'SUN397/val.txt'],
+            names=['SUN397_train', 'SUN397_val'],
+            types=['classification', 'classification'],
+            sources='SUN397_train',
+            targets='SUN397_val',
+            batch_size=128,
+            num_C=397
         )
     )
 
     path_to_base_cfg = args.config
     # write datasets you want to train
-    to_pass = {"SUN397", "Xray", "FashionMNIST", "SVHN"}
+    to_pass = {"Xray"}
 
     for key, params in datasets.items():
         if key in to_pass:
