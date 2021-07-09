@@ -169,7 +169,7 @@ def main():
 
     path_to_base_cfg = args.config
     # write datasets you want to train
-    to_pass = {"Xray"}
+    to_pass = {"SUN", "Xray"}
 
     for key, params in datasets.items():
         if key in to_pass:
@@ -231,7 +231,7 @@ def main():
 
     # after training combine all outputs in one file
     if args.dump_results:
-        path_to_bash = str(Path.cwd() / 'parse_output.sh')
+        path_to_bash = str(Path.cwd() / 'output/parse_output.sh')
         run(f'bash {path_to_bash} {path_to_exp_folder}', shell=True)
         saver = dict()
         path_to_file = f"{path_to_exp_folder}/combine_all.txt"
@@ -244,7 +244,7 @@ def main():
                     continue
                 else:
                     for metric in ['mAP', 'Rank-1', 'Rank-5']:
-                        if line.strip().startswith(metric):
+                        if metric in line.strip():
                             if not metric in saver[next_dataset]:
                                 saver[next_dataset][metric] = []
                             pattern = re.search('\d+\.\d+', line.strip())
@@ -256,7 +256,7 @@ def main():
         # dump in appropriate patern
         names = ''
         values = ''
-        with open(path_to_file, 'w') as f:
+        with open(path_to_file, 'a') as f:
             for key in sorted(datasets.keys()):
                 names += key + ' '
                 if key in saver:
