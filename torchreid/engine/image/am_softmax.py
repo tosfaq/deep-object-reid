@@ -280,6 +280,7 @@ class ImageAMSoftmaxEngine(Engine):
         run_kwargs = self._prepare_run_kwargs(obj_ids)
         model_output = model(imgs, **run_kwargs)
         all_logits, all_embeddings, extra_data = self._parse_model_output(model_output)
+        # draw_distribution(all_logits)
 
         total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
         out_logits = []
@@ -495,3 +496,9 @@ class ImageAMSoftmaxEngine(Engine):
         bby2 = np.clip(cy + cut_h // 2, 0, H)
 
         return bbx1, bby1, bbx2, bby2
+
+# def draw_distribution(logits):
+#     import matplotlib.pyplot as plt
+#     plt.bar(logits[0][5])
+
+#     exit()
