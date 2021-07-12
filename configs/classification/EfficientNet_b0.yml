@@ -8,7 +8,7 @@ lr_finder:
   smooth_f: 0.01
   epochs_warmup: 1
   path_to_savefig: 'lr_finder.jpg'
-  max_lr: 0.01
+  max_lr: 0.009
   min_lr: 0.001
   n_trials: 15
 
