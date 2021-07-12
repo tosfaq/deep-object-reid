@@ -18,10 +18,10 @@ model:
   feature_dim: 1280
 
 mutual_learning:
-  aux_configs: ['/ssd/deep-object-reid/configs/classification/mobilenetv3_large_aux.yml']
+  aux_configs: ['mobilenetv3_large_aux.yml']
 
 custom_datasets:
-  roots: ['/ssd/datasets/CIFAR100/train', '/ssd/datasets/CIFAR100/val']
+  roots: ['CIFAR100/train', 'CIFAR100/val']
   types: ['classification_image_folder', 'classification_image_folder']
   names: ['CIFAR100_train', 'CIFAR100_val']
 
@@ -39,17 +39,17 @@ data:
     random_flip:
       enable: True
       p: 0.5
-    random_rotate:
-      enable: True
-      p: 0.35
-      angle: (-10,10)
     random_crop:
       enable: True
+      p: 0.3
       scale: 0.9
-      p: 0.5
+    random_rotate:
+      enable: True
+      p: 0.3
+      angle: (-10, 10)
     augmix:
       enable: True
-      cfg_str: "augmix-m3-w2"
+      cfg_str: "augmix-m5-w3"
 
 loss:
   name: 'softmax'

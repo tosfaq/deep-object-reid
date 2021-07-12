@@ -1191,7 +1191,6 @@ def augment_and_mix_transform(config_str, image_mean, translate_const=250, grey=
     """
     def augmix_ops(magnitude, hparams, prob=1.0, grey=False):
         aug_politics = _AUGMIX_TRANSFORMS_GREY if grey else _AUGMIX_TRANSFORMS
-        print(aug_politics)
         return [OpsFabric(name, magnitude, hparams, prob) for name in aug_politics]
 
     magnitude = 3
