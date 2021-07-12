@@ -937,6 +937,13 @@ class PairToTensor(object):
 
         return image, mask
 
+_AUGMIX_TRANSFORMS_GREY = [
+            'SharpnessIncreasing',  # not in paper
+            'ShearX',
+            'ShearY',
+            'TranslateXRel',
+            'TranslateYRel',
+        ]
 
 _AUGMIX_TRANSFORMS = [
             'AutoContrast',
@@ -1167,7 +1174,7 @@ class AugMixAugment:
         mask = self._apply_basic(mask, mixing_weights, m) if mask else ''
         return mixed, mask
 
-def augment_and_mix_transform(config_str, image_mean, translate_const=250):
+def augment_and_mix_transform(config_str, image_mean, translate_const=250, grey=False):
     """ Create AugMix PyTorch transform
     :param config_str: String defining configuration of random augmentation. Consists of multiple sections separated by
     dashes ('-'). The first section defines the specific variant of rand augment (currently only 'rand'). The remaining
@@ -1182,8 +1189,10 @@ def augment_and_mix_transform(config_str, image_mean, translate_const=250):
     :return: A PyTorch compatible Transform
     imported and modified from: https://github.com/rwightman/pytorch-image-models/blob/master/timm/data/auto_augment.py
     """
-    def augmix_ops(magnitude, hparams, prob=1.0):
-        return [OpsFabric(name, magnitude, hparams, prob) for name in _AUGMIX_TRANSFORMS]
+    def augmix_ops(magnitude, hparams, prob=1.0, grey=False):
+        aug_politics = _AUGMIX_TRANSFORMS_GREY if grey else _AUGMIX_TRANSFORMS
+        print(aug_politics)
+        return [OpsFabric(name, magnitude, hparams, prob) for name in aug_politics]
 
     magnitude = 3
     width = 3
@@ -1217,7 +1226,7 @@ def augment_and_mix_transform(config_str, image_mean, translate_const=250):
             p = float(val)
         else:
             assert False, 'Unknown AugMix config section'
-    ops = augmix_ops(magnitude=magnitude, hparams=hparams, prob=p)
+    ops = augmix_ops(magnitude=magnitude, hparams=hparams, prob=p, grey=grey)
     return AugMixAugment(ops, alpha=alpha, width=width, depth=depth)
 
 
@@ -1267,7 +1276,7 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     transform_tr += [PairResize((height, width))]
     if transforms.augmix.enable:
         print('+ AugMix')
-        transform_tr += [augment_and_mix_transform(transforms.augmix.cfg_str, norm_mean)]
+        transform_tr += [augment_and_mix_transform(config_str=transforms.augmix.cfg_str, image_mean=norm_mean, grey=transforms.augmix.grey_imgs)]
     if transforms.random_background_substitution.enable:
         aug_module = RandomBackgroundSubstitution(**transforms.random_background_substitution)
         if aug_module.enable:
