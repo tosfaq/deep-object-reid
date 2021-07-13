@@ -4,7 +4,7 @@ lr_finder:
   mode: TPE
   stop_after: False
   num_epochs: 6
-  step: 0.002
+  step: 0.001
   smooth_f: 0.01
   epochs_warmup: 1
   path_to_savefig: 'lr_finder.jpg'
@@ -18,20 +18,14 @@ model:
   pretrained: True
   save_chkpt: True
   feature_dim: 1280
-  dropout_cls:
-    p: 0.2
-    dist: 'gaussian'
-    mu: 0.5
-    sigma: 0.3
 
 custom_datasets:
-  roots: ['./data/CIFAR100/train', 'CIFAR100/val']
+  roots: ['CIFAR100/train', 'CIFAR100/val']
   types: ['classification_image_folder', 'classification_image_folder']
   names: ['CIFAR100_train', 'CIFAR100_val']
 
 data:
   root: './'
-  type: 'image'
   sources: ['CIFAR100_train']
   targets: ['CIFAR100_val']
   height: 224
@@ -44,16 +38,23 @@ data:
     random_flip:
       enable: True
       p: 0.5
+    random_crop:
+      enable: True
+      p: 0.3
+      scale: 0.9
+    random_rotate:
+      enable: True
+      p: 0.3
+      angle: (-10, 10)
     augmix:
       enable: True
       cfg_str: "augmix-m5-w3"
 
 loss:
-  name: 'softmax'
+  name: 'am_softmax'
   softmax:
-    s: 1.
-    augmentations:
-      aug_type: 'fmix'
+    s: 6.
+    compute_s: True
 
 sampler:
   train_sampler: 'RandomSampler'
@@ -64,7 +65,6 @@ metric_losses:
 train:
   optim: 'sam'
   lr: 0.003
-  lr_bias_twice: True
   nbd: True
   max_epoch: 200
   weight_decay: 5e-4
@@ -88,3 +88,4 @@ test:
   batch_size: 128
   evaluate: False
   eval_freq: 1
+

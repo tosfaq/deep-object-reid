@@ -127,7 +127,7 @@ def read_image(path, grayscale=False):
             img = Image.open(path).convert('L' if grayscale else 'RGB')
             got_img = True
         except IOError:
-            print('IOError incurred when reading "{}". Will redo. Don\'t worry. Just chill.'.format(path))
+            print('IOError occurred when reading "{}".'.format(path))
 
     return img
 

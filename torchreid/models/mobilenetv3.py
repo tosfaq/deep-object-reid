@@ -10,7 +10,8 @@ import timm
 
 from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
 
-__all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150', 'mobilenetv3_large_125', "mobilenetv3_large_21k"]
+__all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150',
+            'mobilenetv3_large_125', "mobilenetv3_large_21k"]
 
 pretrained_urls = {
     'mobilenetv3_small':

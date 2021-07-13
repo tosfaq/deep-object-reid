@@ -1,4 +1,3 @@
-
 lr_finder:
   enable: True
   mode: TPE
@@ -17,17 +16,12 @@ model:
   pretrained: True
   save_chkpt: True
   feature_dim: 1280
-  dropout_cls:
-    p: 0.2
-    dist: 'gaussian'
-    mu: 0.5
-    sigma: 0.3
 
 mutual_learning:
   aux_configs: ['mobilenetv3_large_aux.yml']
 
 custom_datasets:
-  roots: ['./data/CIFAR100/train', './data/CIFAR100/val']
+  roots: ['CIFAR100/train', 'CIFAR100/val']
   types: ['classification_image_folder', 'classification_image_folder']
   names: ['CIFAR100_train', 'CIFAR100_val']
 
@@ -45,6 +39,14 @@ data:
     random_flip:
       enable: True
       p: 0.5
+    random_crop:
+      enable: True
+      p: 0.3
+      scale: 0.9
+    random_rotate:
+      enable: True
+      p: 0.3
+      angle: (-10, 10)
     augmix:
       enable: True
       cfg_str: "augmix-m5-w3"
@@ -67,7 +69,7 @@ train:
   nbd: True
   max_epoch: 200
   weight_decay: 5e-4
-  batch_size: 116
+  batch_size: 84
   lr_scheduler: 'warmup'
   warmup: 5
   base_scheduler: 'reduce_on_plateau'

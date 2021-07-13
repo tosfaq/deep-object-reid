@@ -17,7 +17,6 @@ loss:
     s: 1.0
     compute_s: False
 
-
 sampler:
   train_sampler: 'RandomSampler'
 
