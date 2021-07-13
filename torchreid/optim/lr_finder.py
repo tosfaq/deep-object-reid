@@ -11,7 +11,6 @@ import time
 import datetime
 
 from torchreid.utils import get_model_attr
-from torchreid.models import MobileNetV3Base
 
 class LrFinder:
     def __init__(self,
@@ -58,7 +57,7 @@ class LrFinder:
         self.enable_sam = engine.enable_sam
         self.smooth_f = smooth_f
         self.engine_cfg = Dict(min_lr=min_lr, max_lr=max_lr, mode=mode, step=step)
-        search_space = [0.005, 0.007, 0.01, 0.013, 0.015, 0.02, 0.022, 0.025, 0.03] if isinstance(self.model, MobileNetV3Base) else np.arange(0.001, 0.011, step=0.001)
+        search_space = np.arange(min_lr, max_lr, step)
         self.samplers = {'grid_search': GridSampler(search_space={'lr': search_space}),
                             'TPE': TPESampler(n_startup_trials=5, seed=True)}
 
