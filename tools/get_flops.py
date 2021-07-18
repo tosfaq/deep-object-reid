@@ -11,7 +11,6 @@ from torchreid.utils import (collect_env_info, compute_model_complexity,
 
 
 def build_datamanager(cfg, classification_classes_filter=None):
-    assert cfg.data.type == 'image'
     return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
 
 

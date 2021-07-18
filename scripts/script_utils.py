@@ -161,7 +161,7 @@ def put_main_model_on_the_device(model, use_gpu=True, gpu_num=1, num_aux_models=
         else:
             model = model.cuda(main_device_ids[0])
     else:
-        extra_device_ids = [None for _ in range()]
+        extra_device_ids = [None for _ in range(num_aux_models)]
 
     return model, extra_device_ids
 
