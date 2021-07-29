@@ -6,12 +6,15 @@ from torchreid.utils import check_isfile, load_pretrained_weights, read_yaml
 from scripts.default_config import merge_from_files_with_base
 from scripts.script_utils import build_datamanager, is_config_parameter_set_from_command_line
 
-from .compression import (is_checkpoint_nncf, wrap_nncf_model)
+from torchreid.integration.nncf.compression import wrap_nncf_model
+from torchreid.integration.nncf.utils import is_checkpoint_nncf
+
 
 def get_coeff_decrease_lr_for_nncf(nncf_training_config):
     if nncf_training_config and nncf_training_config.get('coeff_decrease_lr_for_nncf'):
         return nncf_training_config.get('coeff_decrease_lr_for_nncf')
     raise RuntimeError('The default value for coeff_decrease_lr_for_nncf is not set')
+
 
 def calculate_lr_for_nncf_training(lr_from_cfg, checkpoint_path,
                                    coeff_decrease_lr_for_nncf,
@@ -43,6 +46,7 @@ def calculate_lr_for_nncf_training(lr_from_cfg, checkpoint_path,
     print(f'calculated lr = {lr}')
     return lr
 
+
 def _sanity_check_nncf_changes_in_config(path_change_file):
     # sanity check -- to avoid complicated/recursive side effects
     if not path_change_file:
@@ -51,12 +55,13 @@ def _sanity_check_nncf_changes_in_config(path_change_file):
     cfg_changes = read_yaml(path_change_file)
 
     if (cfg_changes.get('model', {}).get('load_weights') or
-        cfg_changes.get('model', {}).get('resume') or
-        cfg_changes.get('nncf') or
-        cfg_changes.get('aux_configs')
-        ):
+            cfg_changes.get('model', {}).get('resume') or
+            cfg_changes.get('nncf') or
+            cfg_changes.get('aux_configs')
+    ):
         raise RuntimeError(f'Try to make too complicated changes for NNCF training, '
                            f'NNCF changes to main config =\n{pformat(cfg_changes)}')
+
 
 def make_nncf_changes_in_main_training_config(cfg, command_line_cfg_opts):
     # Take the part of the main config, related to NNCF.
@@ -86,6 +91,7 @@ def make_nncf_changes_in_main_training_config(cfg, command_line_cfg_opts):
 
     return cfg
 
+
 def get_nncf_changes_in_aux_training_config(cfg):
     # See details on nncf_training_config in the comment in
     # the function make_nncf_changes_in_main_training_config
@@ -94,24 +100,85 @@ def get_nncf_changes_in_aux_training_config(cfg):
     _sanity_check_nncf_changes_in_config(nncf_changes_in_aux_train_config)
     return nncf_changes_in_aux_train_config
 
+
+# TODO(kshpv) return value NNCFConfig
+def get_default_nncf_compression_config(h, w):
+    """
+    This function returns the default NNCF config for this repository.
+    The config makes NNCF int8 quantization.
+    """
+    nncf_config_data = {
+        'input_info': {
+            'sample_size': [1, 3, h, w]
+        },
+        'compression': [
+            {
+                'algorithm': 'quantization',
+                'initializer': {
+                    'range': {
+                        'num_init_samples': 8192,  # Number of samples from the training dataset
+                        # to consume as sample model inputs for purposes of setting initial
+                        # minimum and maximum quantization ranges
+                    },
+                    'batchnorm_adaptation': {
+                        'num_bn_adaptation_samples': 8192,  # Number of samples from the training
+                        # dataset to pass through the model at initialization in order to update
+                        # batchnorm statistics of the original model. The actual number of samples
+                        # will be a closest multiple of the batch size.
+                        # 'num_bn_forget_samples': 1024, # Number of samples from the training
+                        # dataset to pass through the model at initialization in order to erase
+                        # batchnorm statistics of the original model (using large momentum value
+                        # for rolling mean updates). The actual number of samples will be a
+                        # closest multiple of the batch size.
+                    }
+                }
+            }
+        ],
+        'log_dir': '.'
+    }
+    return nncf_config_data
+
+
 def make_nncf_changes_in_training(model, cfg, classes, command_line_cfg_opts):
     # See details on nncf_training_config in the comment in
     # the function make_nncf_changes_in_main_training_config
-    nncf_training_config = cfg.get('nncf', {})
-    nncf_config_path = nncf_training_config.get('nncf_config_path')
-    print(f'NNCF config path = {nncf_config_path}')
+    from torchreid.utils import read_json
+    from nncf import NNCFConfig
 
-    lr = None
-    if cfg.model.resume:
-        raise NotImplementedError('Resuming NNCF training is not implemented yet')
-    if not cfg.model.load_weights:
-        raise RuntimeError('NNCF training should be started from a non-NNCF or NNCF pre-trained model')
+    def check_cfg(cfg):
+        if cfg.model.resume:
+            raise NotImplementedError('Resuming NNCF training is not implemented yet')
+        if not cfg.model.load_weights:
+            raise RuntimeError('NNCF training should be started from a non-NNCF or NNCF pre-trained model')
+        if not check_isfile(checkpoint_path):
+            raise RuntimeError(f'Cannot find checkpoint at {checkpoint_path}')
+
     checkpoint_path = cfg.model.load_weights
-    if not check_isfile(checkpoint_path):
-        raise RuntimeError(f'Cannot find checkpoint at {checkpoint_path}')
+    check_cfg(cfg)
+
+    nncf_training_config = cfg.get('nncf', {})
+    nncf_config_path = nncf_training_config.get('nncf_config_path', None)
+
+    if nncf_config_path is not None:
+        nncf_config_json = read_json(nncf_config_path)
+        print(f'Read nncf config from the NNCF config file {nncf_config_path}:\n'
+              f' nncf_config=\n{pformat(nncf_config_json)}')
+        nncf_config = NNCFConfig(nncf_config_json)
+    else:
+        print('Using the default NNCF int8 quantization config')
+        input_height, input_width = cfg.data.height, cfg.data.width
+        nncf_config = get_default_nncf_compression_config(input_height, input_width)
+
+    def check_input_size(cfg, nncf_config):
+        input_height, input_width = cfg.data.height, cfg.data.width
+        _, _, nncf_input_height, nncf_input_width = nncf_config['input_info']['sample_size']
+        if nncf_input_height != input_height or nncf_input_width != input_width:
+            raise RuntimeError("NNCF config's input size doesn't match with ordinary config's input")
+
+    check_input_size(cfg, nncf_config)
+    print(f'nncf_config =\n{pformat(nncf_config)}')
 
     is_curr_checkpoint_nncf = is_checkpoint_nncf(checkpoint_path)
-    print(f'First stage of NNCF model wrapping -- loading weights from {checkpoint_path}')
     if is_curr_checkpoint_nncf:
         print('Note that it is an NNCF checkpoint, so warnings that some layers are discarded '
               'during loading due to unmatched keys will be printed -- it is normal for this case')
@@ -120,19 +187,15 @@ def make_nncf_changes_in_training(model, cfg, classes, command_line_cfg_opts):
 
     if is_curr_checkpoint_nncf:
         print(f'Using NNCF checkpoint {checkpoint_path}')
-        # just skipping loading special datamanager
         datamanager_for_nncf = None
         checkpoint_path_for_wrapping = checkpoint_path
     else:
-        print('before building datamanager for nncf initializing')
         datamanager_for_nncf = build_datamanager(cfg, classes)
-        print('after building datamanager for nncf initializing')
         checkpoint_path_for_wrapping = None
 
-    compression_ctrl, model, nncf_metainfo = \
-            wrap_nncf_model(model, cfg, datamanager_for_nncf,
-                            checkpoint_path=checkpoint_path_for_wrapping,
-                            nncf_config_path=nncf_config_path)
+    compression_ctrl, model, nncf_metainfo = wrap_nncf_model(model, cfg, nncf_config,
+                                                             datamanager_for_nncf,
+                                                             checkpoint_path_for_wrapping)
     print(f'Received from wrapping nncf_metainfo =\n{pformat(nncf_metainfo)}')
     if cfg.lr_finder.enable:
         print('Turn off LR finder -- it should not be used together with NNCF compression')
@@ -147,7 +210,8 @@ def make_nncf_changes_in_training(model, cfg, classes, command_line_cfg_opts):
                                         is_initial_lr_set_from_opts)
     assert lr is not None
     cfg.train.lr = lr
-    return model, cfg, lr, nncf_metainfo
+    return compression_ctrl, model, cfg, lr, nncf_metainfo
+
 
 def make_nncf_changes_in_eval(model, cfg):
     # See details on nncf_training_config in the comment in
@@ -158,7 +222,7 @@ def make_nncf_changes_in_eval(model, cfg):
     checkpoint_path = cfg.model.load_weights
     datamanager_for_nncf = None
     compression_ctrl, model, _ = \
-            wrap_nncf_model(model, cfg, datamanager_for_nncf,
-                            checkpoint_path=checkpoint_path,
-                            nncf_config_path=nncf_config_path)
+        wrap_nncf_model(model, cfg, datamanager_for_nncf,
+                        checkpoint_path=checkpoint_path,
+                        nncf_config_path=nncf_config_path)
     return model

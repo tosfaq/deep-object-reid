@@ -1,5 +1,6 @@
 from torchreid.engine import (ImageAMSoftmaxEngine, ImageContrastiveEngine,
                               ImageTripletEngine)
+from torchreid.integration.nncf.engine import AccuracyAwareImageAMSoftmaxEngine
 
 
 def build_engine(cfg, datamanager, model, optimizer, scheduler,
@@ -9,6 +10,12 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
     if should_freeze_aux_models or nncf_metainfo:
         if cfg.loss.name not in ['softmax', 'am_softmax']:
             raise NotImplementedError('Freezing of aux models or NNCF compression are supported only for '
+
+    is_accuracy_aware_training = False
+        if nncf_metainfo is not None:
+            if nncf_metainfo.nncf_config.get('compression').get('accuracy_aware_training', None) is not None:
+                is_accuracy_aware_training = True
+
                                       'softmax and am_softmax losses for data.type = image')
     initial_lr = initial_lr if initial_lr else cfg.train.lr
     if cfg.loss.name in ['softmax', 'am_softmax']:

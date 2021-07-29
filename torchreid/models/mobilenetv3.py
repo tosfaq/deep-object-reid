@@ -8,7 +8,6 @@ from torchreid.ops import Dropout, EvalModeSetter, rsc
 from .common import HSigmoid, HSwish, ModelInterface, make_divisible
 import timm
 
-from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
 
 __all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150',
             'mobilenetv3_large_125', "mobilenetv3_large_21k"]
@@ -25,10 +24,6 @@ pretrained_urls = {
 }
 
 
-SHOULD_NNCF_SKIP_SE_LAYERS = False
-SHOULD_NNCF_SKIP_HEAD = False
-no_nncf_se_layer_context = get_no_nncf_trace_context_manager() if SHOULD_NNCF_SKIP_SE_LAYERS else nullcontext
-no_nncf_head_context = get_no_nncf_trace_context_manager() if SHOULD_NNCF_SKIP_HEAD else nullcontext
 
 class SELayer(nn.Module):
     def __init__(self, channel, reduction=4):
@@ -42,10 +37,9 @@ class SELayer(nn.Module):
         )
 
     def forward(self, x):
-        with no_nncf_se_layer_context():
-            b, c, _, _ = x.size()
-            y = self.avg_pool(x).view(b, c)
-            y = self.fc(y).view(b, c, 1, 1)
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
         return x * y
 
 

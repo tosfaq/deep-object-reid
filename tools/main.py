@@ -22,7 +22,7 @@ from torchreid.utils import (Logger, check_isfile, collect_env_info,
                              compute_model_complexity, resume_from_checkpoint,
                              set_random_seed, load_pretrained_weights)
 from torchreid.optim import LrFinder
-from torchreid.integration.nncf.compression import is_checkpoint_nncf
+from torchreid.integration.nncf.utils import is_checkpoint_nncf
 from torchreid.integration.nncf.compression_script_utils import (get_nncf_changes_in_aux_training_config,
                                                                  make_nncf_changes_in_training,
                                                                  make_nncf_changes_in_main_training_config)
@@ -81,7 +81,9 @@ def main():
     aux_lr = cfg.train.lr # placeholder, needed for aux models, may be filled by nncf part below
     if is_nncf_used:
         print('Begin making NNCF changes in model')
-        model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
+        if cfg.use_gpu:
+            model.cuda()
+        compression_ctrl, model, cfg, aux_lr, nncf_metainfo = make_nncf_changes_in_training(model, cfg,
                                                                           args.classes,
                                                                           args.opts)
 
@@ -90,6 +92,7 @@ def main():
         print('End making NNCF changes in model')
     else:
         should_freeze_aux_models = False
+        compression_ctrl = None
         nncf_metainfo = None
     # creating optimizer and scheduler -- it should be done after NNCF part, since
     # NNCF could change some parameters
@@ -165,7 +168,9 @@ def main():
                           initial_lr=aux_lr)
 
     log_dir = cfg.data.tb_log_dir if cfg.data.tb_log_dir else cfg.data.save_dir
-    engine.run(**engine_run_kwargs(cfg), tb_writer=SummaryWriter(log_dir=log_dir))
+    nncf_config = nncf_metainfo.nncf_config if nncf_metainfo is not None else None
+    engine.run(**engine_run_kwargs(cfg),  tb_writer=SummaryWriter(log_dir=log_dir),
+               compression_ctrl=compression_ctrl, nncf_config=nncf_config)
 
 
 if __name__ == '__main__':
