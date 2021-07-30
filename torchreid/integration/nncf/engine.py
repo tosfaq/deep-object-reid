@@ -24,21 +24,38 @@ class AccuracyAwareImageAMSoftmaxEngine(ImageAMSoftmaxEngine):
         self.target_metric_name = target_metric_name
 
     def run(self, compression_ctrl, nncf_config, **kwargs):
-        from nncf.torch import AdaptiveCompressionTrainingLoop
-        from nncf.torch import EarlyStoppingCompressionTrainingLoop
+        from nncf.common.accuracy_aware_training import create_accuracy_aware_training_loop
 
-        self.train_data_loader = self.train_loader
-        self.max_epoch = nncf_config.get('compression').get('accuracy_aware_training').get('maximal_total_epochs')
-        acc_aware_training_loop = EarlyStoppingCompressionTrainingLoop(nncf_config,
-                                                                       compression_ctrl)
+        def is_mutual_learning_enable():
+            if len(self.models) > 1:
+                return True
+            elif len(self.models) == 1:
+                return False
+            else:
+                raise RuntimeError('Incorrect number of models')
+
+        if not is_mutual_learning_enable():
+            model = self.models['model']
+            optimizer = self.optims['model']
+            scheduler = self.scheds['model']
+        else:
+            # Use only main model
+            model = self.models['model_0']
+            optimizer = self.optims['model_0']
+            scheduler = self.scheds['model_0']
 
         def _configure_optimizers_fn():
-            return self.optims['model'], self.scheds['model']
+            return optimizer, scheduler
 
         def dec_test(func):
             def inner(model, epoch):
-                top1, top5, mAp = func(epoch)
-                return top1
+                top1, top5, m_ap = func(epoch)
+                if self.target_metric_name == 'top1':
+                    return top1
+                elif self.target_metric_name == 'mAP':
+                    return m_ap
+                else:
+                    raise RuntimeError('Incorrect target metric')
 
             return inner
 
@@ -50,12 +67,15 @@ class AccuracyAwareImageAMSoftmaxEngine(ImageAMSoftmaxEngine):
 
             return inner
 
-        validate_f = dec_test(self.test)
-        train_f = dec_train(self.train)
+        self.train_data_loader = self.train_loader
+        self.max_epoch = nncf_config.get('accuracy_aware_training').get('maximal_total_epochs')
 
-        model = acc_aware_training_loop.run(self.models['model'],
-                                            train_epoch_fn=train_f,
-                                            validate_fn=validate_f,
+        validate_fn = dec_test(self.test)
+        train_fn = dec_train(self.train)
+
+        acc_aware_training_loop = create_accuracy_aware_training_loop(nncf_config, compression_ctrl)
+        model = acc_aware_training_loop.run(model,
+                                            train_epoch_fn=train_fn,
+                                            validate_fn=validate_fn,
                                             configure_optimizers_fn=_configure_optimizers_fn)
-
         return model

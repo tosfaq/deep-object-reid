@@ -101,12 +101,12 @@ def get_nncf_changes_in_aux_training_config(cfg):
     return nncf_changes_in_aux_train_config
 
 
-# TODO(kshpv) return value NNCFConfig
 def get_default_nncf_compression_config(h, w):
     """
     This function returns the default NNCF config for this repository.
     The config makes NNCF int8 quantization.
     """
+    from nncf import NNCFConfig
     nncf_config_data = {
         'input_info': {
             'sample_size': [1, 3, h, w]
@@ -116,27 +116,17 @@ def get_default_nncf_compression_config(h, w):
                 'algorithm': 'quantization',
                 'initializer': {
                     'range': {
-                        'num_init_samples': 8192,  # Number of samples from the training dataset
-                        # to consume as sample model inputs for purposes of setting initial
-                        # minimum and maximum quantization ranges
+                        'num_init_samples': 8192
                     },
                     'batchnorm_adaptation': {
-                        'num_bn_adaptation_samples': 8192,  # Number of samples from the training
-                        # dataset to pass through the model at initialization in order to update
-                        # batchnorm statistics of the original model. The actual number of samples
-                        # will be a closest multiple of the batch size.
-                        # 'num_bn_forget_samples': 1024, # Number of samples from the training
-                        # dataset to pass through the model at initialization in order to erase
-                        # batchnorm statistics of the original model (using large momentum value
-                        # for rolling mean updates). The actual number of samples will be a
-                        # closest multiple of the batch size.
+                        'num_bn_adaptation_samples': 8192
                     }
                 }
             }
         ],
         'log_dir': '.'
     }
-    return nncf_config_data
+    return NNCFConfig(nncf_config_data)
 
 
 def make_nncf_changes_in_training(model, cfg, classes, command_line_cfg_opts):

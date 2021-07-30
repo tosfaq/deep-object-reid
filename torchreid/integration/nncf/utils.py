@@ -1,4 +1,3 @@
-from nncf.config.extractors import extract_algo_with_accuracy_aware_training
 from torchreid.integration.nncf.compression import NNCFMetaInfo
 
 def get_no_nncf_trace_context_manager():

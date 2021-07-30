@@ -55,9 +55,6 @@ def load_compression_state_from_checkpoint(model, filename, map_location=None, s
 
 def wrap_nncf_model(model, cfg, nncf_config, datamanager_for_init,
                     checkpoint_path=None):
-    # Note that we require to import it here to avoid cyclic imports when import get_no_nncf_trace_context_manager
-    # from mobilenetv3
-
     if not (datamanager_for_init or checkpoint_path):
         raise RuntimeError(f'One of datamanager_for_init or checkpoint_path should be set: '
                            f'datamanager_for_init={datamanager_for_init} checkpoint_path={checkpoint_path}')
@@ -108,16 +105,20 @@ def wrap_nncf_model(model, cfg, nncf_config, datamanager_for_init,
                                    'dataset since the validation data loader was not passed '
                                    'to wrap_nncf_model')
 
+            target_metric = 'top1'
             targets = list(test_loader.keys())
-            use_gpu = True if 'cuda' in str(cur_device) else False
+            use_gpu = True if 'cuda' == cur_device.type else False
             for dataset_name in targets:
                 domain = 'source' if dataset_name in datamanager_for_init.sources else 'target'
                 print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
-                cmc, mAP, norm_cm = evaluate_classification(test_loader[dataset_name]['query'], model,
-                                                            use_gpu=use_gpu, topk=(1, 5))
+                cmc, m_ap, norm_cm = evaluate_classification(test_loader[dataset_name]['query'], model,
+                                                             use_gpu=use_gpu, topk=(1, 5))
 
             top1, top5 = cmc[0], cmc[1]
-            return top1  # , top5, mAP
+            if target_metric == 'top1':
+                return top1
+            else:
+                raise NotImplementedError
 
         test_loader = datamanager_for_init.test_loader
         train_loader = datamanager_for_init.train_loader
