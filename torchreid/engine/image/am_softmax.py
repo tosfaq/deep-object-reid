@@ -259,8 +259,12 @@ class ImageAMSoftmaxEngine(Engine):
 
 
             total_loss.backward(retain_graph=self.enable_metric_losses)
-
             for model_name in model_names:
+                # TODO(kshpv, lbeynens): Change this ugly code. The bug appears trying to
+                # call optimzer with mutual learning and NNCF
+                if model_name != 'model_0':
+                    if self._should_freeze_aux_models(self.epoch):
+                        continue
                 for trg_id in range(self.num_targets):
                     if self.enable_metric_losses:
                         ml_loss_module = self.ml_losses[trg_id][model_name]
