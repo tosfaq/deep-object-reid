@@ -1,6 +1,7 @@
 from torchreid.integration.nncf.compression import NNCFMetaInfo
 from nncf.config.extractors import extract_accuracy_aware_training_config
 
+
 def get_no_nncf_trace_context_manager():
     try:
         from nncf.torch.dynamic_graph.context import no_nncf_trace
