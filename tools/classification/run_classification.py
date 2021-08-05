@@ -97,7 +97,7 @@ def main():
             sources='cars_train',
             targets='cars_val',
             batch_size=128,
-          ``  num_C=196
+            num_C=196
         ),
         DTD=dict(
             resolution=(224, 224),
