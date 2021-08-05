@@ -235,7 +235,7 @@ class ReduceLROnPlateauV2(optim.lr_scheduler.ReduceLROnPlateau):
                  epoch_treshold: int,
                  **kwargs) -> None:
 
-        super().__init__(optimizer, **kwargs)
+        super().__init__(optimizer, mode='max', **kwargs)
         self.epoch_treshold = epoch_treshold
         self.init_lr = [group['lr'] for group in self.optimizer.param_groups]
 

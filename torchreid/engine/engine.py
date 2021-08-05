@@ -412,6 +412,7 @@ class Engine:
                             raise optuna.exceptions.TrialPruned()
 
                 if not lr_finder:
+                    self.update_lr(output_avg_metric = top1)
                     should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1, top5, mAP)
                     should_exit = self.early_stoping and should_exit
 
@@ -556,8 +557,6 @@ class Engine:
                 for ema in self.ema_wrapped_models:
                     ema.update()
 
-        if not lr_finder:
-            self.update_lr(output_avg_metric = losses.meters['loss'].avg)
 
     def forward_backward(self, data):
         raise NotImplementedError
