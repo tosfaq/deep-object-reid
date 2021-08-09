@@ -3,7 +3,7 @@ from typing import Dict
 from torchreid.engine import (ImageAMSoftmaxEngine, ImageContrastiveEngine,
                               ImageTripletEngine)
 from torchreid.integration.nncf.engine import AccuracyAwareImageAMSoftmaxEngine
-from torchreid.integration.nncf.utils import extract_accuracy_aware_training_config
+from torchreid.integration.nncf.utils import is_accuracy_aware_training
 
 
 def get_params_for_image_am_softmax_engine(cfg) -> Dict[str, object]:
@@ -56,12 +56,12 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             raise NotImplementedError('Freezing of aux models or NNCF compression are supported only for '
                                       'softmax and am_softmax losses for data.type = image')
 
-    is_accuracy_aware_training = extract_accuracy_aware_training_config(nncf_metainfo.nncf_config)
-    initial_lr = initial_lr if initial_lr else cfg.train.lr
+
     if cfg.loss.name in ['softmax', 'am_softmax']:
         image_am_softmax_engine_params = get_params_for_image_am_softmax_engine(cfg)
+        initial_lr = initial_lr if initial_lr else cfg.train.lr
         softmax_type = 'stock' if cfg.loss.name == 'softmax' else 'am'
-        if not is_accuracy_aware_training:
+        if not is_accuracy_aware_training(nncf_metainfo.nncf_config):
             engine = ImageAMSoftmaxEngine(
                 datamanager,
                 models=model,
@@ -75,6 +75,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             )
         else:
             # TODO:(kshpv) lets take *target_metric_name* from config?
+            print('Building Accuracy Aware {}-engine integrated with NNCF'.format(cfg.loss.name))
             target_metric_name = 'top1'
             engine = AccuracyAwareImageAMSoftmaxEngine(
                 datamanager,

@@ -1,5 +1,5 @@
 from torchreid.integration.nncf.compression import NNCFMetaInfo
-from nncf.config.extractors import extract_accuracy_aware_training_config
+from nncf.config.utils import is_accuracy_aware_training
 
 
 def get_no_nncf_trace_context_manager():
