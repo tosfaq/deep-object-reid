@@ -236,7 +236,7 @@ class MultiLabelClassification(ImageDataset):
     def load_annotation(annot_path, data_dir, dataset_id=0):
         out_data = []
         with open(annot_path) as f:
-            annotation = json.load(annot_path)
+            annotation = json.load(f)
             classes = sorted(annotation['classes'])
             class_to_idx = {classes[i]: i for i in range(len(classes))}
             images_info = annotation['images']

@@ -158,7 +158,6 @@ class ImageDataManager(DataManager):
         # return test loader of target data
         test_loader = datamanager.test_loader
     """
-    data_type = 'image'
 
     def __init__(
         self,

@@ -139,10 +139,11 @@ class Dataset:
         pids, cams = defaultdict(set), defaultdict(set)
         for record in data:
             dataset_id = record[3] if len(record) > 3 else 0
-
-            pids[dataset_id].add(record[1])
+            if isinstance(record[1], (tuple, list)):
+                [pids[dataset_id].add(ids) for ids in record[1]]
+            else:
+                pids[dataset_id].add(record[1])
             cams[dataset_id].add(record[2])
-
         num_pids = {dataset_id: len(dataset_pids) for dataset_id, dataset_pids in pids.items()}
         num_cams = {dataset_id: len(dataset_cams) for dataset_id, dataset_cams in cams.items()}
 
