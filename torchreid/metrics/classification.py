@@ -9,7 +9,7 @@ from terminaltables import AsciiTable
 def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
     with torch.no_grad():
         out_scores, gt_labels = [], []
-        for batch_idx, data in enumerate(data_loader):
+        for _, data in enumerate(data_loader):
             batch_images, batch_labels = data[0], data[1]
             if use_gpu:
                 batch_images = batch_images.cuda()

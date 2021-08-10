@@ -393,6 +393,7 @@ class ImageDataset(Dataset):
 
             output_record = (transformed_image, obj_id, cam_id, dataset_id, transformed_mask) + input_record[5:]
         else:
+            dataset_id = '0'
             if self.mode == 'train' and self.num_sampled_packages > 1:
                 assert self.transform is not None
 
@@ -409,6 +410,13 @@ class ImageDataset(Dataset):
                 transformed_image = image
 
             output_record = transformed_image, obj_id, cam_id
+
+        if isinstance(obj_id, (tuple, list)): # than multi-label classification is available
+            targets = torch.zeros(self.num_train_pids[dataset_id])
+            for obj in obj_id:
+                targets[obj] = 1
+            obj_id = targets
+            output_record = (transformed_image, obj_id) + output_record[2:]
         return output_record
 
     def show_summary(self):

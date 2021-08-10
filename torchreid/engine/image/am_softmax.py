@@ -32,7 +32,6 @@ from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss, MetricLosses,
                               get_regularizer, sample_mask)
 from torchreid.optim import SAM
 
-
 class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
@@ -195,7 +194,6 @@ class ImageAMSoftmaxEngine(Engine):
         train_records = self.parse_data_for_train(data, True, self.enable_masks, self.use_gpu)
         imgs = train_records['img']
         obj_ids = train_records['obj_id']
-
         num_packages = 1
         if len(imgs.size()) != 4:
             assert len(imgs.size()) == 5
@@ -269,7 +267,8 @@ class ImageAMSoftmaxEngine(Engine):
                     self.optims[model_name].first_step()
                 elif isinstance(self.optims[model_name], SAM) and step == 2:
                     self.optims[model_name].second_step()
-                elif not isinstance(self.optims[model_name], SAM) and step == 1:
+                elif not isinstance(self.optims[model_name], SAM):
+                    assert step == 1
                     self.optims[model_name].step()
 
             loss_summary['loss'] = total_loss.item()

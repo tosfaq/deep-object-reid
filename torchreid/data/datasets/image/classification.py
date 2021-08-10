@@ -229,7 +229,6 @@ class MultiLabelClassification(ImageDataset):
             query = []
 
         gallery = []
-
         super(MultiLabelClassification, self).__init__(train, query, gallery, mode=mode, **kwargs)
 
     @staticmethod
@@ -243,6 +242,7 @@ class MultiLabelClassification(ImageDataset):
             for img_info in images_info:
                 rel_image_path, img_labels = img_info
                 full_image_path = osp.join(data_dir, rel_image_path)
-                labels_idx = [class_to_idx[lbl] for lbl in img_labels]
+                labels_idx = [class_to_idx[lbl] for lbl in img_labels if lbl in class_to_idx]
+                assert full_image_path and labels_idx
                 out_data.append((full_image_path, tuple(labels_idx), 0, dataset_id, '', -1, -1))
         return out_data
