@@ -131,7 +131,6 @@ class MobileNetV3Base(ModelInterface):
         self.dropout_cls = dropout_cls
         self.lr_finder = lr_finder
         self.feature_dim = feature_dim
-
     def infer_head(self, x, skip_pool=False):
         raise NotImplementedError
 
@@ -165,7 +164,7 @@ class MobileNetV3Base(ModelInterface):
 
         if get_embeddings:
             out_data = [logits, glob_features]
-        elif self.loss in ['softmax', 'am_softmax']:
+        elif self.loss in ['softmax', 'am_softmax', 'ASL']:
             if self.lr_finder.enable and self.lr_finder.mode == 'fast_ai':
                 out_data = logits
             else:
@@ -212,7 +211,7 @@ class MobileNetV3(MobileNetV3Base):
         output_channel = {'large': 1280, 'small': 1024}
         output_channel = make_divisible(output_channel[mode] * self.width_mult, 8) if self.width_mult > 1.0 else output_channel[mode]
 
-        if self.loss == 'softmax':
+        if self.loss == 'softmax' or self.loss == 'ASL':
             self.classifier = nn.Sequential(
                 nn.Linear(exp_size, self.feature_dim),
                 nn.BatchNorm1d(self.feature_dim),
