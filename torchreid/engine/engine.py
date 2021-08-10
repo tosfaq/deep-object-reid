@@ -108,8 +108,9 @@ class Engine:
             for model_id, (model, optimizer, scheduler) in enumerate(zip(models, optimizers, schedulers)):
                 model_name = 'main_model' if model_id == 0 else f'aux_model_{model_id}'
                 self.register_model(model_name, model, optimizer, scheduler)
-                if use_ema_decay and model_id == 0:
-                    self.ema_model = ModelEmaV2(model, decay=ema_decay)
+                if use_ema_decay:
+                    ema_model = ModelEmaV2(model, decay=ema_decay)
+                    self.ema_wrapped_models.append(ema_model)
                 if should_freeze_aux_models and model_id > 0:
                     self.model_names_to_freeze.append(model_name)
         else:
@@ -118,7 +119,9 @@ class Engine:
             assert not isinstance(models, (tuple, list))
             self.register_model('main_model', models, optimizers, schedulers)
             if use_ema_decay:
-                self.ema_model = ModelEmaV2(models, decay=ema_decay)
+                ema_model = ModelEmaV2(models, decay=ema_decay)
+                self.ema_wrapped_models.append(ema_model)
+            self.register_model('model', models, optimizers, schedulers)
         self.main_model_name = self.get_model_names()[0]
         assert initial_lr is not None
         self.lb_lr = initial_lr / lr_decay_factor
@@ -416,8 +419,7 @@ class Engine:
                     should_exit = self.early_stoping and should_exit
 
                     if self.save_chkpt:
-                        self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best,
-                                            should_save_ema_model=should_save_ema_model)
+                        self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best)
                     if should_exit:
                         break
 
@@ -552,7 +554,8 @@ class Engine:
             if stop_callback and stop_callback.check_stop():
                 break
             if not lr_finder and self.use_ema_decay:
-                self.ema_model.update(self.models[self.main_model_name])
+                for ema_model, model in zip(self.ema_wrapped_models, self.models):
+                    ema_model.update(model)
 
         if not lr_finder:
             self.update_lr(output_avg_metric = losses.meters['loss'].avg)
@@ -593,8 +596,20 @@ class Engine:
         top1, mAP, top5 = [None]*3
         cur_top1, cur_mAP, cur_top5 = [None]*3
         ema_top1, ema_mAP, ema_top5 = [0]*3
-        should_save_ema_model = False
-
+        if self.use_ema_decay and not lr_finder and not test_before_train:
+            for dataset_name in targets:
+                for ema_model in self.ema_wrapped_models:
+                    for model_id, (model_name, model) in enumerate(self.models.items()):
+                        if get_model_attr(model, 'classification'):
+                            ema_top1, ema_top5, ema_mAP = self._evaluate_classification(
+                                model=ema_model.module,
+                                epoch=epoch,
+                                data_loader=self.test_loader[dataset_name]['query'],
+                                model_name=model_name,
+                                dataset_name=dataset_name,
+                                ranks=ranks,
+                                lr_finder = lr_finder
+                            )
         for dataset_name in targets:
             domain = 'source' if dataset_name in self.datamanager.sources else 'target'
             print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
@@ -653,17 +668,10 @@ class Engine:
 
                 if model_id == 0:
                     # the function should return accuracy results for the first (main) model only
-                    if ema_top1 >= cur_top1 and self.use_ema_decay:
-                        should_save_ema_model = True
-                        top1 = ema_top1
-                        top5 = ema_top5
-                        mAP = ema_mAP
-                    else:
-                        top1 = cur_top1
-                        top5 = cur_top5
-                        mAP = cur_mAP
-
-        return top1, top5, mAP, should_save_ema_model
+                    top1 = max(cur_top1, ema_top1) if self.use_ema_decay else cur_top1
+                    top5 =  max(cur_top5, ema_top5) if self.use_ema_decay else cur_top5
+                    mAP =  max(cur_mAP, ema_mAP) if self.use_ema_decay else cur_mAP
+        return top1, top5, mAP
 
     @torch.no_grad()
     def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks, lr_finder):

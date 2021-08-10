@@ -1,5 +1,5 @@
 lr_finder:
-  enable: True
+  enable: False
   mode: TPE
   stop_after: False
   num_epochs: 6
@@ -14,11 +14,11 @@ model:
   name: 'mobilenetv3_large'
   classification: True
   pretrained: True
-  save_chkpt: True
+  save_chkpt: False
   feature_dim: 1280
 
 mutual_learning:
-  aux_configs: ['mobilenetv3_large_aux.yml']
+  aux_configs: ['/ssd/deep-object-reid/configs/classification/mobilenetv3_large_aux.yml']
 
 custom_datasets:
   roots: ['CIFAR100/train', 'CIFAR100/val']
@@ -33,20 +33,12 @@ data:
   width: 224
   norm_mean: [0.485, 0.456, 0.406]
   norm_std: [0.229, 0.224, 0.225]
-  save_dir: 'output/mobilenetv3_large/log'
+  save_dir: 'output/mobilenetv3_large_ema/log'
   workers: 6
   transforms:
     random_flip:
       enable: True
       p: 0.5
-    random_crop:
-      enable: True
-      p: 0.3
-      scale: 0.9
-    random_rotate:
-      enable: True
-      p: 0.3
-      angle: (-10, 10)
     augmix:
       enable: True
       cfg_str: "augmix-m5-w3"
@@ -79,6 +71,9 @@ train:
   deterministic: True
   patience: 5
   gamma: 0.1
+  ema:
+    enable: False
+    ema_decay: 0.9997
 
 sam:
   enable: True
