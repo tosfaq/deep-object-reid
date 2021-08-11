@@ -109,7 +109,7 @@ def main():
     elif cfg.model.load_weights and check_isfile(cfg.model.load_weights) and not is_nncf_used:
         load_pretrained_weights(model, cfg.model.load_weights)
 
-    if cfg.model.classification:
+    if cfg.model.type == 'classification':
         check_classification_classes(model, datamanager, args.classes, test_only=cfg.test.evaluate)
 
     model, extra_device_ids = put_main_model_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)

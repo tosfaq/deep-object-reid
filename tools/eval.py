@@ -78,7 +78,7 @@ def main():
             dataloader['query'].dataset.transform.transforms = \
                 dataloader['query'].dataset.transform.transforms[:-2]
 
-    if cfg.model.classification:
+    if cfg.model.type == 'classification':
         check_classification_classes(model, datamanager, args.classes, test_only=True)
 
     engine = build_engine(cfg=cfg, datamanager=datamanager, model=model, optimizer=None, scheduler=None)

@@ -139,3 +139,5 @@ saved-models/
 model-zoo/
 debug*
 log*
+
+.history

@@ -658,12 +658,12 @@ class OSNet(ModelInterface):
             attr_vector = torch.cat([attr_embeddings[attr_name] for attr_name in self.attr_names], dim=1)
             embeddings = [attr_module(e, attr_vector) for e, attr_module in zip(embeddings, self.attr_att)]
 
-        if not self.training and not self.classification:
+        if not self.training and not self.is_classification():
             return torch.cat(embeddings, dim=1)
 
         logits = [classifier(embd) for embd, classifier in zip(embeddings, self.classifier)]
 
-        if not self.training and self.classification:
+        if not self.training and self.is_classification():
             return logits
 
         if len(logits) == 1:

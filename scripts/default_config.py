@@ -61,8 +61,7 @@ def get_default_config():
     cfg.model.fpn.enable = True
     cfg.model.fpn.dim = 256
     cfg.model.fpn.process = 'concatenation'
-    cfg.model.classification = False
-    cfg.model.contrastive = False
+    cfg.model.type = 'reid'
     cfg.model.self_challenging_cfg = CN()
     cfg.model.self_challenging_cfg.enable = False
     cfg.model.self_challenging_cfg.drop_p = 0.33
@@ -574,8 +573,7 @@ def model_kwargs(cfg, num_classes):
         'enable_attentions': cfg.model.enable_attentions and cfg.data.enable_masks,
         'attr_names': cfg.attr_loss.names,
         'attr_num_classes': cfg.attr_loss.num_classes,
-        'classification': cfg.model.classification,
-        'contrastive': cfg.model.contrastive,
+        'type': cfg.model.type,
         'self_challenging_cfg': cfg.model.self_challenging_cfg,
     }
 

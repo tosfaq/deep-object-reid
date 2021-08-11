@@ -683,7 +683,7 @@ class InceptionV4(ModelInterface):
             with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
                 logits = self.output(glob_features.view(x.shape[0], -1))
 
-        if not self.training and self.classification:
+        if not self.training and self.is_classification():
             return [logits]
 
         if get_embeddings:

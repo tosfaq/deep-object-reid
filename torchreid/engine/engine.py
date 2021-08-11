@@ -614,7 +614,8 @@ class Engine:
             domain = 'source' if dataset_name in self.datamanager.sources else 'target'
             print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
             for model_id, (model_name, model) in enumerate(self.models.items()):
-                if get_model_attr(model, 'classification'):
+                model_type = get_model_attr(model, 'type')
+                if model_type == 'classification':
                     # do not evaluate second model till last epoch
                     if (model_name != self.main_model_name
                         and not test_only and epoch != (self.max_epoch - 1)):
@@ -638,7 +639,7 @@ class Engine:
                             ranks=ranks,
                             lr_finder = lr_finder
                         )
-                elif get_model_attr(model, 'contrastive'):
+                elif model_type == 'contrastive' or model_type == 'multilabel':
                     pass
                 elif dataset_name == 'lfw':
                     self._evaluate_pairwise(

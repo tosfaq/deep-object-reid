@@ -159,7 +159,7 @@ class MobileNetV3Base(ModelInterface):
             with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
                 _, logits = self.infer_head(x, skip_pool=True)
 
-        if not self.training and self.classification:
+        if not self.training and self.is_classification():
             return [logits]
 
         if get_embeddings:
