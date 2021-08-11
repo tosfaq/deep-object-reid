@@ -600,7 +600,7 @@ class Engine:
             for dataset_name in targets:
                 for ema_model in self.ema_wrapped_models:
                     for model_id, (model_name, model) in enumerate(self.models.items()):
-                        if get_model_attr(model, 'classification'):
+                        if get_model_attr(model, 'type') == 'classification':
                             ema_top1, ema_top5, ema_mAP = self._evaluate_classification(
                                 model=ema_model.module,
                                 epoch=epoch,
