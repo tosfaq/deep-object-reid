@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from .accuracy import accuracy
+from .accuracy import accuracy, accuracy_multilabel
 from .classification import evaluate_classification, show_confusion_matrix
 from .distance import compute_distance_matrix
 from .lfw import evaluate_lfw

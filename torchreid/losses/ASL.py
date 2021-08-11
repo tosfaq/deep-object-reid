@@ -12,6 +12,9 @@ class AsymmetricLoss(nn.Module):
         self.disable_torch_grad_focal_loss = disable_torch_grad_focal_loss
         self.eps = eps
 
+    def get_last_scale(self):
+        return 1.
+
     def forward(self, inputs, targets, aug_index=None, lam=None, scale=None, iteration=None):
         """"
         Parameters

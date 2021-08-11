@@ -154,3 +154,23 @@ def evaluate_classification(dataloader, model, use_gpu, topk=(1,), labelmap=[]):
     norm_cm = norm_confusion_matrix(scores, labels)
 
     return cmc, m_ap, norm_cm
+
+
+def evaluate_multilabel_classification(dataloader, model, use_gpu):
+    if isinstance(model, torch.nn.Module):
+        scores, labels = score_extraction(dataloader, model, use_gpu, labelmap)
+    else:
+        scores, labels = score_extraction_from_ir(dataloader, model, labelmap)
+    print(scores.shape)
+    print(labels.shape)
+
+    '''
+    m_ap = mean_average_precision(scores, labels)
+
+    cmc = []
+    for k in topk:
+        cmc.append(mean_top_k_accuracy(scores, labels, k=k))
+
+    norm_cm = norm_confusion_matrix(scores, labels)
+    '''
+    #return cmc, m_ap, norm_cm
