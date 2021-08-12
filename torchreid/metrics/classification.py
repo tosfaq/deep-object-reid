@@ -19,10 +19,10 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
                     batch_labels[torch.where(batch_labels==i)] = label
 
             out_scores.append(model(batch_images)[head_id])
-            gt_labels.extend(batch_labels)
+            gt_labels.append(batch_labels)
 
         out_scores = torch.cat(out_scores, 0).data.cpu().numpy()
-        gt_labels = np.asarray(gt_labels)
+        gt_labels = torch.cat(gt_labels, 0).data.cpu().numpy()
 
     return out_scores, gt_labels
 
@@ -157,20 +157,50 @@ def evaluate_classification(dataloader, model, use_gpu, topk=(1,), labelmap=[]):
 
 
 def evaluate_multilabel_classification(dataloader, model, use_gpu):
+
+    def average_precision(output, target):
+        epsilon = 1e-8
+
+        # sort examples
+        indices = output.argsort()[::-1]
+        # Computes prec@i
+        total_count_ = np.cumsum(np.ones((len(output), 1)))
+
+        target_ = target[indices]
+        ind = target_ == 1
+        pos_count_ = np.cumsum(ind)
+        total = pos_count_[-1]
+        pos_count_[np.logical_not(ind)] = 0
+        pp = pos_count_ / total_count_
+        precision_at_i_ = np.sum(pp)
+        precision_at_i = precision_at_i_ / (total + epsilon)
+
+        return precision_at_i
+
+
+    def mAP(targs, preds):
+        """Returns the model's average precision for each class
+        Return:
+            ap (FloatTensor): 1xK tensor, with avg precision for each class k
+        """
+
+        if np.size(preds) == 0:
+            return 0
+        ap = np.zeros((preds.shape[1]))
+        # compute average precision for each class
+        for k in range(preds.shape[1]):
+            # sort scores
+            scores = preds[:, k]
+            targets = targs[:, k]
+            # compute average precision
+            ap[k] = average_precision(scores, targets)
+        return 100 * ap.mean()
+
     if isinstance(model, torch.nn.Module):
-        scores, labels = score_extraction(dataloader, model, use_gpu, labelmap)
+        scores, labels = score_extraction(dataloader, model, use_gpu)
     else:
-        scores, labels = score_extraction_from_ir(dataloader, model, labelmap)
-    print(scores.shape)
-    print(labels.shape)
+        scores, labels = score_extraction_from_ir(dataloader, model)
 
-    '''
-    m_ap = mean_average_precision(scores, labels)
+    mAP_score = mAP(1. / (1 + np.exp(-scores)), labels)
 
-    cmc = []
-    for k in topk:
-        cmc.append(mean_top_k_accuracy(scores, labels, k=k))
-
-    norm_cm = norm_confusion_matrix(scores, labels)
-    '''
-    #return cmc, m_ap, norm_cm
+    return mAP_score

@@ -627,7 +627,7 @@ class Engine:
                         model_name=model_name,
                         dataset_name=dataset_name,
                         ranks=ranks,
-                        lr_finder = lr_finder
+                        lr_finder=lr_finder
                     )
                     if self.use_ema_decay and not lr_finder and not test_only:
                         ema_top1, ema_top5, ema_mAP = self._evaluate_classification(
@@ -639,8 +639,18 @@ class Engine:
                             ranks=ranks,
                             lr_finder = lr_finder
                         )
-                elif model_type == 'contrastive' or model_type == 'multilabel':
+                elif model_type == 'contrastive':
                     pass
+                elif model_type == 'multilabel':
+                    cur_mAP = self._evaluate_multilabel_classification(
+                        model=model,
+                        epoch=epoch,
+                        data_loader=self.test_loader[dataset_name]['query'],
+                        model_name=model_name,
+                        dataset_name=dataset_name,
+                        lr_finder=lr_finder
+                    )
+                    cur_top1, cur_top5 = (cur_mAP, cur_mAP)
                 elif dataset_name == 'lfw':
                     self._evaluate_pairwise(
                         model=model,
@@ -673,6 +683,20 @@ class Engine:
                     top5 =  max(cur_top5, ema_top5) if self.use_ema_decay else cur_top5
                     mAP =  max(cur_mAP, ema_mAP) if self.use_ema_decay else cur_mAP
         return top1, top5, mAP
+
+    torch.no_grad()
+    def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, dataset_name, lr_finder):
+
+        mAP = metrics.evaluate_multilabel_classification(data_loader, model, self.use_gpu)
+
+        if self.writer is not None and not lr_finder:
+            self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
+
+        if not lr_finder:
+            print('** Results ({}) **'.format(model_name))
+            print('mAP: {:.2%}'.format(mAP))
+
+        return mAP
 
     @torch.no_grad()
     def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks, lr_finder):
