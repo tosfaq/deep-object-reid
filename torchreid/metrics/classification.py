@@ -194,13 +194,14 @@ def evaluate_multilabel_classification(dataloader, model, use_gpu):
             targets = targs[:, k]
             # compute average precision
             ap[k] = average_precision(scores, targets)
-        return 100 * ap.mean()
+        return ap.mean()
 
     if isinstance(model, torch.nn.Module):
         scores, labels = score_extraction(dataloader, model, use_gpu)
     else:
         scores, labels = score_extraction_from_ir(dataloader, model)
 
-    mAP_score = mAP(1. / (1 + np.exp(-scores)), labels)
+    scores = 1. / (1 + np.exp(-scores))
+    mAP_score = mAP(labels, scores)
 
     return mAP_score
