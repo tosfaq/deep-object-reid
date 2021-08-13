@@ -593,26 +593,10 @@ class Engine:
         cur_top1, cur_mAP, cur_top5 = [None]*3
         ema_top1, ema_mAP, ema_top5 = [0]*3
         should_save_ema_model = False
-        if self.use_ema_decay and not lr_finder and not test_only:
-            for dataset_name in targets:
-                domain = 'source' if dataset_name in self.datamanager.sources else 'target'
-                print('##### Evaluating EMA model {} ({}) #####'.format(dataset_name, domain))
-                if get_model_attr(self.models[self.main_model_name], 'classification'):
-                    ema_top1, ema_top5, ema_mAP = self._evaluate_classification(
-                        model=self.ema_model.module,
-                        epoch=epoch,
-                        data_loader=self.test_loader[dataset_name]['query'],
-                        model_name=self.main_model_name,
-                        dataset_name=dataset_name,
-                        ranks=ranks,
-                        lr_finder = lr_finder
-                        )
-                else:
-                    raise NotImplementedError("EMA supports classification models only")
+
         for dataset_name in targets:
             domain = 'source' if dataset_name in self.datamanager.sources else 'target'
             print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
-
             for model_id, (model_name, model) in enumerate(self.models.items()):
                 if get_model_attr(model, 'classification'):
                     # do not evaluate second model till last epoch
@@ -628,6 +612,16 @@ class Engine:
                         ranks=ranks,
                         lr_finder = lr_finder
                     )
+                    if self.use_ema_decay and not lr_finder and not test_only:
+                        ema_top1, ema_top5, ema_mAP = self._evaluate_classification(
+                            model=self.ema_model.module,
+                            epoch=epoch,
+                            data_loader=self.test_loader[dataset_name]['query'],
+                            model_name='EMA model',
+                            dataset_name=dataset_name,
+                            ranks=ranks,
+                            lr_finder = lr_finder
+                        )
                 elif get_model_attr(model, 'contrastive'):
                     pass
                 elif dataset_name == 'lfw':
