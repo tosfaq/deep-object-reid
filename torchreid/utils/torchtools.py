@@ -7,6 +7,7 @@ import warnings
 from collections import OrderedDict
 from functools import partial
 from pprint import pformat
+from copy import deepcopy
 
 import torch
 import torch.nn as nn
@@ -17,7 +18,7 @@ from .tools import mkdir_if_missing, check_isfile
 __all__ = [
     'save_checkpoint', 'load_checkpoint', 'resume_from_checkpoint',
     'open_all_layers', 'open_specified_layers', 'count_num_param',
-    'load_pretrained_weights', 'EMA'
+    'load_pretrained_weights', 'ModelEmaV2'
 ]
 
 
@@ -55,11 +56,11 @@ def save_checkpoint(
         state['state_dict'] = new_state_dict
     # save
     epoch = state['epoch']
-    fpath = osp.join(save_dir, '{name}.pth.tar-' + str(epoch))
+    fpath = osp.join(save_dir, f'{name}.pth.tar-' + str(epoch))
     torch.save(state, fpath)
     print('Checkpoint saved to "{}"'.format(fpath))
     if is_best:
-        best_link_path = osp.join(osp.dirname(fpath), '{name}-best.pth.tar')
+        best_link_path = osp.join(osp.dirname(fpath), f'{name}-best.pth.tar')
         if osp.lexists(best_link_path):
             os.remove(best_link_path)
         basename_fpath = osp.basename(fpath)
@@ -352,35 +353,43 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None):
         _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
 
 
-class EMA():
-    def __init__(self, model, decay):
-        self.model = model
+class ModelEmaV2(nn.Module):
+    """ Model Exponential Moving Average V2
+    Keep a moving average of everything in the model state_dict (parameters and buffers).
+    V2 of this module is simpler, it does not match params/buffers based on name but simply
+    iterates in order. It works with torchscript (JIT of full model).
+    This is intended to allow functionality like
+    https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
+    A smoothed version of the weights is necessary for some training schemes to perform well.
+    E.g. Google's hyper-params for training MNASNet, MobileNet-V3, EfficientNet, etc that use
+    RMSprop with a short 2.4-3 epoch decay period and slow LR decay rate of .96-.99 requires EMA
+    smoothing of weights to match results. Pay attention to the decay constant you are using
+    relative to your update count per epoch.
+    To keep EMA from using GPU resources, set device='cpu'. This will save a bit of memory but
+    disable validation of the EMA weights. Validation will have to be done manually in a separate
+    process, or after the training stops converging.
+    This class is sensitive where it is initialized in the sequence of model init,
+    GPU assignment and distributed training wrappers.
+    """
+    def __init__(self, model, decay=0.9999, device=None):
+        super(ModelEmaV2, self).__init__()
+        # make a copy of the model for accumulating moving average of weights
+        self.module = deepcopy(model)
+        self.module.eval()
         self.decay = decay
-        self.shadow = {}
-        self.backup = {}
+        self.device = device  # perform ema on different device from model if set
+        if self.device is not None:
+            self.module.to(device=device)
 
-    def register(self):
-        for name, param in self.model.named_parameters():
-            if param.requires_grad:
-                self.shadow[name] = param.data.clone()
+    def _update(self, model, update_fn):
+        with torch.no_grad():
+            for ema_v, model_v in zip(self.module.state_dict().values(), model.state_dict().values()):
+                if self.device is not None:
+                    model_v = model_v.to(device=self.device)
+                ema_v.copy_(update_fn(ema_v, model_v))
 
-    def update(self):
-        for name, param in self.model.named_parameters():
-            if param.requires_grad:
-                assert name in self.shadow
-                new_average = (1.0 - self.decay) * param.data + self.decay * self.shadow[name]
-                self.shadow[name] = new_average.clone()
+    def update(self, model):
+        self._update(model, update_fn=lambda e, m: self.decay * e + (1. - self.decay) * m)
 
-    def apply_shadow(self):
-        for name, param in self.model.named_parameters():
-            if param.requires_grad:
-                assert name in self.shadow
-                self.backup[name] = param.data
-                param.data = self.shadow[name]
-
-    def restore(self):
-        for name, param in self.model.named_parameters():
-            if param.requires_grad:
-                assert name in self.backup
-                param.data = self.backup[name]
-        self.backup = {}
+    def set(self, model):
+        self._update(model, update_fn=lambda e, m: m)
