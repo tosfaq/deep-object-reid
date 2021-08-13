@@ -96,8 +96,8 @@ def load_ie_model(ie, model_xml, device, plugin_dir, cpu_extension='', num_reqs=
 class VectorCNN(ModelInterface):
     """Wrapper class for a nework returning a vector"""
     def __init__(self, ie, model_path, device='CPU', switch_rb=False, **kwargs):
-        self.net = load_ie_model(ie, model_path, device, None, '', switch_rb=switch_rb)
         super().__init__(**kwargs)
+        self.net = load_ie_model(ie, model_path, device, None, '', switch_rb=switch_rb)
         self.is_ie_model = True
 
     def forward(self, batch):
