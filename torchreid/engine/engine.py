@@ -120,7 +120,6 @@ class Engine:
             if use_ema_decay:
                 self.ema_model = ModelEmaV2(models, decay=ema_decay)
         self.main_model_name = self.get_model_names()[0]
-        self.model_device = next(self.models[self.main_model_name].parameters()).device
         assert initial_lr is not None
         self.lb_lr = initial_lr / lr_decay_factor
 
@@ -461,17 +460,19 @@ class Engine:
 
     def backup_model(self):
         print("backuping model...")
+        model_device = next(self.models[self.main_model_name].parameters()).device
         # explicitly put the model on the CPU before storing it in memory
         self.state_cacher.store(key="model", state_dict=get_model_attr(self.models[self.main_model_name], 'cpu')().state_dict())
         self.state_cacher.store(key="optimizer", state_dict=self.optims[self.main_model_name].state_dict())
         # restore the model device
-        get_model_attr(self.models[self.main_model_name],'to')(self.model_device)
+        get_model_attr(self.models[self.main_model_name],'to')(model_device)
 
     def restore_model(self):
         print("restoring model and seeds to initial state...")
+        model_device = next(self.models[self.main_model_name].parameters()).device
         get_model_attr(self.models[self.main_model_name], 'load_state_dict')(self.state_cacher.retrieve("model"))
         self.optims[self.main_model_name].load_state_dict(self.state_cacher.retrieve("optimizer"))
-        get_model_attr(self.models[self.main_model_name],'to')(self.model_device)
+        get_model_attr(self.models[self.main_model_name],'to')(model_device)
         set_random_seed(self.seed)
 
     def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False, perf_monitor=None,

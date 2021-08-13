@@ -33,6 +33,7 @@ class ModelInterface(nn.Module):
           self.pretrained = pretrained
           self.classification_classes = {}
           self.loss = loss
+          self.is_ie_model = False
           self.use_angle_simple_linear = True if loss == 'am_softmax' else False
 
      @staticmethod

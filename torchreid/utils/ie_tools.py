@@ -20,6 +20,7 @@ import os
 import cv2 as cv
 import numpy as np
 from openvino.inference_engine import IECore
+from torchreid.models.common import ModelInterface
 
 
 class IEModel:
@@ -92,10 +93,12 @@ def load_ie_model(ie, model_xml, device, plugin_dir, cpu_extension='', num_reqs=
     return model
 
 
-class VectorCNN:
+class VectorCNN(ModelInterface):
     """Wrapper class for a nework returning a vector"""
-    def __init__(self, ie, model_path, device='CPU', switch_rb=False):
+    def __init__(self, ie, model_path, device='CPU', switch_rb=False, **kwargs):
+        super().__init__(**kwargs)
         self.net = load_ie_model(ie, model_path, device, None, '', switch_rb=switch_rb)
+        self.is_ie_model = True
 
     def forward(self, batch):
         """Performs forward of the underlying network on a given batch"""

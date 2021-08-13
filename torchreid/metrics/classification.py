@@ -140,10 +140,10 @@ def get_invalid(scores, gt_labels, data_info):
 
 
 def evaluate_classification(dataloader, model, use_gpu, topk=(1,), labelmap=[]):
-    if isinstance(model, torch.nn.Module):
-        scores, labels = score_extraction(dataloader, model, use_gpu, labelmap)
-    else:
+    if model.is_ie_model:
         scores, labels = score_extraction_from_ir(dataloader, model, labelmap)
+    else:
+        scores, labels = score_extraction(dataloader, model, use_gpu, labelmap)
 
     m_ap = mean_average_precision(scores, labels)
 
