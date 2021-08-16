@@ -687,7 +687,7 @@ class Engine:
     torch.no_grad()
     def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, dataset_name, lr_finder):
 
-        mAP = metrics.evaluate_multilabel_classification(data_loader, model, self.use_gpu)
+        mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader, model, self.use_gpu)
 
         if self.writer is not None and not lr_finder:
             self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
@@ -695,6 +695,12 @@ class Engine:
         if not lr_finder:
             print('** Results ({}) **'.format(model_name))
             print('mAP: {:.2%}'.format(mAP))
+            print('P_o: {:.2%}'.format(p_o))
+            print('R_0: {:.2%}'.format(r_o))
+            print('F_0: {:.2%}'.format(f_o))
+            print('mean_p_c: {:.2%}'.format(mean_p_c))
+            print('mean_r_c: {:.2%}'.format(mean_r_c))
+            print('mean_f_c: {:.2%}'.format(mean_f_c))
 
         return mAP
 
