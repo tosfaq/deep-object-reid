@@ -695,12 +695,12 @@ class Engine:
         if not lr_finder:
             print('** Results ({}) **'.format(model_name))
             print('mAP: {:.2%}'.format(mAP))
-            print('P_o: {:.2%}'.format(p_o))
-            print('R_0: {:.2%}'.format(r_o))
-            print('F_0: {:.2%}'.format(f_o))
-            print('mean_p_c: {:.2%}'.format(mean_p_c))
-            print('mean_r_c: {:.2%}'.format(mean_r_c))
-            print('mean_f_c: {:.2%}'.format(mean_f_c))
+            print('P_O: {:.2%}'.format(p_o))
+            print('R_O: {:.2%}'.format(r_o))
+            print('F_O: {:.2%}'.format(f_o))
+            print('mean_P_C: {:.2%}'.format(mean_p_c))
+            print('mean_R_C: {:.2%}'.format(mean_r_c))
+            print('mean_F_C: {:.2%}'.format(mean_f_c))
 
         return mAP
 
