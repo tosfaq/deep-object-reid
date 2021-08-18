@@ -5,6 +5,7 @@ import torch
 from sklearn.metrics import confusion_matrix
 from terminaltables import AsciiTable
 
+from torchreid.utils import get_model_attr
 
 def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
     with torch.no_grad():
@@ -140,7 +141,7 @@ def get_invalid(scores, gt_labels, data_info):
 
 
 def evaluate_classification(dataloader, model, use_gpu, topk=(1,), labelmap=[]):
-    if model.is_ie_model:
+    if get_model_attr(model, 'is_ie_model'):
         scores, labels = score_extraction_from_ir(dataloader, model, labelmap)
     else:
         scores, labels = score_extraction(dataloader, model, use_gpu, labelmap)
