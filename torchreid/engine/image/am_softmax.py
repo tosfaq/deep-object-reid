@@ -274,8 +274,7 @@ class ImageAMSoftmaxEngine(Engine):
                     self.optims[model_name].first_step()
                 elif isinstance(self.optims[model_name], SAM) and step == 2:
                     self.optims[model_name].second_step()
-                elif not isinstance(self.optims[model_name], SAM):
-                    assert step == 1
+                elif not isinstance(self.optims[model_name], SAM) and step == 1:
                     self.optims[model_name].step()
 
             loss_summary['loss'] = total_loss.item()
