@@ -14,6 +14,7 @@ from torchvision import transforms
 
 import torchreid
 from torchreid.engine import build_engine
+from torchreid.optim import LrFinder
 from torchreid.data.transforms import build_inference_transform
 from torchreid.ops import DataParallel
 from torchreid.utils import load_pretrained_weights, set_random_seed, random_image
@@ -307,18 +308,25 @@ class TorchClassificationTask(ImageDeepLearningTask, IConfigurableParameters, IM
 
             # build new engine
             engine = build_engine(self.cfg, datamanager, train_model, optimizer, scheduler)
-            lr = engine.find_lr(**lr_finder_run_kwargs(self.cfg), stop_callback=self.stop_callback)
+            lr_finder = LrFinder(engine=engine, **lr_finder_run_kwargs(self.cfg))
+            aux_lr = lr_finder.process()
 
-            print(f"Estimated learning rate: {lr}")
+            print(f"Estimated learning rate: {aux_lr}")
             if self.cfg.lr_finder.stop_after:
                 print("Finding learning rate finished. Terminate the training process")
-                return
+                exit()
 
-            # reload random seeds, optimizer with new lr and scheduler for it
-            self.cfg.train.lr = lr
+            # reload all parts of the training
+            # we do not check classification parameters
+            # and do not get num_train_classes the second time
+            # since it's done above and lr finder cannot change parameters of the datasets
+            self.cfg.train.lr = aux_lr
             self.cfg.lr_finder.enable = False
-            set_random_seed(self.cfg.train.seed)
+            set_random_seed(self.cfg.train.seed, self.cfg.train.deterministic)
 
+            datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self.cfg))
+            # train_model = torchreid.models.build_model(**model_kwargs(self.cfg, num_train_classes))
+            # train_model, _ = put_main_model_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
             optimizer = torchreid.optim.build_optimizer(train_model, **optimizer_kwargs(self.cfg))
             scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(self.cfg))
 

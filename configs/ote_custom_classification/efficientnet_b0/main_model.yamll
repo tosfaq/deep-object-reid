@@ -1,28 +1,25 @@
 lr_finder:
   enable: True
-  mode: TPE
+  mode: brute_force
   stop_after: False
   num_epochs: 4
-  n_trials: 8
+  num_iter: 8
   epochs_warmup: 1
   path_to_savefig: 'lr_finder.jpg'
-  max_lr: 0.035
-  min_lr: 0.005
+  max_lr: 0.01
+  min_lr: 0.001
 
 model:
-  name: 'mobilenetv3_large_075'
-  type: 'classification'
+  name: 'efficientnet_b0'
+  classification: True
   pretrained: True
   save_chkpt: True
   feature_dim: 1280
   dropout_cls:
-    p: 0.1
+    p: 0.2
     dist: 'gaussian'
     mu: 0.5
     sigma: 0.3
-
-mutual_learning:
-  aux_configs: ['aux_model.yaml']
 
 custom_datasets:
   roots: ['path/to/train_folder', 'path/to/val_folder']
@@ -31,6 +28,7 @@ custom_datasets:
 
 data:
   root: './'
+  type: 'image'
   sources: ['data_train']
   targets: ['data_val']
   height: 224
@@ -72,7 +70,9 @@ data:
 loss:
   name: 'softmax'
   softmax:
-    s: 1.0
+    s: 1.
+    augmentations:
+      aug_type: 'fmix'
 
 sampler:
   train_sampler: 'RandomSampler'
@@ -83,7 +83,7 @@ metric_losses:
 train:
   optim: 'sam'
   lr: 0.016
-  max_epoch: 200
+  max_epoch: 150
   weight_decay: 5e-4
   batch_size: 64
   fixbase_epoch: 0

@@ -1,6 +1,6 @@
 model:
   name: 'mobilenetv3_large'
-  classification: True
+  type: 'classification'
   pretrained: True
   save_chkpt: False
   feature_dim: 1280
@@ -17,7 +17,6 @@ custom_datasets:
 
 data:
   root: './'
-  type: 'image'
   sources: ['data_train']
   targets: ['data_val']
   height: 224
