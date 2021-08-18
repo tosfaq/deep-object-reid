@@ -270,7 +270,7 @@ class MobileNetV3LargeTimm(MobileNetV3Base):
                                         pretrained=pretrained,
                                         num_classes=self.num_classes)
         self.dropout = Dropout(**self.dropout_cls)
-        assert self.loss == 'softmax', "mobilenetv3_large_100_miil_in21k supports only softmax loss"
+        assert self.loss in ['softmax', 'ASL'], "mobilenetv3_large_100_miil_in21k supports only softmax aor ASL losses"
 
     def extract_features(self, x):
         x = self.model.conv_stem(x)
