@@ -640,7 +640,7 @@ class InceptionV4(ModelInterface):
         self.output = nn.Sequential()
         if dropout_cls:
             self.output.add_module("dropout", Dropout(**dropout_cls))
-        if self.loss == 'softmax':
+        if self.loss in ['softmax', 'asl']:
             self.output.add_module("fc", nn.Linear(
                 in_features=self.feature_dim,
                 out_features=num_classes))
@@ -688,7 +688,7 @@ class InceptionV4(ModelInterface):
 
         if get_embeddings:
             out_data = [logits, glob_features]
-        elif self.loss in ['softmax', 'am_softmax']:
+        elif self.loss in ['softmax', 'am_softmax', 'asl']:
             if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
                 out_data = logits
             else:
