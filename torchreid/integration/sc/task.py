@@ -28,28 +28,29 @@ from torchreid.integration.sc.utils import (ClassificationImageFolder, CannotLoa
                                               generate_batch_indices, predict, list_available_models)
 from torchreid.integration.sc.parameters import ClassificationParameters
 
-from sc_sdk.entities.analyse_parameters import AnalyseParameters
+from ote_sdk.entities.inference_parameters import InferenceParameters
 from sc_sdk.entities.datasets import Dataset, DatasetItem, Subset
-from sc_sdk.entities.optimized_model import OptimizedModel, OpenVINOModel, Precision
-from sc_sdk.entities.label_relations import LabelGroupType
-from sc_sdk.entities.metrics import Performance, MetricsGroup, CurveMetric, LineChartInfo
+from sc_sdk.entities.optimized_model import OptimizedModel, ModelPrecision
+from ote_sdk.entities.label_schema import LabelGroupType
+from ote_sdk.entities.metrics import Performance, MetricsGroup, CurveMetric, LineChartInfo
 from sc_sdk.entities.model import Model, NullModel
-from sc_sdk.entities.result_media import ResultMedia
 from sc_sdk.entities.resultset import ResultSetEntity
 from sc_sdk.entities.task_environment import TaskEnvironment
-from sc_sdk.entities.train_parameters import TrainParameters
-from sc_sdk.usecases.tasks.interfaces.model_optimizer import IModelOptimizer
-from sc_sdk.logging import logger_factory
+from ote_sdk.entities.train_parameters import TrainParameters
+from sc_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
+from sc_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
+from sc_sdk.usecases.tasks.interfaces.export_interface import IExportTask, ExportType
+from sc_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
+from sc_sdk.usecases.tasks.interfaces.unload_interface import IUnload
 from sc_sdk.usecases.evaluation.metrics_helper import MetricsHelper
 from sc_sdk.usecases.reporting.time_monitor_callback import TimeMonitorCallback
 from sc_sdk.usecases.repos import ModelRepo, BinaryRepo
-from sc_sdk.usecases.tasks.image_deep_learning_task import ImageDeepLearningTask
-from sc_sdk.usecases.tasks.interfaces.configurable_parameters_interface import IConfigurableParameters
+from sc_sdk.logging import logger_factory
 
 logger = logger_factory.get_logger("TorchClassificationTask")
 
 
-class TorchClassificationTask(ImageDeepLearningTask, IConfigurableParameters, IModelOptimizer):
+class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExportTask, IUnload):
     """
     Start by making a class. Since we will make a deep learning task with 2d support, we inherit from ImageDeepLearningTask.
     Additionally, this task will support configurable parameters. So we add the interface IConfigurableParameters as well.
@@ -187,12 +188,13 @@ class TorchClassificationTask(ImageDeepLearningTask, IConfigurableParameters, IM
         else:
             raise ValueError(f"This task does not support label relations of type {label_relation_type.name}")
 
-    def analyse(self, dataset: Dataset, analyse_parameters: Optional[AnalyseParameters] = None) -> Dataset:
+    # def analyse(self, dataset: Dataset, analyse_parameters: Optional[InferenceParameters] = None) -> Dataset:
+    def infer(self, dataset: Dataset, inference_parameters: Optional[InferenceParameters] = None) -> Dataset:
         """
         Perform inference on the given dataset.
 
         :param dataset: Dataset entity to analyse
-        :param analyse_parameters: Additional parameters for inference.
+        :param inference_parameters: Additional parameters for inference.
             For example, when results are generated for evaluation purposes, Saliency maps can be turned off.
         :return: Dataset that also includes the classification results
         """
@@ -393,8 +395,8 @@ class TorchClassificationTask(ImageDeepLearningTask, IConfigurableParameters, IM
         optimized_models = [self._generate_openvino_model()]
         return optimized_models
 
-    def _generate_openvino_model(self) -> OpenVINOModel:
-        optimized_model_precision = Precision.FP32
+    def _generate_openvino_model(self) -> OptimizedModel:
+        optimized_model_precision = ModelPrecision.FP32
 
         with tempfile.TemporaryDirectory() as tempdir:
             optimized_model_dir = os.path.join(tempdir, "dor")
