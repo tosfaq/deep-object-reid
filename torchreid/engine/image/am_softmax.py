@@ -37,12 +37,13 @@ class ImageAMSoftmaxEngine(Engine):
     """
 
     def __init__(self, datamanager, models, optimizers, reg_cfg, metric_cfg, schedulers=None, use_gpu=False, save_chkpt=True,
-                 train_patience=10, early_stoping = False, lr_decay_factor = 1000, softmax_type='stock', label_smooth=False,
+                 train_patience=10, early_stoping = False, lr_decay_factor = 1000, softmax_type='softmax', label_smooth=False,
                  margin_type='cos', epsilon=0.1, aug_type=None, decay_power=3, alpha=1., size=(224, 224), max_soft=0.0,
                  reformulate=False, aug_prob=1., conf_penalty=False, pr_product=False, m=0.35, s=10, compute_s=False, end_s=None,
                  duration_s=None, skip_steps_s=None, enable_masks=False, adaptive_margins=False, class_weighting=False,
                  attr_cfg=None, base_num_classes=-1, symmetric_ce=False, mix_weight=1.0, enable_rsc=False, enable_sam=False,
-                 should_freeze_aux_models=False, nncf_metainfo=None, initial_lr=None, use_ema_decay=False, ema_decay=0.999):
+                 should_freeze_aux_models=False, nncf_metainfo=None, initial_lr=None, use_ema_decay=False, ema_decay=0.999,
+                 asl_gamma_pos=0.0, asl_gamma_neg=4.0, asl_p_m=0.05):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager,
                                                    models=models,
                                                    optimizers=optimizers,
@@ -58,7 +59,7 @@ class ImageAMSoftmaxEngine(Engine):
                                                    use_ema_decay=use_ema_decay,
                                                    ema_decay=ema_decay)
 
-        assert softmax_type in ['stock', 'am', 'mlc']
+        assert softmax_type in ['softmax', 'am', 'asl']
         assert s > 0.0
         if softmax_type == 'am':
             assert m >= 0.0
@@ -109,7 +110,7 @@ class ImageAMSoftmaxEngine(Engine):
             else:
                 scale_factor = np.log(trg_num_classes - 1) / np.log(base_num_classes - 1)
 
-            if softmax_type == 'stock':
+            if softmax_type == 'softmax':
                 self.main_losses.append(CrossEntropyLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
@@ -141,12 +142,11 @@ class ImageAMSoftmaxEngine(Engine):
                     class_weighting=class_weighting
                 ))
 
-            elif softmax_type == 'mlc':
+            elif softmax_type == 'asl':
                 self.main_losses.append(AsymmetricLoss(
-                    gamma_neg=4,
-                    gamma_pos=1,
-                    probability_margin=0.05,
-                    eps=1e-8
+                    gamma_neg=asl_gamma_neg,
+                    gamma_pos=asl_gamma_pos,
+                    probability_margin=asl_p_m,
                 ))
 
             if self.enable_metric_losses:

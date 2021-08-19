@@ -11,10 +11,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             raise NotImplementedError('Freezing of aux models or NNCF compression are supported only for '
                                       'softmax and am_softmax losses for data.type = image')
     initial_lr = initial_lr if initial_lr else cfg.train.lr
-    if cfg.loss.name in ['softmax', 'am_softmax', 'ASL']:
-        softmax_type = 'stock' if cfg.loss.name == 'softmax' else 'am'
-        if cfg.loss.name == 'ASL':
-            softmax_type = 'mlc'
+    if cfg.loss.name in ['softmax', 'am_softmax', 'asl']:
         engine = ImageAMSoftmaxEngine(
             datamanager,
             models=model,
@@ -37,7 +34,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             max_soft=cfg.loss.softmax.augmentations.fmix.max_soft,
             reformulate=cfg.loss.softmax.augmentations.fmix.reformulate,
             pr_product=cfg.loss.softmax.pr_product,
-            softmax_type=softmax_type,
+            softmax_type=cfg.loss.name,
             m=cfg.loss.softmax.m,
             s=cfg.loss.softmax.s,
             compute_s=cfg.loss.softmax.compute_s,
@@ -58,7 +55,10 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             nncf_metainfo=nncf_metainfo,
             initial_lr=initial_lr,
             use_ema_decay=cfg.train.ema.enable,
-            ema_decay=cfg.train.ema.ema_decay
+            ema_decay=cfg.train.ema.ema_decay,
+            asl_gamma_neg=cfg.loss.asl.gamma_neg,
+            asl_gamma_pos=cfg.loss.asl.gamma_pos,
+            asl_p_m=cfg.loss.asl.p_m
         )
     elif cfg.loss.name == 'contrastive':
         engine = ImageContrastiveEngine(

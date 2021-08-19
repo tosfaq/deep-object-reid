@@ -186,6 +186,10 @@ def get_default_config():
     cfg.loss.softmax.class_weighting = False
     cfg.loss.softmax.base_num_classes = -1
     cfg.loss.softmax.symmetric_ce = False
+    cfg.loss.asl = CN()
+    cfg.loss.asl.gamma_pos = 0.
+    cfg.loss.asl.gamma_neg = 4.
+    cfg.loss.asl.p_m = 0.05
     cfg.loss.triplet = CN()
     cfg.loss.triplet.margin = 0.3  # distance margin
     cfg.loss.triplet.weight_t = 1.  # weight to balance hard triplet loss
