@@ -345,7 +345,7 @@ class TorchClassificationTask(ImageDeepLearningTask, IConfigurableParameters, IM
         else:
             models, optimizers, schedulers = train_model, optimizer, scheduler
 
-        print('Building {}-engine for {}-reid'.format(self.cfg.loss.name, self.cfg.data.type))
+        print('Building {}-engine'.format(self.cfg.loss.name))
         engine = build_engine(self.cfg, datamanager, models, optimizers, schedulers)
         engine.run(**engine_run_kwargs(self.cfg), tb_writer=self.metrics_monitor, perf_monitor=self.perf_monitor,
                    stop_callback=self.stop_callback)

@@ -8,6 +8,7 @@ from typing import Union
 import cv2 as cv
 from zipfile import ZipFile
 
+from ote_sdk.
 from sc_sdk.entities.analyse_parameters import AnalyseParameters
 from sc_sdk.entities.annotation import Annotation, AnnotationKind
 from sc_sdk.entities.datasets import Subset
