@@ -3,33 +3,114 @@ import os
 import os.path as osp
 import argparse
 import json
-from typing import Union
+import random
+from typing import Union, Optional
 
 import cv2 as cv
 from zipfile import ZipFile
 
-from ote_sdk.
-from sc_sdk.entities.analyse_parameters import AnalyseParameters
-from sc_sdk.entities.annotation import Annotation, AnnotationKind
+from ote_sdk.entities.inference_parameters import InferenceParameters
+from sc_sdk.entities.annotation import Annotation, AnnotationScene, NullAnnotationScene, AnnotationSceneKind
 from sc_sdk.entities.datasets import Subset
 from sc_sdk.entities.image import Image
-from sc_sdk.entities.label import ScoredLabel
+from ote_sdk.entities.label import ScoredLabel
 from sc_sdk.entities.project import Project
 from sc_sdk.entities.resultset import ResultSet
-from sc_sdk.entities.shapes.box import Box
+from ote_sdk.entities.shapes.box import Box
 from sc_sdk.entities.task_environment import TaskEnvironment
 from sc_sdk.entities.url import URL
-from sc_sdk.tests.test_helpers import generate_training_dataset_of_all_annotated_media_in_project
-from sc_sdk.usecases.repos import *
+#from sc_sdk.tests.test_helpers import generate_training_dataset_of_all_annotated_media_in_project
+from sc_sdk.entities.datasets import Dataset
+from sc_sdk.entities.dataset_item import DatasetItem
+from sc_sdk.usecases.repos import AnnotationSceneRepo, ImageRepo
 from sc_sdk.utils.project_factory import ProjectFactory
 from sc_sdk.usecases.adapters.binary_interpreters import RAWBinaryInterpreter
 from sc_sdk.entities.optimized_model import OptimizedModel
-from sc_sdk.communication.mappers.mongodb_mapper import LabelToMongo
+from sc_sdk.communication.mappers.mongodb_mappers.label_mapper import LabelToMongo
 from sc_sdk.logging import logger_factory
+from sc_sdk.entities.video import Video, VideoFrame
+from sc_sdk.entities.media_identifier import (
+    ImageIdentifier,
+    MediaIdentifierEntity,
+    VideoFrameIdentifier,
+)
 
 from torchreid.integration.sc.task import TorchClassificationTask
 
 logger = logger_factory.get_logger("Classification_sample")
+
+
+def generate_training_dataset_of_all_annotated_media_in_project(
+    project: Project, use_stratified_sampling: bool = False, seed: Optional[int] = None) -> Dataset:
+    """
+    Generates a dataset for a project, with training, validation and testing subsets.
+    Note: this function is intended for single task projects and may not work correctly for projects with
+          taskchains with more than one deep-learning task.
+
+    :param project: Project to create dataset for
+    :param use_stratified_sampling: if True, the function returns a stratified subset split
+    :param seed: random seed to use for making subset split (ignored if use_stratified_sampling is True)
+    :return: generated Dataset
+    """
+    from sc_sdk.usecases.repos import AnnotationSceneRepo, ImageRepo, VideoRepo
+
+    images = ImageRepo(project.dataset_storage).get_all()
+    videos = VideoRepo(project.dataset_storage).get_all()
+    annotation_repo = AnnotationSceneRepo(project.dataset_storage)
+
+    dataset_items = []
+    annotations = annotation_repo.get_latest_annotation_kind_by_media_identifiers(
+        [ImageIdentifier(image.id) for image in images], AnnotationSceneKind.ANNOTATION
+    )
+    for image, annotation in zip(images, annotations):
+        if not isinstance(annotation, NullAnnotationScene):
+            dataset_items.append(DatasetItem(media=image, annotation_scene=annotation))
+
+    for video in videos:
+        annotations = annotation_repo.get_latest_distinct_annotation_kind_by_media_id(
+            video.id, AnnotationSceneKind.ANNOTATION
+        )
+        for annotation in annotations:
+            if not isinstance(annotation, NullAnnotationScene) and isinstance(
+                annotation.media_identifier, VideoFrameIdentifier
+            ):
+                dataset_items.append(
+                    DatasetItem(
+                        media=VideoFrame(
+                            video, annotation.media_identifier.frame_index
+                        ),
+                        annotation_scene=annotation,
+                    )
+                )
+
+    if use_stratified_sampling:
+        label_names = [
+            item.get_annotations()[0].get_labels(include_empty=True)[0].name
+            for item in dataset_items
+        ]
+        print(label_names)
+        subsets = stratified_subset_split(label_names)
+        for i, row in enumerate(dataset_items):
+            dataset_items[i].subset = subsets[i]
+    else:
+        # Use a local rng device to prevent the seed from affecting code outside this function
+        rng = random.Random(seed)
+
+        rng.shuffle(dataset_items)
+        dataset_length = len(dataset_items)
+        for i, row in enumerate(dataset_items):
+            subset_region = i / dataset_length
+            if subset_region >= 0.8:
+                subset = Subset.TESTING
+            elif subset_region >= 0.6:
+                subset = Subset.VALIDATION
+            else:
+                subset = Subset.TRAINING
+            dataset_items[i].subset = subset
+
+    dataset = Dataset(project.dataset_storage, dataset_items)
+    return dataset
+
 
 def load_annotation(data_dir, filter_classes=None, dataset_id=0):
     ALLOWED_EXTS = ('.jpg', '.jpeg', '.png', '.gif')
@@ -67,8 +148,8 @@ def load_annotation(data_dir, filter_classes=None, dataset_id=0):
 
 def createproject(projectname, taskname, basedir):
 	anno, classes = load_annotation(basedir)
-	project = ProjectFactory().create_project_single_task(name=projectname, description="",
-														  label_names=list(classes.values()), task_name=taskname)
+	project = ProjectFactory().create_project_single_task(name=projectname, description="", model_template_id="",
+														  label_names=list(classes.values()))
 	for i, item in enumerate(anno):
 		imdata = cv.imread(item[0])
 		imdata = cv.cvtColor(imdata, cv.COLOR_RGB2BGR)
@@ -76,8 +157,8 @@ def createproject(projectname, taskname, basedir):
 		ImageRepo(project).save(image)
 		label = [label for label in project.get_labels() if label.name==item[1]][0]
 		shapes = [Box.generate_full_box(labels=[ScoredLabel(label)])]
-		annotation = Annotation(kind=AnnotationKind.ANNOTATION, media_identifier=image.media_identifier, shapes=shapes)
-		AnnotationRepo(project).save(annotation)
+		annotation = Annotation(kind=AnnotationSceneKind.ANNOTATION, media_identifier=image.media_identifier, shapes=shapes)
+		AnnotationSceneRepo(project).save(annotation)
 		if i > 1000:
 			break
 
