@@ -164,7 +164,7 @@ class MobileNetV3Base(ModelInterface):
 
         if get_embeddings:
             out_data = [logits, glob_features]
-        elif self.loss in ['softmax', 'am_softmax', 'ASL']:
+        elif self.loss in ['softmax', 'am_softmax', 'asl']:
             if self.lr_finder.enable and self.lr_finder.mode == 'fast_ai':
                 out_data = logits
             else:
@@ -211,7 +211,7 @@ class MobileNetV3(MobileNetV3Base):
         output_channel = {'large': 1280, 'small': 1024}
         output_channel = make_divisible(output_channel[mode] * self.width_mult, 8) if self.width_mult > 1.0 else output_channel[mode]
 
-        if self.loss == 'softmax' or self.loss == 'ASL':
+        if self.loss == 'softmax' or self.loss == 'asl':
             self.classifier = nn.Sequential(
                 nn.Linear(exp_size, self.feature_dim),
                 nn.BatchNorm1d(self.feature_dim),
@@ -270,7 +270,7 @@ class MobileNetV3LargeTimm(MobileNetV3Base):
                                         pretrained=pretrained,
                                         num_classes=self.num_classes)
         self.dropout = Dropout(**self.dropout_cls)
-        assert self.loss in ['softmax', 'ASL'], "mobilenetv3_large_100_miil_in21k supports only softmax aor ASL losses"
+        assert self.loss in ['softmax', 'asl'], "mobilenetv3_large_100_miil_in21k supports only softmax aor ASL losses"
 
     def extract_features(self, x):
         x = self.model.conv_stem(x)
