@@ -1,51 +1,56 @@
-from pathlib import Path
 
-from torchreid.integration.sc.utils import list_available_models
+from attr import attrs
+from sc_sdk.configuration import ModelConfig, ModelLifecycle
+from ote_sdk.configuration.elements import (ParameterGroup,
+                                            add_parameter_group,
+                                            boolean_attribute,
+                                            configurable_boolean,
+                                            configurable_float,
+                                            configurable_integer,
+                                            string_attribute)
 
-from sc_sdk.configuration.configurable_parameters import Group, Integer, Float, Object, Selectable, Option
-from sc_sdk.configuration.deep_learning_configurable_parameters import DeepLearningConfigurableParameters
+@attrs
+class OTEClassificationParameters(ModelConfig):
+    header = string_attribute("Configuration for an object detection task")
+    description = header
 
-
-class ClassificationParameters(DeepLearningConfigurableParameters):
-    class __LearningParameters(Group):
-        header = "Learning parameters"
+    @attrs
+    class __LearningParameters(ParameterGroup):
+        header = string_attribute("Learning Parameters")
         description = header
 
-        batch_size = Integer(header="Batch size",
-                             default_value=32,
-                             min_value=1,
-                             max_value=512,
-                             editable=True)
+        batch_size = configurable_integer(
+            default_value=32,
+            min_value=1,
+            max_value=512,
+            header="Batch size",
+            description="The number of training samples seen in each iteration of training. Increasing this value "
+            "improves training time and may make the training more stable. A larger batch size has higher "
+            "memory requirements.",
+            warning="Increasing this value may cause the system to use more memory than available, "
+            "potentially causing out of memory errors, please update with caution.",
+            affects_outcome_of=ModelLifecycle.TRAINING
+        )
 
-        test_batch_size = Integer(header="Test batch size",
-                                  default_value=32,
-                                  min_value=1,
-                                  max_value=512,
-                                  editable=True)
+        max_num_epochs = configurable_integer(
+            default_value=200,
+            min_value=1,
+            max_value=100000,
+            header="Maximum number of training epochs",
+            description="Increasing this value causes the results to be more robust but training time "
+            "will be longer.",
+            affects_outcome_of=ModelLifecycle.TRAINING
+        )
 
-        max_num_epochs = Integer(header="Maximum number of epochs",
-                                 default_value=5,
-                                 min_value=1,
-                                 max_value=1000,
-                                 editable=True)
-
-        base_learning_rate = Float(header="Learning rate",
-                                   default_value=0.01,
-                                   min_value=1e-06,
-                                   max_value=1e-01,
-                                   editable=True)
-
-
-    class __LearningArchitecture(Group):
-        header = "Learning Architecture"
+    @attrs
+    class __AlgoBackend(ParameterGroup):
+        header = string_attribute("Internal Algo Backend parameters")
         description = header
-        base_models_dir = Path(__file__).parent.parent.parent.parent / 'configs/ote_custom_classification/'
-        available_models = list_available_models(str(base_models_dir))
-        model_architecture = Selectable(header="Model architecture",
-                                        default_value=available_models[0]['name'],
-                                        options=[Option(key=x['name'], value=x['name'], description='') for x in available_models],
-                                        description="Specify learning architecture for the the task.",
-                                        editable=True)
+        visible_in_ui = boolean_attribute(False)
 
-    learning_parameters: __LearningParameters = Object(__LearningParameters)
-    learning_architecture: __LearningArchitecture = Object(__LearningArchitecture)
+        template = string_attribute("template.yaml")
+        model = string_attribute("main_model.yaml")
+        model_name = string_attribute("image classification model")
+
+    learning_parameters = add_parameter_group(__LearningParameters)
+    algo_backend = add_parameter_group(__AlgoBackend)
