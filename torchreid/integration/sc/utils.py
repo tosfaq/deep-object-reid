@@ -5,22 +5,26 @@ import os
 from os import path as osp
 from typing import Callable, Dict, List, Optional, Tuple, Union
 from copy import deepcopy
+import importlib
+import tempfile
+import subprocess
 
+import PIL
 import numpy as np
 import cv2 as cv
 import torch
 import torch.utils as utils
 from torch import nn
 from torch.utils.data import Dataset as TorchDataset
-from PIL import Image
 
 from ote_sdk.entities.shapes.box import Box
-from sc_sdk.entities.annotation import Annotation, AnnotationScene, AnnotationSceneKind, NullMediaIdentifier
-from sc_sdk.entities.datasets import Dataset, DatasetItem, NullDataset, Subset
 from ote_sdk.entities.label import ScoredLabel, LabelEntity, Color
+from ote_sdk.entities.annotation import Annotation, AnnotationSceneKind
+from sc_sdk.entities.annotation import AnnotationScene, NullMediaIdentifier
+from sc_sdk.entities.datasets import Dataset, DatasetItem, NullDataset, Subset
+from sc_sdk.entities.image import Image
 from sc_sdk.entities.label import distinct_colors
 from sc_sdk.logging import logger_factory
-from sc_sdk.usecases.reporting.callback import Callback
 from sc_sdk.entities.dataset_storage import NullDatasetStorage
 from sc_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
                                           LabelSchema)
@@ -44,8 +48,8 @@ class OTEClassificationDataset():
         self.annotation = []
 
         for i in range(len(self.ote_dataset)):
-            if self.ote_dataset[i].annotation.get_labels():
-                label = self.ote_dataset[i].annotation.get_labels()[0]
+            if self.ote_dataset[i].get_shapes_labels():
+                label = self.ote_dataset[i].get_shapes_labels()[0].name
                 class_num = self.labels.index(label)
             else:
                 class_num = 0
@@ -84,6 +88,7 @@ class ClassificationDatasetAdapter(Dataset):
                 self.annotations[k] = self._load_annotation(self.data_roots[k])
 
         self.labels = None
+        self.label_map = None
         self.set_labels_obtained_from_annotation()
         self.project_labels = None
 
@@ -123,8 +128,10 @@ class ClassificationDatasetAdapter(Dataset):
 
     def set_labels_obtained_from_annotation(self):
         self.labels = None
+        self.label_map = {}
         for subset in (Subset.TRAINING, Subset.VALIDATION, Subset.TESTING):
-            labels = list(self.annotations[subset][1].values())
+            self.label_map = self.annotations[subset][1]
+            labels = list(self.annotations[subset][1].keys())
             if self.labels and self.labels != labels:
                 raise RuntimeError('Labels are different from annotation file to annotation file.')
             self.labels = labels
@@ -147,8 +154,9 @@ class ClassificationDatasetAdapter(Dataset):
         img = cv.imread(self.data_info[indx][0])
         img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
         image = Image(name=None, numpy=img, dataset_storage=NullDatasetStorage())
+        # print(type(self.data_info[indx][1])) # str
         label = create_gt_scored_label(self.data_info[indx][1])
-        shapes = [Box.generate_full_box(labels=[ScoredLabel(label)])]
+        shapes = [Annotation(Box.generate_full_box(), [ScoredLabel(label)])]
         annotation_scene = AnnotationScene(kind=AnnotationSceneKind.ANNOTATION,
                                            media_identifier=NullMediaIdentifier(),
                                            annotations=shapes)
@@ -186,6 +194,39 @@ def generate_label_schema(label_names):
     return label_schema
 
 
+def get_task_class(path):
+    module_name, class_name = path.rsplit('.', 1)
+    module = importlib.import_module(module_name)
+    return getattr(module, class_name)
+
+
+def reload_hyper_parameters(model_template):
+    """ This function copies template.yaml file and its configuration.yaml dependency to temporal folder.
+        Then it re-loads hyper parameters from copied template.yaml file.
+        This function should not be used in general case, it is assumed that
+        the 'configuration.yaml' should be in the same folder as 'template.yaml' file.
+    """
+
+    template_file = model_template.model_template_path
+    template_dir = os.path.dirname(template_file)
+    temp_folder = tempfile.mkdtemp()
+    conf_yaml = [dep.source for dep in model_template.dependencies if dep.destination == model_template.hyper_parameters.base_path][0]
+    conf_yaml = os.path.join(template_dir, conf_yaml)
+    subprocess.run(f'cp {conf_yaml} {temp_folder}', check=True, shell=True)
+    subprocess.run(f'cp {template_file} {temp_folder}', check=True, shell=True)
+    model_template.hyper_parameters.load_parameters(os.path.join(temp_folder, 'template.yaml'))
+    assert model_template.hyper_parameters.data
+
+
+def set_values_as_default(parameters):
+    for v in parameters.values():
+        if isinstance(v, dict) and 'value' not in v:
+            set_values_as_default(v)
+        elif isinstance(v, dict) and 'value' in v:
+            if v['value'] != v['default_value']:
+                v['value'] = v['default_value']
+
+
 class ClassificationDataloader(TorchDataset):
     """
     Dataloader that generates logits from DatasetItems.
@@ -210,7 +251,7 @@ class ClassificationDataloader(TorchDataset):
         sample = self.dataset[idx].numpy  # This returns 8-bit numpy array of shape (height, width, RGB)
 
         if self.augmentation is not None:
-            img = Image.fromarray(sample)
+            img = PIL.Image.fromarray(sample)
             img, _ = self.augmentation((img, ''))
         return img
 
@@ -265,14 +306,3 @@ def predict(dataset_slice: List[DatasetItem], labels: List[LabelEntity], model: 
             instances_per_image.append((dataset_item, scored_labels))
 
     return instances_per_image
-
-def list_available_models(models_directory):
-    available_models = []
-    for dirpath, dirnames, filenames in os.walk(models_directory):
-        for filename in filenames:
-            if filename == 'main_model.yaml':
-                available_models.append(dict(
-                    name=osp.basename(dirpath),
-                    dir=osp.join(models_directory, dirpath)))
-    available_models.sort(key=lambda x: x['name'])
-    return available_models

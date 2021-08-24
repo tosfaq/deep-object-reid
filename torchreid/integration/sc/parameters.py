@@ -1,6 +1,6 @@
 
 from attr import attrs
-from sc_sdk.configuration import ModelConfig, ModelLifecycle
+from ote_sdk.configuration import ModelConfig, ModelLifecycle
 from ote_sdk.configuration.elements import (ParameterGroup,
                                             add_parameter_group,
                                             boolean_attribute,

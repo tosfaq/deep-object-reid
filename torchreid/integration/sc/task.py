@@ -10,7 +10,6 @@ import shutil
 
 import torch
 from torch.onnx.symbolic_registry import register_op
-from torchvision import transforms
 
 import torchreid
 from torchreid.engine import build_engine
@@ -24,87 +23,123 @@ from scripts.default_config import (engine_run_kwargs, get_default_config,
                                     optimizer_kwargs, merge_from_files_with_base)
 from scripts.script_utils import build_auxiliary_model, group_norm_symbolic
 from torchreid.integration.sc.monitors import PerformanceMonitor, StopCallback, DefaultMetricsMonitor
-from torchreid.integration.sc.utils import (ClassificationImageFolder, CannotLoadModelException,
-                                              generate_batch_indices, predict, list_available_models)
-from torchreid.integration.sc.parameters import ClassificationParameters
+from torchreid.integration.sc.utils import (OTEClassificationDataset,
+                                            generate_batch_indices, predict)
+from torchreid.integration.sc.parameters import OTEClassificationParameters
 
 from ote_sdk.entities.inference_parameters import InferenceParameters
+from ote_sdk.entities.label_schema import LabelGroupType
+from ote_sdk.entities.metrics import MetricsGroup, CurveMetric, LineChartInfo
+from ote_sdk.entities.task_environment import TaskEnvironment
+from ote_sdk.entities.train_parameters import TrainParameters
+from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
+from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
+from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
+from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
+from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
+from ote_sdk.configuration import cfg_helper
+from ote_sdk.configuration.helper.utils import ids_to_strings
+
+from sc_sdk.entities.model import Model
+from sc_sdk.entities.resultset import ResultSet
 from sc_sdk.entities.datasets import Dataset, DatasetItem, Subset
 from sc_sdk.entities.optimized_model import OptimizedModel, ModelPrecision
-from ote_sdk.entities.label_schema import LabelGroupType
-from ote_sdk.entities.metrics import Performance, MetricsGroup, CurveMetric, LineChartInfo
-from sc_sdk.entities.model import Model, NullModel
-from sc_sdk.entities.resultset import ResultSetEntity
-from sc_sdk.entities.task_environment import TaskEnvironment
-from ote_sdk.entities.train_parameters import TrainParameters
-from sc_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
-from sc_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from sc_sdk.usecases.tasks.interfaces.export_interface import IExportTask, ExportType
-from sc_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
-from sc_sdk.usecases.tasks.interfaces.unload_interface import IUnload
-from sc_sdk.usecases.evaluation.metrics_helper import MetricsHelper
-from sc_sdk.usecases.reporting.time_monitor_callback import TimeMonitorCallback
-from sc_sdk.usecases.repos import ModelRepo, BinaryRepo
 from sc_sdk.logging import logger_factory
 
-logger = logger_factory.get_logger("TorchClassificationTask")
+logger = logger_factory.get_logger("OTEClassificationTask")
 
 
-class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExportTask, IUnload):
-    """
-    Start by making a class. Since we will make a deep learning task with 2d support, we inherit from ImageDeepLearningTask.
-    Additionally, this task will support configurable parameters. So we add the interface IConfigurableParameters as well.
+class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExportTask, IUnload):
 
-    Let's save the task environment given. The task environment is very important, it contains the context of the task.
-    Think of the loaded project, the labels, the task configuration and stored configurable parameters.
-    """
+    task_environment: TaskEnvironment
 
-    def __init__(self, task_environment: TaskEnvironment, configs_root: str =''):
-        logger.info(f"Loading classification task with task id {task_environment.task_node.id}")
+    def __init__(self, task_environment: TaskEnvironment):
+        logger.info(f"Loading OTEDetectionTask.")
+        self._scratch_space = tempfile.mkdtemp(prefix="ote-cls-scratch-")
+        logger.info(f"Scratch space created at {self._scratch_space}")
 
-        self.task_environment = task_environment
+        self._task_environment = task_environment
+        self._hyperparams = hyperparams = task_environment.get_hyper_parameters(OTEClassificationParameters)
 
-        self.model_repository = ModelRepo(task_environment.project)
+        self._model_name = hyperparams.algo_backend.model_name
+        self._labels = task_environment.get_labels(False)
+
+        template_file_path = task_environment.model_template.model_template_path
+
+        base_dir = os.path.abspath(os.path.dirname(template_file_path))
+
+        self._cfg = get_default_config()
+        self._patch_config(base_dir)
+
+        self.device = torch.device("cuda:0") if torch.cuda.device_count() else torch.device("cpu")
+        self._model = self._load_model(None).to(self.device)
 
         # Define monitors
         self.stop_callback = StopCallback()
         self.metrics_monitor = DefaultMetricsMonitor()
         self.perf_monitor = PerformanceMonitor()
 
-        # Initialize and load models
-        self.cfg = get_default_config()
-        self.configs_root = configs_root
-        if not configs_root:
-            self.configs_root = Path(__file__).parent.parent.parent.parent / 'configs/ote_custom_classification/'
-        self.all_models = list_available_models(str(self.configs_root))
-        configurable_parameters = self.get_configurable_parameters(self.task_environment)
-        self.model_name = configurable_parameters.learning_architecture.model_architecture.value
-        self.switch_arch(self.model_name)
+    def _load_model(self, model: Model):
+        if model is not None:
+            # If a model has been trained and saved for the task already, create empty model and load weights here
+            buffer = io.BytesIO(model.get_data("weights.pth"))
+            model_data = torch.load(buffer, map_location=torch.device('cpu'))
 
-        self.device = torch.device("cuda:0") if torch.cuda.device_count() else torch.device("cpu")
-        self.model = self.create_model().to(self.device)
-        self.load_model(self.task_environment)
+            model = self._create_model(self._config, from_scratch=True)
 
-    def switch_arch(self, new_arch_name):
-        model_info = filter(lambda x: x['name'] == new_arch_name, self.all_models)
-        model_dir = list(model_info)[0]['dir']
-        cfg_path = Path(model_dir) / 'main_model.yaml'
+            try:
+                load_pretrained_weights(model, pretrained_dict=model_data)
+                logger.info(f"Loaded model weights from Task Environment")
+                logger.info(f"Model architecture: {self._model_name}")
+            except BaseException as ex:
+                raise ValueError("Could not load the saved model. The model file structure is invalid.") \
+                    from ex
+        else:
+            # If there is no trained model yet, create model with pretrained weights as defined in the model config
+            # file.
+            model = self._create_model(self._cfg, from_scratch=False)
+            logger.info(f"No trained model in project yet. Created new model with '{self._model_name}' "
+                        f"architecture and general-purpose pretrained weights.")
+        return model
 
-        self.cfg = get_default_config()
-        merge_from_files_with_base(self.cfg, str(cfg_path))
-        self.cfg.use_gpu = torch.cuda.device_count() > 0
-        self.num_devices = 1 if self.cfg.use_gpu else 0
-        self.cfg.model.classification = True
-        self.cfg.custom_datasets.types = ['external_classification_wrapper', 'external_classification_wrapper']
-        self.cfg.custom_datasets.names = ['train', 'val']
-        self.cfg.custom_datasets.roots = ['']*2
-        self.cfg.data.sources = ['train']
-        self.cfg.data.targets = ['val']
-        self.num_classes = len(self.task_environment.labels)
 
-        for i, conf in enumerate(self.cfg.mutual_learning.aux_configs):
-            if str(model_dir) not in conf:
-                self.cfg.mutual_learning.aux_configs[i] = str(Path(model_dir) / conf)
+    def _create_model(self, сonfig, from_scratch: bool = False):
+        """
+        Creates a model, based on the configuration in config
+        :param config: mmdetection configuration from which the model has to be built
+        :param from_scratch: bool, if True does not load any weights
+        :return model: Model in training mode
+        """
+        num_train_classes = len(self._labels)
+        model = torchreid.models.build_model(**model_kwargs(сonfig, num_train_classes))
+        return model
+
+    def _patch_config(self, base_dir: str):
+        self._cfg = get_default_config()
+        config_file_path = os.path.join(base_dir, self._hyperparams.algo_backend.model)
+        merge_from_files_with_base(self._cfg, config_file_path)
+        self._cfg.use_gpu = torch.cuda.device_count() > 0
+        self.num_devices = 1 if self._cfg.use_gpu else 0
+        self._cfg.model.type = 'classification'
+        groups = self._task_environment.label_schema.get_groups()
+        label_relation_type = groups[0].group_type
+        if label_relation_type == LabelGroupType.EXCLUSIVE and len(groups) == 1:
+            pass
+        else:
+            raise ValueError(f"This task does not support non exclusive label groups or multiple groups")
+
+        self._cfg.custom_datasets.types = ['external_classification_wrapper', 'external_classification_wrapper']
+        self._cfg.custom_datasets.names = ['train', 'val']
+        self._cfg.custom_datasets.roots = ['']*2
+        self._cfg.data.sources = ['train']
+        self._cfg.data.targets = ['val']
+        self._cfg.data.save_dir
+        self.num_classes = len(self._labels)
+
+        for i, conf in enumerate(self._cfg.mutual_learning.aux_configs):
+            if str(base_dir) not in conf:
+                self._cfg.mutual_learning.aux_configs[i] = str(Path(base_dir) / conf)
 
     def cancel_training(self):
         """
@@ -123,72 +158,15 @@ class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IE
         """
         return self.perf_monitor.get_training_progress()
 
-    @staticmethod
-    def get_configurable_parameters(task_environment: TaskEnvironment) -> ClassificationParameters:
-        """
-        Returns the configurable parameters.
-
-        :param task_environment: Current task environment
-
-        :return: Instance of ClassificationParameters
-        """
-        return task_environment.get_configurable_parameters(instance_of=ClassificationParameters)
-
-    def update_configurable_parameters(self, task_environment: TaskEnvironment):
-        """
-        Called when the user changes the configurable parameters in the UI.
-
-        :param task_environment: New task environment with updated configurable parameters
-        """
-        self.task_environment = task_environment
-
-    def load_model(self, task_environment: TaskEnvironment):
-        """
-        Load the given model.
-
-        This function provides an updated task environment with the model to load.
-
-        :param task_environment: New task environment with the updated model.
-        """
-        self.task_environment = task_environment
-
-        model = task_environment.model
-
-        if model != NullModel():
-            weights = io.BytesIO(model.data)
-            logger.info(f"Loading model from: {model.data_url}")
-            try:
-                torch_model = self.create_model()
-                state_dict = torch.load(weights)
-                load_pretrained_weights(torch_model, pretrained_dict=state_dict)
-                self.model = torch_model
-            except BaseException as ex:
-                raise CannotLoadModelException("Could not load the saved model. The model file structure is invalid.") \
-                    from ex
-
-    def get_model_bytes(self) -> bytes:
-        """
-        Returns the data of the current model
-
-        :return: data of current model in bytes
-        """
+    def save_model(self, output_model: Model):
         buffer = io.BytesIO()
-        torch.save(self.model.state_dict(), buffer)
-        return buffer.getvalue()
+        hyperparams = self.task_environment.get_hyper_parameters(OTEClassificationParameters)
+        hyperparams_str = ids_to_strings(cfg_helper.convert(hyperparams, dict, enum_to_str=True))
+        labels = {label.name: label.color.rgb_tuple for label in self._labels}
+        modelinfo = {'model': self._model.state_dict(), 'config': hyperparams_str, 'labels': labels, 'VERSION': 1}
+        torch.save(modelinfo, buffer)
+        output_model.set_data("weights.pth", buffer.getvalue())
 
-    def create_model(self):
-        group = self.task_environment.label_relations.get_groups_by_task_id(
-            task_id=self.task_environment.task_node.id)[0]
-        label_relation_type = group.group_type
-        if label_relation_type == LabelGroupType.EXCLUSIVE:
-            print('creating exclusive model')
-            num_train_classes = len(self.task_environment.labels)
-            model = torchreid.models.build_model(**model_kwargs(self.cfg, num_train_classes))
-            return model
-        else:
-            raise ValueError(f"This task does not support label relations of type {label_relation_type.name}")
-
-    # def analyse(self, dataset: Dataset, analyse_parameters: Optional[InferenceParameters] = None) -> Dataset:
     def infer(self, dataset: Dataset, inference_parameters: Optional[InferenceParameters] = None) -> Dataset:
         """
         Perform inference on the given dataset.
@@ -198,12 +176,12 @@ class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IE
             For example, when results are generated for evaluation purposes, Saliency maps can be turned off.
         :return: Dataset that also includes the classification results
         """
-        configurable_parameters = self.get_configurable_parameters(self.task_environment)
-        batch_size = configurable_parameters.learning_parameters.test_batch_size.value
-        alllabels = self.task_environment.labels
-        self.cfg.custom_datasets.roots = [ClassificationImageFolder(dataset, alllabels),
-                                          ClassificationImageFolder(dataset, alllabels)]
-        datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self.cfg))
+        configurable_parameters = self._hyperparams
+        batch_size = max(1, configurable_parameters.learning_parameters.batch_size // 2)
+        labels = [label.name for label in self._labels]
+        self._cfg.custom_datasets.roots = [OTEClassificationDataset(dataset, labels),
+                                           OTEClassificationDataset(dataset, labels)]
+        datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
 
         for ii, batch_slice in enumerate(generate_batch_indices(len(dataset), batch_size)):
             """
@@ -212,7 +190,7 @@ class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IE
             dataset_slice: List[DatasetItem] = dataset[batch_slice]
 
             # Get labels and saliency for given slice
-            outputs_batch = predict(dataset_slice=dataset_slice, labels=alllabels, model=self.model,
+            outputs_batch = predict(dataset_slice=dataset_slice, labels=self._labels, model=self._model,
                                     transform=datamanager.transform_te,
                                     device=self.device)
 
@@ -235,86 +213,72 @@ class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IE
             output.append(MetricsGroup(metrics=[loss], visualization_info=visualization_info))
         return output
 
-    def train(self, dataset: Dataset, train_parameters: Optional[TrainParameters] = None) -> Model:
-        """
-        Train the model given the Dataset.
-        If the task finds it was able to improve the model, it will return a new Model entity,
-        otherwise if the task finds the model was not able to improve, it can return a NullModel.
-        If this happens, NOUS will not update the model repository.
+    def train(self, dataset: Dataset, output_model: Model, train_parameters: Optional[TrainParameters] = None):
+        """ Trains a model on a dataset """
 
-        :param dataset: Dataset to use for training. Contains properly split subsets of Train, Validation, Testing.
-        :param train_parameters: Define additional parameters, such as train_on_empty_model.
-            train_on_empty_model means that a pre-trained model or
-            randomised weights should be used instead of the latest model.
-        :return: Model used by the task at the end of training.
-            This might be a new model or an old one if training failed.
-        """
-        configurable_parameters = self.get_configurable_parameters(self.task_environment)
-        if configurable_parameters.learning_architecture.model_architecture.value != self.model_name:
-            self.model_name = configurable_parameters.learning_architecture.model_architecture.value
-            self.switch_arch(self.model_name)
+        configurable_parameters = self._hyperparams
 
         if train_parameters is not None and train_parameters.train_on_empty_model:
-            train_model = self.create_model()
+            train_model = self.create_model(self._cfg)
         else:
-            train_model = deepcopy(self.model)
-        self.cfg.data.save_dir = tempfile.mkdtemp()
+            train_model = deepcopy(self._model)
 
-        self.cfg.train.batch_size = configurable_parameters.learning_parameters.batch_size.value
-        self.cfg.train.lr = configurable_parameters.learning_parameters.base_learning_rate.value
-        self.cfg.train.max_epoch = configurable_parameters.learning_parameters.max_num_epochs.value
+        self._cfg.train.batch_size = configurable_parameters.learning_parameters.batch_size
+        self._cfg.test.batch_size = max(1, configurable_parameters.learning_parameters.batch_size // 2)
+        self._cfg.train.max_epoch = configurable_parameters.learning_parameters.max_num_epochs
 
-        train_steps = math.ceil(len(dataset.get_subset(Subset.TRAINING)) / self.cfg.train.batch_size)
-        validation_steps = math.ceil((len(dataset.get_subset(Subset.VALIDATION)) / self.cfg.test.batch_size))
-        self.perf_monitor.init(self.cfg.train.max_epoch, train_steps, validation_steps)
+        train_steps = math.ceil(len(dataset.get_subset(Subset.TRAINING)) / self._cfg.train.batch_size)
+        validation_steps = math.ceil((len(dataset.get_subset(Subset.VALIDATION)) / self._cfg.test.batch_size))
+        self.perf_monitor.init(self._cfg.train.max_epoch, train_steps, validation_steps)
         self.metrics_monitor = DefaultMetricsMonitor()
         self.stop_callback.reset()
 
-        set_random_seed(self.cfg.train.seed)
-        labels = self.task_environment.labels
+        set_random_seed(self._cfg.train.seed)
         train_subset = dataset.get_subset(Subset.TRAINING)
         val_subset = dataset.get_subset(Subset.VALIDATION)
-        self.cfg.custom_datasets.roots = [ClassificationImageFolder(train_subset, labels), ClassificationImageFolder(val_subset, labels)]
-        datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self.cfg))
+        labels = [label.name for label in self._labels]
+        self._cfg.custom_datasets.roots = [OTEClassificationDataset(train_subset, labels),
+                                           OTEClassificationDataset(val_subset, labels)]
+        datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
 
-        if self.num_classes != datamanager.num_train_pids:
-            self.num_classes = datamanager.num_train_pids
-            train_model = self.create_model()
+        if self.num_classes != datamanager.num_train_pids[0]:
+            self.num_classes = datamanager.num_train_pids[0]
+            train_model = self._create_model(self._cfg)
 
-        num_aux_models = len(self.cfg.mutual_learning.aux_configs)
+        num_aux_models = len(self._cfg.mutual_learning.aux_configs)
 
-        if self.cfg.use_gpu:
+        if self._cfg.use_gpu:
             main_device_ids = list(range(self.num_devices))
             extra_device_ids = [main_device_ids for _ in range(num_aux_models)]
             train_model = DataParallel(train_model, device_ids=main_device_ids, output_device=0).cuda(main_device_ids[0])
         else:
             extra_device_ids = [None for _ in range(num_aux_models)]
 
-        optimizer = torchreid.optim.build_optimizer(train_model, **optimizer_kwargs(self.cfg))
+        optimizer = torchreid.optim.build_optimizer(train_model, **optimizer_kwargs(self._cfg))
 
-        if self.cfg.lr_finder.enable and self.cfg.lr_finder.mode == 'automatic': # and not parameters.resume_from:
+        if self._cfg.lr_finder.enable and self._cfg.lr_finder.mode == 'automatic': # and not parameters.resume_from:
             scheduler = None
         else:
-            scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(self.cfg))
+            scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(self._cfg))
         '''
         if parameters.resume_from:
-            self.cfg.train.start_epoch = resume_from_checkpoint(
-                parameters.resume_from, self.model, optimizer=optimizer, scheduler=scheduler
+            self._cfg.train.start_epoch = resume_from_checkpoint(
+                parameters.resume_from, self._model, optimizer=optimizer, scheduler=scheduler
             )
         '''
 
         lr = None # placeholder, needed for aux models
-        if self.cfg.lr_finder.enable: # and not parameters.resume_from:
+        if self._cfg.lr_finder.enable: # and not parameters.resume_from:
             if num_aux_models:
                 print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
 
             # build new engine
-            engine = build_engine(self.cfg, datamanager, train_model, optimizer, scheduler)
-            lr_finder = LrFinder(engine=engine, **lr_finder_run_kwargs(self.cfg))
+            engine = build_engine(self._cfg, datamanager, train_model, optimizer, scheduler)
+            lr_finder = LrFinder(engine=engine, **lr_finder_run_kwargs(self._cfg))
             aux_lr = lr_finder.process()
 
             print(f"Estimated learning rate: {aux_lr}")
-            if self.cfg.lr_finder.stop_after:
+            if self._cfg.lr_finder.stop_after:
                 print("Finding learning rate finished. Terminate the training process")
                 exit()
 
@@ -322,23 +286,23 @@ class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IE
             # we do not check classification parameters
             # and do not get num_train_classes the second time
             # since it's done above and lr finder cannot change parameters of the datasets
-            self.cfg.train.lr = aux_lr
-            self.cfg.lr_finder.enable = False
-            set_random_seed(self.cfg.train.seed, self.cfg.train.deterministic)
+            self._cfg.train.lr = aux_lr
+            self._cfg.lr_finder.enable = False
+            set_random_seed(self._cfg.train.seed, self._cfg.train.deterministic)
 
-            datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self.cfg))
-            # train_model = torchreid.models.build_model(**model_kwargs(self.cfg, num_train_classes))
+            datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
+            # train_model = torchreid.models.build_model(**model_kwargs(self._cfg, num_train_classes))
             # train_model, _ = put_main_model_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
-            optimizer = torchreid.optim.build_optimizer(train_model, **optimizer_kwargs(self.cfg))
-            scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(self.cfg))
+            optimizer = torchreid.optim.build_optimizer(train_model, **optimizer_kwargs(self._cfg))
+            scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(self._cfg))
 
         if num_aux_models:
             print('Enabled mutual learning between {} models.'.format(num_aux_models + 1))
 
             models, optimizers, schedulers = [train_model], [optimizer], [scheduler]
-            for config_file, device_ids in zip(self.cfg.mutual_learning.aux_configs, extra_device_ids):
+            for config_file, device_ids in zip(self._cfg.mutual_learning.aux_configs, extra_device_ids):
                 aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                    config_file, self.num_classes, self.cfg.use_gpu, device_ids, lr
+                    config_file, self.num_classes, self._cfg.use_gpu, device_ids, lr
                 )
 
                 models.append(aux_model)
@@ -347,55 +311,33 @@ class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IE
         else:
             models, optimizers, schedulers = train_model, optimizer, scheduler
 
-        print('Building {}-engine'.format(self.cfg.loss.name))
-        engine = build_engine(self.cfg, datamanager, models, optimizers, schedulers)
-        engine.run(**engine_run_kwargs(self.cfg), tb_writer=self.metrics_monitor, perf_monitor=self.perf_monitor,
+        print('Building {}-engine'.format(self._cfg.loss.name))
+        engine = build_engine(self._cfg, datamanager, models, optimizers, schedulers)
+        engine.run(**engine_run_kwargs(self._cfg), tb_writer=self.metrics_monitor, perf_monitor=self.perf_monitor,
                    stop_callback=self.stop_callback)
 
-        if self.cfg.use_gpu:
+        if self._cfg.use_gpu:
             train_model = train_model.module
         #self.metrics_monitor.close()
         if self.stop_callback.check_stop():
             print('Training has been canceled')
 
         logger.info("Training finished, and it has an improved model")
-        self.model = deepcopy(train_model)
-        model_data = self.get_model_bytes()
-        model = Model(project=self.task_environment.project,
-                        task_node=self.task_environment.task_node,
-                        configuration=self.task_environment.get_model_configuration(),
-                        data=model_data,
-                        tags=["classification_model"],
-                        train_dataset=dataset)
-
-        self.task_environment.model = model
+        self._model = deepcopy(train_model)
+        self.save_model(output_model)
 
         self.progress_monitor = None
-        shutil.rmtree(self.cfg.data.save_dir)
 
-        return self.task_environment.model
-
-    def compute_performance(self, resultset: ResultSetEntity) -> Performance:
-        """
-        Compute the performance over a given resultset.
-        Adds additional dashboard metrics.
-
-        :param resultset: ResultSet to evaluate
-        :return: Performance entity
-        """
-        performance = MetricsHelper.compute_accuracy(resultset).get_performance()
+    def evaluate(
+        self, output_resultset: ResultSet, evaluation_metric: Optional[str] = None
+    ):
+        performance = MetricsHelper.compute_accuracy(output_resultset).get_performance()
         performance.dashboard_metrics = self.generate_training_metrics_group()
         logger.info(f"Computes performance of {performance}")
         return performance
 
-    def optimize_loaded_model(self) -> List[OptimizedModel]:
-        """
-        Create list of optimized models. Currently only OpenVINO models are supported.
-        """
-        optimized_models = [self._generate_openvino_model()]
-        return optimized_models
-
-    def _generate_openvino_model(self) -> OptimizedModel:
+    def export(self, export_type: ExportType, output_model: OptimizedModel):
+        assert export_type == ExportType.OPENVINO
         optimized_model_precision = ModelPrecision.FP32
 
         with tempfile.TemporaryDirectory() as tempdir:
@@ -404,12 +346,12 @@ class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IE
             os.makedirs(optimized_model_dir, exist_ok=True)
 
             transform = build_inference_transform(
-                self.cfg.data.height,
-                self.cfg.data.width,
-                norm_mean=self.cfg.data.norm_mean,
-                norm_std=self.cfg.data.norm_std,
+                self._cfg.data.height,
+                self._cfg.data.width,
+                norm_mean=self._cfg.data.norm_mean,
+                norm_std=self._cfg.data.norm_std,
                 )
-            input_img = random_image(self.cfg.data.height, self.cfg.data.width)
+            input_img = random_image(self._cfg.data.height, self._cfg.data.width)
             input_blob = transform(input_img).unsqueeze(0).to(self.device)
 
             input_names = ['data']
@@ -417,9 +359,9 @@ class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IE
             register_op("group_norm", group_norm_symbolic, "", 9)
             onnx_model_path = os.path.join(optimized_model_dir, 'model.onnx')
             with torch.no_grad():
-                self.model.eval()
+                self._model.eval()
                 torch.onnx.export(
-                    self.model,
+                    self._model,
                     input_blob,
                     onnx_model_path,
                     verbose=False,
@@ -430,8 +372,8 @@ class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IE
                     operator_export_type=torch.onnx.OperatorExportTypes.ONNX
                 )
 
-            mean_values = str([s*255 for s in self.cfg.data.norm_mean])
-            scale_values = str([s*255 for s in self.cfg.data.norm_std])
+            mean_values = str([s*255 for s in self._cfg.data.norm_mean])
+            scale_values = str([s*255 for s in self._cfg.data.norm_std])
 
             # read yaml here to ger mean std
             command_line = f'mo.py --input_model="{onnx_model_path}" ' \
@@ -451,13 +393,46 @@ class TorchClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IE
             run(command_line, shell=True, check=True)
 
             bin_file = [f for f in os.listdir(optimized_model_dir) if f.endswith('.bin')][0]
-            openvino_bin_url = BinaryRepo(self.task_environment.project).save_file_at_path(
-                os.path.join(optimized_model_dir, bin_file), "optimized_models")
             xml_file = [f for f in os.listdir(optimized_model_dir) if f.endswith('.xml')][0]
-            openvino_xml_url = BinaryRepo(self.task_environment.project).save_file_at_path(
-                os.path.join(optimized_model_dir, xml_file), "optimized_models")
+            with open(os.path.join(tempdir, bin_file), "rb") as f:
+                output_model.set_data("openvino.bin", f.read())
+            with open(os.path.join(tempdir, xml_file), "rb") as f:
+                output_model.set_data("openvino.xml", f.read())
+            output_model.precision = [optimized_model_precision]
 
-            return OpenVINOModel(model=self.task_environment.model,
-                                openvino_bin_url=openvino_bin_url,
-                                openvino_xml_url=openvino_xml_url,
-                                precision=optimized_model_precision)
+    @staticmethod
+    def _is_docker():
+        """
+        Checks whether the task runs in docker container
+        :return bool: True if task runs in docker
+        """
+        path = '/proc/self/cgroup'
+        is_in_docker = False
+        if os.path.isfile(path):
+            with open(path) as f:
+                is_in_docker = is_in_docker or any('docker' in line for line in f)
+        is_in_docker = is_in_docker or os.path.exists('/.dockerenv')
+        return is_in_docker
+
+    def _delete_scratch_space(self):
+        """
+        Remove model checkpoints and logs
+        """
+        if os.path.exists(self._scratch_space):
+            shutil.rmtree(self._scratch_space, ignore_errors=False)
+
+    def unload(self):
+        """
+        Unload the task
+        """
+        self._delete_scratch_space()
+        if self._is_docker():
+            logger.warning(
+                "Got unload request. Unloading models. Throwing Segmentation Fault on purpose")
+            import ctypes
+            ctypes.string_at(0)
+        else:
+            logger.warning("Got unload request, but not on Docker. Only clearing CUDA cache")
+            torch.cuda.empty_cache()
+            logger.warning(f"Done unloading. "
+                           f"Torch is still occupying {torch.cuda.memory_allocated()} bytes of GPU memory")
