@@ -12,7 +12,7 @@ lr_finder:
 
 model:
   name: 'mobilenetv3_large_075'
-  classification: True
+  type: 'classification'
   pretrained: True
   save_chkpt: True
   feature_dim: 1280

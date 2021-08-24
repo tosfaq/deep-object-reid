@@ -14,7 +14,7 @@ lr_finder:
 
 model:
   name: 'efficientnet_b0'
-  classification: True
+  type: 'classification'
   pretrained: True
   save_chkpt: True
   feature_dim: 1280
@@ -88,4 +88,3 @@ test:
   batch_size: 128
   evaluate: False
   eval_freq: 1
-
