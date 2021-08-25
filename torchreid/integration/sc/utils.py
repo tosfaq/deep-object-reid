@@ -23,7 +23,6 @@ from sc_sdk.entities.annotation import AnnotationScene, NullMediaIdentifier
 from sc_sdk.entities.datasets import Dataset, DatasetItem, NullDataset, Subset
 from sc_sdk.entities.image import Image
 from sc_sdk.entities.label import distinct_colors
-from sc_sdk.logging import logger_factory
 from sc_sdk.entities.dataset_storage import NullDatasetStorage
 from sc_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
                                           LabelSchema)
@@ -34,9 +33,6 @@ from torchreid.models.common import ModelInterface
 def generate_batch_indices(count, batch_size):
     for i in range(math.ceil(count / batch_size)):
         yield slice(i * batch_size, (i + 1) * batch_size)
-
-
-logger = logger_factory.get_logger("TorchClassificationInstance")
 
 
 class OTEClassificationDataset():
@@ -180,6 +176,7 @@ class ClassificationDatasetAdapter(Dataset):
     def get_subset(self, subset: Subset) -> Dataset:
         dataset = deepcopy(self)
         if dataset.init_as_subset(subset):
+            dataset.project_labels = self.project_labels
             return dataset
         return NullDataset()
 
@@ -292,7 +289,6 @@ def predict(dataset_slice: List[DatasetItem], labels: List[LabelEntity], model: 
     model.eval()
     model.to(device)
     instances_per_image = list()
-    logger.info("Predicting {} files".format(len(dataset_slice)))
 
     bs = 1
     d_set = ClassificationDataloader(dataset=dataset_slice, labels=labels, augmentation=transform, inference_mode=True)
@@ -308,14 +304,7 @@ def predict(dataset_slice: List[DatasetItem], labels: List[LabelEntity], model: 
             class_idx = int(np.argmax(output))
             class_prob = float(outputs[i, class_idx].squeeze())
             label = ScoredLabel(label=labels[class_idx], probability=class_prob)
-            #dataset_item.append_annotations([Annotation(Box.generate_full_box(), [label])])
             dataset_item.append_labels([label])
             instances_per_image.append(dataset_item)
-            #shapes = [Annotation(Box.generate_full_box(), [label])]
-            #annotation_scene = AnnotationScene(kind=AnnotationSceneKind.ANNOTATION,
-                                               #media_identifier=NullMediaIdentifier(),
-                                               #annotations=shapes)
-            #new_dataset_item = DatasetItem(None, annotation_scene)
-            #instances_per_image.append(new_dataset_item)
 
     return instances_per_image
