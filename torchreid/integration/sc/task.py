@@ -4,7 +4,6 @@ import math
 from subprocess import run, DEVNULL, CalledProcessError
 from typing import List, Optional
 from copy import deepcopy
-from pathlib import Path
 import tempfile
 import shutil
 
@@ -139,7 +138,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         for i, conf in enumerate(self._cfg.mutual_learning.aux_configs):
             if str(base_dir) not in conf:
-                self._cfg.mutual_learning.aux_configs[i] = str(Path(base_dir) / conf)
+                self._cfg.mutual_learning.aux_configs[i] = os.path.join(base_dir, conf)
 
     def cancel_training(self):
         """
@@ -160,7 +159,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
     def save_model(self, output_model: Model):
         buffer = io.BytesIO()
-        hyperparams = self.task_environment.get_hyper_parameters(OTEClassificationParameters)
+        hyperparams = self._task_environment.get_hyper_parameters(OTEClassificationParameters)
         hyperparams_str = ids_to_strings(cfg_helper.convert(hyperparams, dict, enum_to_str=True))
         labels = {label.name: label.color.rgb_tuple for label in self._labels}
         modelinfo = {'model': self._model.state_dict(), 'config': hyperparams_str, 'labels': labels, 'VERSION': 1}
@@ -183,22 +182,16 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                                            OTEClassificationDataset(dataset, labels)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
 
-        for ii, batch_slice in enumerate(generate_batch_indices(len(dataset), batch_size)):
-            """
-            Iterate over slices, with a maximum size of the batch size
-            """
-            dataset_slice: List[DatasetItem] = dataset[batch_slice]
+        predicted_items = []
 
-            # Get labels and saliency for given slice
+        for batch_slice in generate_batch_indices(len(dataset), batch_size):
+            dataset_slice: List[DatasetItem] = dataset[batch_slice]
             outputs_batch = predict(dataset_slice=dataset_slice, labels=self._labels, model=self._model,
                                     transform=datamanager.transform_te,
                                     device=self.device)
+            predicted_items.extend(outputs_batch)
 
-            # Iterate result slice, and append the labels and saliency to each dataset item.
-            for j, (dataset_row, scored_labels) in enumerate(outputs_batch):
-                dataset_slice[j].append_labels(labels=scored_labels)
-
-        return dataset
+        return Dataset(None, predicted_items)
 
     def generate_training_metrics_group(self) -> List[MetricsGroup]:
         """
@@ -332,7 +325,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self, output_resultset: ResultSet, evaluation_metric: Optional[str] = None
     ):
         performance = MetricsHelper.compute_accuracy(output_resultset).get_performance()
-        performance.dashboard_metrics = self.generate_training_metrics_group()
         logger.info(f"Computes performance of {performance}")
         return performance
 

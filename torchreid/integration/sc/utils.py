@@ -14,7 +14,6 @@ import numpy as np
 import cv2 as cv
 import torch
 import torch.utils as utils
-from torch import nn
 from torch.utils.data import Dataset as TorchDataset
 
 from ote_sdk.entities.shapes.box import Box
@@ -148,20 +147,28 @@ class ClassificationDatasetAdapter(Dataset):
         return True
 
     def __getitem__(self, indx) -> DatasetItem:
+        if isinstance(indx, slice):
+            slice_list = range(self.__len__())[indx]
+            return [self._load_item(i) for i in slice_list]
+
+        return self._load_item(indx)
+
+    def _load_item(self, indx: int):
         def create_gt_scored_label(label_name):
-            return ScoredLabel(label=self.label_name_to_project_label(label_name))
+            return ScoredLabel(label=self.label_name_to_project_label(label_name), probability=1.0)
 
         img = cv.imread(self.data_info[indx][0])
         img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
         image = Image(name=None, numpy=img, dataset_storage=NullDatasetStorage())
-        # print(type(self.data_info[indx][1])) # str
         label = create_gt_scored_label(self.data_info[indx][1])
-        shapes = [Annotation(Box.generate_full_box(), [ScoredLabel(label)])]
+        shapes = [Annotation(Box.generate_full_box(), [label])]
         annotation_scene = AnnotationScene(kind=AnnotationSceneKind.ANNOTATION,
                                            media_identifier=NullMediaIdentifier(),
                                            annotations=shapes)
-        datset_item = DatasetItem(image, annotation_scene)
-        return datset_item
+        dataset_item = DatasetItem(image, annotation_scene)
+        # dataset_item.append_labels(labels=[label])
+
+        return dataset_item
 
     def __len__(self) -> int:
         assert self.data_info is not None
@@ -287,22 +294,28 @@ def predict(dataset_slice: List[DatasetItem], labels: List[LabelEntity], model: 
     instances_per_image = list()
     logger.info("Predicting {} files".format(len(dataset_slice)))
 
+    bs = 1
     d_set = ClassificationDataloader(dataset=dataset_slice, labels=labels, augmentation=transform, inference_mode=True)
-    loader = utils.data.DataLoader(d_set, batch_size=1, shuffle=False, num_workers=0, drop_last=False)
+    loader = utils.data.DataLoader(d_set, batch_size=bs, shuffle=False, num_workers=0, drop_last=False)
 
-    for inputs, y in loader:  # tqdm
-        inputs = torch.tensor(inputs, device=device)
-        outputs = model(inputs)[0]
-        outputs = outputs.cpu().detach().numpy()
+    for j, (inputs, y) in enumerate(loader):
+        inputs = inputs.to(device)
+        outputs = torch.nn.functional.softmax(model(inputs)[0], dim=-1)
+        outputs = outputs.detach().cpu().numpy()
 
-        # Multiclass
         for i, output in enumerate(outputs):
-            dataset_item = dataset_slice[i]
-            class_num = int(np.argmax(output))
-            class_prob = float(outputs[i, class_num].squeeze())
-            label = ScoredLabel(label=labels[class_num], probability=class_prob)
-            scored_labels = [label]
-            dataset_item.append_labels(labels=scored_labels)
-            instances_per_image.append((dataset_item, scored_labels))
+            dataset_item = dataset_slice[j*bs + i]
+            class_idx = int(np.argmax(output))
+            class_prob = float(outputs[i, class_idx].squeeze())
+            label = ScoredLabel(label=labels[class_idx], probability=class_prob)
+            #dataset_item.append_annotations([Annotation(Box.generate_full_box(), [label])])
+            dataset_item.append_labels([label])
+            instances_per_image.append(dataset_item)
+            #shapes = [Annotation(Box.generate_full_box(), [label])]
+            #annotation_scene = AnnotationScene(kind=AnnotationSceneKind.ANNOTATION,
+                                               #media_identifier=NullMediaIdentifier(),
+                                               #annotations=shapes)
+            #new_dataset_item = DatasetItem(None, annotation_scene)
+            #instances_per_image.append(new_dataset_item)
 
     return instances_per_image
