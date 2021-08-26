@@ -635,7 +635,18 @@ class Engine:
                         dataset_name=dataset_name,
                         lr_finder=lr_finder
                     )
+                    if self.use_ema_decay and not lr_finder and not test_only:
+                        ema_mAP = self._evaluate_classification(
+                            model=self.ema_model.module,
+                            epoch=epoch,
+                            data_loader=self.test_loader[dataset_name]['query'],
+                            model_name='EMA model',
+                            dataset_name=dataset_name,
+                            ranks=ranks,
+                            lr_finder = lr_finder
+                        )
                     cur_top1, cur_top5 = (cur_mAP, cur_mAP)
+                    ema_top1, ema_top5 = (ema_mAP, ema_mAP)
                 elif dataset_name == 'lfw':
                     self._evaluate_pairwise(
                         model=model,
