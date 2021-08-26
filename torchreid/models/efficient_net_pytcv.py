@@ -383,7 +383,7 @@ class EfficientNet(ModelInterface):
 
         logits = self.output(glob_features.view(x.shape[0], -1))
 
-        if not self.training and self.classification:
+        if not self.training and self.is_classification():
             return [logits]
 
         if get_embeddings:

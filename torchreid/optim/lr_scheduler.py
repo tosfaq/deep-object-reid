@@ -81,9 +81,9 @@ def _build_scheduler(optimizer,
         max_lr=max_lr, min_lr=min_lr, warmup_steps=warmup, gamma=gamma)
 
     elif lr_scheduler == 'reduce_on_plateau':
-        epoch_treshold = int(max_epoch * 0.75) - warmup # 75% of the training - warmup epochs
+        epoch_treshold = max(int(max_epoch * 0.75) - warmup, 1) # 75% of the training - warmup epochs
         scheduler = ReduceLROnPlateauV2(optimizer, epoch_treshold, factor=gamma, patience=patience,
-                                            threshold=2e-4, verbose=True, min_lr=min_lr, )
+                                        threshold=2e-4, verbose=True, min_lr=min_lr, )
     else:
         raise ValueError('Unknown scheduler: {}'.format(lr_scheduler))
 

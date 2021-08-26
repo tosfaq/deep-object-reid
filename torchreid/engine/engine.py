@@ -599,7 +599,8 @@ class Engine:
             domain = 'source' if dataset_name in self.datamanager.sources else 'target'
             print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
             for model_id, (model_name, model) in enumerate(self.models.items()):
-                if get_model_attr(model, 'classification'):
+                model_type = get_model_attr(model, 'type')
+                if model_type == 'classification':
                     # do not evaluate second model till last epoch
                     if (model_name != self.main_model_name
                         and not test_only and epoch != (self.max_epoch - 1)):
@@ -611,7 +612,7 @@ class Engine:
                         model_name=model_name,
                         dataset_name=dataset_name,
                         ranks=ranks,
-                        lr_finder = lr_finder
+                        lr_finder=lr_finder
                     )
                     if self.use_ema_decay and not lr_finder and not test_only:
                         ema_top1, ema_top5, ema_mAP = self._evaluate_classification(
@@ -623,8 +624,29 @@ class Engine:
                             ranks=ranks,
                             lr_finder = lr_finder
                         )
-                elif get_model_attr(model, 'contrastive'):
+                elif model_type == 'contrastive':
                     pass
+                elif model_type == 'multilabel':
+                    cur_mAP = self._evaluate_multilabel_classification(
+                        model=model,
+                        epoch=epoch,
+                        data_loader=self.test_loader[dataset_name]['query'],
+                        model_name=model_name,
+                        dataset_name=dataset_name,
+                        lr_finder=lr_finder
+                    )
+                    if self.use_ema_decay and not lr_finder and not test_only:
+                        ema_mAP = self._evaluate_classification(
+                            model=self.ema_model.module,
+                            epoch=epoch,
+                            data_loader=self.test_loader[dataset_name]['query'],
+                            model_name='EMA model',
+                            dataset_name=dataset_name,
+                            ranks=ranks,
+                            lr_finder = lr_finder
+                        )
+                    cur_top1, cur_top5 = (cur_mAP, cur_mAP)
+                    ema_top1, ema_top5 = (ema_mAP, ema_mAP)
                 elif dataset_name == 'lfw':
                     self._evaluate_pairwise(
                         model=model,
@@ -664,6 +686,26 @@ class Engine:
                         mAP = cur_mAP
 
         return top1, top5, mAP, should_save_ema_model
+
+    @torch.no_grad()
+    def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, dataset_name, lr_finder):
+
+        mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader, model, self.use_gpu)
+
+        if self.writer is not None and not lr_finder:
+            self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
+
+        if not lr_finder:
+            print('** Results ({}) **'.format(model_name))
+            print('mAP: {:.2%}'.format(mAP))
+            print('P_O: {:.2%}'.format(p_o))
+            print('R_O: {:.2%}'.format(r_o))
+            print('F_O: {:.2%}'.format(f_o))
+            print('mean_P_C: {:.2%}'.format(mean_p_c))
+            print('mean_R_C: {:.2%}'.format(mean_r_c))
+            print('mean_F_C: {:.2%}'.format(mean_f_c))
+
+        return mAP
 
     @torch.no_grad()
     def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks, lr_finder):

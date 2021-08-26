@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 import os
 import os.path as osp
+import json
 
 from PIL import Image
 
@@ -190,3 +191,58 @@ class ClassificationImageFolder(ImageDataset):
             print('Failed to locate images in folder ' + data_dir + f' with extensions {ALLOWED_EXTS}')
 
         return out_data, class_to_idx
+
+
+class MultiLabelClassification(ImageDataset):
+    """Multi label classification dataset.
+    """
+
+    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, **kwargs):
+        if load_masks:
+            raise NotImplementedError
+
+        self.root = osp.abspath(osp.expanduser(root))
+        self.data_dir = osp.dirname(self.root)
+        self.annot = self.root
+
+        required_files = [
+            self.data_dir, self.annot
+        ]
+        self.check_before_run(required_files)
+
+        if mode == 'train':
+            train = self.load_annotation(
+                self.annot,
+                self.data_dir,
+                dataset_id=dataset_id
+            )
+        else:
+            train = []
+
+        if mode == 'query':
+            query = self.load_annotation(
+                self.annot,
+                self.data_dir,
+                dataset_id=dataset_id
+            )
+        else:
+            query = []
+
+        gallery = []
+        super(MultiLabelClassification, self).__init__(train, query, gallery, mode=mode, **kwargs)
+
+    @staticmethod
+    def load_annotation(annot_path, data_dir, dataset_id=0):
+        out_data = []
+        with open(annot_path) as f:
+            annotation = json.load(f)
+            classes = sorted(annotation['classes'])
+            class_to_idx = {classes[i]: i for i in range(len(classes))}
+            images_info = annotation['images']
+            for img_info in images_info:
+                rel_image_path, img_labels = img_info
+                full_image_path = osp.join(data_dir, rel_image_path)
+                labels_idx = [class_to_idx[lbl] for lbl in img_labels if lbl in class_to_idx]
+                assert full_image_path and labels_idx
+                out_data.append((full_image_path, tuple(labels_idx), 0, dataset_id, '', -1, -1))
+        return out_data
