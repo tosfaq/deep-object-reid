@@ -38,7 +38,7 @@ class AccuracyAwareImageAMSoftmaxEngine(ImageAMSoftmaxEngine):
             return inner
 
         self.train_data_loader = self.train_loader
-        self.max_epoch = nncf_config.get('accuracy_aware_training').get('params').get('maximal_total_epochs')
+        self.max_epoch = nncf_config.get('accuracy_aware_training').get('params').get('maximal_total_epochs', 200)
 
         validate_fn = dec_test(self.test)
         train_fn = dec_train(self.train)

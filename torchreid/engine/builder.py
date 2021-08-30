@@ -61,34 +61,34 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
         image_am_softmax_engine_params = get_params_for_image_am_softmax_engine(cfg)
         initial_lr = initial_lr if initial_lr else cfg.train.lr
         softmax_type = 'stock' if cfg.loss.name == 'softmax' else 'am'
-        if not is_accuracy_aware_training(nncf_metainfo.nncf_config):
-            engine = ImageAMSoftmaxEngine(
-                datamanager,
-                models=model,
-                optimizers=optimizer,
-                schedulers=scheduler,
-                softmax_type=softmax_type,
-                should_freeze_aux_models=should_freeze_aux_models,
-                nncf_metainfo=nncf_metainfo,
-                initial_lr=initial_lr,
-                **image_am_softmax_engine_params
-            )
-        else:
-            # TODO:(kshpv) lets take *target_metric_name* from config?
-            print('Building Accuracy Aware {}-engine integrated with NNCF'.format(cfg.loss.name))
-            target_metric_name = 'top1'
-            engine = AccuracyAwareImageAMSoftmaxEngine(
-                datamanager,
-                models=model,
-                optimizers=optimizer,
-                schedulers=scheduler,
-                softmax_type=softmax_type,
-                should_freeze_aux_models=should_freeze_aux_models,
-                nncf_metainfo=nncf_metainfo,
-                initial_lr=initial_lr,
-                target_metric_name=target_metric_name,
-                **image_am_softmax_engine_params
-            )
+        if nncf_metainfo is not None:
+            if is_accuracy_aware_training(nncf_metainfo.nncf_config):
+                # TODO:(kshpv) lets take *target_metric_name* from config?
+                target_metric_name = 'top1'
+                engine = AccuracyAwareImageAMSoftmaxEngine(
+                    datamanager,
+                    models=model,
+                    optimizers=optimizer,
+                    schedulers=scheduler,
+                    softmax_type=softmax_type,
+                    should_freeze_aux_models=should_freeze_aux_models,
+                    nncf_metainfo=nncf_metainfo,
+                    initial_lr=initial_lr,
+                    target_metric_name=target_metric_name,
+                    **image_am_softmax_engine_params
+                )
+                return engine
+        engine = ImageAMSoftmaxEngine(
+            datamanager,
+            models=model,
+            optimizers=optimizer,
+            schedulers=scheduler,
+            softmax_type=softmax_type,
+            should_freeze_aux_models=should_freeze_aux_models,
+            nncf_metainfo=nncf_metainfo,
+            initial_lr=initial_lr,
+            **image_am_softmax_engine_params
+        )
     elif cfg.loss.name == 'contrastive':
         engine = ImageContrastiveEngine(
             datamanager,
