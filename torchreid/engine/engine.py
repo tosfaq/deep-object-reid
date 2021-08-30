@@ -18,7 +18,7 @@ from torchreid.losses import DeepSupervision
 from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
                              open_all_layers, open_specified_layers,
                              re_ranking, save_checkpoint,
-                             visualize_ranked_results, EMA)
+                             visualize_ranked_results, ModelEmaV2)
 
 
 EpochIntervalToValue = namedtuple('EpochIntervalToValue', ['first', 'last', 'value_inside', 'value_outside'])
@@ -83,19 +83,18 @@ class Engine:
         self.state_cacher = StateCacher(in_memory=True, cache_dir=None)
         self.param_history = set()
         self.seed = seed
-
         self.models = OrderedDict()
         self.optims = OrderedDict()
         self.scheds = OrderedDict()
-
-        print(f'Engine: should_freeze_aux_models={should_freeze_aux_models}')
+        self.ema_model = None
+        if should_freeze_aux_models:
+            print(f'Engine: should_freeze_aux_models={should_freeze_aux_models}')
         self.should_freeze_aux_models = should_freeze_aux_models
         self.nncf_metainfo = deepcopy(nncf_metainfo)
         self.initial_lr = initial_lr
         self.epoch_interval_for_aux_model_freeze = epoch_interval_for_aux_model_freeze
         self.epoch_interval_for_turn_off_mutual_learning = epoch_interval_for_turn_off_mutual_learning
         self.model_names_to_freeze = []
-        self.ema_wrapped_models = []
         self.current_lr = None
 
         if isinstance(models, (tuple, list)):
@@ -107,24 +106,20 @@ class Engine:
             assert len(schedulers) == num_models
 
             for model_id, (model, optimizer, scheduler) in enumerate(zip(models, optimizers, schedulers)):
-                model_name = f'model_{model_id}'
+                model_name = 'main_model' if model_id == 0 else f'aux_model_{model_id}'
                 self.register_model(model_name, model, optimizer, scheduler)
-                if use_ema_decay:
-                    ema = EMA(model, decay=ema_decay)
-                    ema.register()
-                    self.ema_wrapped_models.append(ema)
+                if use_ema_decay and model_id == 0:
+                    self.ema_model = ModelEmaV2(model, decay=ema_decay)
                 if should_freeze_aux_models and model_id > 0:
                     self.model_names_to_freeze.append(model_name)
         else:
             assert not isinstance(optimizers, (tuple, list))
             assert not isinstance(schedulers, (tuple, list))
+            assert not isinstance(models, (tuple, list))
+            self.register_model('main_model', models, optimizers, schedulers)
             if use_ema_decay:
-                ema = EMA(models, decay=ema_decay)
-                ema.register()
-                self.ema_wrapped_models.append(ema)
-            self.register_model('model', models, optimizers, schedulers)
+                self.ema_model = ModelEmaV2(models, decay=ema_decay)
         self.main_model_name = self.get_model_names()[0]
-        self.model_device = next(self.models[self.main_model_name].parameters()).device
         assert initial_lr is not None
         self.lb_lr = initial_lr / lr_decay_factor
 
@@ -146,7 +141,7 @@ class Engine:
         print(f'_should_turn_off_mutual_learning: return {res}')
         return res
 
-    def register_model(self, name='model', model=None, optim=None, sched=None):
+    def register_model(self, name='main_model', model=None, optim=None, sched=None):
         if self.__dict__.get('models') is None:
             raise AttributeError(
                 'Cannot assign model before super().__init__() call'
@@ -177,18 +172,23 @@ class Engine:
         else:
             return names_real
 
-    def save_model(self, epoch, save_dir, is_best=False):
+    def save_model(self, epoch, save_dir, is_best=False, should_save_ema_model=False):
         def create_sym_link(path,name):
             if osp.lexists(name):
                 os.remove(name)
             os.symlink(path, name)
 
         names = self.get_model_names()
-
         for name in names:
+            if should_save_ema_model and name == self.main_model_name:
+                assert self.use_ema_decay
+                model_state_dict = self.ema_model.module.state_dict()
+            else:
+                model_state_dict = self.models[name].state_dict()
+
             ckpt_path = save_checkpoint(
                             {
-                                'state_dict': self.models[name].state_dict(),
+                                'state_dict': model_state_dict,
                                 'epoch': epoch + 1,
                                 'optimizer': self.optims[name].state_dict(),
                                 'scheduler': self.scheds[name].state_dict(),
@@ -264,9 +264,6 @@ class Engine:
             self.best_metric = current_metric
             self.iter_to_wait = 0
             is_candidate_for_best = True
-            if self.use_ema_decay:
-                for ema in self.ema_wrapped_models:
-                    ema.apply_shadow()
 
         return should_exit, is_candidate_for_best
 
@@ -340,6 +337,7 @@ class Engine:
                                      use_metric_cuhk03=use_metric_cuhk03,
                                      ranks=ranks,
                                      rerank=rerank,
+                                     test_only = True
                                     )
             return test_results
 
@@ -355,6 +353,7 @@ class Engine:
                       use_metric_cuhk03=use_metric_cuhk03,
                       ranks=ranks,
                       rerank=rerank,
+                      test_only=True
             )
         else:
             self.configure_lr_finder(trial, lr_finder)
@@ -391,7 +390,7 @@ class Engine:
                and (self.epoch + 1) != self.max_epoch)
                or self.epoch == (self.max_epoch - 1)):
 
-                top1, top5, mAP = self.test(
+                top1, top5, mAP, should_save_ema_model = self.test(
                     self.epoch,
                     dist_metric=dist_metric,
                     normalize_feature=normalize_feature,
@@ -417,10 +416,8 @@ class Engine:
                     should_exit = self.early_stoping and should_exit
 
                     if self.save_chkpt:
-                        self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best)
-                        if self.use_ema_decay and is_candidate_for_best:
-                            for ema in self.ema_wrapped_models:
-                                ema.restore()
+                        self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best,
+                                            should_save_ema_model=should_save_ema_model)
                     if should_exit:
                         break
 
@@ -463,17 +460,19 @@ class Engine:
 
     def backup_model(self):
         print("backuping model...")
+        model_device = next(self.models[self.main_model_name].parameters()).device
         # explicitly put the model on the CPU before storing it in memory
         self.state_cacher.store(key="model", state_dict=get_model_attr(self.models[self.main_model_name], 'cpu')().state_dict())
         self.state_cacher.store(key="optimizer", state_dict=self.optims[self.main_model_name].state_dict())
         # restore the model device
-        get_model_attr(self.models[self.main_model_name],'to')(self.model_device)
+        get_model_attr(self.models[self.main_model_name],'to')(model_device)
 
     def restore_model(self):
         print("restoring model and seeds to initial state...")
+        model_device = next(self.models[self.main_model_name].parameters()).device
         get_model_attr(self.models[self.main_model_name], 'load_state_dict')(self.state_cacher.retrieve("model"))
         self.optims[self.main_model_name].load_state_dict(self.state_cacher.retrieve("optimizer"))
-        get_model_attr(self.models[self.main_model_name],'to')(self.model_device)
+        get_model_attr(self.models[self.main_model_name],'to')(model_device)
         set_random_seed(self.seed)
 
     def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False, perf_monitor=None,
@@ -552,10 +551,8 @@ class Engine:
             self.current_lr = self.get_current_lr()
             if stop_callback and stop_callback.check_stop():
                 break
-
             if not lr_finder and self.use_ema_decay:
-                for ema in self.ema_wrapped_models:
-                    ema.update()
+                self.ema_model.update(self.models[self.main_model_name])
 
         if not lr_finder:
             self.update_lr(output_avg_metric = losses.meters['loss'].avg)
@@ -575,7 +572,7 @@ class Engine:
         ranks=(1, 5, 10, 20),
         rerank=False,
         lr_finder = False,
-        test_before_train=False
+        test_only=False
     ):
         r"""Tests model on target datasets.
 
@@ -590,19 +587,24 @@ class Engine:
             ``extract_features()`` and ``parse_data_for_eval()`` (most of the time),
             but not a must. Please refer to the source code for more details.
         """
-        if self.use_ema_decay and not lr_finder and not test_before_train:
-            for ema in self.ema_wrapped_models:
-                ema.apply_shadow()
+
         self.set_model_mode('eval')
         targets = list(self.test_loader.keys())
         top1, mAP, top5 = [None]*3
         cur_top1, cur_mAP, cur_top5 = [None]*3
+        ema_top1, ema_mAP, ema_top5 = [0]*3
+        should_save_ema_model = False
+
         for dataset_name in targets:
             domain = 'source' if dataset_name in self.datamanager.sources else 'target'
             print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
-
             for model_id, (model_name, model) in enumerate(self.models.items()):
-                if get_model_attr(model, 'classification'):
+                model_type = get_model_attr(model, 'type')
+                if model_type == 'classification':
+                    # do not evaluate second model till last epoch
+                    if (model_name != self.main_model_name
+                        and not test_only and epoch != (self.max_epoch - 1)):
+                        continue
                     cur_top1, cur_top5, cur_mAP = self._evaluate_classification(
                         model=model,
                         epoch=epoch,
@@ -610,10 +612,41 @@ class Engine:
                         model_name=model_name,
                         dataset_name=dataset_name,
                         ranks=ranks,
-                        lr_finder = lr_finder
+                        lr_finder=lr_finder
                     )
-                elif get_model_attr(model, 'contrastive'):
+                    if self.use_ema_decay and not lr_finder and not test_only:
+                        ema_top1, ema_top5, ema_mAP = self._evaluate_classification(
+                            model=self.ema_model.module,
+                            epoch=epoch,
+                            data_loader=self.test_loader[dataset_name]['query'],
+                            model_name='EMA model',
+                            dataset_name=dataset_name,
+                            ranks=ranks,
+                            lr_finder = lr_finder
+                        )
+                elif model_type == 'contrastive':
                     pass
+                elif model_type == 'multilabel':
+                    cur_mAP = self._evaluate_multilabel_classification(
+                        model=model,
+                        epoch=epoch,
+                        data_loader=self.test_loader[dataset_name]['query'],
+                        model_name=model_name,
+                        dataset_name=dataset_name,
+                        lr_finder=lr_finder
+                    )
+                    if self.use_ema_decay and not lr_finder and not test_only:
+                        ema_mAP = self._evaluate_classification(
+                            model=self.ema_model.module,
+                            epoch=epoch,
+                            data_loader=self.test_loader[dataset_name]['query'],
+                            model_name='EMA model',
+                            dataset_name=dataset_name,
+                            ranks=ranks,
+                            lr_finder = lr_finder
+                        )
+                    cur_top1, cur_top5 = (cur_mAP, cur_mAP)
+                    ema_top1, ema_top5 = (ema_mAP, ema_mAP)
                 elif dataset_name == 'lfw':
                     self._evaluate_pairwise(
                         model=model,
@@ -642,10 +675,37 @@ class Engine:
 
                 if model_id == 0:
                     # the function should return accuracy results for the first (main) model only
-                    top1 = cur_top1
-                    top5 = cur_top5
-                    mAP = cur_mAP
-        return top1, top5, mAP
+                    if ema_top1 >= cur_top1 and self.use_ema_decay:
+                        should_save_ema_model = True
+                        top1 = ema_top1
+                        top5 = ema_top5
+                        mAP = ema_mAP
+                    else:
+                        top1 = cur_top1
+                        top5 = cur_top5
+                        mAP = cur_mAP
+
+        return top1, top5, mAP, should_save_ema_model
+
+    @torch.no_grad()
+    def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, dataset_name, lr_finder):
+
+        mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader, model, self.use_gpu)
+
+        if self.writer is not None and not lr_finder:
+            self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
+
+        if not lr_finder:
+            print('** Results ({}) **'.format(model_name))
+            print('mAP: {:.2%}'.format(mAP))
+            print('P_O: {:.2%}'.format(p_o))
+            print('R_O: {:.2%}'.format(r_o))
+            print('F_O: {:.2%}'.format(f_o))
+            print('mean_P_C: {:.2%}'.format(mean_p_c))
+            print('mean_R_C: {:.2%}'.format(mean_r_c))
+            print('mean_F_C: {:.2%}'.format(mean_f_c))
+
+        return mAP
 
     @torch.no_grad()
     def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks, lr_finder):

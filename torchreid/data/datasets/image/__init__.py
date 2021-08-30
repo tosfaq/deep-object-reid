@@ -1,7 +1,7 @@
 from __future__ import absolute_import, print_function
 
 from .cityflow import CityFlow
-from .classification import Classification, ClassificationImageFolder, ExternalDatasetWrapper
+from .classification import Classification, ClassificationImageFolder, ExternalDatasetWrapper, MultiLabelClassification
 from .compcars import CompCars
 from .cuhk01 import CUHK01
 from .cuhk02 import CUHK02

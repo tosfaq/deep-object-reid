@@ -18,53 +18,57 @@ import torch.nn.functional as F
 
 from torchreid.ops import Dropout
 
+_VALID_MODEL_TYPES = ['classification', 'contrastive', 'reid', 'multilabel']
 
 class ModelInterface(nn.Module):
-     def __init__(self,
-                 classification=False,
-                 contrastive=False,
-                 pretrained=False,
-                 loss='softmax',
-                 **kwargs):
-          super().__init__()
+    def __init__(self,
+                type,
+                pretrained=False,
+                loss='softmax',
+                **kwargs):
+        super().__init__()
 
-          self.classification = classification
-          self.contrastive = contrastive
-          self.pretrained = pretrained
-          self.classification_classes = {}
-          self.loss = loss
-          self.use_angle_simple_linear = True if loss == 'am_softmax' else False
+        assert type in _VALID_MODEL_TYPES
+        self.type = type
+        self.pretrained = pretrained
+        self.classification_classes = {}
+        self.is_ie_model = False
+        self.loss = loss
+        self.use_angle_simple_linear = True if loss == 'am_softmax' else False
 
-     @staticmethod
-     def _glob_feature_vector(x, mode, reduce_dims=True):
-          if mode == 'avg':
-               out = F.adaptive_avg_pool2d(x, 1)
-          elif mode == 'max':
-               out = F.adaptive_max_pool2d(x, 1)
-          elif mode == 'avg+max':
-               avg_pool = F.adaptive_avg_pool2d(x, 1)
-               max_pool = F.adaptive_max_pool2d(x, 1)
-               out = avg_pool + max_pool
-          else:
-               raise ValueError(f'Unknown pooling mode: {mode}')
+    def is_classification(self):
+        return self.type == 'classification' or self.type == 'multilabel'
 
-          if reduce_dims:
-               return out.view(x.size(0), -1)
-          return out
+    @staticmethod
+    def _glob_feature_vector(x, mode, reduce_dims=True):
+        if mode == 'avg':
+            out = F.adaptive_avg_pool2d(x, 1)
+        elif mode == 'max':
+            out = F.adaptive_max_pool2d(x, 1)
+        elif mode == 'avg+max':
+            avg_pool = F.adaptive_avg_pool2d(x, 1)
+            max_pool = F.adaptive_max_pool2d(x, 1)
+            out = avg_pool + max_pool
+        else:
+            raise ValueError(f'Unknown pooling mode: {mode}')
 
-     @staticmethod
-     def _construct_fc_layer(input_dim, output_dim, dropout=None):
-          layers = []
+        if reduce_dims:
+            return out.view(x.size(0), -1)
+        return out
 
-          if dropout:
-               layers.append(Dropout(**dropout))
+    @staticmethod
+    def _construct_fc_layer(input_dim, output_dim, dropout=None):
+        layers = []
 
-          layers.extend([
-               nn.Linear(input_dim, output_dim),
-               nn.BatchNorm1d(output_dim)
-          ])
+        if dropout:
+            layers.append(Dropout(**dropout))
 
-          return nn.Sequential(*layers)
+        layers.extend([
+            nn.Linear(input_dim, output_dim),
+            nn.BatchNorm1d(output_dim)
+        ])
+
+        return nn.Sequential(*layers)
 
 def make_divisible(v, divisor, min_value=None):
     """

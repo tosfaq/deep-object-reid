@@ -25,6 +25,7 @@ def get_params_for_image_am_softmax_engine(cfg) -> Dict[str, object]:
         'max_soft': cfg.loss.softmax.augmentations.fmix.max_soft,
         'reformulate': cfg.loss.softmax.augmentations.fmix.reformulate,
         'pr_product': cfg.loss.softmax.pr_product,
+        'softmax_type': cfg.loss.name,
         'm': cfg.loss.softmax.m,
         's': cfg.loss.softmax.s,
         'compute_s': cfg.loss.softmax.compute_s,
@@ -42,7 +43,10 @@ def get_params_for_image_am_softmax_engine(cfg) -> Dict[str, object]:
         'enable_rsc': cfg.model.self_challenging_cfg.enable,
         'enable_sam': cfg.sam.enable,
         'use_ema_decay': cfg.train.ema.enable,
-        'ema_decay': cfg.train.ema.ema_decay
+        'ema_decay': cfg.train.ema.ema_decay,
+        'asl_gamma_neg': cfg.loss.asl.gamma_neg,
+        'asl_gamma_pos': cfg.loss.asl.gamma_pos,
+        'asl_p_m': cfg.loss.asl.p_m
     }
     return image_am_softmax_engine_params
 
@@ -56,11 +60,9 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             raise NotImplementedError('Freezing of aux models or NNCF compression are supported only for '
                                       'softmax and am_softmax losses for data.type = image')
 
-
-    if cfg.loss.name in ['softmax', 'am_softmax']:
+    if cfg.loss.name in ['softmax', 'am_softmax', 'asl']:
         image_am_softmax_engine_params = get_params_for_image_am_softmax_engine(cfg)
         initial_lr = initial_lr if initial_lr else cfg.train.lr
-        softmax_type = 'stock' if cfg.loss.name == 'softmax' else 'am'
         if nncf_metainfo is not None:
             if is_accuracy_aware_training(nncf_metainfo.nncf_config):
                 # TODO:(kshpv) lets take *target_metric_name* from config?
@@ -70,7 +72,6 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
                     models=model,
                     optimizers=optimizer,
                     schedulers=scheduler,
-                    softmax_type=softmax_type,
                     should_freeze_aux_models=should_freeze_aux_models,
                     nncf_metainfo=nncf_metainfo,
                     initial_lr=initial_lr,
@@ -83,7 +84,6 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             models=model,
             optimizers=optimizer,
             schedulers=scheduler,
-            softmax_type=softmax_type,
             should_freeze_aux_models=should_freeze_aux_models,
             nncf_metainfo=nncf_metainfo,
             initial_lr=initial_lr,

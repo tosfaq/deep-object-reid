@@ -4,7 +4,7 @@ from copy import copy
 from .dataset import Dataset, ImageDataset
 from .image import (CUHK01, CUHK02, CUHK03, GRID, LFW, MSMT17, PRID, VRIC,
                     CityFlow, Classification, ClassificationImageFolder, ExternalDatasetWrapper,
-                    CompCars, DukeMTMCreID, InternalAirport,
+                    MultiLabelClassification, CompCars, DukeMTMCreID, InternalAirport,
                     InternalCameraTampering, InternalGlobalMe, InternalMall,
                     InternalPSVIndoor, InternalPSVOutdoor, InternalSSPlatform,
                     InternalSSStreet, InternalSSTicket, InternalWildtrack,
@@ -47,6 +47,7 @@ __image_datasets = {
     'classification': Classification,
     'classification_image_folder' : ClassificationImageFolder,
     'external_classification_wrapper' : ExternalDatasetWrapper,
+    'multilabel_classification': MultiLabelClassification,
 }
 
 

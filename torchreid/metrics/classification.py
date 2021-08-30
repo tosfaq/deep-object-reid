@@ -5,11 +5,12 @@ import torch
 from sklearn.metrics import confusion_matrix
 from terminaltables import AsciiTable
 
+from torchreid.utils import get_model_attr
 
 def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
     with torch.no_grad():
         out_scores, gt_labels = [], []
-        for batch_idx, data in enumerate(data_loader):
+        for _, data in enumerate(data_loader):
             batch_images, batch_labels = data[0], data[1]
             if use_gpu:
                 batch_images = batch_images.cuda()
@@ -19,10 +20,10 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
                     batch_labels[torch.where(batch_labels==i)] = label
 
             out_scores.append(model(batch_images)[head_id])
-            gt_labels.extend(batch_labels)
+            gt_labels.append(batch_labels)
 
         out_scores = torch.cat(out_scores, 0).data.cpu().numpy()
-        gt_labels = np.asarray(gt_labels)
+        gt_labels = torch.cat(gt_labels, 0).data.cpu().numpy()
 
     return out_scores, gt_labels
 
@@ -140,10 +141,10 @@ def get_invalid(scores, gt_labels, data_info):
 
 
 def evaluate_classification(dataloader, model, use_gpu, topk=(1,), labelmap=[]):
-    if isinstance(model, torch.nn.Module):
-        scores, labels = score_extraction(dataloader, model, use_gpu, labelmap)
-    else:
+    if get_model_attr(model, 'is_ie_model'):
         scores, labels = score_extraction_from_ir(dataloader, model, labelmap)
+    else:
+        scores, labels = score_extraction(dataloader, model, use_gpu, labelmap)
 
     m_ap = mean_average_precision(scores, labels)
 
@@ -154,3 +155,79 @@ def evaluate_classification(dataloader, model, use_gpu, topk=(1,), labelmap=[]):
     norm_cm = norm_confusion_matrix(scores, labels)
 
     return cmc, m_ap, norm_cm
+
+
+def evaluate_multilabel_classification(dataloader, model, use_gpu):
+
+    def average_precision(output, target):
+        epsilon = 1e-8
+
+        # sort examples
+        indices = output.argsort()[::-1]
+        # Computes prec@i
+        total_count_ = np.cumsum(np.ones((len(output), 1)))
+
+        target_ = target[indices]
+        ind = target_ == 1
+        pos_count_ = np.cumsum(ind)
+        total = pos_count_[-1]
+        pos_count_[np.logical_not(ind)] = 0
+        pp = pos_count_ / total_count_
+        precision_at_i_ = np.sum(pp)
+        precision_at_i = precision_at_i_ / (total + epsilon)
+
+        return precision_at_i
+
+
+    def mAP(targs, preds, pos_thr=0.5):
+        """Returns the model's average precision for each class
+        Return:
+            ap (FloatTensor): 1xK tensor, with avg precision for each class k
+        """
+
+        if np.size(preds) == 0:
+            return 0
+        ap = np.zeros((preds.shape[1]))
+        # compute average precision for each class
+        for k in range(preds.shape[1]):
+            scores = preds[:, k]
+            targets = targs[:, k]
+            ap[k] = average_precision(scores, targets)
+
+        tp, fp, fn, tn = [], [], [], []
+        for k in range(preds.shape[0]):
+            scores = preds[k,:]
+            targets = targs[k,:]
+
+            pred = (scores > pos_thr).astype(np.int32)
+            tp.append(((pred + targets) == 2).sum())
+            fp.append(((pred - targets) == 1).sum())
+            fn.append(((pred - targets) == -1).sum())
+            tn.append(((pred + targets) == 0).sum())
+
+        p_c = [tp[i] / (tp[i] + fp[i]) if tp[i] > 0 else 0.0 for i in range(len(tp))]
+        r_c = [tp[i] / (tp[i] + fn[i]) if tp[i] > 0 else 0.0
+                    for i in range(len(tp))]
+        f_c = [2 * p_c[i] * r_c[i] / (p_c[i] + r_c[i]) if tp[i] > 0 else 0.0
+                    for i in range(len(tp))]
+
+        mean_p_c = sum(p_c) / len(p_c)
+        mean_r_c = sum(r_c) / len(r_c)
+        mean_f_c = sum(f_c) / len(f_c)
+
+        p_o = sum(tp) / (np.array(tp) + np.array(fp)).sum()
+        r_o = sum(tp) / (np.array(tp) + np.array(fn)).sum()
+        f_o = 2 * p_o * r_o / (p_o + r_o)
+
+        return ap.mean(), mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o
+
+
+    if isinstance(model, torch.nn.Module):
+        scores, labels = score_extraction(dataloader, model, use_gpu)
+    else:
+        scores, labels = score_extraction_from_ir(dataloader, model)
+
+    scores = 1. / (1 + np.exp(-scores))
+    mAP_score = mAP(labels, scores)
+
+    return mAP_score

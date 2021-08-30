@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import torch
 
 def accuracy(output, target, topk=(1, )):
     """Computes the accuracy over the k top predictions for
@@ -35,3 +36,16 @@ def accuracy(output, target, topk=(1, )):
         res.append(acc)
 
     return res
+
+
+def accuracy_multilabel(output, target, threshold=0.5):
+    batch_size = max(1, target.size(0))
+
+    if isinstance(output, (tuple, list)):
+        output = torch.sigmoid(output[0])
+
+    pred_idx = output > threshold
+    num_correct = (pred_idx == target).sum(dim=-1)
+    num_correct = (num_correct == target.size(1)).sum()
+
+    return num_correct / batch_size

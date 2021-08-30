@@ -61,8 +61,7 @@ def get_default_config():
     cfg.model.fpn.enable = True
     cfg.model.fpn.dim = 256
     cfg.model.fpn.process = 'concatenation'
-    cfg.model.classification = False
-    cfg.model.contrastive = False
+    cfg.model.type = 'reid'
     cfg.model.self_challenging_cfg = CN()
     cfg.model.self_challenging_cfg.enable = False
     cfg.model.self_challenging_cfg.drop_p = 0.33
@@ -187,6 +186,10 @@ def get_default_config():
     cfg.loss.softmax.class_weighting = False
     cfg.loss.softmax.base_num_classes = -1
     cfg.loss.softmax.symmetric_ce = False
+    cfg.loss.asl = CN()
+    cfg.loss.asl.gamma_pos = 0.
+    cfg.loss.asl.gamma_neg = 4.
+    cfg.loss.asl.p_m = 0.05
     cfg.loss.triplet = CN()
     cfg.loss.triplet.margin = 0.3  # distance margin
     cfg.loss.triplet.weight_t = 1.  # weight to balance hard triplet loss
@@ -574,8 +577,7 @@ def model_kwargs(cfg, num_classes):
         'enable_attentions': cfg.model.enable_attentions and cfg.data.enable_masks,
         'attr_names': cfg.attr_loss.names,
         'attr_num_classes': cfg.attr_loss.num_classes,
-        'classification': cfg.model.classification,
-        'contrastive': cfg.model.contrastive,
+        'type': cfg.model.type,
         'self_challenging_cfg': cfg.model.self_challenging_cfg,
     }
 
