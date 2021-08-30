@@ -1,7 +1,6 @@
 import io
 import os
 import math
-from subprocess import run, DEVNULL, CalledProcessError
 from typing import List, Optional
 from copy import deepcopy
 import tempfile
@@ -15,6 +14,7 @@ from torchreid.engine import build_engine
 from torchreid.optim import LrFinder
 from torchreid.data.transforms import build_inference_transform
 from torchreid.ops import DataParallel
+from torchreid.apis.export import export_onnx, export_ir
 from torchreid.utils import load_pretrained_weights, set_random_seed, random_image
 from scripts.default_config import (engine_run_kwargs, get_default_config,
                                     imagedata_kwargs, lr_finder_run_kwargs,
@@ -337,52 +337,10 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             logger.info(f'Optimized model will be temporarily saved to "{optimized_model_dir}"')
             os.makedirs(optimized_model_dir, exist_ok=True)
 
-            transform = build_inference_transform(
-                self._cfg.data.height,
-                self._cfg.data.width,
-                norm_mean=self._cfg.data.norm_mean,
-                norm_std=self._cfg.data.norm_std,
-                )
-            input_img = random_image(self._cfg.data.height, self._cfg.data.width)
-            input_blob = transform(input_img).unsqueeze(0).to(self.device)
-
-            input_names = ['data']
-            output_names = ['reid_embedding']
-            register_op("group_norm", group_norm_symbolic, "", 9)
             onnx_model_path = os.path.join(optimized_model_dir, 'model.onnx')
-            with torch.no_grad():
-                self._model.eval()
-                torch.onnx.export(
-                    self._model,
-                    input_blob,
-                    onnx_model_path,
-                    verbose=False,
-                    export_params=True,
-                    input_names=input_names,
-                    output_names=output_names,
-                    opset_version=9,
-                    operator_export_type=torch.onnx.OperatorExportTypes.ONNX
-                )
-
-            mean_values = str([s*255 for s in self._cfg.data.norm_mean])
-            scale_values = str([s*255 for s in self._cfg.data.norm_std])
-
-            # read yaml here to ger mean std
-            command_line = f'mo.py --input_model="{onnx_model_path}" ' \
-                            f'--mean_values="{mean_values}" ' \
-                            f'--scale_values="{scale_values}" ' \
-                            f'--output_dir="{optimized_model_dir}" ' \
-                            f'--data_type {optimized_model_precision.name} ' \
-                            '--reverse_input_channels'
-
-            try:
-                run('mo.py -h', stdout=DEVNULL, stderr=DEVNULL, shell=True, check=True)
-            except CalledProcessError as _:
-                print('OpenVINO Model Optimizer not found, please source '
-                    'openvino/bin/setupvars.sh before running this script.')
-                return
-
-            run(command_line, shell=True, check=True)
+            export_onnx(self._model.eval(), self._cfg, onnx_model_path)
+            export_ir(onnx_model_path, self._cfg.data.norm_mean, self._cfg.data.norm_std,
+                      optimized_model_dir, optimized_model_precision.name)
 
             bin_file = [f for f in os.listdir(optimized_model_dir) if f.endswith('.bin')][0]
             xml_file = [f for f in os.listdir(optimized_model_dir) if f.endswith('.xml')][0]
