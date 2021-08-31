@@ -84,7 +84,6 @@ def main(args):
     task_impl_path = model_template.entrypoints.base
     task_cls = get_task_class(task_impl_path)
     task = task_cls(task_environment=environment)
-
     logger.info('Train model')
     output_model = Model(
         NullProject(),
@@ -124,6 +123,25 @@ def main(args):
             model_size_reduction=1.,
             model_status=ModelStatus.NOT_READY)
         task.export(ExportType.OPENVINO, exported_model)
+
+        logger.info('Create OpenVINO Task')
+        environment.model = exported_model
+        openvino_task_impl_path = model_template.entrypoints.openvino
+        openvino_task_cls = get_task_class(openvino_task_impl_path)
+        openvino_task = openvino_task_cls(environment)
+
+        logger.info('Get predictions on the validation set')
+        predicted_validation_dataset = openvino_task.infer(
+            validation_dataset.with_empty_annotations(),
+            InferenceParameters(is_evaluation=True))
+        resultset = ResultSet(
+            model=output_model,
+            ground_truth_dataset=validation_dataset,
+            prediction_dataset=predicted_validation_dataset,
+        )
+        logger.info('Estimate quality on validation set')
+        performance = openvino_task.evaluate(resultset)
+        logger.info(str(performance))
 
 
 if __name__ == '__main__':
