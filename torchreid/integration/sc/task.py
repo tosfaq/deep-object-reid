@@ -7,20 +7,18 @@ import tempfile
 import shutil
 
 import torch
-from torch.onnx.symbolic_registry import register_op
 
 import torchreid
 from torchreid.engine import build_engine
 from torchreid.optim import LrFinder
-from torchreid.data.transforms import build_inference_transform
 from torchreid.ops import DataParallel
 from torchreid.apis.export import export_onnx, export_ir
-from torchreid.utils import load_pretrained_weights, set_random_seed, random_image
+from torchreid.utils import load_pretrained_weights, set_random_seed
 from scripts.default_config import (engine_run_kwargs, get_default_config,
                                     imagedata_kwargs, lr_finder_run_kwargs,
                                     lr_scheduler_kwargs, model_kwargs,
                                     optimizer_kwargs, merge_from_files_with_base)
-from scripts.script_utils import build_auxiliary_model, group_norm_symbolic
+from scripts.script_utils import build_auxiliary_model
 from torchreid.integration.sc.monitors import PerformanceMonitor, StopCallback, DefaultMetricsMonitor
 from torchreid.integration.sc.utils import (OTEClassificationDataset,
                                             generate_batch_indices, predict)
@@ -344,9 +342,9 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
             bin_file = [f for f in os.listdir(optimized_model_dir) if f.endswith('.bin')][0]
             xml_file = [f for f in os.listdir(optimized_model_dir) if f.endswith('.xml')][0]
-            with open(os.path.join(tempdir, bin_file), "rb") as f:
+            with open(os.path.join(optimized_model_dir, bin_file), "rb") as f:
                 output_model.set_data("openvino.bin", f.read())
-            with open(os.path.join(tempdir, xml_file), "rb") as f:
+            with open(os.path.join(optimized_model_dir, xml_file), "rb") as f:
                 output_model.set_data("openvino.xml", f.read())
             output_model.precision = [optimized_model_precision]
 
