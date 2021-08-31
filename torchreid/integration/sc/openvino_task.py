@@ -97,12 +97,12 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
 
     def post_process(self, prediction: Dict[str, np.ndarray], metadata: Dict[str, Any]) -> AnnotationScene:
         raw_output = get_output(self.net, prediction, 'reid_embedding').reshape(-1)
+        i = np.argmax(raw_output)
         raw_output = np.exp(raw_output)
         raw_output /= np.sum(raw_output)
-        i = np.argmax(raw_output)
 
         assigned_label = [ScoredLabel(self.labels[i], probability=raw_output[i])]
-        anno = Annotation(Box.generate_full_box(), labels=assigned_label)
+        anno = [Annotation(Box.generate_full_box(), labels=assigned_label)]
         media_identifier = ImageIdentifier(image_id=ID())
 
         return AnnotationScene(
@@ -132,6 +132,7 @@ class OpenVINODetectionTask(IInferenceTask, IEvaluationTask):
         from tqdm import tqdm
         for dataset_item in tqdm(dataset):
             dataset_item.annotation_scene = self.inferencer.predict(dataset_item.numpy)
+            dataset_item.append_labels(dataset_item.annotation_scene.annotations[0].get_labels())
         return dataset
 
     def evaluate(self,
