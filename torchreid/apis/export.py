@@ -36,7 +36,8 @@ def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
     )
 
     input_img = random_image(cfg.data.height, cfg.data.width)
-    input_blob = transform(input_img).unsqueeze(0)
+    device = next(model.parameters()).device
+    input_blob = transform(input_img).unsqueeze(0).to(device)
 
     input_names = ['data']
     output_names = ['reid_embedding']
