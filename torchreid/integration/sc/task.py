@@ -7,6 +7,7 @@ import tempfile
 import shutil
 
 import torch
+import numpy as np
 
 import torchreid
 from torchreid.engine import build_engine
@@ -20,9 +21,9 @@ from scripts.default_config import (engine_run_kwargs, get_default_config,
                                     optimizer_kwargs, merge_from_files_with_base)
 from scripts.script_utils import build_auxiliary_model
 from torchreid.integration.sc.monitors import PerformanceMonitor, StopCallback, DefaultMetricsMonitor
-from torchreid.integration.sc.utils import (OTEClassificationDataset,
-                                            generate_batch_indices, predict)
+from torchreid.integration.sc.utils import OTEClassificationDataset
 from torchreid.integration.sc.parameters import OTEClassificationParameters
+from torchreid.metrics.classification import score_extraction
 
 from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.entities.label_schema import LabelGroupType
@@ -37,6 +38,7 @@ from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
 from ote_sdk.configuration import cfg_helper
 from ote_sdk.configuration.helper.utils import ids_to_strings
 
+from ote_sdk.entities.label import ScoredLabel
 from sc_sdk.entities.model import Model
 from sc_sdk.entities.resultset import ResultSet
 from sc_sdk.entities.datasets import Dataset, DatasetItem, Subset
@@ -110,6 +112,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         """
         num_train_classes = len(self._labels)
         model = torchreid.models.build_model(**model_kwargs(сonfig, num_train_classes))
+        if self._cfg.model.load_weights:
+            load_pretrained_weights(model, self._cfg.model.load_weights)
         return model
 
     def _patch_config(self, base_dir: str):
@@ -173,21 +177,23 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             For example, when results are generated for evaluation purposes, Saliency maps can be turned off.
         :return: Dataset that also includes the classification results
         """
-        configurable_parameters = self._hyperparams
-        batch_size = max(1, configurable_parameters.learning_parameters.batch_size // 2)
         labels = [label.name for label in self._labels]
         self._cfg.custom_datasets.roots = [OTEClassificationDataset(dataset, labels),
                                            OTEClassificationDataset(dataset, labels)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
-
+        self._model.eval()
+        self._model.to(self.device)
+        targets = list(datamanager.test_loader.keys())
+        scores, _ = score_extraction(datamanager.test_loader[targets[0]]['query'], self._model, self._cfg.use_gpu)
+        labels = np.argmax(scores, axis=1)
         predicted_items = []
-
-        for batch_slice in generate_batch_indices(len(dataset), batch_size):
-            dataset_slice: List[DatasetItem] = dataset[batch_slice]
-            outputs_batch = predict(dataset_slice=dataset_slice, labels=self._labels, model=self._model,
-                                    transform=datamanager.transform_te,
-                                    device=self.device)
-            predicted_items.extend(outputs_batch)
+        for i in range(labels.shape[0]):
+            dataset_item = dataset[i]
+            class_idx = labels[i]
+            class_prob = float(scores[i, class_idx].squeeze())
+            label = ScoredLabel(label=self._labels[class_idx], probability=class_prob)
+            dataset_item.append_labels([label])
+            predicted_items.append(dataset_item)
 
         return Dataset(None, predicted_items)
 
