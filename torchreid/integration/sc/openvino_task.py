@@ -16,6 +16,7 @@ from typing import Any, Dict, Tuple, List, Optional, Union
 
 import cv2 as cv
 import numpy as np
+import PIL
 
 from ote_sdk.entities.id import ID
 from ote_sdk.entities.inference_parameters import InferenceParameters
@@ -74,7 +75,8 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
     @staticmethod
     def resize_image(image: np.ndarray, size: Tuple[int], keep_aspect_ratio: bool = False) -> np.ndarray:
         if not keep_aspect_ratio:
-            resized_frame = cv.resize(image, size)
+            img = PIL.Image.fromarray(image).resize(size, resample=PIL.Image.BILINEAR)
+            resized_frame = np.array(img, dtype=np.uint8)
         else:
             h, w = image.shape[:2]
             scale = min(size[1] / h, size[0] / w)
@@ -83,6 +85,7 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
 
     def pre_process(self, image: np.ndarray) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
         resized_image = self.resize_image(image, (self.w, self.h), self.keep_aspect_ratio_resize)
+        resized_image = cv.cvtColor(resized_image, cv.COLOR_RGB2BGR)
         meta = {'original_shape': image.shape,
                 'resized_shape': resized_image.shape}
 
