@@ -126,7 +126,11 @@ class ImageAMSoftmaxEngine(Engine):
                     conf_penalty=conf_penalty,
                     scale=scale_factor * s
                 ))
+<<<<<<< HEAD
             elif loss_name == 'am_softmax':
+=======
+            elif softmax_type == 'am_softmax':
+>>>>>>> Fix ams loss name
                 trg_class_counts = datamanager.data_counts[trg_id]
                 assert len(trg_class_counts) == trg_num_classes
 
@@ -302,7 +306,6 @@ class ImageAMSoftmaxEngine(Engine):
 
         for trg_id in range(self.num_targets):
             trg_mask = train_records['dataset_id'] == trg_id
-
             trg_obj_ids = obj_ids[trg_mask]
             trg_num_samples = trg_obj_ids.numel()
             if trg_num_samples == 0:
