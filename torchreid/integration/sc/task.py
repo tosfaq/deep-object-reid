@@ -190,6 +190,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         for i in range(labels.shape[0]):
             dataset_item = dataset[i]
             class_idx = labels[i]
+            scores[i] = np.exp(scores[i])
+            scores[i] /= np.sum(scores[i])
             class_prob = float(scores[i, class_idx].squeeze())
             label = ScoredLabel(label=self._labels[class_idx], probability=class_prob)
             dataset_item.append_labels([label])
@@ -238,10 +240,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                                            OTEClassificationDataset(val_subset, labels)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
 
-        if self.num_classes != datamanager.num_train_pids[0]:
-            self.num_classes = datamanager.num_train_pids[0]
-            train_model = self._create_model(self._cfg)
-
         num_aux_models = len(self._cfg.mutual_learning.aux_configs)
 
         if self._cfg.use_gpu:
@@ -257,15 +255,9 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             scheduler = None
         else:
             scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(self._cfg))
-        '''
-        if parameters.resume_from:
-            self._cfg.train.start_epoch = resume_from_checkpoint(
-                parameters.resume_from, self._model, optimizer=optimizer, scheduler=scheduler
-            )
-        '''
 
         lr = None # placeholder, needed for aux models
-        if self._cfg.lr_finder.enable: # and not parameters.resume_from:
+        if self._cfg.lr_finder.enable:
             if num_aux_models:
                 print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
 

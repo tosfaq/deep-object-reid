@@ -1,20 +1,13 @@
 
-import math
 import datetime
 import os
 from os import path as osp
-from typing import Callable, Dict, List, Optional, Tuple, Union
 from copy import deepcopy
 import importlib
 import tempfile
 import subprocess
 
-import PIL
-import numpy as np
 import cv2 as cv
-import torch
-import torch.utils as utils
-from torch.utils.data import Dataset as TorchDataset
 
 from ote_sdk.entities.shapes.box import Box
 from ote_sdk.entities.label import ScoredLabel, LabelEntity, Color
@@ -26,8 +19,6 @@ from sc_sdk.entities.label import distinct_colors
 from sc_sdk.entities.dataset_storage import NullDatasetStorage
 from sc_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
                                           LabelSchema)
-
-from torchreid.models.common import ModelInterface
 
 
 class OTEClassificationDataset():
@@ -74,7 +65,7 @@ class ClassificationDatasetAdapter(Dataset):
         self.annotations = {}
         for k, v in self.data_roots.items():
             if v:
-                self.data_roots[k] = os.path.abspath(v)
+                self.data_roots[k] = osp.abspath(v)
                 self.annotations[k] = self._load_annotation(self.data_roots[k])
 
         self.labels = None
@@ -207,13 +198,13 @@ def reload_hyper_parameters(model_template):
     """
 
     template_file = model_template.model_template_path
-    template_dir = os.path.dirname(template_file)
+    template_dir = osp.dirname(template_file)
     temp_folder = tempfile.mkdtemp()
     conf_yaml = [dep.source for dep in model_template.dependencies if dep.destination == model_template.hyper_parameters.base_path][0]
-    conf_yaml = os.path.join(template_dir, conf_yaml)
+    conf_yaml = osp.join(template_dir, conf_yaml)
     subprocess.run(f'cp {conf_yaml} {temp_folder}', check=True, shell=True)
     subprocess.run(f'cp {template_file} {temp_folder}', check=True, shell=True)
-    model_template.hyper_parameters.load_parameters(os.path.join(temp_folder, 'template.yaml'))
+    model_template.hyper_parameters.load_parameters(osp.join(temp_folder, 'template.yaml'))
     assert model_template.hyper_parameters.data
 
 

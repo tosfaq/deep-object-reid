@@ -77,7 +77,9 @@ def main(args):
     logger.info('Setup environment')
     params = create(hyper_parameters)
     logger.info('Set hyperparameters')
-    environment = TaskEnvironment(model=NullModel(), hyper_parameters=params, label_schema=labels_schema, model_template=model_template)
+    environment = TaskEnvironment(model=NullModel(), hyper_parameters=params,
+                                  label_schema=labels_schema,
+                                  model_template=model_template)
 
     logger.info('Create base Task')
     task_impl_path = model_template.entrypoints.base
