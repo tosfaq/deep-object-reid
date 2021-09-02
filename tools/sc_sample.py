@@ -64,7 +64,7 @@ def main(args):
     logger.info(f'Validation dataset: {len(dataset.get_subset(Subset.VALIDATION))} items')
 
     logger.info('Load model template')
-    model_template = parse_model_template(args.template_file_path, '1')
+    model_template = parse_model_template(args.template_file_path)
 
     # Here we have to reload parameters manually because
     # `parse_model_template` was called when `configuration.yaml` was not near `template.yaml.`
