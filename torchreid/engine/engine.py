@@ -431,7 +431,11 @@ class Engine:
                         self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best,
                                             should_save_ema_model=should_save_ema_model)
                     if should_exit:
-                        break
+                        if compression_ctrl.compression_stage == CompressionStage.FULLY_COMPRESSED:
+                            break
+                        else:
+                            print('Try to early exit training but skip due to compression algo didn\'t'
+                                  ' finish the compression')
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_end()
         if lr_finder and lr_finder.mode != 'fast_ai': self.restore_model()
