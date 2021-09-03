@@ -59,7 +59,7 @@ class ImageAMSoftmaxEngine(Engine):
                                                    use_ema_decay=use_ema_decay,
                                                    ema_decay=ema_decay)
 
-        assert softmax_type in ['softmax', 'am', 'asl']
+        assert softmax_type in ['softmax', 'am_softmax', 'asl']
         assert s > 0.0
         if softmax_type == 'am':
             assert m >= 0.0
@@ -266,8 +266,8 @@ class ImageAMSoftmaxEngine(Engine):
             total_loss.backward(retain_graph=self.enable_metric_losses)
 
             for model_name in model_names:
-                # TODO(kshpv, lbeynens): Change this ugly code. The bug appears trying to
-                # call optimzer with mutual learning and NNCF
+                # TODO: optimize training loop to prevent double
+                # not trained model inference
                 if not self.models[model_name].training:
                     continue
 

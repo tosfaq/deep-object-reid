@@ -389,10 +389,7 @@ class Engine:
                 print(compression_ctrl.statistics().to_str())
 
             if stop_callback and stop_callback.check_stop():
-                if compression_ctrl.compression_stage == CompressionStage.FULLY_COMPRESSED:
-                    break
-                print('Try to early exit training but skip due to compression algo didn\'t'
-                      ' finish the compression')
+                break
 
             if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_end()
 
@@ -433,9 +430,6 @@ class Engine:
                     if should_exit:
                         if compression_ctrl.compression_stage == CompressionStage.FULLY_COMPRESSED:
                             break
-                        else:
-                            print('Try to early exit training but skip due to compression algo didn\'t'
-                                  ' finish the compression')
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_end()
         if lr_finder and lr_finder.mode != 'fast_ai': self.restore_model()
@@ -797,8 +791,6 @@ class Engine:
                 if self.use_gpu:
                     imgs = imgs.cuda()
 
-                # TODO(kprokofi) check features is tuple
-                # but handled as torch.tensor
                 features = model(imgs),
                 features = features.data.cpu()
 
