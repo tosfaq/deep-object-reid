@@ -345,18 +345,18 @@ class Engine:
 
         if not lr_finder:
             print('Test before training')
-            #self.test(
-            #          0,
-            #          dist_metric=dist_metric,
-            #          normalize_feature=normalize_feature,
-            #          visrank=visrank,
-            #          visrank_topk=visrank_topk,
-            #          save_dir=save_dir,
-            #          use_metric_cuhk03=use_metric_cuhk03,
-            #          ranks=ranks,
-            #          rerank=rerank,
-            #          test_only=True
-            #)
+            self.test(
+                      0,
+                      dist_metric=dist_metric,
+                      normalize_feature=normalize_feature,
+                      visrank=visrank,
+                      visrank_topk=visrank_topk,
+                      save_dir=save_dir,
+                      use_metric_cuhk03=use_metric_cuhk03,
+                      ranks=ranks,
+                      rerank=rerank,
+                      test_only=True
+            )
         else:
             self.configure_lr_finder(trial, lr_finder)
             self.backup_model()
@@ -793,14 +793,16 @@ class Engine:
                 if self.use_gpu:
                     imgs = imgs.cuda()
 
-                features = model(imgs)[0]
+                # TODO(kprokofi) check features is tuple
+                # but handled as torch.tensor
+                features = model(imgs),
                 features = features.data.cpu()
 
                 f_.append(features)
                 pids_.extend(pids)
                 camids_.extend(camids)
 
-            f_ = torch.cat(f_, 0) if f_ else torch.tensor([[]])
+            f_ = torch.cat(f_, 0)
             pids_ = np.asarray(pids_)
             camids_ = np.asarray(camids_)
 

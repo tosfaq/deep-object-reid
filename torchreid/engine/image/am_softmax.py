@@ -196,13 +196,6 @@ class ImageAMSoftmaxEngine(Engine):
     def compute_s(num_class: int):
         return float(max(np.sqrt(2) * np.log(num_class - 1), 3))
 
-    def check_models_weights_not_none(self):
-        for model in self.models.values():
-            for param in model.parameters():
-                if torch.any(torch.isnan(param)):
-                    return True
-        return False
-
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx
 
@@ -235,14 +228,9 @@ class ImageAMSoftmaxEngine(Engine):
             for model_name in model_names:
                 self.optims[model_name].zero_grad()
 
-                if self.check_models_weights_not_none():
-                    print('Model has Nones!')
-
                 model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
                     self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name, num_packages
                 )
-                if self.check_models_weights_not_none():
-                    print('Model has Nones!')
 
                 avg_acc += model_avg_acc / float(num_models)
                 total_loss += model_loss / float(num_models)
@@ -276,19 +264,12 @@ class ImageAMSoftmaxEngine(Engine):
                 total_loss += coeff_mutual_learning * mutual_loss / float(num_mutual_losses)
 
             total_loss.backward(retain_graph=self.enable_metric_losses)
-            for model in self.models.values():
-                if model.training:
-                    for name, param in model.named_parameters():
-                        if param.requires_grad and param.grad is None:
-                            print(f'Param {name} grad is None')
 
             for model_name in model_names:
                 # TODO(kshpv, lbeynens): Change this ugly code. The bug appears trying to
                 # call optimzer with mutual learning and NNCF
                 if not self.models[model_name].training:
                     continue
-                if self.check_models_weights_not_none():
-                    print('Model has Nones!')
 
                 for trg_id in range(self.num_targets):
                     if self.enable_metric_losses:
@@ -300,9 +281,6 @@ class ImageAMSoftmaxEngine(Engine):
                     self.optims[model_name].second_step()
                 elif not isinstance(self.optims[model_name], SAM) and step == 1:
                     self.optims[model_name].step()
-
-            if self.check_models_weights_not_none():
-                print('Model has Nones!')
 
             loss_summary['loss'] = total_loss.item()
 
