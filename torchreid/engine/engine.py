@@ -12,6 +12,7 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 
+from nncf.api.compression import CompressionStage
 from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler
 from torchreid import metrics
 from torchreid.losses import DeepSupervision
@@ -344,18 +345,18 @@ class Engine:
 
         if not lr_finder:
             print('Test before training')
-            self.test(
-                      0,
-                      dist_metric=dist_metric,
-                      normalize_feature=normalize_feature,
-                      visrank=visrank,
-                      visrank_topk=visrank_topk,
-                      save_dir=save_dir,
-                      use_metric_cuhk03=use_metric_cuhk03,
-                      ranks=ranks,
-                      rerank=rerank,
-                      test_only=True
-            )
+            #self.test(
+            #          0,
+            #          dist_metric=dist_metric,
+            #          normalize_feature=normalize_feature,
+            #          visrank=visrank,
+            #          visrank_topk=visrank_topk,
+            #          save_dir=save_dir,
+            #          use_metric_cuhk03=use_metric_cuhk03,
+            #          ranks=ranks,
+            #          rerank=rerank,
+            #          test_only=True
+            #)
         else:
             self.configure_lr_finder(trial, lr_finder)
             self.backup_model()
@@ -379,7 +380,7 @@ class Engine:
                 print_freq=print_freq,
                 fixbase_epoch=fixbase_epoch,
                 open_layers=open_layers,
-                lr_finder = lr_finder,
+                lr_finder=lr_finder,
                 perf_monitor=perf_monitor,
                 stop_callback=stop_callback,
                 compression_ctrl=compression_ctrl
@@ -388,7 +389,11 @@ class Engine:
                 print(compression_ctrl.statistics().to_str())
 
             if stop_callback and stop_callback.check_stop():
-                break
+                if compression_ctrl.compression_stage == CompressionStage.FULLY_COMPRESSED:
+                    break
+                print('Try to early exit training but skip due to compression algo didn\'t'
+                      ' finish the compression')
+
             if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_end()
 
             if (((self.epoch + 1) >= start_eval
@@ -513,6 +518,7 @@ class Engine:
 
             if compression_ctrl:
                 compression_ctrl.scheduler.step(self.batch_idx)
+
             loss_summary, avg_acc = self.forward_backward(data)
             batch_time.update(time.time() - end)
 
@@ -679,7 +685,7 @@ class Engine:
                         use_metric_cuhk03=use_metric_cuhk03,
                         ranks=ranks,
                         rerank=rerank,
-                        lr_finder = lr_finder
+                        lr_finder=lr_finder
                     )
 
                 if model_id == 0:
@@ -778,7 +784,7 @@ class Engine:
         ranks=(1, 5, 10, 20),
         rerank=False,
         model_name='',
-        lr_finder = False
+        lr_finder=False
     ):
         def _feature_extraction(data_loader):
             f_, pids_, camids_ = [], [], []
@@ -787,14 +793,14 @@ class Engine:
                 if self.use_gpu:
                     imgs = imgs.cuda()
 
-                features = model(imgs),
+                features = model(imgs)[0]
                 features = features.data.cpu()
 
                 f_.append(features)
                 pids_.extend(pids)
                 camids_.extend(camids)
 
-            f_ = torch.cat(f_, 0)
+            f_ = torch.cat(f_, 0) if f_ else torch.tensor([[]])
             pids_ = np.asarray(pids_)
             camids_ = np.asarray(camids_)
 

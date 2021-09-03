@@ -30,8 +30,14 @@ class SAM(torch.optim.Optimizer):
     @torch.no_grad()
     def first_step(self, zero_grad=False):
         grad_norm = self._grad_norm()
+        if torch.any(torch.isnan(grad_norm)):
+            print('GradNorm is none!')
+
         for group in self.param_groups:
             scale = self.rho / (grad_norm + 1e-12)
+
+            if torch.any(torch.isnan(scale)):
+                print('Scale is none!')
 
             for p in group["params"]:
                 if p.grad is None: continue
