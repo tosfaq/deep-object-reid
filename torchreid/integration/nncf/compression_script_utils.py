@@ -73,6 +73,7 @@ def make_nncf_changes_in_main_training_config(cfg, command_line_cfg_opts):
     nncf_training_config = cfg.get('nncf', {})
 
     nncf_changes_in_main_train_config = nncf_training_config.get('changes_in_main_train_config')
+    cfg.ema.enable = False # turn off the EMA model since it is useless when compressing
     if nncf_changes_in_main_train_config:
         _sanity_check_nncf_changes_in_config(nncf_changes_in_main_train_config)
 
