@@ -426,9 +426,11 @@ class Engine:
 
                     if self.save_chkpt:
                         self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best,
-                                            should_save_ema_model=should_save_ema_model)
+                                        should_save_ema_model=should_save_ema_model)
                     if should_exit:
-                        if compression_ctrl.compression_stage == CompressionStage.FULLY_COMPRESSED:
+                        if compression_ctrl is None or \
+                                (compression_ctrl is not None and
+                                 compression_ctrl.compression_stage == CompressionStage.FULLY_COMPRESSED):
                             break
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_end()
