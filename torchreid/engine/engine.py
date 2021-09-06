@@ -14,6 +14,7 @@ from torch.nn import functional as F
 from torch.optim.lr_scheduler import OneCycleLR
 
 from nncf.api.compression import CompressionStage
+from nncf.common.utils.tensorboard import prepare_for_tensorboard
 from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler, CosineAnnealingCycleRestart
 from torchreid import metrics
 from torchreid.losses import DeepSupervision
@@ -393,7 +394,12 @@ class Engine:
                 compression_ctrl=compression_ctrl
             )
             if compression_ctrl is not None:
-                print(compression_ctrl.statistics().to_str())
+                statistics = compression_ctrl.statistics()
+                print(statistics.to_str())
+                if self.writer is not None and not lr_finder:
+                    for key, value in prepare_for_tensorboard(statistics).items():
+                        self.writer.add_scalar("compression/statistics/{0}".format(key),
+                                               value, len(self.train_loader) * self.epoch)
 
             if stop_callback and stop_callback.check_stop():
                 break
