@@ -126,6 +126,7 @@ def get_default_config():
     cfg.train.new_layers = ['classifier']  # newly added layers with default lr
     cfg.train.base_lr_mult = 0.1  # learning rate multiplier for base layers
     cfg.train.lr_scheduler = 'single_step'
+    cfg.train.target_metric = 'train_loss' # define which metric to use with reduce_on_plateau scheduler. Two possible variants are available: 'test_acc' and 'train_loss'
     cfg.train.base_scheduler = ''
     cfg.train.stepsize = [20]  # stepsize to decay learning rate
     cfg.train.gamma = 0.1  # learning rate decay multiplier
@@ -142,9 +143,10 @@ def get_default_config():
     cfg.train.seed = 5  # random seed
     cfg.train.deterministic = False # define to use cuda.deterministic
     cfg.train.warmup = 1  # After fixbase_epoch
+    cfg.train.clip_grad = 0.
     cfg.train.ema = CN()
     cfg.train.ema.enable = False
-    cfg.train.ema.ema_decay = 0.999
+    cfg.train.ema.ema_decay = 0.9999
 
     # optimizer
     cfg.sgd = CN()
@@ -164,7 +166,7 @@ def get_default_config():
     cfg.loss = CN()
     cfg.loss.name = 'softmax'
     cfg.loss.softmax = CN()
-    cfg.loss.softmax.label_smooth = False  # use label smoothing regularizer
+    cfg.loss.softmax.label_smooth = 0.  # use label smoothing regularizer
     cfg.loss.softmax.margin_type = 'cos'
     cfg.loss.softmax.augmentations = CN()
     cfg.loss.softmax.augmentations.aug_type = '' # use advanced augmentations like fmix, cutmix and mixup
@@ -188,8 +190,13 @@ def get_default_config():
     cfg.loss.softmax.symmetric_ce = False
     cfg.loss.asl = CN()
     cfg.loss.asl.gamma_pos = 0.
-    cfg.loss.asl.gamma_neg = 4.
+    cfg.loss.asl.gamma_neg = 0.
     cfg.loss.asl.p_m = 0.05
+    cfg.loss.am_binary = CN()
+    cfg.loss.am_binary.sym_adjustment = False
+    cfg.loss.am_binary.auto_balance = False
+    cfg.loss.am_binary.amb_k = 0.8
+    cfg.loss.am_binary.amb_t = 1.
     cfg.loss.triplet = CN()
     cfg.loss.triplet.margin = 0.3  # distance margin
     cfg.loss.triplet.weight_t = 1.  # weight to balance hard triplet loss
@@ -366,6 +373,16 @@ def get_default_config():
     cfg.data.transforms.augmix.enable = False
     cfg.data.transforms.augmix.cfg_str = "augmix-m5-w3"
     cfg.data.transforms.augmix.grey_imgs = False
+
+    cfg.data.transforms.randaugment = CN()
+    cfg.data.transforms.randaugment.enable = False
+    cfg.data.transforms.randaugment.p = 1.
+
+    cfg.data.transforms.cutout = CN()
+    cfg.data.transforms.cutout.enable = False
+    cfg.data.transforms.cutout.p = 0.5
+    cfg.data.transforms.cutout.cutout_factor=0.3
+    cfg.data.transforms.cutout.fill_color='random'
 
     cfg.data.transforms.random_figures = CN()
     cfg.data.transforms.random_figures.enable = False

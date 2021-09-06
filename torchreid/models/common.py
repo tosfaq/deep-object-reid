@@ -89,6 +89,7 @@ def make_divisible(v, divisor, min_value=None):
         new_v += divisor
     return new_v
 
+
 def depthwise_conv3x3(channels,
                       stride):
     """

@@ -11,9 +11,9 @@ import optuna
 import numpy as np
 import torch
 from torch.nn import functional as F
+from torch.optim.lr_scheduler import OneCycleLR
 
-from nncf.api.compression import CompressionStage
-from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler
+from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler, CosineAnnealingCycleRestart
 from torchreid import metrics
 from torchreid.losses import DeepSupervision
 from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
@@ -55,10 +55,12 @@ class Engine:
                  save_chkpt=True,
                  train_patience = 10,
                  lr_decay_factor = 1000,
+                 lr_finder = None,
                  early_stoping=False,
                  should_freeze_aux_models=False,
                  nncf_metainfo=None,
                  initial_lr=None,
+                 target_metric = 'train_loss',
                  epoch_interval_for_aux_model_freeze=None,
                  epoch_interval_for_turn_off_mutual_learning=None,
                  use_ema_decay=False,
@@ -73,11 +75,14 @@ class Engine:
         self.writer = None
         self.use_ema_decay = use_ema_decay
         self.start_epoch = 0
+        self.lr_finder = lr_finder
         self.fixbase_epoch = 0
         self.iter_to_wait = 0
         self.best_metric = 0.0
         self.max_epoch = None
         self.num_batches = None
+        assert target_metric in ['train_loss', 'test_acc']
+        self.target_metric = target_metric
         self.epoch = None
         self.train_patience = train_patience
         self.early_stoping = early_stoping
@@ -123,6 +128,7 @@ class Engine:
         self.main_model_name = self.get_model_names()[0]
         assert initial_lr is not None
         self.lb_lr = initial_lr / lr_decay_factor
+        self.per_batch_annealing = isinstance(self.scheds[self.main_model_name], (CosineAnnealingCycleRestart, OneCycleLR))
 
     def _should_freeze_aux_models(self, epoch):
         if not self.should_freeze_aux_models:
@@ -376,7 +382,7 @@ class Engine:
             if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_begin()
             if compression_ctrl is not None:
                 compression_ctrl.scheduler.epoch_step(self.epoch)
-            self.train(
+            avg_loss = self.train(
                 print_freq=print_freq,
                 fixbase_epoch=fixbase_epoch,
                 open_layers=open_layers,
@@ -410,6 +416,10 @@ class Engine:
                     ranks=ranks,
                     lr_finder=lr_finder,
                 )
+
+            target_metric = top1 if self.target_metric == 'test_acc' else avg_loss
+            if not lr_finder and not self.per_batch_annealing:
+                self.update_lr(output_avg_metric = target_metric)
 
                 if lr_finder:
                     print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
@@ -568,9 +578,10 @@ class Engine:
                 break
             if not lr_finder and self.use_ema_decay:
                 self.ema_model.update(self.models[self.main_model_name])
+            if self.per_batch_annealing:
+                self.update_lr()
 
-        if not lr_finder:
-            self.update_lr(output_avg_metric = losses.meters['loss'].avg)
+        return losses.meters['loss'].avg
 
     def forward_backward(self, data):
         raise NotImplementedError
@@ -629,7 +640,8 @@ class Engine:
                         ranks=ranks,
                         lr_finder=lr_finder
                     )
-                    if self.use_ema_decay and not lr_finder and not test_only:
+                    if (self.use_ema_decay and not lr_finder
+                        and not test_only and model_name == self.main_model_name):
                         ema_top1, ema_top5, ema_mAP = self._evaluate_classification(
                             model=self.ema_model.module,
                             epoch=epoch,
@@ -642,6 +654,10 @@ class Engine:
                 elif model_type == 'contrastive':
                     pass
                 elif model_type == 'multilabel':
+                    # do not evaluate second model till last epoch
+                    if (model_name != self.main_model_name
+                        and not test_only and epoch != (self.max_epoch - 1)):
+                        continue
                     cur_mAP = self._evaluate_multilabel_classification(
                         model=model,
                         epoch=epoch,
@@ -650,14 +666,14 @@ class Engine:
                         dataset_name=dataset_name,
                         lr_finder=lr_finder
                     )
-                    if self.use_ema_decay and not lr_finder and not test_only:
-                        ema_mAP = self._evaluate_classification(
+                    if (self.use_ema_decay and not lr_finder
+                        and not test_only and model_name == self.main_model_name):
+                        ema_mAP = self._evaluate_multilabel_classification(
                             model=self.ema_model.module,
                             epoch=epoch,
                             data_loader=self.test_loader[dataset_name]['query'],
                             model_name='EMA model',
                             dataset_name=dataset_name,
-                            ranks=ranks,
                             lr_finder = lr_finder
                         )
                     cur_top1, cur_top5 = (cur_mAP, cur_mAP)

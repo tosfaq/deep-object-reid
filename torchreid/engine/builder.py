@@ -1,5 +1,6 @@
+from torchreid.optim import lr_finder
 from torchreid.engine import (ImageAMSoftmaxEngine, ImageContrastiveEngine,
-                              ImageTripletEngine)
+                              ImageTripletEngine, MultilabelEngine)
 
 
 def build_engine(cfg, datamanager, model, optimizer, scheduler,
@@ -11,9 +12,8 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             raise NotImplementedError('Freezing of aux models or NNCF compression are supported only for '
                                       'softmax and am_softmax losses for data.type = image')
     initial_lr = initial_lr if initial_lr else cfg.train.lr
-    if cfg.loss.name in ['softmax', 'am_softmax', 'asl']:
-        engine = ImageAMSoftmaxEngine(
-            datamanager,
+    classification_params = dict(
+            datamanager=datamanager,
             models=model,
             optimizers=optimizer,
             reg_cfg=cfg.reg,
@@ -21,6 +21,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             schedulers=scheduler,
             use_gpu=cfg.use_gpu,
             save_chkpt = cfg.model.save_chkpt,
+            lr_finder = cfg.lr_finder.enable,
             train_patience = cfg.train.train_patience,
             early_stoping = cfg.train.early_stoping,
             lr_decay_factor = cfg.train.lr_decay_factor,
@@ -34,7 +35,8 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             max_soft=cfg.loss.softmax.augmentations.fmix.max_soft,
             reformulate=cfg.loss.softmax.augmentations.fmix.reformulate,
             pr_product=cfg.loss.softmax.pr_product,
-            softmax_type=cfg.loss.name,
+            loss_name=cfg.loss.name,
+            clip_grad=cfg.train.clip_grad,
             m=cfg.loss.softmax.m,
             s=cfg.loss.softmax.s,
             compute_s=cfg.loss.softmax.compute_s,
@@ -54,12 +56,26 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             should_freeze_aux_models=should_freeze_aux_models,
             nncf_metainfo=nncf_metainfo,
             initial_lr=initial_lr,
+            target_metric=cfg.train.target_metric,
             use_ema_decay=cfg.train.ema.enable,
             ema_decay=cfg.train.ema.ema_decay,
             asl_gamma_neg=cfg.loss.asl.gamma_neg,
             asl_gamma_pos=cfg.loss.asl.gamma_pos,
-            asl_p_m=cfg.loss.asl.p_m
+            asl_p_m=cfg.loss.asl.p_m,
+            sym_adjustment=cfg.loss.am_binary.sym_adjustment,
+            auto_balance=cfg.loss.am_binary.auto_balance,
+            amb_k = cfg.loss.am_binary.amb_k,
+            amb_t=cfg.loss.am_binary.amb_t)
+
+    if cfg.loss.name in ['softmax', 'am_softmax']:
+        engine = ImageAMSoftmaxEngine(
+            **classification_params
         )
+    elif cfg.loss.name in ['asl', 'bce', 'am_binary']:
+        engine = MultilabelEngine(
+            **classification_params
+        )
+
     elif cfg.loss.name == 'contrastive':
         engine = ImageContrastiveEngine(
             datamanager,

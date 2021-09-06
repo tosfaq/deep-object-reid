@@ -8,6 +8,8 @@ from .osnet import *
 from .osnet_ain import *
 from .osnet_fpn import *
 from .ptcv_wrapper import *
+from .tresnet import *
+from .resnet import *
 
 __model_factory = {
     # image classification models
@@ -26,6 +28,11 @@ __model_factory = {
     'efficientnet_b5': efficientnet_b5b,
     'efficientnet_b6': efficientnet_b6b,
     'efficientnet_b7': efficientnet_b7b,
+    'tresnet': tresnet,
+    'resnet101': resnet101,
+    'resnet101D': resnet101D,
+    'wide_resnet101': wide_resnet101,
+    'resnext101': resnext101,
 
     # reid-specific models
     'osnet_x1_0': osnet_x1_0,
