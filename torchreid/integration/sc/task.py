@@ -42,7 +42,6 @@ from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExpo
 from ote_sdk.entities.label import ScoredLabel
 from ote_sdk.entities.model import ModelEntity
 
-from sc_sdk.entities.model import Model
 from sc_sdk.entities.resultset import ResultSet
 from sc_sdk.entities.datasets import Dataset, Subset
 from sc_sdk.logging import logger_factory
