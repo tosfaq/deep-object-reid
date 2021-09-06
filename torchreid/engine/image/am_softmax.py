@@ -59,9 +59,9 @@ class ImageAMSoftmaxEngine(Engine):
                                                    use_ema_decay=use_ema_decay,
                                                    ema_decay=ema_decay)
 
-        assert softmax_type in ['softmax', 'am', 'asl']
+        assert softmax_type in ['softmax', 'am_softmax', 'asl']
         assert s > 0.0
-        if softmax_type == 'am':
+        if softmax_type == 'am_softmax':
             assert m >= 0.0
 
         self.regularizer = get_regularizer(reg_cfg)
@@ -119,7 +119,7 @@ class ImageAMSoftmaxEngine(Engine):
                     conf_penalty=conf_penalty,
                     scale=scale_factor * s
                 ))
-            elif softmax_type == 'am':
+            elif softmax_type == 'am_softmax':
                 trg_class_counts = datamanager.data_counts[trg_id]
                 assert len(trg_class_counts) == trg_num_classes
 
@@ -216,7 +216,7 @@ class ImageAMSoftmaxEngine(Engine):
         model_names = self.get_model_names()
         num_models = len(model_names)
 
-        steps = [1,2] if self.enable_sam else [1]
+        steps = [1, 2] if self.enable_sam else [1]
         for step in steps:
             # if sam is enabled then statistics will be written each step, but will be saved only the second time
             # this is made just for convinience
@@ -231,6 +231,7 @@ class ImageAMSoftmaxEngine(Engine):
                 model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
                     self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name, num_packages
                 )
+
                 avg_acc += model_avg_acc / float(num_models)
                 total_loss += model_loss / float(num_models)
                 loss_summary.update(model_loss_summary)
@@ -262,10 +263,14 @@ class ImageAMSoftmaxEngine(Engine):
 
                 total_loss += coeff_mutual_learning * mutual_loss / float(num_mutual_losses)
 
-
             total_loss.backward(retain_graph=self.enable_metric_losses)
 
             for model_name in model_names:
+                # TODO: optimize training loop to prevent double
+                # not trained model inference
+                if not self.models[model_name].training:
+                    continue
+
                 for trg_id in range(self.num_targets):
                     if self.enable_metric_losses:
                         ml_loss_module = self.ml_losses[trg_id][model_name]
@@ -304,7 +309,7 @@ class ImageAMSoftmaxEngine(Engine):
 
             trg_logits = all_logits[trg_id][trg_mask]
             main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, aug_index=self.aug_index,
-                                                lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
+                                                 lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
             if trg_logits.shape[-1] == trg_obj_ids.shape[-1]:
                 avg_acc += metrics.accuracy_multilabel(trg_logits, trg_obj_ids).item()
             else:
