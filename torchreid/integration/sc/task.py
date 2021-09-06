@@ -37,13 +37,14 @@ from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
 from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
 from ote_sdk.configuration import cfg_helper
 from ote_sdk.configuration.helper.utils import ids_to_strings
-
+from ote_sdk.entities.model import ModelPrecision
+from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
 from ote_sdk.entities.label import ScoredLabel
+from ote_sdk.entities.model import ModelEntity
+
 from sc_sdk.entities.model import Model
 from sc_sdk.entities.resultset import ResultSet
-from sc_sdk.entities.datasets import Dataset, DatasetItem, Subset
-from sc_sdk.entities.optimized_model import OptimizedModel, ModelPrecision
-from sc_sdk.usecases.tasks.interfaces.export_interface import IExportTask, ExportType
+from sc_sdk.entities.datasets import Dataset, Subset
 from sc_sdk.logging import logger_factory
 
 logger = logger_factory.get_logger("OTEClassificationTask")
@@ -79,7 +80,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self.metrics_monitor = DefaultMetricsMonitor()
         self.perf_monitor = PerformanceMonitor()
 
-    def _load_model(self, model: Model):
+    def _load_model(self, model: ModelEntity):
         if model is not None:
             # If a model has been trained and saved for the task already, create empty model and load weights here
             buffer = io.BytesIO(model.get_data("weights.pth"))
@@ -159,7 +160,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         """
         return self.perf_monitor.get_training_progress()
 
-    def save_model(self, output_model: Model):
+    def save_model(self, output_model: ModelEntity):
         buffer = io.BytesIO()
         hyperparams = self._task_environment.get_hyper_parameters(OTEClassificationParameters)
         hyperparams_str = ids_to_strings(cfg_helper.convert(hyperparams, dict, enum_to_str=True))
@@ -212,7 +213,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             output.append(MetricsGroup(metrics=[loss], visualization_info=visualization_info))
         return output
 
-    def train(self, dataset: Dataset, output_model: Model, train_parameters: Optional[TrainParameters] = None):
+    def train(self, dataset: Dataset, output_model: ModelEntity, train_parameters: Optional[TrainParameters] = None):
         """ Trains a model on a dataset """
 
         configurable_parameters = self._hyperparams
@@ -324,7 +325,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         logger.info(f"Computes performance of {performance}")
         return performance
 
-    def export(self, export_type: ExportType, output_model: OptimizedModel):
+    def export(self, export_type: ExportType, output_model: ModelEntity):
         assert export_type == ExportType.OPENVINO
         optimized_model_precision = ModelPrecision.FP32
 

@@ -19,17 +19,15 @@ from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.configuration.helper import create
 from sc_sdk.entities.dataset_storage import NullDatasetStorage
 from sc_sdk.entities.datasets import Subset
-from sc_sdk.entities.model import Model, ModelStatus, NullModel
+from sc_sdk.entities.model import Model, NullModel
 from sc_sdk.entities.model_storage import NullModelStorage
-from ote_sdk.entities.model_template import parse_model_template
-from sc_sdk.entities.optimized_model import (ModelOptimizationType,
-                                             ModelPrecision, OptimizedModel,
-                                             TargetDevice)
+from ote_sdk.entities.model_template import parse_model_template, TargetDevice
+from ote_sdk.entities.model import ModelStatus, ModelPrecision, ModelOptimizationType
+from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
 from sc_sdk.entities.project import NullProject
 from sc_sdk.entities.resultset import ResultSet
 from ote_sdk.entities.task_environment import TaskEnvironment
 from sc_sdk.logging import logger_factory
-from sc_sdk.usecases.tasks.interfaces.export_interface import ExportType
 
 from torchreid.integration.sc.utils import (ClassificationDatasetAdapter,
                                             generate_label_schema,
@@ -110,7 +108,7 @@ def main(args):
 
     if args.export:
         logger.info('Export model')
-        exported_model = OptimizedModel(
+        exported_model = Model(
             NullProject(),
             NullModelStorage(),
             dataset,
