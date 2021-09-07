@@ -258,6 +258,8 @@ class ImageAMSoftmaxEngine(Engine):
             total_loss.backward(retain_graph=self.enable_metric_losses)
 
             for model_name in model_names:
+                if not self.models[model_name].training:
+                    continue
                 if self.clip_grad != 0:
                     torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
                 for trg_id in range(self.num_targets):
