@@ -13,6 +13,7 @@ import torch
 from torch.nn import functional as F
 from torch.optim.lr_scheduler import OneCycleLR
 
+from nncf.api.compression import CompressionStage
 from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler, CosineAnnealingCycleRestart
 from torchreid import metrics
 from torchreid.losses import DeepSupervision
