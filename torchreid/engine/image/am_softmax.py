@@ -42,7 +42,8 @@ class ImageAMSoftmaxEngine(Engine):
                  reformulate, aug_prob, conf_penalty, pr_product, m, s, compute_s, end_s, clip_grad,
                  duration_s, skip_steps_s, enable_masks, adaptive_margins, class_weighting,
                  attr_cfg, base_num_classes, symmetric_ce, mix_weight, enable_rsc, enable_sam,
-                 should_freeze_aux_models, nncf_metainfo, initial_lr, target_metric, use_ema_decay, ema_decay, **kwargs):
+                 should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
+                 target_metric, use_ema_decay, ema_decay, **kwargs):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager,
                                                    models=models,
                                                    optimizers=optimizers,
@@ -54,6 +55,7 @@ class ImageAMSoftmaxEngine(Engine):
                                                    early_stoping=early_stoping,
                                                    should_freeze_aux_models=should_freeze_aux_models,
                                                    nncf_metainfo=nncf_metainfo,
+                                                   compression_ctrl=compression_ctrl,
                                                    initial_lr=initial_lr,
                                                    target_metric=target_metric,
                                                    lr_finder=lr_finder,
@@ -208,7 +210,7 @@ class ImageAMSoftmaxEngine(Engine):
 
         model_names = self.get_model_names()
         num_models = len(model_names)
-        steps = [1,2] if self.enable_sam and not self.lr_finder else [1]
+        steps = [1, 2] if self.enable_sam and not self.lr_finder else [1]
         for step in steps:
             # if sam is enabled then statistics will be written each step, but will be saved only the second time
             # this is made just for convinience
@@ -254,6 +256,10 @@ class ImageAMSoftmaxEngine(Engine):
                 coeff_mutual_learning = int(not should_turn_off_mutual_learning)
 
                 total_loss += coeff_mutual_learning * mutual_loss / float(num_mutual_losses)
+                if self.compression_ctrl:
+                    compression_loss = self.compression_ctrl.loss()
+                    loss_summary['compression_loss'] = compression_loss
+                    total_loss += compression_loss
 
             total_loss.backward(retain_graph=self.enable_metric_losses)
 

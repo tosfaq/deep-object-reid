@@ -6,6 +6,7 @@ from torchreid.engine import (ImageAMSoftmaxEngine, ImageContrastiveEngine,
 def build_engine(cfg, datamanager, model, optimizer, scheduler,
                  should_freeze_aux_models=False,
                  nncf_metainfo=None,
+                 compression_ctrl=None,
                  initial_lr=None):
     if should_freeze_aux_models or nncf_metainfo:
         if cfg.loss.name not in ['softmax', 'am_softmax']:
@@ -55,6 +56,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             enable_sam=cfg.sam.enable,
             should_freeze_aux_models=should_freeze_aux_models,
             nncf_metainfo=nncf_metainfo,
+            compression_ctrl=compression_ctrl,
             initial_lr=initial_lr,
             target_metric=cfg.train.target_metric,
             use_ema_decay=cfg.train.ema.enable,
