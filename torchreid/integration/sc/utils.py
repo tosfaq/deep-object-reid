@@ -9,7 +9,7 @@ import subprocess
 
 import cv2 as cv
 
-from ote_sdk.entities.shapes.box import Box
+from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.label import ScoredLabel, LabelEntity, Color
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneKind
 from sc_sdk.entities.annotation import AnnotationScene, NullMediaIdentifier
@@ -17,8 +17,8 @@ from sc_sdk.entities.datasets import Dataset, DatasetItem, NullDataset, Subset
 from sc_sdk.entities.image import Image
 from sc_sdk.entities.label import distinct_colors
 from sc_sdk.entities.dataset_storage import NullDatasetStorage
-from sc_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
-                                          LabelSchema)
+from ote_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
+                                           LabelSchemaEntity)
 
 
 class OTEClassificationDataset():
@@ -143,7 +143,7 @@ class ClassificationDatasetAdapter(Dataset):
         img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
         image = Image(name=None, numpy=img, dataset_storage=NullDatasetStorage())
         label = create_gt_scored_label(self.data_info[indx][1])
-        shapes = [Annotation(Box.generate_full_box(), [label])]
+        shapes = [Annotation(Rectangle.generate_full_box(), [label])]
         annotation_scene = AnnotationScene(kind=AnnotationSceneKind.ANNOTATION,
                                            media_identifier=NullMediaIdentifier(),
                                            annotations=shapes)
@@ -176,7 +176,7 @@ def generate_label_schema(label_names):
     emptylabel = LabelEntity(name=f"Empty label", color=Color(42, 43, 46),
                        is_empty=True, domain=label_domain, id=len(not_empty_labels),creation_date=datetime.datetime.now())
 
-    label_schema = LabelSchema()
+    label_schema = LabelSchemaEntity()
     exclusive_group = LabelGroup(name="labels", labels=not_empty_labels, group_type=LabelGroupType.EXCLUSIVE)
     empty_group = LabelGroup(name="empty", labels=[emptylabel], group_type=LabelGroupType.EMPTY_LABEL)
     label_schema.add_group(exclusive_group)
