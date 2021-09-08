@@ -1,35 +1,7 @@
-algo_backend:
-  description: Internal Algo Backend parameters
-  header: Internal Algo Backend parameters
-  model: main_model.yaml
-  model_name: image classification model
-  template: template.yaml
-  type: PARAMETER_GROUP
-  visible_in_ui: false
-description: Configuration for an object detection task
-header: Configuration for an object detection task
+description: Configuration for an image classification task
+header: Configuration for an image classification task
+id: ''
 learning_parameters:
-  batch_size:
-    affects_outcome_of: TRAINING
-    default_value: 32
-    description: The number of training samples seen in each iteration of training.
-      Increasing this value improves training time and may make the training more
-      stable. A larger batch size has higher memory requirements.
-    editable: true
-    header: Batch size
-    max_value: 512
-    min_value: 1
-    type: INTEGER
-    ui_rules:
-      action: DISABLE_EDITING
-      operator: AND
-      rules: []
-      type: UI_RULES
-    visible_in_ui: true
-    warning: Increasing this value may cause the system to use more memory than available,
-      potentially causing out of memory errors, please update with caution.
-  description: Learning Parameters
-  header: Learning Parameters
   max_num_epochs:
     affects_outcome_of: TRAINING
     default_value: 200
@@ -47,7 +19,68 @@ learning_parameters:
       type: UI_RULES
     visible_in_ui: true
     warning: null
+  batch_size:
+    affects_outcome_of: TRAINING
+    default_value: 32
+    description: The number of training samples seen in each iteration of training.
+      Increasing this value improves training time and may make the training more
+      stable. A larger batch size has higher memory requirements.
+    editable: true
+    header: Batch size
+    max_value: 512
+    min_value: 1
+    type: INTEGER
+    ui_rules:
+      action: DISABLE_EDITING
+      operator: AND
+      rules: []
+      type: UI_RULES
+    value: 32
+    visible_in_ui: true
+    warning: Increasing this value may cause the system to use more memory than available,
+      potentially causing out of memory errors, please update with caution.
+  description: Learning Parameters
+  header: Learning Parameters
+  learning_rate:
+    affects_outcome_of: TRAINING
+    default_value: 0.01
+    description: Increasing this value will speed up training convergence but might
+      make it unstable.
+    editable: true
+    header: Learning rate
+    max_value: 0.1
+    min_value: 1.0e-07
+    type: FLOAT
+    ui_rules:
+      action: DISABLE_EDITING
+      operator: AND
+      rules: []
+      type: UI_RULES
+    value: 0.01
+    visible_in_ui: false
+    warning: null
+  num_workers:
+    affects_outcome_of: NONE
+    default_value: 0
+    description: Increasing this value might improve training speed however it might
+      cause out of memory errors. If the number of workers is set to zero, data loading
+      will happen in the main training thread.
+    editable: true
+    header: Number of cpu threads to use during batch generation
+    max_value: 8
+    min_value: 0
+    type: INTEGER
+    ui_rules:
+      action: DISABLE_EDITING
+      operator: AND
+      rules: []
+      type: UI_RULES
+    value: 0
+    visible_in_ui: true
+    warning: null
   type: PARAMETER_GROUP
   visible_in_ui: true
+model_storage_id: ''
 type: MODEL_CONFIG
 visible_in_ui: true
+workspace_id: ''
