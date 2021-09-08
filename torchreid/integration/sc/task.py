@@ -106,7 +106,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
     def _create_model(self, сonfig, from_scratch: bool = False):
         """
         Creates a model, based on the configuration in config
-        :param config: mmdetection configuration from which the model has to be built
+        :param config: deep-object-reid configuration from which the model has to be built
         :param from_scratch: bool, if True does not load any weights
         :return model: Model in training mode
         """
