@@ -14,6 +14,7 @@ from torch.nn import functional as F
 from torch.optim.lr_scheduler import OneCycleLR
 
 from nncf.api.compression import CompressionStage
+from nncf.common.utils.tensorboard import prepare_for_tensorboard
 from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler, CosineAnnealingCycleRestart
 from torchreid import metrics
 from torchreid.losses import DeepSupervision
@@ -60,6 +61,7 @@ class Engine:
                  early_stoping=False,
                  should_freeze_aux_models=False,
                  nncf_metainfo=None,
+                 compression_ctrl=None,
                  initial_lr=None,
                  target_metric = 'train_loss',
                  epoch_interval_for_aux_model_freeze=None,
@@ -98,6 +100,7 @@ class Engine:
             print(f'Engine: should_freeze_aux_models={should_freeze_aux_models}')
         self.should_freeze_aux_models = should_freeze_aux_models
         self.nncf_metainfo = deepcopy(nncf_metainfo)
+        self.compression_ctrl = compression_ctrl
         self.initial_lr = initial_lr
         self.epoch_interval_for_aux_model_freeze = epoch_interval_for_aux_model_freeze
         self.epoch_interval_for_turn_off_mutual_learning = epoch_interval_for_turn_off_mutual_learning
@@ -299,7 +302,6 @@ class Engine:
         perf_monitor=None,
         stop_callback=None,
         initial_seed=5,
-        compression_ctrl=None,
         **kwargs
     ):
         r"""A unified pipeline for training and evaluating a model.
@@ -381,19 +383,23 @@ class Engine:
             # change the NumPy’s seed at every epoch
             np.random.seed(initial_seed + self.epoch)
             if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_begin()
-            if compression_ctrl is not None:
-                compression_ctrl.scheduler.epoch_step(self.epoch)
+            if self.compression_ctrl is not None:
+                self.compression_ctrl.scheduler.epoch_step(self.epoch)
             avg_loss = self.train(
                 print_freq=print_freq,
                 fixbase_epoch=fixbase_epoch,
                 open_layers=open_layers,
                 lr_finder=lr_finder,
                 perf_monitor=perf_monitor,
-                stop_callback=stop_callback,
-                compression_ctrl=compression_ctrl
+                stop_callback=stop_callback
             )
-            if compression_ctrl is not None:
-                print(compression_ctrl.statistics().to_str())
+            if self.compression_ctrl is not None:
+                statistics = self.compression_ctrl.statistics()
+                print(statistics.to_str())
+                if self.writer is not None and not lr_finder:
+                    for key, value in prepare_for_tensorboard(statistics).items():
+                        self.writer.add_scalar("compression/statistics/{0}".format(key),
+                                               value, len(self.train_loader) * self.epoch)
 
             if stop_callback and stop_callback.check_stop():
                 break
@@ -439,9 +445,9 @@ class Engine:
                         self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best,
                                         should_save_ema_model=should_save_ema_model)
                     if should_exit:
-                        if compression_ctrl is None or \
-                                (compression_ctrl is not None and
-                                 compression_ctrl.compression_stage == CompressionStage.FULLY_COMPRESSED):
+                        if self.compression_ctrl is None or \
+                                (self.compression_ctrl is not None and
+                                 self.compression_ctrl.compression_stage == CompressionStage.FULLY_COMPRESSED):
                             break
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_end()
@@ -499,7 +505,7 @@ class Engine:
         set_random_seed(self.seed)
 
     def train(self, print_freq=10, fixbase_epoch=0, open_layers=None, lr_finder=False, perf_monitor=None,
-              stop_callback=None, compression_ctrl=None):
+              stop_callback=None):
         losses = MetricMeter()
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -527,8 +533,8 @@ class Engine:
 
             data_time.update(time.time() - end)
 
-            if compression_ctrl:
-                compression_ctrl.scheduler.step(self.batch_idx)
+            if self.compression_ctrl:
+                self.compression_ctrl.scheduler.step(self.batch_idx)
 
             loss_summary, avg_acc = self.forward_backward(data)
             batch_time.update(time.time() - end)

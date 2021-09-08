@@ -167,11 +167,11 @@ def main():
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers,
                           should_freeze_aux_models=should_freeze_aux_models,
                           nncf_metainfo=nncf_metainfo,
+                          compression_ctrl=compression_ctrl,
                           initial_lr=aux_lr)
 
     log_dir = cfg.data.tb_log_dir if cfg.data.tb_log_dir else cfg.data.save_dir
-    engine.run(**engine_run_kwargs(cfg), compression_ctrl=compression_ctrl,
-               tb_writer=SummaryWriter(log_dir=log_dir))
+    engine.run(**engine_run_kwargs(cfg), tb_writer=SummaryWriter(log_dir=log_dir))
 
 
 if __name__ == '__main__':
