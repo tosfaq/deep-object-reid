@@ -117,7 +117,7 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
         return self.model.infer(inputs)
 
 
-class OpenVINODetectionTask(IInferenceTask, IEvaluationTask):
+class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask):
     def __init__(self, task_environment: TaskEnvironment):
         self.task_environment = task_environment
         self.hparams = self.task_environment.get_hyper_parameters(OTEClassificationParameters)
