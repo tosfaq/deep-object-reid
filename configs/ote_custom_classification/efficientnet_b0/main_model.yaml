@@ -17,7 +17,6 @@ model:
   pretrained: True
   save_chkpt: True
   feature_dim: 1280
-  load_weights: 'configs/ote_custom_classification/efficientnet_b0/snap.pth'
 
 custom_datasets:
   roots: ['data/CIFAR100/train', 'data/CIFAR100/val']

@@ -17,8 +17,10 @@ learning_parameters:
       operator: AND
       rules: []
       type: UI_RULES
+    value: 200
     visible_in_ui: true
-    warning: null
+    warning: Increasing this value may cause the system to use more memory than available,
+      potentially causing out of memory errors, please update with caution.
   batch_size:
     affects_outcome_of: TRAINING
     default_value: 32

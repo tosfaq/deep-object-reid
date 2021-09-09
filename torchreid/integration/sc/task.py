@@ -40,7 +40,7 @@ from ote_sdk.configuration.helper.utils import ids_to_strings
 from ote_sdk.entities.model import ModelPrecision
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
 from ote_sdk.entities.label import ScoredLabel
-from ote_sdk.entities.model import ModelEntity
+from ote_sdk.entities.model import ModelEntity, ModelStatus
 
 from sc_sdk.entities.resultset import ResultSet
 from sc_sdk.entities.datasets import Dataset, Subset
@@ -314,6 +314,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         logger.info("Training finished, and it has an improved model")
         self._model = deepcopy(train_model)
         self.save_model(output_model)
+        output_model.model_status = ModelStatus.SUCCESS
 
         self.progress_monitor = None
 

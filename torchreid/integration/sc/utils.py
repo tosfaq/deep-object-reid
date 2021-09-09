@@ -62,9 +62,12 @@ class ClassificationDatasetAdapter(Dataset):
                  **kwargs):
         super().__init__(**kwargs)
         self.data_roots = {}
-        self.data_roots[Subset.TRAINING] = train_data_root
-        self.data_roots[Subset.VALIDATION] = val_data_root
-        self.data_roots[Subset.TESTING] = test_data_root
+        if train_data_root:
+            self.data_roots[Subset.TRAINING] = train_data_root
+        if val_data_root:
+            self.data_roots[Subset.VALIDATION] = val_data_root
+        if test_data_root:
+            self.data_roots[Subset.TESTING] = test_data_root
         self.annotations = {}
         for k, v in self.data_roots.items():
             if v:
@@ -113,7 +116,7 @@ class ClassificationDatasetAdapter(Dataset):
     def set_labels_obtained_from_annotation(self):
         self.labels = None
         self.label_map = {}
-        for subset in (Subset.TRAINING, Subset.VALIDATION, Subset.TESTING):
+        for subset in self.data_roots:
             self.label_map = self.annotations[subset][1]
             labels = list(self.annotations[subset][1].keys())
             if self.labels and self.labels != labels:
