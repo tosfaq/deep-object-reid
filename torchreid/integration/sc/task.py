@@ -72,7 +72,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self._patch_config(base_dir)
 
         self.device = torch.device("cuda:0") if torch.cuda.device_count() else torch.device("cpu")
-        self._model = self._load_model(None).to(self.device)
+        self._model = self._load_model(task_environment.model).to(self.device)
 
         # Define monitors
         self.stop_callback = StopCallback()
@@ -85,7 +85,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             buffer = io.BytesIO(model.get_data("weights.pth"))
             model_data = torch.load(buffer, map_location=torch.device('cpu'))
 
-            model = self._create_model(self._config, from_scratch=True)
+            model = self._create_model(self._cfg, from_scratch=True)
 
             try:
                 load_pretrained_weights(model, pretrained_dict=model_data)

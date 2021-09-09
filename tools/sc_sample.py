@@ -17,9 +17,9 @@ import os.path as osp
 import sys
 from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.configuration.helper import create
+from sc_sdk.entities.model import Model
 from sc_sdk.entities.dataset_storage import NullDatasetStorage
 from sc_sdk.entities.datasets import Subset
-from sc_sdk.entities.model import Model, NullModel
 from sc_sdk.entities.model_storage import NullModelStorage
 from ote_sdk.entities.model_template import parse_model_template, TargetDevice
 from ote_sdk.entities.model import ModelStatus, ModelPrecision, ModelOptimizationType
@@ -75,7 +75,7 @@ def main(args):
     logger.info('Setup environment')
     params = create(hyper_parameters)
     logger.info('Set hyperparameters')
-    environment = TaskEnvironment(model=NullModel(), hyper_parameters=params,
+    environment = TaskEnvironment(model=None, hyper_parameters=params,
                                   label_schema=labels_schema,
                                   model_template=model_template)
 
