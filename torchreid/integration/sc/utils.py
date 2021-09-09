@@ -53,8 +53,11 @@ class OTEClassificationDataset():
 
 class ClassificationDatasetAdapter(Dataset):
     def __init__(self,
+                 train_ann_file=None,
                  train_data_root=None,
+                 val_ann_file=None,
                  val_data_root=None,
+                 test_ann_file=None,
                  test_data_root=None,
                  **kwargs):
         super().__init__(**kwargs)
