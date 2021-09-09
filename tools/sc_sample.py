@@ -55,7 +55,7 @@ def main(args):
         test_data_root=osp.join(args.data_dir, 'val'),
         dataset_storage=NullDatasetStorage)
 
-    labels_schema = generate_label_schema(dataset.get_labels())
+    labels_schema = generate_label_schema(dataset.get_labels(), dataset.is_multilabel())
     labels_list = labels_schema.get_labels(False)
     dataset.set_project_labels(labels_list)
     logger.info(f'Train dataset: {len(dataset.get_subset(Subset.TRAINING))} items')

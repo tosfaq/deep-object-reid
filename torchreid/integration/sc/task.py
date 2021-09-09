@@ -63,6 +63,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         self._model_name = hyperparams.algo_backend.model_name
         self._labels = task_environment.get_labels(False)
+        self._multilabel = len(task_environment.label_schema.get_groups(False)) > 1
 
         template_file_path = task_environment.model_template.model_template_path
 
@@ -122,7 +123,10 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         merge_from_files_with_base(self._cfg, config_file_path)
         self._cfg.use_gpu = torch.cuda.device_count() > 0
         self.num_devices = 1 if self._cfg.use_gpu else 0
-        self._cfg.model.type = 'classification'
+        if self._multilabel:
+            self._cfg.model.type = 'multilabel'
+        else:
+            self._cfg.model.type = 'classification'
         groups = self._task_environment.label_schema.get_groups()
         label_relation_type = groups[0].group_type
         if label_relation_type == LabelGroupType.EXCLUSIVE and len(groups) == 1:

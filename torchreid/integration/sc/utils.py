@@ -1,6 +1,6 @@
-
 import datetime
 import os
+import json
 from os import path as osp
 from copy import deepcopy
 import importlib
@@ -29,12 +29,19 @@ class OTEClassificationDataset():
         self.annotation = []
 
         for i in range(len(self.ote_dataset)):
+            class_indices = []
             if self.ote_dataset[i].get_shapes_labels():
-                label = self.ote_dataset[i].get_shapes_labels()[0].name
-                class_num = self.labels.index(label)
+                for ote_lbl in self.ote_dataset[i].get_shapes_labels():
+                    class_indices.append(self.labels.index(ote_lbl.name))
+                #label = self.ote_dataset[i].get_shapes_labels()[0].name
+                #class_num = self.labels.index(label)
             else:
-                class_num = 0
-            self.annotation.append({'label': class_num})
+                #class_num = 0
+                class_indices.append(0)
+            if ote_dataset.is_multilabel():
+                self.annotation.append({'label': tuple(class_indices)})
+            else:
+                self.annotation.append({'label': class_indices[0]})
 
     def __getitem__(self, idx):
         sample = self.ote_dataset[idx].numpy  # This returns 8-bit numpy array of shape (height, width, RGB)
@@ -62,17 +69,27 @@ class ClassificationDatasetAdapter(Dataset):
                  **kwargs):
         super().__init__(**kwargs)
         self.data_roots = {}
+        self.ann_files = {}
+        self.multilabel = False
         if train_data_root:
             self.data_roots[Subset.TRAINING] = train_data_root
+            self.ann_files[Subset.TRAINING] = train_ann_file
         if val_data_root:
             self.data_roots[Subset.VALIDATION] = val_data_root
+            self.ann_files[Subset.VALIDATION] = val_ann_file
         if test_data_root:
             self.data_roots[Subset.TESTING] = test_data_root
+            self.ann_files[Subset.TESTING] = test_ann_file
         self.annotations = {}
         for k, v in self.data_roots.items():
             if v:
                 self.data_roots[k] = osp.abspath(v)
-                self.annotations[k] = self._load_annotation(self.data_roots[k])
+                if self.ann_files[k] and '.json' in self.ann_files[k]:
+                    self.multilabel = True
+                    self.annotations[k] = self._load_annotation_multilabel(self.ann_files[k], self.data_roots[k])
+                else:
+                    self.annotations[k] = self._load_annotation(self.data_roots[k])
+                    assert not self.multilabel
 
         self.labels = None
         self.label_map = None
@@ -80,7 +97,29 @@ class ClassificationDatasetAdapter(Dataset):
         self.project_labels = None
 
     @staticmethod
-    def _load_annotation(data_dir, filter_classes=None, dataset_id=0):
+    def _load_annotation_multilabel(annot_path, data_dir):
+        out_data = []
+        with open(annot_path) as f:
+            annotation = json.load(f)
+            classes = sorted(annotation['classes'])
+            class_to_idx = {classes[i]: i for i in range(len(classes))}
+            images_info = annotation['images']
+            img_wo_objects = 0
+            for img_info in images_info:
+                rel_image_path, img_labels = img_info
+                full_image_path = osp.join(data_dir, rel_image_path)
+                labels_idx = [lbl for lbl in img_labels if lbl in class_to_idx]
+                # labels_idx = [class_to_idx[lbl] for lbl in img_labels if lbl in class_to_idx]
+                assert full_image_path
+                if not labels_idx:
+                    img_wo_objects += 1
+                out_data.append((full_image_path, tuple(labels_idx), 0, 0, '', -1, -1))
+        if img_wo_objects:
+            print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
+        return out_data, class_to_idx
+
+    @staticmethod
+    def _load_annotation(data_dir, filter_classes=None):
         ALLOWED_EXTS = ('.jpg', '.jpeg', '.png', '.gif')
         def is_valid(filename):
             return not filename.startswith('.') and filename.lower().endswith(ALLOWED_EXTS)
@@ -106,7 +145,7 @@ class ClassificationDatasetAdapter(Dataset):
                 for fname in sorted(fnames):
                     path = osp.join(root, fname)
                     if is_valid(path):
-                        out_data.append((path, target_class, 0, dataset_id, '', -1, -1))
+                        out_data.append((path, (target_class, ), 0, 0, '', -1, -1))
 
         if not len(out_data):
             print('Failed to locate images in folder ' + data_dir + f' with extensions {ALLOWED_EXTS}')
@@ -142,14 +181,14 @@ class ClassificationDatasetAdapter(Dataset):
         return self._load_item(indx)
 
     def _load_item(self, indx: int):
-        def create_gt_scored_label(label_name):
-            return ScoredLabel(label=self.label_name_to_project_label(label_name), probability=1.0)
+        def create_gt_scored_labels(label_names):
+            return [ScoredLabel(label=self.label_name_to_project_label(label_name), probability=1.0) for label_name in label_names]
 
         img = cv.imread(self.data_info[indx][0])
         img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
         image = Image(name=None, numpy=img, dataset_storage=NullDatasetStorage())
-        label = create_gt_scored_label(self.data_info[indx][1])
-        shapes = [Annotation(Rectangle.generate_full_box(), [label])]
+        labels = create_gt_scored_labels(self.data_info[indx][1])
+        shapes = [Annotation(Rectangle.generate_full_box(), labels)]
         annotation_scene = AnnotationScene(kind=AnnotationSceneKind.ANNOTATION,
                                            media_identifier=NullMediaIdentifier(),
                                            annotations=shapes)
@@ -172,8 +211,11 @@ class ClassificationDatasetAdapter(Dataset):
             return dataset
         return NullDataset()
 
+    def is_multilabel(self):
+        return self.multilabel
 
-def generate_label_schema(label_names):
+
+def generate_label_schema(label_names, multilabel=False):
     label_domain = "classification"
     colors = distinct_colors(len(label_names)) if len(label_names) > 0 else []
     not_empty_labels = [LabelEntity(name=name, color=colors[i], domain=label_domain, id=i,
@@ -183,10 +225,17 @@ def generate_label_schema(label_names):
                        is_empty=True, domain=label_domain, id=len(not_empty_labels),creation_date=datetime.datetime.now())
 
     label_schema = LabelSchemaEntity()
-    exclusive_group = LabelGroup(name="labels", labels=not_empty_labels, group_type=LabelGroupType.EXCLUSIVE)
     empty_group = LabelGroup(name="empty", labels=[emptylabel], group_type=LabelGroupType.EMPTY_LABEL)
-    label_schema.add_group(exclusive_group)
-    label_schema.add_group(empty_group, exclusive_with=[exclusive_group])
+    if multilabel:
+        single_groups = []
+        for label in not_empty_labels:
+            single_groups.append(LabelGroup(name=label.name, labels=[label], group_type=LabelGroupType.EXCLUSIVE))
+            label_schema.add_group(single_groups[-1])
+        label_schema.add_group(empty_group, exclusive_with=[single_groups])
+    else:
+        main_group = LabelGroup(name="labels", labels=not_empty_labels, group_type=LabelGroupType.EXCLUSIVE)
+        label_schema.add_group(main_group)
+        label_schema.add_group(empty_group, exclusive_with=[main_group])
     return label_schema
 
 
