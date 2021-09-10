@@ -43,6 +43,7 @@ def parse_args():
     parser.add_argument('template_file_path', help='path to template file')
     parser.add_argument('--data-dir', default='data')
     parser.add_argument('--export', action='store_true')
+    # parser.add_argument('--multilabel', action='store_true')
     args = parser.parse_args()
     return args
 
@@ -51,8 +52,11 @@ def main(args):
     logger.info('Initialize dataset')
     dataset = ClassificationDatasetAdapter(
         train_data_root=osp.join(args.data_dir, 'train'),
+        train_ann_file=osp.join(args.data_dir, 'train.json'),
         val_data_root=osp.join(args.data_dir, 'val'),
+        val_ann_file=osp.join(args.data_dir, 'val.json'),
         test_data_root=osp.join(args.data_dir, 'val'),
+        test_ann_file=osp.join(args.data_dir, 'val.json'),
         dataset_storage=NullDatasetStorage)
 
     labels_schema = generate_label_schema(dataset.get_labels(), dataset.is_multilabel())
@@ -90,12 +94,12 @@ def main(args):
         dataset,
         environment.get_model_configuration(),
         model_status=ModelStatus.NOT_READY)
-    task.train(dataset, output_model)
+    # task.train(dataset, output_model)
 
     logger.info('Get predictions on the validation set')
     validation_dataset = dataset.get_subset(Subset.VALIDATION)
     predicted_validation_dataset = task.infer(
-        validation_dataset.with_empty_annotations(),
+        validation_dataset, #.with_empty_annotations(),
         InferenceParameters(is_evaluation=True))
     resultset = ResultSet(
         model=output_model,

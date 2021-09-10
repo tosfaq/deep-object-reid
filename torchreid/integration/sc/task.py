@@ -1,4 +1,5 @@
 import io
+from logging import fatal
 import os
 import math
 from typing import List, Optional
@@ -123,16 +124,11 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         merge_from_files_with_base(self._cfg, config_file_path)
         self._cfg.use_gpu = torch.cuda.device_count() > 0
         self.num_devices = 1 if self._cfg.use_gpu else 0
-        if self._multilabel:
+        groups = self._task_environment.label_schema.get_groups(False)
+        if len(groups) > 1:
             self._cfg.model.type = 'multilabel'
         else:
             self._cfg.model.type = 'classification'
-        groups = self._task_environment.label_schema.get_groups()
-        label_relation_type = groups[0].group_type
-        if label_relation_type == LabelGroupType.EXCLUSIVE and len(groups) == 1:
-            pass
-        else:
-            raise ValueError(f"This task does not support non exclusive label groups or multiple groups")
 
         self._cfg.custom_datasets.types = ['external_classification_wrapper', 'external_classification_wrapper']
         self._cfg.custom_datasets.names = ['train', 'val']
@@ -182,24 +178,38 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         :return: Dataset that also includes the classification results
         """
         labels = [label.name for label in self._labels]
-        self._cfg.custom_datasets.roots = [OTEClassificationDataset(dataset, labels),
-                                           OTEClassificationDataset(dataset, labels)]
+        self._cfg.custom_datasets.roots = [OTEClassificationDataset(dataset, labels, self._multilabel),
+                                           OTEClassificationDataset(dataset, labels, self._multilabel)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
         self._model.eval()
         self._model.to(self.device)
         targets = list(datamanager.test_loader.keys())
         scores, _ = score_extraction(datamanager.test_loader[targets[0]]['query'], self._model, self._cfg.use_gpu)
-        labels = np.argmax(scores, axis=1)
+        if self._multilabel:
+            labels = 1. / (1 + np.exp(-scores))
+        else:
+            labels = np.argmax(scores, axis=1)
         predicted_items = []
         for i in range(labels.shape[0]):
             dataset_item = dataset[i]
-            class_idx = labels[i]
-            scores[i] = np.exp(scores[i])
-            scores[i] /= np.sum(scores[i])
-            class_prob = float(scores[i, class_idx].squeeze())
-            label = ScoredLabel(label=self._labels[class_idx], probability=class_prob)
-            dataset_item.append_labels([label])
-            predicted_items.append(dataset_item)
+            if self._multilabel:
+                predicted_classes = labels[i]
+                item_labels = []
+                for i in range(predicted_classes.shape[0]):
+                    if predicted_classes[i] > 0.5:
+                        label = ScoredLabel(label=self._labels[i], probability=predicted_classes[i])
+                        item_labels.append(label)
+
+                dataset_item.append_labels(item_labels)
+                predicted_items.append(dataset_item)
+            else:
+                class_idx = labels[i]
+                scores[i] = np.exp(scores[i])
+                scores[i] /= np.sum(scores[i])
+                class_prob = float(scores[i, class_idx].squeeze())
+                label = ScoredLabel(label=self._labels[class_idx], probability=class_prob)
+                dataset_item.append_labels([label])
+                predicted_items.append(dataset_item)
 
         return Dataset(None, predicted_items)
 
@@ -240,8 +250,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         train_subset = dataset.get_subset(Subset.TRAINING)
         val_subset = dataset.get_subset(Subset.VALIDATION)
         labels = [label.name for label in self._labels]
-        self._cfg.custom_datasets.roots = [OTEClassificationDataset(train_subset, labels),
-                                           OTEClassificationDataset(val_subset, labels)]
+        self._cfg.custom_datasets.roots = [OTEClassificationDataset(train_subset, labels, self._multilabel),
+                                           OTEClassificationDataset(val_subset, labels, self._multilabel)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
 
         num_aux_models = len(self._cfg.mutual_learning.aux_configs)

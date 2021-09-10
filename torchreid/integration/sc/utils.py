@@ -21,43 +21,6 @@ from ote_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
                                            LabelSchemaEntity)
 
 
-class OTEClassificationDataset():
-    def __init__(self, ote_dataset, labels):
-        super().__init__()
-        self.ote_dataset = ote_dataset
-        self.labels = labels
-        self.annotation = []
-
-        for i in range(len(self.ote_dataset)):
-            class_indices = []
-            if self.ote_dataset[i].get_shapes_labels():
-                for ote_lbl in self.ote_dataset[i].get_shapes_labels():
-                    class_indices.append(self.labels.index(ote_lbl.name))
-                #label = self.ote_dataset[i].get_shapes_labels()[0].name
-                #class_num = self.labels.index(label)
-            else:
-                #class_num = 0
-                class_indices.append(0)
-            if ote_dataset.is_multilabel():
-                self.annotation.append({'label': tuple(class_indices)})
-            else:
-                self.annotation.append({'label': class_indices[0]})
-
-    def __getitem__(self, idx):
-        sample = self.ote_dataset[idx].numpy  # This returns 8-bit numpy array of shape (height, width, RGB)
-        label = self.annotation[idx]['label']
-        return {'img': sample, 'label': label}
-
-    def __len__(self):
-        return len(self.annotation)
-
-    def get_annotation(self):
-        return self.annotation
-
-    def get_classes(self):
-        return self.labels
-
-
 class ClassificationDatasetAdapter(Dataset):
     def __init__(self,
                  train_ann_file=None,
@@ -84,7 +47,8 @@ class ClassificationDatasetAdapter(Dataset):
         for k, v in self.data_roots.items():
             if v:
                 self.data_roots[k] = osp.abspath(v)
-                if self.ann_files[k] and '.json' in self.ann_files[k]:
+                if self.ann_files[k] and '.json' in self.ann_files[k] and osp.isfile(self.ann_files[k]):
+                    self.data_roots[k] = osp.dirname(self.ann_files[k])
                     self.multilabel = True
                     self.annotations[k] = self._load_annotation_multilabel(self.ann_files[k], self.data_roots[k])
                 else:
@@ -173,6 +137,9 @@ class ClassificationDatasetAdapter(Dataset):
         self.data_info = self.annotations[subset][0]
         return True
 
+    def get_item_labels(self, indx):
+        return self.data_info[indx][1]
+
     def __getitem__(self, indx) -> DatasetItem:
         if isinstance(indx, slice):
             slice_list = range(self.__len__())[indx]
@@ -231,12 +198,53 @@ def generate_label_schema(label_names, multilabel=False):
         for label in not_empty_labels:
             single_groups.append(LabelGroup(name=label.name, labels=[label], group_type=LabelGroupType.EXCLUSIVE))
             label_schema.add_group(single_groups[-1])
-        label_schema.add_group(empty_group, exclusive_with=[single_groups])
+        label_schema.add_group(empty_group, exclusive_with=single_groups)
     else:
         main_group = LabelGroup(name="labels", labels=not_empty_labels, group_type=LabelGroupType.EXCLUSIVE)
         label_schema.add_group(main_group)
         label_schema.add_group(empty_group, exclusive_with=[main_group])
     return label_schema
+
+
+class OTEClassificationDataset():
+    def __init__(self, ote_dataset, labels, multilabel=False):
+        super().__init__()
+        self.ote_dataset = ote_dataset
+        self.multilabel = multilabel
+        self.labels = labels
+        self.annotation = []
+
+        for i in range(len(self.ote_dataset)):
+            class_indices = []
+            if hasattr(self.ote_dataset, 'get_item_labels'):
+                item_labels = self.ote_dataset.get_item_labels(i)
+                for ote_lbl in item_labels:
+                    class_indices.append(self.labels.index(ote_lbl))
+            else:
+                if self.ote_dataset[i].get_shapes_labels():
+                    for ote_lbl in self.ote_dataset[i].get_shapes_labels():
+                        class_indices.append(self.labels.index(ote_lbl.name))
+                else:
+                    class_indices.append(0)
+
+            if self.multilabel:
+                self.annotation.append({'label': tuple(class_indices)})
+            else:
+                self.annotation.append({'label': class_indices[0]})
+
+    def __getitem__(self, idx):
+        sample = self.ote_dataset[idx].numpy  # This returns 8-bit numpy array of shape (height, width, RGB)
+        label = self.annotation[idx]['label']
+        return {'img': sample, 'label': label}
+
+    def __len__(self):
+        return len(self.annotation)
+
+    def get_annotation(self):
+        return self.annotation
+
+    def get_classes(self):
+        return self.labels
 
 
 def get_task_class(path):
