@@ -43,7 +43,6 @@ def parse_args():
     parser.add_argument('template_file_path', help='path to template file')
     parser.add_argument('--data-dir', default='data')
     parser.add_argument('--export', action='store_true')
-    # parser.add_argument('--multilabel', action='store_true')
     args = parser.parse_args()
     return args
 
