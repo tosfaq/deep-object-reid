@@ -84,6 +84,7 @@ class ImageAMSoftmaxEngine(Engine):
         self.size =  size
         self.max_soft = max_soft
         self.reformulate = reformulate
+        self.prev_smooth_metric = 0.
 
         num_classes = self.datamanager.num_train_pids
         if not isinstance(num_classes, (list, tuple)):
@@ -501,3 +502,36 @@ class ImageAMSoftmaxEngine(Engine):
         bby2 = np.clip(cy + cut_h // 2, 0, H)
 
         return bbx1, bby1, bbx2, bby2
+
+    def exit_on_plateau_and_choose_best(self, top1, smooth_top1):
+        '''
+        The function returns a pair (should_exit, is_candidate_for_best).
+
+        The function sets this checkpoint as a candidate for best if either it is the first checkpoint
+        for this LR or this checkpoint is better then the previous best.
+
+        The function sets should_exit = True if the LR is the minimal allowed
+        LR (i.e. self.lb_lr) and the best checkpoint is not changed for self.train_patience
+        epochs.
+        '''
+
+        # Note that we take LR of the previous iter, not self.get_current_lr(),
+        # since typically the method exit_on_plateau_and_choose_best is called after
+        # the method update_lr, so LR drop happens before.
+        # If we had used the method self.get_current_lr(), the last epoch
+        # before LR drop would be used as the first epoch with the new LR.
+        should_exit = False
+        is_candidate_for_best = False
+        current_metric = np.round(top1, 4)
+        if self.best_metric >= current_metric:
+            if round(self.current_lr, 8) <= round(self.lb_lr, 8):
+                self.iter_to_wait += 1
+                if self.iter_to_wait >= self.train_patience:
+                    print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
+                    should_exit = True
+        else:
+            self.best_metric = current_metric
+            self.iter_to_wait = 0
+            is_candidate_for_best = True
+
+        return should_exit, is_candidate_for_best

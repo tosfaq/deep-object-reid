@@ -76,6 +76,7 @@ class MultilabelEngine(Engine):
         self.num_classes = num_classes
         self.num_targets = len(self.num_classes)
         self.enable_sam = enable_sam
+        self.prev_smooth_top1 = 0.
 
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx
@@ -198,3 +199,32 @@ class MultilabelEngine(Engine):
         all_logits = all_logits if isinstance(all_logits, (tuple, list)) else [all_logits]
 
         return all_logits
+
+    def exit_on_plateau_and_choose_best(self, top1, smooth_top1):
+        '''
+        The function returns a pair (should_exit, is_candidate_for_best).
+
+        The function sets this checkpoint as a candidate for best if either it is the first checkpoint
+        for this LR or this checkpoint is better then the previous best.
+
+        The function sets should_exit = True if the overfitting is observed or the metric
+        doesn't improves for a predetermined number of epochs.
+        '''
+
+        should_exit = False
+        is_candidate_for_best = False
+        current_metric = round(top1, 4)
+        if smooth_top1 <= self.prev_smooth_top1:
+            self.iter_to_wait += 1
+            if self.iter_to_wait >= self.train_patience:
+                print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
+                should_exit = True
+        else:
+            self.iter_to_wait = 0
+
+        if current_metric >= self.best_metric:
+            self.best_metric = current_metric
+            is_candidate_for_best = True
+
+        self.prev_smooth_top1 = smooth_top1
+        return should_exit, is_candidate_for_best

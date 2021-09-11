@@ -103,8 +103,9 @@ def main():
     if cfg.lr_finder.enable and not cfg.model.resume:
         scheduler = None
     else:
-        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
-
+        scheduler = torchreid.optim.build_lr_scheduler(optimizer=optimizer,
+                                                        num_iter=datamanager.num_iter,
+                                                        **lr_scheduler_kwargs(cfg))
     # Loading model (and optimizer and scheduler in case of resuming training).
     # Note that if NNCF is used, loading is done inside NNCF part, so loading here is not required.
     if cfg.model.resume and check_isfile(cfg.model.resume) and not is_nncf_used:
@@ -145,7 +146,9 @@ def main():
         model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
         model, _ = put_main_model_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
         optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
-        scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(cfg))
+        scheduler = torchreid.optim.build_lr_scheduler(optimizer=optimizer,
+                                                        num_iter=datamanager.num_iter,
+                                                        **lr_scheduler_kwargs(cfg))
 
     if num_aux_models > 0:
         print('Enabled mutual learning between {} models.'.format(len(cfg.mutual_learning.aux_configs) + 1))

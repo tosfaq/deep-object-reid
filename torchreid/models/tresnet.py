@@ -50,5 +50,6 @@ def tresnet(pretrained=False, **kwargs):
         import inplace_abn
     except ImportError:
         print("No module 'inplace_abn' found. To use TResNet you need to install 'optional-requirments.txt'")
+        exit()
     net = TResnetTimm(pretrained=pretrained, **kwargs)
     return net
