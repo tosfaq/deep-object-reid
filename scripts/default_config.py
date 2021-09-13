@@ -148,6 +148,9 @@ def get_default_config():
     cfg.train.ema = CN()
     cfg.train.ema.enable = False
     cfg.train.ema.ema_decay = 0.9999
+    cfg.train.sam = CN()
+    cfg.train.sam.rho = 0.05
+
 
     # optimizer
     cfg.sgd = CN()
@@ -159,9 +162,6 @@ def get_default_config():
     cfg.adam = CN()
     cfg.adam.beta1 = 0.9  # exponential decay rate for first moment
     cfg.adam.beta2 = 0.999  # exponential decay rate for second moment
-    cfg.sam = CN() # new way for optimization
-    cfg.sam.enable = False
-    cfg.sam.rho = 0.05
 
     # loss
     cfg.loss = CN()
@@ -546,7 +546,7 @@ def optimizer_kwargs(cfg):
         'base_lr_mult': cfg.train.base_lr_mult,
         'nbd': cfg.train.nbd,
         'lr_finder': cfg.lr_finder.enable,
-        'sam_rho': cfg.sam.rho
+        'sam_rho': cfg.train.sam.rho
     }
 
 

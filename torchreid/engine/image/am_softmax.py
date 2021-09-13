@@ -22,6 +22,7 @@ from __future__ import absolute_import, division, print_function
 import copy
 
 import numpy as np
+from numpy.lib.arraysetops import isin
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -41,7 +42,7 @@ class ImageAMSoftmaxEngine(Engine):
                  margin_type, aug_type, decay_power, alpha, size, lr_finder, max_soft,
                  reformulate, aug_prob, conf_penalty, pr_product, m, s, compute_s, end_s, clip_grad,
                  duration_s, skip_steps_s, enable_masks, adaptive_margins, class_weighting,
-                 attr_cfg, base_num_classes, symmetric_ce, mix_weight, enable_rsc, enable_sam,
+                 attr_cfg, base_num_classes, symmetric_ce, mix_weight, enable_rsc,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
                  target_metric, use_ema_decay, ema_decay, **kwargs):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager,
@@ -74,7 +75,9 @@ class ImageAMSoftmaxEngine(Engine):
         self.mix_weight = mix_weight
         self.clip_grad = clip_grad
         self.enable_rsc = enable_rsc
-        self.enable_sam = enable_sam
+        self.enable_sam = isinstance(self.optims[self.main_model_name], SAM)
+        for model_name in self.get_model_names():
+            assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be for all models or none of them"
         self.aug_type = aug_type
         self.aug_prob = aug_prob
         self.aug_index = None
@@ -273,11 +276,12 @@ class ImageAMSoftmaxEngine(Engine):
                     if self.enable_metric_losses:
                         ml_loss_module = self.ml_losses[trg_id][model_name]
                         ml_loss_module.end_iteration(do_backward=False)
-                if isinstance(self.optims[model_name], SAM) and step == 1:
+                if self.enable_sam and step == 1:
                     self.optims[model_name].first_step()
-                elif isinstance(self.optims[model_name], SAM) and step == 2:
+                elif self.enable_sam and step == 2:
                     self.optims[model_name].second_step()
-                elif not isinstance(self.optims[model_name], SAM) and step == 1:
+                elif step == 1:
+                    assert not self.enable_sam
                     self.optims[model_name].step()
 
             loss_summary['loss'] = total_loss.item()

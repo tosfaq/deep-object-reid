@@ -61,7 +61,8 @@ def reset_config(cfg, args):
 def build_datamanager(cfg, classification_classes_filter=None):
     return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
 
-def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr=None,
+def build_auxiliary_model(config_file, num_classes, use_gpu,
+                          device_ids, num_iter, lr=None,
                           nncf_aux_config_file=None,
                           aux_config_opts=None):
     aux_cfg = get_default_config()
@@ -82,7 +83,7 @@ def build_auxiliary_model(config_file, num_classes, use_gpu, device_ids=None, lr
         print(f"setting learning rate from main model: {lr}")
     model = torchreid.models.build_model(**model_kwargs(aux_cfg, num_classes))
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
-    scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(aux_cfg))
+    scheduler = torchreid.optim.build_lr_scheduler(optimizer=optimizer, num_iter=num_iter, **lr_scheduler_kwargs(aux_cfg))
 
     if aux_cfg.model.resume and check_isfile(aux_cfg.model.resume):
         aux_cfg.train.start_epoch = resume_from_checkpoint(

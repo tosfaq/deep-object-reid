@@ -156,8 +156,8 @@ def main():
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
         for config_file, device_ids in zip(cfg.mutual_learning.aux_configs, extra_device_ids):
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                config_file, num_train_classes, cfg.use_gpu, device_ids, lr=aux_lr,
-                nncf_aux_config_file=nncf_changes_in_aux_train_config,
+                config_file, num_train_classes, cfg.use_gpu, device_ids, num_iter=datamanager.num_iter,
+                lr=aux_lr, nncf_aux_config_file=nncf_changes_in_aux_train_config,
                 aux_config_opts=args.aux_config_opts
             )
 

@@ -15,7 +15,7 @@ class MultilabelEngine(Engine):
     def __init__(self, datamanager, models, optimizers, schedulers, use_gpu, save_chkpt,
                  train_patience, early_stoping, lr_decay_factor, loss_name, label_smooth,
                  lr_finder, m, s, sym_adjustment, auto_balance, amb_k, amb_t, clip_grad,
-                 enable_sam, should_freeze_aux_models, nncf_metainfo, initial_lr,
+                 should_freeze_aux_models, nncf_metainfo, initial_lr,
                  target_metric, use_ema_decay, ema_decay, asl_gamma_pos, asl_gamma_neg, asl_p_m, **kwargs):
 
         super().__init__(datamanager,
@@ -75,7 +75,9 @@ class MultilabelEngine(Engine):
             num_classes = [num_classes]
         self.num_classes = num_classes
         self.num_targets = len(self.num_classes)
-        self.enable_sam = enable_sam
+        self.enable_sam = isinstance(self.optims[self.main_model_name], SAM)
+        for model_name in self.get_model_names():
+            assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be for all models or none of them"
         self.prev_smooth_top1 = 0.
 
     def forward_backward(self, data):
@@ -134,13 +136,13 @@ class MultilabelEngine(Engine):
             for model_name in model_names:
                 if self.clip_grad != 0:
                     torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
-                if not isinstance(self.optims[model_name], SAM) and step == 1:
+                if not self.enable_sam and step == 1:
                     self.optims[model_name].step()
                 elif step == 1:
-                    assert isinstance(self.optims[model_name], SAM)
+                    assert self.enable_sam
                     self.optims[model_name].first_step()
                 else:
-                    assert isinstance(self.optims[model_name], SAM) and step==2
+                    assert self.enable_sam and step==2
                     self.optims[model_name].second_step()
 
             loss_summary['loss'] = total_loss.item()

@@ -610,7 +610,7 @@ class Engine:
 
         self.set_model_mode('eval')
         targets = list(self.test_loader.keys())
-        top1, cur_top1, ema_top1 = [None]*3
+        top1, cur_top1, ema_top1 = [-1]*3
         should_save_ema_model = False
 
         for dataset_name in targets:
@@ -652,7 +652,9 @@ class Engine:
                     if (model_name != self.main_model_name
                         and not test_only and epoch != (self.max_epoch - 1)):
                         continue
-                    cur_mAP = self._evaluate_multilabel_classification(
+                    # we compute mAP, but consider it top1 for consistency
+                    # with single label classification
+                    cur_top1 = self._evaluate_multilabel_classification(
                         model=model,
                         epoch=epoch,
                         data_loader=self.test_loader[dataset_name]['query'],
@@ -661,7 +663,7 @@ class Engine:
                         lr_finder=lr_finder
                     )
                     if ema_condition:
-                        ema_mAP = self._evaluate_multilabel_classification(
+                        ema_top1 = self._evaluate_multilabel_classification(
                             model=self.ema_model.module,
                             epoch=epoch,
                             data_loader=self.test_loader[dataset_name]['query'],
@@ -669,8 +671,6 @@ class Engine:
                             dataset_name=dataset_name,
                             lr_finder = lr_finder
                         )
-                    cur_top1 = cur_mAP
-                    ema_top1 = ema_mAP if ema_condition else -1
                 elif dataset_name == 'lfw':
                     self._evaluate_pairwise(
                         model=model,
