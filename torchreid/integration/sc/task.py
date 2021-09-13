@@ -337,7 +337,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
     ):
         performance = MetricsHelper.compute_accuracy(output_resultset).get_performance()
         logger.info(f"Computes performance of {performance}")
-        return performance
+        output_resultset.performance = performance
 
     def export(self, export_type: ExportType, output_model: ModelEntity):
         assert export_type == ExportType.OPENVINO
