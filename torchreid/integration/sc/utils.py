@@ -13,7 +13,8 @@ from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.label import ScoredLabel, LabelEntity, Color
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneKind
 from sc_sdk.entities.annotation import AnnotationScene, NullMediaIdentifier
-from sc_sdk.entities.datasets import Dataset, DatasetItem, NullDataset, Subset
+from sc_sdk.entities.datasets import Dataset, DatasetItem, NullDataset
+from ote_sdk.entities.datasets import Subset
 from sc_sdk.entities.image import Image
 from sc_sdk.entities.label import distinct_colors
 from sc_sdk.entities.dataset_storage import NullDatasetStorage

@@ -19,13 +19,13 @@ from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.configuration.helper import create
 from sc_sdk.entities.model import Model
 from sc_sdk.entities.dataset_storage import NullDatasetStorage
-from sc_sdk.entities.datasets import Subset
+from ote_sdk.entities.datasets import Subset
 from sc_sdk.entities.model_storage import NullModelStorage
 from ote_sdk.entities.model_template import parse_model_template, TargetDevice
 from ote_sdk.entities.model import ModelStatus, ModelPrecision, ModelOptimizationType
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
 from sc_sdk.entities.project import NullProject
-from sc_sdk.entities.resultset import ResultSet
+from ote_sdk.entities.resultset import ResultSetEntity
 from ote_sdk.entities.task_environment import TaskEnvironment
 from sc_sdk.logging import logger_factory
 
@@ -93,21 +93,21 @@ def main(args):
         dataset,
         environment.get_model_configuration(),
         model_status=ModelStatus.NOT_READY)
-    # task.train(dataset, output_model)
+    task.train(dataset, output_model)
 
     logger.info('Get predictions on the validation set')
     validation_dataset = dataset.get_subset(Subset.VALIDATION)
     predicted_validation_dataset = task.infer(
         validation_dataset, #.with_empty_annotations(),
         InferenceParameters(is_evaluation=True))
-    resultset = ResultSet(
+    resultset = ResultSetEntity(
         model=output_model,
         ground_truth_dataset=validation_dataset,
         prediction_dataset=predicted_validation_dataset,
     )
     logger.info('Estimate quality on validation set')
-    performance = task.evaluate(resultset)
-    logger.info(str(performance))
+    task.evaluate(resultset)
+    logger.info(str(resultset.performance))
 
     if args.export:
         logger.info('Export model')
@@ -136,7 +136,7 @@ def main(args):
         predicted_validation_dataset = openvino_task.infer(
             validation_dataset.with_empty_annotations(),
             InferenceParameters(is_evaluation=True))
-        resultset = ResultSet(
+        resultset = ResultSetEntity(
             model=output_model,
             ground_truth_dataset=validation_dataset,
             prediction_dataset=predicted_validation_dataset,
