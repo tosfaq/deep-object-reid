@@ -77,7 +77,8 @@ class MultilabelEngine(Engine):
         self.num_targets = len(self.num_classes)
         self.enable_sam = isinstance(self.optims[self.main_model_name], SAM)
         for model_name in self.get_model_names():
-            assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be for all models or none of them"
+            assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be enabled \
+                                                                                 for all models or none of them"
         self.prev_smooth_top1 = 0.
 
     def forward_backward(self, data):

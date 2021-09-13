@@ -16,21 +16,21 @@ def build_lr_scheduler(optimizer, lr_scheduler, base_scheduler, **kwargs):
     return scheduler
 
 def _build_scheduler(optimizer,
-                    num_iter,
-                    lr_scheduler='single_step',
-                    base_scheduler=None,
-                    stepsize=1,
-                    gamma=0.1,
-                    max_epoch=1,
-                    warmup=10,
-                    multiplier=10,
-                    first_cycle_steps=10,
-                    cycle_mult=1.,
-                    min_lr=[1e-4],
-                    max_lr=[0.1],
-                    patience=5,
-                    lr_decay_factor=100,
-                    pct_start=0.3):
+                     num_iter,
+                     lr_scheduler='single_step',
+                     base_scheduler=None,
+                     stepsize=1,
+                     gamma=0.1,
+                     max_epoch=1,
+                     warmup=10,
+                     multiplier=10,
+                     first_cycle_steps=10,
+                     cycle_mult=1.,
+                     min_lr=1e-4,
+                     max_lr=0.1,
+                     patience=5,
+                     lr_decay_factor=100,
+                     pct_start=0.3):
 
     init_learning_rate = [param_group['lr'] for param_group in optimizer.param_groups]
     if lr_scheduler not in AVAI_SCH:

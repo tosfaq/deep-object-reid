@@ -22,7 +22,6 @@ from __future__ import absolute_import, division, print_function
 import copy
 
 import numpy as np
-from numpy.lib.arraysetops import isin
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -77,7 +76,8 @@ class ImageAMSoftmaxEngine(Engine):
         self.enable_rsc = enable_rsc
         self.enable_sam = isinstance(self.optims[self.main_model_name], SAM)
         for model_name in self.get_model_names():
-            assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be for all models or none of them"
+            assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be enabled \
+                                                                                 for all models or none of them"
         self.aug_type = aug_type
         self.aug_prob = aug_prob
         self.aug_index = None

@@ -249,7 +249,7 @@ class Engine:
         '''
         The function returns a pair (should_exit, is_candidate_for_best).
 
-        For raw implementation the method returns False for should_exit.
+        Default implementation of the method returns False for should_exit.
         Other behavior must be overridden in derived classes from the base Engine.
         '''
 
