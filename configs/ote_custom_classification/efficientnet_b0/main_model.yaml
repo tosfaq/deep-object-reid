@@ -37,6 +37,10 @@ data:
     random_flip:
       enable: True
       p: 0.5
+    random_rotate:
+      enable: True
+      p: 0.35
+      angle: (-10,10)
     augmix:
       enable: True
       cfg_str: "augmix-m5-w3"
@@ -69,13 +73,11 @@ train:
   deterministic: True
   patience: 5
   gamma: 0.1
+  sam:
+    rho: 0.05
   ema:
     enable: True
     ema_decay: 0.999
-
-sam:
-  enable: True
-  rho: 0.05
 
 test:
   batch_size: 128
