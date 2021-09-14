@@ -135,6 +135,7 @@ def get_default_config():
     cfg.train.min_lr = 1e-5
     cfg.train.max_lr = 0.1
     cfg.train.lr_decay_factor = 100
+    cfg.train.pct_start = 0.3
     cfg.train.fixbase_epoch = 0
     cfg.train.nbd = False
     cfg.train.patience = 5 # define how much epochs to wait for reduce on plateau
@@ -147,6 +148,9 @@ def get_default_config():
     cfg.train.ema = CN()
     cfg.train.ema.enable = False
     cfg.train.ema.ema_decay = 0.9999
+    cfg.train.sam = CN()
+    cfg.train.sam.rho = 0.05
+
 
     # optimizer
     cfg.sgd = CN()
@@ -158,9 +162,6 @@ def get_default_config():
     cfg.adam = CN()
     cfg.adam.beta1 = 0.9  # exponential decay rate for first moment
     cfg.adam.beta2 = 0.999  # exponential decay rate for second moment
-    cfg.sam = CN() # new way for optimization
-    cfg.sam.enable = False
-    cfg.sam.rho = 0.05
 
     # loss
     cfg.loss = CN()
@@ -545,7 +546,7 @@ def optimizer_kwargs(cfg):
         'base_lr_mult': cfg.train.base_lr_mult,
         'nbd': cfg.train.nbd,
         'lr_finder': cfg.lr_finder.enable,
-        'sam_rho': cfg.sam.rho
+        'sam_rho': cfg.train.sam.rho
     }
 
 
@@ -563,6 +564,7 @@ def lr_scheduler_kwargs(cfg):
         'min_lr': cfg.train.min_lr,
         'max_lr': cfg.train.max_lr,
         'patience': cfg.train.patience,
+        'pct_start' : cfg.train.pct_start,
         'lr_decay_factor': cfg.train.lr_decay_factor,
     }
 

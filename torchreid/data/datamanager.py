@@ -254,7 +254,7 @@ class ImageDataManager(DataManager):
             pin_memory=self.use_gpu,
             drop_last=True
         )
-
+        self.num_iter = len(self.train_loader)
         print('=> Loading test (target) dataset')
         self.test_loader = {name: {'query': None, 'gallery': None} for name in self.targets}
         self.test_dataset = {name: {'query': None, 'gallery': None} for name in self.targets}

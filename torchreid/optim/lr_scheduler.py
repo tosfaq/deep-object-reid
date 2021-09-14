@@ -16,23 +16,23 @@ def build_lr_scheduler(optimizer, lr_scheduler, base_scheduler, **kwargs):
     return scheduler
 
 def _build_scheduler(optimizer,
-                lr_scheduler='single_step',
-                base_scheduler=None,
-                stepsize=1,
-                gamma=0.1,
-                max_epoch=1,
-                warmup=10,
-                multiplier = 10,
-                first_cycle_steps=10,
-                cycle_mult = 1.,
-                min_lr = 1e-4,
-                max_lr = 0.1,
-                patience = 5,
-                lr_decay_factor= 100):
+                     num_iter,
+                     lr_scheduler='single_step',
+                     base_scheduler=None,
+                     stepsize=1,
+                     gamma=0.1,
+                     max_epoch=1,
+                     warmup=10,
+                     multiplier=10,
+                     first_cycle_steps=10,
+                     cycle_mult=1.,
+                     min_lr=1e-4,
+                     max_lr=0.1,
+                     patience=5,
+                     lr_decay_factor=100,
+                     pct_start=0.3):
 
     init_learning_rate = [param_group['lr'] for param_group in optimizer.param_groups]
-    min_lr = [lr / lr_decay_factor for lr in init_learning_rate]
-
     if lr_scheduler not in AVAI_SCH:
         raise ValueError('Unsupported scheduler: {}. Must be one of {}'.format(lr_scheduler, AVAI_SCH))
 
@@ -81,13 +81,15 @@ def _build_scheduler(optimizer,
         max_lr=max_lr, min_lr=min_lr, warmup_steps=warmup, gamma=gamma)
 
     elif lr_scheduler == 'onecycle':
-        scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=first_cycle_steps,
-                                                        epochs=int(max_epoch), pct_start=0.2)
+        scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=init_learning_rate, steps_per_epoch=num_iter,
+                                                  epochs=int(max_epoch), pct_start=pct_start, final_div_factor=lr_decay_factor,
+                                                  div_factor=100)
 
     elif lr_scheduler == 'reduce_on_plateau':
+        lb_lr = [lr / lr_decay_factor for lr in init_learning_rate]
         epoch_treshold = max(int(max_epoch * 0.75) - warmup, 1) # 75% of the training - warmup epochs
         scheduler = ReduceLROnPlateauV2(optimizer, epoch_treshold, factor=gamma, patience=patience,
-                                        threshold=2e-4, verbose=True, min_lr=min_lr, )
+                                        threshold=2e-4, verbose=True, min_lr=lb_lr )
     else:
         raise ValueError('Unknown scheduler: {}'.format(lr_scheduler))
 

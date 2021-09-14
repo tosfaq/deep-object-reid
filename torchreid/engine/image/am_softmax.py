@@ -41,7 +41,7 @@ class ImageAMSoftmaxEngine(Engine):
                  margin_type, aug_type, decay_power, alpha, size, lr_finder, max_soft,
                  reformulate, aug_prob, conf_penalty, pr_product, m, s, compute_s, end_s, clip_grad,
                  duration_s, skip_steps_s, enable_masks, adaptive_margins, class_weighting,
-                 attr_cfg, base_num_classes, symmetric_ce, mix_weight, enable_rsc, enable_sam,
+                 attr_cfg, base_num_classes, symmetric_ce, mix_weight, enable_rsc,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
                  target_metric, use_ema_decay, ema_decay, **kwargs):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager,
@@ -74,7 +74,10 @@ class ImageAMSoftmaxEngine(Engine):
         self.mix_weight = mix_weight
         self.clip_grad = clip_grad
         self.enable_rsc = enable_rsc
-        self.enable_sam = enable_sam
+        self.enable_sam = isinstance(self.optims[self.main_model_name], SAM)
+        for model_name in self.get_model_names():
+            assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be enabled \
+                                                                                 for all models or none of them"
         self.aug_type = aug_type
         self.aug_prob = aug_prob
         self.aug_index = None
@@ -84,6 +87,7 @@ class ImageAMSoftmaxEngine(Engine):
         self.size =  size
         self.max_soft = max_soft
         self.reformulate = reformulate
+        self.prev_smooth_metric = 0.
 
         num_classes = self.datamanager.num_train_pids
         if not isinstance(num_classes, (list, tuple)):
@@ -272,11 +276,12 @@ class ImageAMSoftmaxEngine(Engine):
                     if self.enable_metric_losses:
                         ml_loss_module = self.ml_losses[trg_id][model_name]
                         ml_loss_module.end_iteration(do_backward=False)
-                if isinstance(self.optims[model_name], SAM) and step == 1:
+                if self.enable_sam and step == 1:
                     self.optims[model_name].first_step()
-                elif isinstance(self.optims[model_name], SAM) and step == 2:
+                elif self.enable_sam and step == 2:
                     self.optims[model_name].second_step()
-                elif not isinstance(self.optims[model_name], SAM) and step == 1:
+                elif step == 1:
+                    assert not self.enable_sam
                     self.optims[model_name].step()
 
             loss_summary['loss'] = total_loss.item()
@@ -501,3 +506,36 @@ class ImageAMSoftmaxEngine(Engine):
         bby2 = np.clip(cy + cut_h // 2, 0, H)
 
         return bbx1, bby1, bbx2, bby2
+
+    def exit_on_plateau_and_choose_best(self, top1, smooth_top1):
+        '''
+        The function returns a pair (should_exit, is_candidate_for_best).
+
+        The function sets this checkpoint as a candidate for best if either it is the first checkpoint
+        for this LR or this checkpoint is better then the previous best.
+
+        The function sets should_exit = True if the LR is the minimal allowed
+        LR (i.e. self.lb_lr) and the best checkpoint is not changed for self.train_patience
+        epochs.
+        '''
+
+        # Note that we take LR of the previous iter, not self.get_current_lr(),
+        # since typically the method exit_on_plateau_and_choose_best is called after
+        # the method update_lr, so LR drop happens before.
+        # If we had used the method self.get_current_lr(), the last epoch
+        # before LR drop would be used as the first epoch with the new LR.
+        should_exit = False
+        is_candidate_for_best = False
+        current_metric = np.round(top1, 4)
+        if self.best_metric >= current_metric:
+            if round(self.current_lr, 8) <= round(self.lb_lr, 8):
+                self.iter_to_wait += 1
+                if self.iter_to_wait >= self.train_patience:
+                    print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
+                    should_exit = True
+        else:
+            self.best_metric = current_metric
+            self.iter_to_wait = 0
+            is_candidate_for_best = True
+
+        return should_exit, is_candidate_for_best

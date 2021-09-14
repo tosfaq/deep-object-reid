@@ -245,38 +245,21 @@ class Engine:
                 else:
                     self.scheds[name].step()
 
-    def exit_on_plateau_and_choose_best(self, top1, top5, mAP):
+    def exit_on_plateau_and_choose_best(self, top1, smooth_top1):
         '''
         The function returns a pair (should_exit, is_candidate_for_best).
 
-        The function sets this checkpoint as a candidate for best if either it is the first checkpoint
-        for this LR or this checkpoint is better then the previous best.
-
-        The function sets should_exit = True if the LR is the minimal allowed
-        LR (i.e. self.lb_lr) and the best checkpoint is not changed for self.train_patience
-        epochs.
+        Default implementation of the method returns False for should_exit.
+        Other behavior must be overridden in derived classes from the base Engine.
         '''
 
-        # Note that we take LR of the previous iter, not self.get_current_lr(),
-        # since typically the method exit_on_plateau_and_choose_best is called after
-        # the method update_lr, so LR drop happens before.
-        # If we had used the method self.get_current_lr(), the last epoch
-        # before LR drop would be used as the first epoch with the new LR.
-        should_exit = False
         is_candidate_for_best = False
         current_metric = np.round(top1, 4)
-        if self.best_metric >= current_metric:
-            if (round(self.current_lr, 8) <= round(self.lb_lr, 8)):
-                self.iter_to_wait += 1
-                if self.iter_to_wait >= self.train_patience:
-                    print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
-                    should_exit = True
-        else:
+        if current_metric >= self.best_metric:
             self.best_metric = current_metric
-            self.iter_to_wait = 0
             is_candidate_for_best = True
 
-        return should_exit, is_candidate_for_best
+        return False, is_candidate_for_best
 
     def run(
         self,
@@ -376,6 +359,7 @@ class Engine:
         self.max_epoch = max_epoch
         assert start_epoch != max_epoch, "the last epoch number cannot be equal the start one"
         self.fixbase_epoch = fixbase_epoch
+        test_acc = AverageMeter()
         print('=> Start training')
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_begin()
@@ -412,7 +396,7 @@ class Engine:
                and (self.epoch + 1) != self.max_epoch)
                or self.epoch == (self.max_epoch - 1)):
 
-                top1, top5, mAP, should_save_ema_model = self.test(
+                top1, should_save_ema_model = self.test(
                     self.epoch,
                     dist_metric=dist_metric,
                     normalize_feature=normalize_feature,
@@ -423,32 +407,35 @@ class Engine:
                     ranks=ranks,
                     lr_finder=lr_finder,
                 )
+            test_acc.update(top1)
+            smooth_top1 = test_acc.avg
+            target_metric = smooth_top1 if self.target_metric == 'test_acc' else avg_loss
 
-            target_metric = top1 if self.target_metric == 'test_acc' else avg_loss
             if not lr_finder and not self.per_batch_annealing:
                 self.update_lr(output_avg_metric = target_metric)
 
-                if lr_finder:
-                    print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
-                    if trial:
-                        trial.report(top1, self.epoch)
-                        if trial.should_prune():
-                            # restore model before pruning
-                            self.restore_model()
-                            raise optuna.exceptions.TrialPruned()
+            if lr_finder:
+                print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
+                if trial:
+                    trial.report(top1, self.epoch)
+                    if trial.should_prune():
+                        # restore model before pruning
+                        self.restore_model()
+                        raise optuna.exceptions.TrialPruned()
 
-                if not lr_finder:
-                    should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1, top5, mAP)
-                    should_exit = self.early_stoping and should_exit
+            if not lr_finder:
+                # use smooth (average) top1 metric for early stopping if the target metric is top1
+                should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1, smooth_top1)
+                should_exit = self.early_stoping and should_exit
 
-                    if self.save_chkpt:
-                        self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best,
-                                        should_save_ema_model=should_save_ema_model)
-                    if should_exit:
-                        if self.compression_ctrl is None or \
-                                (self.compression_ctrl is not None and
-                                 self.compression_ctrl.compression_stage == get_nncf_complession_stage().FULLY_COMPRESSED):
-                            break
+                if self.save_chkpt:
+                    self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best,
+                                    should_save_ema_model=should_save_ema_model)
+                if should_exit:
+                    if self.compression_ctrl is None or \
+                            (self.compression_ctrl is not None and
+                                self.compression_ctrl.compression_stage == get_nncf_complession_stage().FULLY_COMPRESSED):
+                        break
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_end()
         if lr_finder and lr_finder.mode != 'fast_ai': self.restore_model()
@@ -623,22 +610,23 @@ class Engine:
 
         self.set_model_mode('eval')
         targets = list(self.test_loader.keys())
-        top1, mAP, top5 = [None]*3
-        cur_top1, cur_mAP, cur_top5 = [None]*3
-        ema_top1, ema_mAP, ema_top5 = [0]*3
+        top1, cur_top1, ema_top1 = [-1]*3
         should_save_ema_model = False
 
         for dataset_name in targets:
             domain = 'source' if dataset_name in self.datamanager.sources else 'target'
             print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
+            # TO DO reduce amount of code for evaluation functions (DRY rule)
             for model_id, (model_name, model) in enumerate(self.models.items()):
+                ema_condition = (self.use_ema_decay and not lr_finder
+                        and not test_only and model_name == self.main_model_name)
                 model_type = get_model_attr(model, 'type')
                 if model_type == 'classification':
                     # do not evaluate second model till last epoch
                     if (model_name != self.main_model_name
                         and not test_only and epoch != (self.max_epoch - 1)):
                         continue
-                    cur_top1, cur_top5, cur_mAP = self._evaluate_classification(
+                    cur_top1 = self._evaluate_classification(
                         model=model,
                         epoch=epoch,
                         data_loader=self.test_loader[dataset_name]['query'],
@@ -647,9 +635,8 @@ class Engine:
                         ranks=ranks,
                         lr_finder=lr_finder
                     )
-                    if (self.use_ema_decay and not lr_finder
-                        and not test_only and model_name == self.main_model_name):
-                        ema_top1, ema_top5, ema_mAP = self._evaluate_classification(
+                    if ema_condition:
+                        ema_top1 = self._evaluate_classification(
                             model=self.ema_model.module,
                             epoch=epoch,
                             data_loader=self.test_loader[dataset_name]['query'],
@@ -665,7 +652,9 @@ class Engine:
                     if (model_name != self.main_model_name
                         and not test_only and epoch != (self.max_epoch - 1)):
                         continue
-                    cur_mAP = self._evaluate_multilabel_classification(
+                    # we compute mAP, but consider it top1 for consistency
+                    # with single label classification
+                    cur_top1 = self._evaluate_multilabel_classification(
                         model=model,
                         epoch=epoch,
                         data_loader=self.test_loader[dataset_name]['query'],
@@ -673,9 +662,8 @@ class Engine:
                         dataset_name=dataset_name,
                         lr_finder=lr_finder
                     )
-                    if (self.use_ema_decay and not lr_finder
-                        and not test_only and model_name == self.main_model_name):
-                        ema_mAP = self._evaluate_multilabel_classification(
+                    if ema_condition:
+                        ema_top1 = self._evaluate_multilabel_classification(
                             model=self.ema_model.module,
                             epoch=epoch,
                             data_loader=self.test_loader[dataset_name]['query'],
@@ -683,8 +671,6 @@ class Engine:
                             dataset_name=dataset_name,
                             lr_finder = lr_finder
                         )
-                    cur_top1, cur_top5 = (cur_mAP, cur_mAP)
-                    ema_top1, ema_top5 = (ema_mAP, ema_mAP)
                 elif dataset_name == 'lfw':
                     self._evaluate_pairwise(
                         model=model,
@@ -693,7 +679,7 @@ class Engine:
                         model_name=model_name
                     )
                 else:
-                    cur_top1, cur_top5, cur_mAP = self._evaluate_reid(
+                    cur_top1 = self._evaluate_reid(
                         model=model,
                         epoch=epoch,
                         model_name=model_name,
@@ -713,17 +699,13 @@ class Engine:
 
                 if model_id == 0:
                     # the function should return accuracy results for the first (main) model only
-                    if ema_top1 >= cur_top1 and self.use_ema_decay:
+                    if self.use_ema_decay and ema_top1 >= cur_top1:
                         should_save_ema_model = True
                         top1 = ema_top1
-                        top5 = ema_top5
-                        mAP = ema_mAP
                     else:
                         top1 = cur_top1
-                        top5 = cur_top5
-                        mAP = cur_mAP
 
-        return top1, top5, mAP, should_save_ema_model
+        return top1, should_save_ema_model
 
     @torch.no_grad()
     def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, dataset_name, lr_finder):
@@ -770,7 +752,7 @@ class Engine:
             if norm_cm.shape[0] <= 20:
                 metrics.show_confusion_matrix(norm_cm)
 
-        return cmc[0], cmc[1], mAP
+        return cmc[0]
 
     @torch.no_grad()
     def _evaluate_pairwise(self, model, epoch, data_loader, model_name):
@@ -875,7 +857,7 @@ class Engine:
                 topk=visrank_topk
             )
 
-        return cmc[0], cmc[1], mAP
+        return cmc[0]
 
     @staticmethod
     def compute_loss(criterion, outputs, targets, **kwargs):

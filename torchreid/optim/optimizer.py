@@ -63,22 +63,22 @@ def build_optimizer(model, optim, base_optim, lr_finder, **kwargs):
     return optimizer
 
 def _build_optim(model,
-                optim='adam',
-                base_optim='sgd',
-                lr=0.0003,
-                weight_decay=5e-04,
-                momentum=0.9,
-                sgd_dampening=0,
-                sgd_nesterov=False,
-                rmsprop_alpha=0.99,
-                adam_beta1=0.9,
-                adam_beta2=0.99,
-                staged_lr=False,
-                new_layers='',
-                base_lr_mult=0.1,
-                nbd=False,
-                lr_finder=False,
-                sam_rho = 0.05):
+                 optim='adam',
+                 base_optim='sgd',
+                 lr=0.0003,
+                 weight_decay=5e-04,
+                 momentum=0.9,
+                 sgd_dampening=0,
+                 sgd_nesterov=False,
+                 rmsprop_alpha=0.99,
+                 adam_beta1=0.9,
+                 adam_beta2=0.99,
+                 staged_lr=False,
+                 new_layers='',
+                 base_lr_mult=0.1,
+                 nbd=False,
+                 lr_finder=False,
+                 sam_rho = 0.05):
 
     if optim not in AVAI_OPTIMS:
         raise ValueError(
