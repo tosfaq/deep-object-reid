@@ -268,7 +268,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         if self._cfg.lr_finder.enable and self._cfg.lr_finder.mode == 'automatic': # and not parameters.resume_from:
             scheduler = None
         else:
-            scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(self._cfg))
+            scheduler = torchreid.optim.build_lr_scheduler(optimizer, num_iter=datamanager.num_iter,
+                                                           **lr_scheduler_kwargs(self._cfg))
 
         lr = None # placeholder, needed for aux models
         if self._cfg.lr_finder.enable:
