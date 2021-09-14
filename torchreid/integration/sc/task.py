@@ -55,7 +55,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
     task_environment: TaskEnvironment
 
     def __init__(self, task_environment: TaskEnvironment):
-        logger.info(f"Loading OTEDetectionTask.")
+        logger.info("Loading OTEClassificationTask.")
         self._scratch_space = tempfile.mkdtemp(prefix="ote-cls-scratch-")
         logger.info(f"Scratch space created at {self._scratch_space}")
 
@@ -90,7 +90,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             model = self._create_model(self._cfg, from_scratch=True)
 
             try:
-                load_pretrained_weights(model, pretrained_dict=model_data)
+                load_pretrained_weights(model, pretrained_dict=model_data['model'])
                 logger.info(f"Loaded model weights from Task Environment")
                 logger.info(f"Model architecture: {self._model_name}")
             except BaseException as ex:
