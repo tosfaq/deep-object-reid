@@ -116,6 +116,7 @@ fi
 
 # Install other requirements.
 cat requirements.txt | xargs -n 1 -L 1 pip install -c ${CONSTRAINTS_FILE} || exit 1
+cat openvino-requirements.txt | xargs -n 1 -L 1 pip install -c ${CONSTRAINTS_FILE} || exit 1
 
 
 pip install -e $SC_SDK_REPO/src/ote_sdk -c ${CONSTRAINTS_FILE} || exit 1
