@@ -103,6 +103,11 @@ def build_auxiliary_model(config_file, num_classes, use_gpu,
     return model, optimizer, scheduler
 
 
+@parse_args('v')
+def relu6_symbolic(g, input_blob):
+    return g.op("Clip", input_blob, min_f=0., max_f=6.)
+
+
 @parse_args('v', 'i', 'v', 'v', 'f', 'i')
 def group_norm_symbolic(g, input_blob, num_groups, weight, bias, eps, cudnn_enabled):
     from torch.onnx.symbolic_opset9 import reshape, mul, add, reshape_as
