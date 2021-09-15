@@ -98,7 +98,7 @@ def main(args):
     logger.info('Get predictions on the validation set')
     validation_dataset = dataset.get_subset(Subset.VALIDATION)
     predicted_validation_dataset = task.infer(
-        validation_dataset, #.with_empty_annotations(),
+        validation_dataset.with_empty_annotations(),
         InferenceParameters(is_evaluation=True))
     resultset = ResultSetEntity(
         model=output_model,
@@ -116,10 +116,9 @@ def main(args):
             NullModelStorage(),
             dataset,
             environment.get_model_configuration(),
-            ModelOptimizationType.MO,
+            optimization_type=ModelOptimizationType.MO,
             precision=[ModelPrecision.FP32],
             optimization_methods=[],
-            optimization_level={},
             target_device=TargetDevice.UNSPECIFIED,
             performance_improvement={},
             model_size_reduction=1.,
