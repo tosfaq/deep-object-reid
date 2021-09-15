@@ -320,35 +320,22 @@ class Engine:
         if visrank and not test_only:
             raise ValueError('visrank can be set to True only if test_only=True')
 
-        if test_only:
-            test_results = self.test(
-                                     0,
-                                     dist_metric=dist_metric,
-                                     normalize_feature=normalize_feature,
-                                     visrank=visrank,
-                                     visrank_topk=visrank_topk,
-                                     save_dir=save_dir,
-                                     use_metric_cuhk03=use_metric_cuhk03,
-                                     ranks=ranks,
-                                     rerank=rerank,
-                                     test_only = True
-                                    )
-            return test_results
-
-        if not lr_finder:
+        if not lr_finder or test_only:
             print('Test before training')
-            self.test(
-                      0,
-                      dist_metric=dist_metric,
-                      normalize_feature=normalize_feature,
-                      visrank=visrank,
-                      visrank_topk=visrank_topk,
-                      save_dir=save_dir,
-                      use_metric_cuhk03=use_metric_cuhk03,
-                      ranks=ranks,
-                      rerank=rerank,
-                      test_only=True
-            )
+            test_results = self.test(
+                                    0,
+                                    dist_metric=dist_metric,
+                                    normalize_feature=normalize_feature,
+                                    visrank=visrank,
+                                    visrank_topk=visrank_topk,
+                                    save_dir=save_dir,
+                                    use_metric_cuhk03=use_metric_cuhk03,
+                                    ranks=ranks,
+                                    rerank=rerank,
+                                    test_only = True
+                                   )
+            if test_only:
+                return test_results
         else:
             self.configure_lr_finder(trial, lr_finder)
             self.backup_model()
