@@ -1,5 +1,6 @@
 
 from attr import attrs
+from sys import maxsize
 from ote_sdk.configuration import ModelConfig, ModelLifecycle
 from ote_sdk.configuration.elements import (ParameterGroup,
                                             add_parameter_group,
@@ -7,7 +8,10 @@ from ote_sdk.configuration.elements import (ParameterGroup,
                                             configurable_boolean,
                                             configurable_float,
                                             configurable_integer,
+                                            selectable,
                                             string_attribute)
+
+from .parameters_enums import POTQuantizationPreset
 
 @attrs
 class OTEClassificationParameters(ModelConfig):
@@ -52,5 +56,23 @@ class OTEClassificationParameters(ModelConfig):
         model = string_attribute("main_model.yaml")
         model_name = string_attribute("image classification model")
 
+    @attrs
+    class __POTParameter(ParameterGroup):
+        header = string_attribute("POT Parameters")
+        description = header
+
+        stat_subset_size = configurable_integer(
+            header="Number of data samples",
+            description="Number of data samples used for post-training optimization",
+            default_value=300,
+            min_value=1,
+            max_value=maxsize
+        )
+
+        preset = selectable(default_value=POTQuantizationPreset.PERFORMANCE, header="Preset",
+                            description="Quantization preset that defines quantization scheme",
+                            editable=False, visible_in_ui=False)
+
     learning_parameters = add_parameter_group(__LearningParameters)
     algo_backend = add_parameter_group(__AlgoBackend)
+    pot_parameters = add_parameter_group(__POTParameter)
