@@ -11,23 +11,20 @@ import torch
 import numpy as np
 
 import torchreid
-from torchreid.engine import build_engine
-from torchreid.optim import LrFinder
 from torchreid.ops import DataParallel
 from torchreid.apis.export import export_onnx, export_ir
+from torchreid.apis.training import run_lr_finder, run_training
 from torchreid.utils import load_pretrained_weights, set_random_seed
-from scripts.default_config import (engine_run_kwargs, get_default_config,
-                                    imagedata_kwargs, lr_finder_run_kwargs,
+from scripts.default_config import (get_default_config,
+                                    imagedata_kwargs,
                                     lr_scheduler_kwargs, model_kwargs,
                                     optimizer_kwargs, merge_from_files_with_base)
-from scripts.script_utils import build_auxiliary_model
 from torchreid.integration.sc.monitors import PerformanceMonitor, StopCallback, DefaultMetricsMonitor
 from torchreid.integration.sc.utils import OTEClassificationDataset
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
 from ote_sdk.entities.inference_parameters import InferenceParameters
-from ote_sdk.entities.label_schema import LabelGroupType
 from ote_sdk.entities.metrics import MetricsGroup, CurveMetric, LineChartInfo
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.entities.train_parameters import TrainParameters
@@ -103,7 +100,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             logger.info(f"No trained model in project yet. Created new model with '{self._model_name}' "
                         f"architecture and general-purpose pretrained weights.")
         return model
-
 
     def _create_model(self, сonfig, from_scratch: bool = False):
         """
@@ -271,58 +267,18 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             scheduler = torchreid.optim.build_lr_scheduler(optimizer, num_iter=datamanager.num_iter,
                                                            **lr_scheduler_kwargs(self._cfg))
 
-        lr = None # placeholder, needed for aux models
         if self._cfg.lr_finder.enable:
-            if num_aux_models:
-                print("Mutual learning is enabled. Learning rate will be estimated for the main model only.")
+            run_lr_finder(self._cfg, datamanager, train_model, optimizer, scheduler, None,
+                          rebuild_model=False, gpu_num=self.num_devices, split_models=False)
 
-            # build new engine
-            engine = build_engine(self._cfg, datamanager, train_model, optimizer, scheduler)
-            lr_finder = LrFinder(engine=engine, **lr_finder_run_kwargs(self._cfg))
-            aux_lr = lr_finder.process()
-
-            print(f"Estimated learning rate: {aux_lr}")
-            if self._cfg.lr_finder.stop_after:
-                print("Finding learning rate finished. Terminate the training process")
-                exit()
-
-            # reload all parts of the training
-            # we do not check classification parameters
-            # and do not get num_train_classes the second time
-            # since it's done above and lr finder cannot change parameters of the datasets
-            self._cfg.train.lr = aux_lr
-            self._cfg.lr_finder.enable = False
-            set_random_seed(self._cfg.train.seed, self._cfg.train.deterministic)
-
-            datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
-            # train_model = torchreid.models.build_model(**model_kwargs(self._cfg, num_train_classes))
-            # train_model, _ = put_main_model_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
-            optimizer = torchreid.optim.build_optimizer(train_model, **optimizer_kwargs(self._cfg))
-            scheduler = torchreid.optim.build_lr_scheduler(optimizer, **lr_scheduler_kwargs(self._cfg))
-
-        if num_aux_models:
-            print('Enabled mutual learning between {} models.'.format(num_aux_models + 1))
-
-            models, optimizers, schedulers = [train_model], [optimizer], [scheduler]
-            for config_file, device_ids in zip(self._cfg.mutual_learning.aux_configs, extra_device_ids):
-                aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
-                    config_file, self.num_classes, self._cfg.use_gpu, device_ids, lr
-                )
-
-                models.append(aux_model)
-                optimizers.append(aux_optimizer)
-                schedulers.append(aux_scheduler)
-        else:
-            models, optimizers, schedulers = train_model, optimizer, scheduler
-
-        print('Building {}-engine'.format(self._cfg.loss.name))
-        engine = build_engine(self._cfg, datamanager, models, optimizers, schedulers)
-        engine.run(**engine_run_kwargs(self._cfg), tb_writer=self.metrics_monitor, perf_monitor=self.perf_monitor,
-                   stop_callback=self.stop_callback)
+        run_training(self._cfg, datamanager, train_model, optimizer, scheduler, extra_device_ids,
+                     self._cfg.train.lr, tb_writer=self.metrics_monitor, perf_monitor=self.perf_monitor,
+                     stop_callback=self.stop_callback, test_before_train=False)
 
         if self._cfg.use_gpu:
             train_model = train_model.module
-        #self.metrics_monitor.close()
+
+        self.metrics_monitor.close()
         if self.stop_callback.check_stop():
             print('Training has been canceled')
 
