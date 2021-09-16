@@ -7,16 +7,15 @@ class TResnetTimm(ModelInterface):
     def __init__(self,
                 pretrained=False,
                 dropout_cls = None,
-                lr_finder=None,
                 num_classes=1000,
                 **kwargs):
         super().__init__(**kwargs)
         dropout_rate = dropout_cls.p
-        self.lr_finder = lr_finder
         self.model = timm.create_model('tresnet_m',
                                         pretrained=pretrained,
                                         num_classes=num_classes,
                                         drop_rate=dropout_rate)
+        self.num_features = self.model.num_features
         assert self.loss in ['softmax', 'asl'], "TResnetTimm supports only softmax or ASL losses"
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None):
@@ -31,15 +30,10 @@ class TResnetTimm(ModelInterface):
             return [logits]
 
         elif self.loss in ['softmax', 'am_softmax', 'asl']:
-            if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
-                out_data = logits
-            else:
                 out_data = [logits]
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
-        if self.lr_finder.enable and self.lr_finder.lr_find_mode == 'automatic':
-            return out_data
         return tuple(out_data)
 
 def tresnet(pretrained=False, **kwargs):
