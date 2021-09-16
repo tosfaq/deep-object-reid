@@ -624,6 +624,20 @@ def engine_run_kwargs(cfg):
     }
 
 
+def engine_test_kwargs(cfg):
+    return {
+        'dist_metric': cfg.test.dist_metric,
+        'normalize_feature': cfg.test.normalize_feature,
+        'visrank': cfg.test.visrank,
+        'visrank_topk': cfg.test.visrank_topk,
+        'save_dir': cfg.data.save_dir,
+        'use_metric_cuhk03': cfg.cuhk03.use_metric_cuhk03,
+        'ranks': cfg.test.ranks,
+        'test_only': cfg.test.evaluate,
+        'rerank': cfg.test.rerank,
+    }
+
+
 def lr_finder_run_kwargs(cfg):
     return {
         'mode': cfg.lr_finder.mode,
