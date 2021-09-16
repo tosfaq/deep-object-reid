@@ -271,21 +271,32 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             run_lr_finder(self._cfg, datamanager, train_model, optimizer, scheduler, None,
                           rebuild_model=False, gpu_num=self.num_devices, split_models=False)
 
-        run_training(self._cfg, datamanager, train_model, optimizer, scheduler, extra_device_ids,
-                     self._cfg.train.lr, tb_writer=self.metrics_monitor, perf_monitor=self.perf_monitor,
-                     stop_callback=self.stop_callback, test_before_train=False)
+        init_acc, final_acc = run_training(self._cfg, datamanager, train_model, optimizer, scheduler, extra_device_ids,
+                                           self._cfg.train.lr, tb_writer=self.metrics_monitor, perf_monitor=self.perf_monitor,
+                                           stop_callback=self.stop_callback, test_before_train=True)
+
+        print(init_acc, final_acc)
+        improved = final_acc > init_acc
+        print(improved, final_acc - init_acc)
 
         if self._cfg.use_gpu:
             train_model = train_model.module
 
         self.metrics_monitor.close()
         if self.stop_callback.check_stop():
-            print('Training has been canceled')
+            logger.info('Training cancelled.')
+            return
 
-        logger.info("Training finished, and it has an improved model")
-        self._model = deepcopy(train_model)
-        self.save_model(output_model)
-        output_model.model_status = ModelStatus.SUCCESS
+        if improved or self._task_environment.model is None:
+            if improved:
+                logger.info("Training finished, and it has an improved model")
+            else:
+                logger.info("First training round, saving the model.")
+            self.save_model(output_model)
+            output_model.model_status = ModelStatus.SUCCESS
+            self._model = deepcopy(train_model)
+        else:
+            logger.info("Model performance has not improved while training. No new model has been saved.")
 
         self.progress_monitor = None
 
