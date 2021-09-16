@@ -21,7 +21,8 @@ from torchreid.engine import build_engine
 from torchreid.optim import LrFinder
 from scripts.default_config import (lr_finder_run_kwargs,
                                     lr_scheduler_kwargs, model_kwargs,
-                                    optimizer_kwargs, engine_run_kwargs)
+                                    optimizer_kwargs, engine_run_kwargs,
+                                    engine_test_kwargs)
 from torchreid.utils import set_random_seed
 from scripts.script_utils import (build_datamanager, build_auxiliary_model,
                                   put_main_model_on_the_device)
@@ -65,6 +66,7 @@ def run_lr_finder(cfg, datamanager, model, optimizer, scheduler, classes,
 
 
 def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids, init_lr,
+                 test_before_train=True,
                  tb_writer=None, perf_monitor=None, stop_callback=None,
                  aux_config_opts=None,
                  nncf_changes_in_aux_train_config=None,
@@ -97,5 +99,8 @@ def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids
                           compression_ctrl=compression_ctrl,
                           initial_lr=init_lr)
 
+    if test_before_train:
+        print('Test before training')
+        engine.test(engine_test_kwargs(cfg))
     engine.run(**engine_run_kwargs(cfg), tb_writer=tb_writer,
                perf_monitor=perf_monitor, stop_callback=stop_callback)
