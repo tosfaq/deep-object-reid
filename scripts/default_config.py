@@ -18,7 +18,7 @@ def get_default_config():
     cfg.lr_finder.mode = 'fast_ai'
     cfg.lr_finder.max_lr = 0.03
     cfg.lr_finder.min_lr = 0.004
-    cfg.lr_finder.step = 0.001
+    cfg.lr_finder.step = None
     cfg.lr_finder.num_epochs = 3
     cfg.lr_finder.epochs_warmup = 2
     cfg.lr_finder.stop_after = False
@@ -66,6 +66,16 @@ def get_default_config():
     cfg.model.self_challenging_cfg.enable = False
     cfg.model.self_challenging_cfg.drop_p = 0.33
     cfg.model.self_challenging_cfg.drop_batch_p = 0.33
+    cfg.model.transformer = CN()
+    cfg.model.transformer.hidden_dim = 2432
+    cfg.model.transformer.dim_feedforward = 2432
+    cfg.model.transformer.dropout = 0.1
+    cfg.model.transformer.nheads = 4
+    cfg.model.transformer.num_encoder_layers = 1
+    cfg.model.transformer.num_decoder_layers = 2
+    cfg.model.transformer.pre_norm = False
+    cfg.model.transformer.rm_self_attn_dec = True
+    cfg.model.transformer.rm_first_self_attn = True
 
     # mutual learning, auxiliary model
     cfg.mutual_learning = CN()
@@ -264,6 +274,7 @@ def get_default_config():
     cfg.test.visrank_topk = 10  # top-k ranks to visualize
     cfg.test.visactmap = False  # visualize CNN activation maps
     cfg.test.apply_masks = False
+    cfg.test.test_before_train = False
 
     # Augmentations
     cfg.data.transforms = CN()
@@ -598,6 +609,15 @@ def model_kwargs(cfg, num_classes):
         'attr_num_classes': cfg.attr_loss.num_classes,
         'type': cfg.model.type,
         'self_challenging_cfg': cfg.model.self_challenging_cfg,
+        'hidden_dim': cfg.model.transformer.hidden_dim,
+        'dropout': cfg.model.transformer.dropout,
+        'nheads': cfg.model.transformer.nheads,
+        'dim_feedforward': cfg.model.transformer.dim_feedforward,
+        'num_encoder_layers': cfg.model.transformer.num_encoder_layers,
+        'num_decoder_layers': cfg.model.transformer.num_decoder_layers,
+        'pre_norm': cfg.model.transformer.pre_norm,
+        'rm_self_attn_dec': cfg.model.transformer.rm_self_attn_dec,
+        'rm_first_self_attn': cfg.model.transformer.rm_first_self_attn,
     }
 
 
@@ -611,7 +631,6 @@ def engine_run_kwargs(cfg):
         'open_layers': cfg.train.open_layers,
         'start_eval': cfg.test.start_eval,
         'eval_freq': cfg.test.eval_freq,
-        'test_only': cfg.test.evaluate,
         'print_freq': cfg.train.print_freq,
         'dist_metric': cfg.test.dist_metric,
         'normalize_feature': cfg.test.normalize_feature,
@@ -619,7 +638,6 @@ def engine_run_kwargs(cfg):
         'visrank_topk': cfg.test.visrank_topk,
         'use_metric_cuhk03': cfg.cuhk03.use_metric_cuhk03,
         'ranks': cfg.test.ranks,
-        'rerank': cfg.test.rerank,
         'initial_seed': cfg.train.seed
     }
 
