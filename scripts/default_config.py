@@ -274,6 +274,7 @@ def get_default_config():
     cfg.test.visrank_topk = 10  # top-k ranks to visualize
     cfg.test.visactmap = False  # visualize CNN activation maps
     cfg.test.apply_masks = False
+    cfg.test.test_before_train = False
 
     # Augmentations
     cfg.data.transforms = CN()
@@ -630,7 +631,6 @@ def engine_run_kwargs(cfg):
         'open_layers': cfg.train.open_layers,
         'start_eval': cfg.test.start_eval,
         'eval_freq': cfg.test.eval_freq,
-        'test_only': cfg.test.evaluate,
         'print_freq': cfg.train.print_freq,
         'dist_metric': cfg.test.dist_metric,
         'normalize_feature': cfg.test.normalize_feature,
@@ -638,8 +638,21 @@ def engine_run_kwargs(cfg):
         'visrank_topk': cfg.test.visrank_topk,
         'use_metric_cuhk03': cfg.cuhk03.use_metric_cuhk03,
         'ranks': cfg.test.ranks,
-        'rerank': cfg.test.rerank,
         'initial_seed': cfg.train.seed
+    }
+
+
+def engine_test_kwargs(cfg):
+    return {
+        'dist_metric': cfg.test.dist_metric,
+        'normalize_feature': cfg.test.normalize_feature,
+        'visrank': cfg.test.visrank,
+        'visrank_topk': cfg.test.visrank_topk,
+        'save_dir': cfg.data.save_dir,
+        'use_metric_cuhk03': cfg.cuhk03.use_metric_cuhk03,
+        'ranks': cfg.test.ranks,
+        'test_only': cfg.test.evaluate,
+        'rerank': cfg.test.rerank,
     }
 
 
