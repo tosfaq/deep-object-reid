@@ -17,16 +17,22 @@ import os.path as osp
 import sys
 from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.configuration.helper import create
-from sc_sdk.entities.model import Model
-from sc_sdk.entities.dataset_storage import NullDatasetStorage
 from ote_sdk.entities.datasets import Subset
-from sc_sdk.entities.model_storage import NullModelStorage
 from ote_sdk.entities.model_template import parse_model_template, TargetDevice
-from ote_sdk.entities.model import ModelStatus, ModelPrecision, ModelOptimizationType
+from ote_sdk.entities.model import (
+    ModelEntity,
+    ModelPrecision,
+    ModelStatus,
+    ModelOptimizationType,
+    OptimizationMethod,
+)
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
-from sc_sdk.entities.project import NullProject
+from ote_sdk.usecases.tasks.interfaces.optimization_interface import OptimizationType
+from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.resultset import ResultSetEntity
 from ote_sdk.entities.task_environment import TaskEnvironment
+
+from sc_sdk.entities.dataset_storage import NullDatasetStorage
 from sc_sdk.logging import logger_factory
 
 from torchreid.integration.sc.utils import (ClassificationDatasetAdapter,
@@ -87,9 +93,7 @@ def main(args):
     task_cls = get_task_class(task_impl_path)
     task = task_cls(task_environment=environment)
     logger.info('Train model')
-    output_model = Model(
-        NullProject(),
-        NullModelStorage(),
+    output_model = ModelEntity(
         dataset,
         environment.get_model_configuration(),
         model_status=ModelStatus.NOT_READY)
@@ -111,14 +115,13 @@ def main(args):
 
     if args.export:
         logger.info('Export model')
-        exported_model = Model(
-            NullProject(),
-            NullModelStorage(),
+        exported_model = ModelEntity(
             dataset,
             environment.get_model_configuration(),
             optimization_type=ModelOptimizationType.MO,
             precision=[ModelPrecision.FP32],
             optimization_methods=[],
+            optimization_objectives={},
             target_device=TargetDevice.UNSPECIFIED,
             performance_improvement={},
             model_size_reduction=1.,
@@ -141,6 +144,37 @@ def main(args):
             prediction_dataset=predicted_validation_dataset,
         )
         logger.info('Estimate quality on validation set')
+        performance = openvino_task.evaluate(resultset)
+        logger.info(str(performance))
+
+        logger.info('Run POT optimization')
+        optimized_model = ModelEntity(
+            dataset,
+            environment.get_model_configuration(),
+            optimization_type=ModelOptimizationType.POT,
+            optimization_methods=OptimizationMethod.QUANTIZATION,
+            optimization_objectives={},
+            precision=[ModelPrecision.INT8],
+            target_device=TargetDevice.CPU,
+            performance_improvement={},
+            model_size_reduction=1.,
+            model_status=ModelStatus.NOT_READY)
+        openvino_task.optimize(
+            OptimizationType.POT,
+            dataset.get_subset(Subset.TRAINING),
+            optimized_model,
+            OptimizationParameters())
+
+        logger.info('Get predictions on the validation set')
+        predicted_validation_dataset = openvino_task.infer(
+            validation_dataset.with_empty_annotations(),
+            InferenceParameters(is_evaluation=True))
+        resultset = ResultSetEntity(
+            model=optimized_model,
+            ground_truth_dataset=validation_dataset,
+            prediction_dataset=predicted_validation_dataset,
+        )
+        logger.info('Performance of optimized model:')
         performance = openvino_task.evaluate(resultset)
         logger.info(str(performance))
 
