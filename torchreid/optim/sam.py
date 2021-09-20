@@ -38,12 +38,8 @@ class SAM(torch.optim.Optimizer):
                 if p.grad is None: continue
                 self.state[p]["old_p"] = p.data.clone()
                 e_w = (torch.pow(p, 2) if self.adaptive else 1.0) * p.grad * scale.to(p)
-                p.add_(e_w)  # climb to the local maximum "w + e(w)"
 
-        if zero_grad: self.zero_grad()
-
-    @torch.no_grad()
-    def second_step(self, zero_grad=False):
+    def second_step(self, grad_scale, zero_grad=False):
         for group in self.param_groups:
             for p in group["params"]:
                 if p.grad is None: continue
@@ -52,19 +48,15 @@ class SAM(torch.optim.Optimizer):
         self.base_optimizer.step()  # do the actual "sharpness-aware" update
 
         if zero_grad: self.zero_grad()
+        self.did_first_step = False
 
     @torch.no_grad()
     def step(self):
         raise NotImplementedError("SAM doesn't work like the other optimizers,"
                                    " you should first call `first_step` and the `second_step`;")
-
-    def _grad_norm(self):
-        shared_device = self.param_groups[0]["params"][0].device  # put everything on the same device, in case of model parallelism
-        norm = torch.norm(
-                    torch.stack([
+        self.second_step(self, zero_grad=zero_grad)
                         ((torch.abs(p) if self.adaptive else 1.0) * p.grad).norm(p=2).to(shared_device)
                         for group in self.param_groups for p in group["params"]
-                        if p.grad is not None
                     ]),
                     p=2
                )

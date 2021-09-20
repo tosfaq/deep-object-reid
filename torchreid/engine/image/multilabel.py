@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.cuda.amp import GradScaler, autocast
 
 from torchreid import metrics
 from torchreid.losses import AsymmetricLoss, AMBinaryLoss
@@ -37,6 +38,7 @@ class MultilabelEngine(Engine):
 
         self.main_losses = nn.ModuleList()
         self.clip_grad = clip_grad
+        self.scaler = GradScaler(enabled=False)
         num_classes = self.datamanager.num_train_pids
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
@@ -132,24 +134,33 @@ class MultilabelEngine(Engine):
 
                 total_loss += coeff_mutual_learning * mutual_loss
             # backward pass
-            total_loss.backward(retain_graph=False)
-
+            self.scaler.scale(total_loss).backward(retain_graph=False)
             for model_name in model_names:
-                if self.clip_grad != 0:
+                if self.clip_grad != 0 and step == 1:
+                    self.scaler.unscale_(self.optims[model_name])
                     torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
                 if not self.enable_sam and step == 1:
-                    self.optims[model_name].step()
+                    self.scaler.step(self.optims[model_name])
+                    self.scaler.update()
                 elif step == 1:
+                    # if self.clip_grad == 0: # this means that unscale_ wasn't applied
+                        # unscale parameters to perform SAM manipulations with parameters
+                        # self.scaler.unscale_(self.optims[model_name])
+                    # self.scaler.unscale_(self.optims[model_name])
                     assert self.enable_sam
                     self.optims[model_name].first_step()
                 else:
                     assert self.enable_sam and step==2
-                    self.optims[model_name].second_step()
+                    # do safe step according to parameters values
+                    self.optims[model_name].second_step(self.scaler)
+                    # self.scaler.step(self.optims[model_name])
+                    self.scaler.update()
 
             loss_summary['loss'] = total_loss.item()
 
         return loss_summary, avg_acc
 
+    @autocast(enabled=False)
     def _single_model_losses(self, model, train_records, imgs, obj_ids, n_iter, model_name):
         model_output = model(imgs)
         all_logits = self._parse_model_output(model_output)

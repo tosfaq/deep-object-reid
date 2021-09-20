@@ -1,7 +1,7 @@
 import math
 
-import torch
 import torch.nn as nn
+from torch.cuda.amp import autocast
 
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, EvalModeSetter, rsc
