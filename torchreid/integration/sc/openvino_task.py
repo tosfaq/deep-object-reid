@@ -25,7 +25,7 @@ import PIL
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneKind
 from ote_sdk.entities.id import ID
 from ote_sdk.entities.inference_parameters import InferenceParameters
-from ote_sdk.entities.label import ScoredLabel
+from ote_sdk.entities.scored_label import ScoredLabel
 from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
