@@ -160,7 +160,7 @@ class MultilabelEngine(Engine):
 
         return loss_summary, avg_acc
 
-    @autocast(enabled=False)
+    @autocast(enabled=True)
     def _single_model_losses(self, model, train_records, imgs, obj_ids, n_iter, model_name):
         model_output = model(imgs)
         all_logits = self._parse_model_output(model_output)

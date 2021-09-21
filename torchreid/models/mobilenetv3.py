@@ -131,6 +131,62 @@ class MobileNetV3(ModelInterface):
         self.self_challenging_cfg = self_challenging_cfg
         self.width_mult = width_mult
         self.dropout_cls = dropout_cls
+<<<<<<< HEAD
+=======
+
+    def infer_head(self, x, skip_pool=False):
+        raise NotImplementedError
+
+    def extract_features(self, x):
+        raise NotImplementedError
+
+    @autocast(enabled=True)
+    def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None):
+        if self.input_IN is not None:
+            x = self.input_IN(x)
+
+        y = self.extract_features(x)
+        if return_featuremaps:
+            return y
+
+        with no_nncf_head_context():
+            glob_features, logits = self.infer_head(y, skip_pool=False)
+        if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
+            glob_features = rsc(
+                features = glob_features,
+                scores = logits,
+                labels = gt_labels,
+                retain_p = 1.0 - self.self_challenging_cfg.drop_p,
+                retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
+            )
+
+            with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
+                _, logits = self.infer_head(x, skip_pool=True)
+
+        if not self.training and self.is_classification():
+            return [logits]
+
+        if get_embeddings:
+            out_data = [logits, glob_features]
+        elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
+                out_data = [logits]
+        elif self.loss in ['triplet']:
+            out_data = [logits, glob_features]
+        else:
+            raise KeyError("Unsupported loss: {}".format(self.loss))
+
+        return tuple(out_data)
+
+
+class MobileNetV3(MobileNetV3Base):
+    def __init__(self,
+                 cfgs,
+                 mode,
+                 IN_conv1=False,
+                 **kwargs):
+
+        super().__init__(**kwargs)
+>>>>>>> continue fixing mix precision
         # setting of inverted residual blocks
         self.cfgs = cfgs
         assert mode in ['large', 'small']
