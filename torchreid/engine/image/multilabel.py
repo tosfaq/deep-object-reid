@@ -17,7 +17,8 @@ class MultilabelEngine(Engine):
                  train_patience, early_stoping, lr_decay_factor, loss_name, label_smooth,
                  lr_finder, m, s, sym_adjustment, auto_balance, amb_k, amb_t, clip_grad,
                  should_freeze_aux_models, nncf_metainfo, initial_lr,
-                 target_metric, use_ema_decay, ema_decay, asl_gamma_pos, asl_gamma_neg, asl_p_m, **kwargs):
+                 target_metric, use_ema_decay, ema_decay, asl_gamma_pos, asl_gamma_neg, asl_p_m,
+                 mix_precision, **kwargs):
 
         super().__init__(datamanager,
                         models=models,
@@ -38,7 +39,7 @@ class MultilabelEngine(Engine):
 
         self.main_losses = nn.ModuleList()
         self.clip_grad = clip_grad
-        self.scaler = GradScaler(enabled=False)
+        self.mix_precision = mix_precision
         num_classes = self.datamanager.num_train_pids
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
@@ -81,6 +82,9 @@ class MultilabelEngine(Engine):
         for model_name in self.get_model_names():
             assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be enabled \
                                                                                  for all models or none of them"
+        grad_scaler_enabled = self.mix_precision if self.mix_precision and not self.enable_sam else False
+        # self.scaler = GradScaler(enabled=grad_scaler_enabled)
+        self.scaler = GradScaler(enabled=True)
         self.prev_smooth_top1 = 0.
 
     def forward_backward(self, data):
@@ -152,15 +156,15 @@ class MultilabelEngine(Engine):
                 else:
                     assert self.enable_sam and step==2
                     # do safe step according to parameters values
-                    self.optims[model_name].second_step(self.scaler)
                     # self.scaler.step(self.optims[model_name])
+                    self.optims[model_name].second_step(self.scaler)
                     self.scaler.update()
 
             loss_summary['loss'] = total_loss.item()
 
         return loss_summary, avg_acc
 
-    @autocast(enabled=True)
+    @autocast(enabled=False)
     def _single_model_losses(self, model, train_records, imgs, obj_ids, n_iter, model_name):
         model_output = model(imgs)
         all_logits = self._parse_model_output(model_output)

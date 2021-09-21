@@ -164,6 +164,7 @@ def get_default_config():
     cfg.train.sam = CN()
     cfg.train.sam.rho = 0.05
     cfg.train.sam.adaptive = False
+    cfg.train.mix_precision = True
 
 
     # optimizer

@@ -66,7 +66,8 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             sym_adjustment=cfg.loss.am_binary.sym_adjustment,
             auto_balance=cfg.loss.am_binary.auto_balance,
             amb_k = cfg.loss.am_binary.amb_k,
-            amb_t=cfg.loss.am_binary.amb_t)
+            amb_t=cfg.loss.am_binary.amb_t,
+            mix_precision=cfg.train.mix_precision)
 
     if cfg.loss.name in ['softmax', 'am_softmax']:
         engine = ImageAMSoftmaxEngine(
