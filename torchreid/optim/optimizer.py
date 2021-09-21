@@ -78,7 +78,8 @@ def _build_optim(model,
                  base_lr_mult=0.1,
                  nbd=False,
                  lr_finder=False,
-                 sam_rho = 0.05):
+                 sam_rho = 0.05,
+                 sam_adaptive=False):
 
     if optim not in AVAI_OPTIMS:
         raise ValueError(
@@ -191,7 +192,8 @@ def _build_optim(model,
         optimizer = SAM(
             params=param_groups,
             base_optimizer=base_optim,
-            rho=sam_rho
+            rho=sam_rho,
+            adaptive=sam_adaptive
         )
 
     return optimizer

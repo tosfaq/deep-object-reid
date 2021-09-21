@@ -160,6 +160,7 @@ def get_default_config():
     cfg.train.ema.ema_decay = 0.9999
     cfg.train.sam = CN()
     cfg.train.sam.rho = 0.05
+    cfg.train.sam.adaptive = False
 
 
     # optimizer
@@ -557,7 +558,8 @@ def optimizer_kwargs(cfg):
         'base_lr_mult': cfg.train.base_lr_mult,
         'nbd': cfg.train.nbd,
         'lr_finder': cfg.lr_finder.enable,
-        'sam_rho': cfg.train.sam.rho
+        'sam_rho': cfg.train.sam.rho,
+        'sam_adaptive': cfg.train.sam.adaptive
     }
 
 
