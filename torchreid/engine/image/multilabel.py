@@ -39,7 +39,6 @@ class MultilabelEngine(Engine):
 
         self.main_losses = nn.ModuleList()
         self.clip_grad = clip_grad
-        self.mix_precision = mix_precision
         num_classes = self.datamanager.num_train_pids
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
@@ -82,9 +81,8 @@ class MultilabelEngine(Engine):
         for model_name in self.get_model_names():
             assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be enabled \
                                                                                  for all models or none of them"
-        grad_scaler_enabled = self.mix_precision if self.mix_precision and not self.enable_sam else False
-        # self.scaler = GradScaler(enabled=grad_scaler_enabled)
-        self.scaler = GradScaler(enabled=False)
+        grad_scaler_enabled = mix_precision if mix_precision and not self.enable_sam else False
+        self.scaler = GradScaler(enabled=grad_scaler_enabled)
         self.prev_smooth_top1 = 0.
 
     def forward_backward(self, data):
@@ -157,7 +155,7 @@ class MultilabelEngine(Engine):
                     assert self.enable_sam and step==2
                     # do safe step according to parameters values
                     # self.scaler.step(self.optims[model_name])
-                    self.optims[model_name].second_step(self.scaler)
+                    self.optims[model_name].second_step()
                     self.scaler.update()
 
             loss_summary['loss'] = total_loss.item()
