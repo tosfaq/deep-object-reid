@@ -85,6 +85,7 @@ class MultilabelEngine(Engine):
         grad_scaler_enabled = self.mix_precision if self.mix_precision and not self.enable_sam else False
         # self.scaler = GradScaler(enabled=grad_scaler_enabled)
         self.scaler = GradScaler(enabled=False)
+        self.prev_smooth_top1 = 0.
 
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx
