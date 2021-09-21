@@ -111,8 +111,10 @@ class ExternalDatasetWrapper(ImageDataset):
         if isinstance(label, (tuple, list)): # when multi-label classification is available
             targets = torch.zeros(self.num_train_pids[self.dataset_id])
             for obj in label:
-                targets[obj] = 1
+                targets[int(obj)] = 1
             label = targets
+        else:
+            label = int(label)
         return input_image, label, 0
 
     @staticmethod
