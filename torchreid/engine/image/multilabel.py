@@ -84,8 +84,7 @@ class MultilabelEngine(Engine):
                                                                                  for all models or none of them"
         grad_scaler_enabled = self.mix_precision if self.mix_precision and not self.enable_sam else False
         # self.scaler = GradScaler(enabled=grad_scaler_enabled)
-        self.scaler = GradScaler(enabled=True)
-        self.prev_smooth_top1 = 0.
+        self.scaler = GradScaler(enabled=False)
 
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx
@@ -164,7 +163,6 @@ class MultilabelEngine(Engine):
 
         return loss_summary, avg_acc
 
-    @autocast(enabled=False)
     def _single_model_losses(self, model, train_records, imgs, obj_ids, n_iter, model_name):
         model_output = model(imgs)
         all_logits = self._parse_model_output(model_output)

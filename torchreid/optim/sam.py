@@ -16,7 +16,6 @@ Licensed under the Apache License, Version 2.0 (the "License");
 
 import torch
 
-
 class SAM(torch.optim.Optimizer):
     def __init__(self, params, base_optimizer, rho=0.05, adaptive=True, **kwargs):
         assert rho >= 0.0, f"Invalid rho, should be non-negative: {rho}"
@@ -38,7 +37,8 @@ class SAM(torch.optim.Optimizer):
                 if p.grad is None: continue
                 self.state[p]["old_p"] = p.data.clone()
                 e_w = (torch.pow(p, 2) if self.adaptive else 1.0) * p.grad * scale.to(p)
-
+    
+    @torch.no_grad()
     def second_step(self, grad_scale, zero_grad=False):
         for group in self.param_groups:
             for p in group["params"]:
@@ -48,16 +48,8 @@ class SAM(torch.optim.Optimizer):
         self.base_optimizer.step()  # do the actual "sharpness-aware" update
 
         if zero_grad: self.zero_grad()
-        self.did_first_step = False
 
     @torch.no_grad()
     def step(self):
         raise NotImplementedError("SAM doesn't work like the other optimizers,"
                                    " you should first call `first_step` and the `second_step`;")
-        self.second_step(self, zero_grad=zero_grad)
-                        ((torch.abs(p) if self.adaptive else 1.0) * p.grad).norm(p=2).to(shared_device)
-                        for group in self.param_groups for p in group["params"]
-                    ]),
-                    p=2
-               )
-        return norm
