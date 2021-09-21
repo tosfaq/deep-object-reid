@@ -1,7 +1,7 @@
 from .common import ModelInterface
 import timm
 
-__ALL__ = ['tresnet']
+__all__ = ['tresnet']
 
 class TResnetTimm(ModelInterface):
     def __init__(self,
