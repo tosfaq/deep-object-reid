@@ -70,6 +70,13 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self._cfg = get_default_config()
         self._patch_config(base_dir)
 
+        if self._multilabel:
+            assert self._cfg.model.type == 'multilabel', task_environment.model_template.model_template_path + \
+                ' model template does not support multilabel classification'
+        else:
+            self._cfg.model.type == 'classification', task_environment.model_template.model_template_path + \
+                 ' model template does not support multilabel classification'
+
         self.device = torch.device("cuda:0") if torch.cuda.device_count() else torch.device("cpu")
         self._model = self._load_model(task_environment.model).to(self.device)
 
@@ -121,10 +128,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self._cfg.use_gpu = torch.cuda.device_count() > 0
         self.num_devices = 1 if self._cfg.use_gpu else 0
         groups = self._task_environment.label_schema.get_groups(False)
-        if len(groups) > 1:
-            self._cfg.model.type = 'multilabel'
-        else:
-            self._cfg.model.type = 'classification'
 
         self._cfg.custom_datasets.types = ['external_classification_wrapper', 'external_classification_wrapper']
         self._cfg.custom_datasets.names = ['train', 'val']
