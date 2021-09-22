@@ -37,7 +37,7 @@ from ote_sdk.configuration import cfg_helper
 from ote_sdk.configuration.helper.utils import ids_to_strings
 from ote_sdk.entities.model import ModelPrecision
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
-from ote_sdk.entities.scored_label import ScoredLabel
+from ote_sdk.entities.label import ScoredLabel
 from ote_sdk.entities.model import ModelEntity, ModelStatus
 
 from sc_sdk.entities.resultset import ResultSet
@@ -136,7 +136,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self._cfg.data.targets = ['val']
         self._cfg.data.save_dir
         self.num_classes = len(self._labels)
-        self._cfg.test.test_before_train = True
 
         for i, conf in enumerate(self._cfg.mutual_learning.aux_configs):
             if str(base_dir) not in conf:
@@ -277,7 +276,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         init_acc, final_acc = run_training(self._cfg, datamanager, train_model, optimizer, scheduler, extra_device_ids,
                                            self._cfg.train.lr, tb_writer=self.metrics_monitor, perf_monitor=self.perf_monitor,
-                                           stop_callback=self.stop_callback)
+                                           stop_callback=self.stop_callback, test_before_train=True)
 
         improved = final_acc > init_acc
 
