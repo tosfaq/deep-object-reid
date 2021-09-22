@@ -72,10 +72,10 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         if self._multilabel:
             assert self._cfg.model.type == 'multilabel', task_environment.model_template.model_template_path + \
-                ' model template does not support multilabel classification'
+                ' model template does not support multiclass classification'
         else:
             self._cfg.model.type == 'classification', task_environment.model_template.model_template_path + \
-                 ' model template does not support multilabel classification'
+                ' model template does not support multilabel classification'
 
         self.device = torch.device("cuda:0") if torch.cuda.device_count() else torch.device("cpu")
         self._model = self._load_model(task_environment.model).to(self.device)
