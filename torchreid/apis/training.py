@@ -14,6 +14,7 @@
  limitations under the License.
 """
 
+import sys
 from copy import deepcopy
 
 import torchreid
@@ -42,7 +43,7 @@ def run_lr_finder(cfg, datamanager, model, optimizer, scheduler, classes,
     print(f"Estimated learning rate: {aux_lr}")
     if cfg.lr_finder.stop_after:
         print("Finding learning rate finished. Terminate the training process")
-        exit()
+        sys.exit(0)
 
     # reload all parts of the training
     # we do not check classification parameters
@@ -76,7 +77,7 @@ def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids
     num_train_classes = datamanager.num_train_pids
 
     if num_aux_models > 0:
-        print('Enabled mutual learning between {} models.'.format(len(cfg.mutual_learning.aux_configs) + 1))
+        print(f'Enabled mutual learning between {len(cfg.mutual_learning.aux_configs) + 1} models.')
 
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
         for config_file, device_ids in zip(cfg.mutual_learning.aux_configs, extra_device_ids):
@@ -91,7 +92,7 @@ def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids
             schedulers.append(aux_scheduler)
     else:
         models, optimizers, schedulers = model, optimizer, scheduler
-    print('Building {}-engine'.format(cfg.loss.name))
+    print(f'Building {cfg.loss.name}-engine')
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers,
                           should_freeze_aux_models=should_freeze_aux_models,
                           nncf_metainfo=nncf_metainfo,

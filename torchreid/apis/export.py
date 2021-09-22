@@ -70,7 +70,7 @@ def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
             onnx.checker.check_model(net_from_onnx)
             print('ONNX check passed.')
         except onnx.onnx_cpp2py_export.checker.ValidationError as ex:
-            print('ONNX check failed: {}.'.format(ex))
+            print(f'ONNX check failed: {ex}.')
 
     return output_file_path
 

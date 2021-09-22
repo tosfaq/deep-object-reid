@@ -3,6 +3,7 @@ import yaml
 
 from yacs.config import CfgNode as CN
 
+# pylint: disable=protected-access,too-many-statements,unspecified-encoding
 
 def get_default_config():
 
@@ -109,7 +110,8 @@ def get_default_config():
 
     # custom_datasets
     cfg.custom_datasets = CN() # this node contains information about custom classification datasets
-    cfg.custom_datasets.roots = [] # a list of root folders in case of ImagesFolder fromat or list of annotation files with paths relative to the list's parent folder
+    cfg.custom_datasets.roots = [] # a list of root folders in case of ImagesFolder fromat
+    # or list of annotation files with paths relative to the list's parent folder
     cfg.custom_datasets.types = [] # a list of types (classification or classification_image_folder)
     cfg.custom_datasets.names = [] # aliases for custom datasets that can be used in the data section. Should be unique
 
@@ -136,7 +138,8 @@ def get_default_config():
     cfg.train.new_layers = ['classifier']  # newly added layers with default lr
     cfg.train.base_lr_mult = 0.1  # learning rate multiplier for base layers
     cfg.train.lr_scheduler = 'single_step'
-    cfg.train.target_metric = 'train_loss' # define which metric to use with reduce_on_plateau scheduler. Two possible variants are available: 'test_acc' and 'train_loss'
+    cfg.train.target_metric = 'train_loss' # define which metric to use with reduce_on_plateau scheduler.
+    # Two possible variants are available: 'test_acc' and 'train_loss'
     cfg.train.base_scheduler = ''
     cfg.train.stepsize = [20]  # stepsize to decay learning rate
     cfg.train.gamma = 0.1  # learning rate decay multiplier
@@ -464,7 +467,7 @@ def get_default_config():
 def merge_from_files_with_base(cfg, cfg_path):
     def _get_list_of_files(cur_path, set_of_files=None):
         if not (cur_path.lower().endswith('.yml') or cur_path.lower().endswith('.yaml')):
-                raise RuntimeError(f'Wrong extension of config file {cur_path}')
+            raise RuntimeError(f'Wrong extension of config file {cur_path}')
         if set_of_files is None:
             set_of_files = {cur_path}
         elif cur_path in set_of_files:

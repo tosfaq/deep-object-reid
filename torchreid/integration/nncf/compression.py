@@ -7,6 +7,7 @@ import torch
 
 from torchreid.utils.tools import random_image
 
+# pylint: disable=line-too-long
 
 @contextmanager
 def nullcontext():
@@ -67,7 +68,7 @@ def _load_checkpoint_for_nncf(model, filename, map_location=None, strict=False):
         state_dict = checkpoint['state_dict']
     else:
         raise RuntimeError(
-            'No state_dict found in checkpoint file {}'.format(filename))
+            f'No state_dict found in checkpoint file {filename}')
     _ = load_state(model, state_dict, strict)
     return checkpoint
 
