@@ -42,4 +42,4 @@ jobs:
         python setup.py develop
     - name: Linting with pylint
       run: |
-        python tests/run_pylint.py
+        python tools/run_pylint.py
