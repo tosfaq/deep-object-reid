@@ -4,7 +4,7 @@ from .common import ModelInterface
 from torchreid.ops import Dropout
 import timm
 
-__ALL__ = ['resnet101D', 'resnet101', 'wide_resnet101', 'resnext101']
+__all__ = ['resnet101D', 'resnet101', 'wide_resnet101', 'resnext101']
 
 class ResnetTimm(ModelInterface):
     def __init__(self,

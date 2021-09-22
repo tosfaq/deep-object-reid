@@ -20,7 +20,7 @@ from torch import nn, Tensor
 from torch.nn import MultiheadAttention
 import math
 
-__ALL__ = ['build_position_encoding', 'build_transformer']
+__all__ = ['build_position_encoding', 'build_transformer']
 
 class PositionEmbeddingSine(nn.Module):
     """
