@@ -276,7 +276,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         init_acc, final_acc = run_training(self._cfg, datamanager, train_model, optimizer, scheduler, extra_device_ids,
                                            self._cfg.train.lr, tb_writer=self.metrics_monitor, perf_monitor=self.perf_monitor,
-                                           stop_callback=self.stop_callback, test_before_train=True)
+                                           stop_callback=self.stop_callback)
 
         improved = final_acc > init_acc
 
