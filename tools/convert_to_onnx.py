@@ -73,7 +73,7 @@ def main():
                         help='Path to save ONNX model')
     parser.add_argument('--num-classes', type=int, nargs='+', default=None)
     parser.add_argument('--opset', type=int, default=9)
-    parser.add_argument('--verbose', default=False, action='store_true',
+    parser.add_argument('--verbose', action='store_true',
                         help='Verbose mode for onnx.export')
     parser.add_argument('--disable-dyn-axes', default=False, action='store_true')
     parser.add_argument('--export_ir', action='store_true')
@@ -105,9 +105,8 @@ def main():
         model = make_nncf_changes_in_eval(model, cfg)
         print('End making NNCF changes in model')
 
-    onnx_file_path = export_onnx(model.eval(), cfg, args.output_name, args.disable_dyn_axes, False, args.opset)
+    onnx_file_path = export_onnx(model.eval(), cfg, args.output_name, args.disable_dyn_axes, args.verbose, args.opset)
     if args.export_ir:
-        print("here")
         export_ir(onnx_file_path, cfg.data.norm_mean, cfg.data.norm_std, os.path.dirname(os.path.abspath(onnx_file_path)))
 
 
