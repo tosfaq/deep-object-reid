@@ -27,3 +27,4 @@ optuna
 timm
 addict
 randaugment
+pylint==2.11.1
