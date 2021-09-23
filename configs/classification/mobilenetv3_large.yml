@@ -13,6 +13,7 @@ lr_finder:
 model:
   name: 'mobilenetv3_large'
   type: 'classification'
+  load_weights: "/mnt/icv_externalN/ote-classification-checkpoints/models/CIFAR100_large_1/model_0/{name}.pth.tar-89"
   pretrained: True
   save_all_chkpts: True
   feature_dim: 1280

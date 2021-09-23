@@ -107,6 +107,31 @@ def build_auxiliary_model(config_file, num_classes, use_gpu,
     return model, optimizer, scheduler
 
 
+def patch_InplaceAbn_forward():
+    """
+    Replace 'InplaceAbn.forward' with a more export-friendly implementation.
+    """
+    from torch import nn as nn
+
+    def forward(self, x):
+        weight = torch.abs(self.weight) + self.eps #torch.tensor(self.eps)
+        x = nn.functional.batch_norm(x, self.running_mean, self.running_var,
+                                     weight, self.bias,
+                                     self.training, self.momentum, self.eps)
+        if self.act_name == "relu":
+            x = nn.functional.relu(x)
+        elif self.act_name == "leaky_relu":
+            x = nn.functional.leaky_relu(x, negative_slope=self.act_param)
+        elif self.act_name == "elu":
+            x = nn.functional.elu(x, alpha=self.act_param)
+        elif self.act_name == "identity":
+            x = x
+        return x
+
+    from timm.models.layers import InplaceAbn
+    InplaceAbn.forward = forward
+
+
 @parse_args('v', 'i', 'v', 'v', 'f', 'i')
 def group_norm_symbolic(g, input_blob, num_groups, weight, bias, eps, cudnn_enabled):
     from torch.onnx.symbolic_opset9 import reshape, mul, add, reshape_as

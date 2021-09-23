@@ -13,6 +13,7 @@ from .tresnet import *
 from .resnet import *
 from .q2l import *
 from .transformer import *
+from .efficientnetv2 import *
 
 __model_factory = {
     # image classification models
@@ -31,6 +32,9 @@ __model_factory = {
     'efficientnet_b5': efficientnet_b5b,
     'efficientnet_b6': efficientnet_b6b,
     'efficientnet_b7': efficientnet_b7b,
+    'efficientnetv2_s_21k': tf_efficientnetv2_s_in21k,
+    'efficientnetv2_b0': tf_efficientnetv2_b0,
+    'efficientnet_lite1': tf_efficientnet_lite1,
     'tresnet': tresnet,
     'resnet101': resnet101,
     'resnet101D': resnet101D,
