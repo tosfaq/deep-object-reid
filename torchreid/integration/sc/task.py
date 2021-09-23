@@ -19,15 +19,16 @@ from scripts.default_config import (get_default_config,
                                     imagedata_kwargs,
                                     lr_scheduler_kwargs, model_kwargs,
                                     optimizer_kwargs, merge_from_files_with_base)
-from torchreid.integration.sc.monitors import PerformanceMonitor, StopCallback, DefaultMetricsMonitor
-from torchreid.integration.sc.utils import OTEClassificationDataset
+from torchreid.integration.sc.monitors import StopCallback, DefaultMetricsMonitor
+from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingProgressCallback,
+                                            InferenceProgressCallback)
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
 from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.entities.metrics import MetricsGroup, CurveMetric, LineChartInfo
 from ote_sdk.entities.task_environment import TaskEnvironment
-from ote_sdk.entities.train_parameters import TrainParameters
+from ote_sdk.entities.train_parameters import TrainParameters, default_progress_callback
 from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
 from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
@@ -74,16 +75,14 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             assert self._cfg.model.type == 'multilabel', task_environment.model_template.model_template_path + \
                 ' model template does not support multiclass classification'
         else:
-            self._cfg.model.type == 'classification', task_environment.model_template.model_template_path + \
+            assert self._cfg.model.type == 'classification', task_environment.model_template.model_template_path + \
                 ' model template does not support multilabel classification'
 
         self.device = torch.device("cuda:0") if torch.cuda.device_count() else torch.device("cpu")
         self._model = self._load_model(task_environment.model).to(self.device)
 
-        # Define monitors
         self.stop_callback = StopCallback()
         self.metrics_monitor = DefaultMetricsMonitor()
-        self.perf_monitor = PerformanceMonitor()
 
     def _load_model(self, model: ModelEntity):
         if model is not None:
@@ -127,7 +126,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         merge_from_files_with_base(self._cfg, config_file_path)
         self._cfg.use_gpu = torch.cuda.device_count() > 0
         self.num_devices = 1 if self._cfg.use_gpu else 0
-        groups = self._task_environment.label_schema.get_groups(False)
 
         self._cfg.custom_datasets.types = ['external_classification_wrapper', 'external_classification_wrapper']
         self._cfg.custom_datasets.names = ['train', 'val']
@@ -135,6 +133,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self._cfg.data.sources = ['train']
         self._cfg.data.targets = ['val']
         self._cfg.data.save_dir
+        self._cfg.test.test_before_train = True
         self.num_classes = len(self._labels)
 
         for i, conf in enumerate(self._cfg.mutual_learning.aux_configs):
@@ -148,15 +147,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         :return: None
         """
+        logger.info("Cancel training requested.")
         self.stop_callback.stop()
-
-    def get_training_progress(self) -> float:
-        """
-        Returns the progress for training. Returns -1 if this is not known.
-
-        :return: Float with progress [0.0-100.0] or -1.0 if unknown
-        """
-        return self.perf_monitor.get_training_progress()
 
     def save_model(self, output_model: ModelEntity):
         buffer = io.BytesIO()
@@ -176,6 +168,16 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             For example, when results are generated for evaluation purposes, Saliency maps can be turned off.
         :return: Dataset that also includes the classification results
         """
+
+        if inference_parameters is not None:
+            update_progress_callback = inference_parameters.update_progress
+        else:
+            update_progress_callback = default_progress_callback
+
+        self._cfg.test.batch_size = max(1, self._hyperparams.learning_parameters.batch_size // 2)
+        time_monitor = InferenceProgressCallback(math.ceil(len(dataset) / self._cfg.test.batch_size),
+                                                 update_progress_callback)
+
         labels = [label.name for label in self._labels]
         self._cfg.custom_datasets.roots = [OTEClassificationDataset(dataset, labels, self._multilabel),
                                            OTEClassificationDataset(dataset, labels, self._multilabel)]
@@ -183,7 +185,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self._model.eval()
         self._model.to(self.device)
         targets = list(datamanager.test_loader.keys())
-        scores, _ = score_extraction(datamanager.test_loader[targets[0]]['query'], self._model, self._cfg.use_gpu)
+        scores, _ = score_extraction(datamanager.test_loader[targets[0]]['query'],
+                                     self._model, self._cfg.use_gpu, perf_monitor=time_monitor)
         if self._multilabel:
             labels = 1. / (1 + np.exp(-scores))
         else:
@@ -239,9 +242,17 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self._cfg.test.batch_size = max(1, configurable_parameters.learning_parameters.batch_size // 2)
         self._cfg.train.max_epoch = configurable_parameters.learning_parameters.max_num_epochs
 
-        train_steps = math.ceil(len(dataset.get_subset(Subset.TRAINING)) / self._cfg.train.batch_size)
+        if train_parameters is not None:
+            update_progress_callback = train_parameters.update_progress
+        else:
+            update_progress_callback = default_progress_callback
         validation_steps = math.ceil((len(dataset.get_subset(Subset.VALIDATION)) / self._cfg.test.batch_size))
-        self.perf_monitor.init(self._cfg.train.max_epoch, train_steps, validation_steps)
+        if self._cfg.train.ema.enable:
+            validation_steps *= 2
+        time_monitor = TrainingProgressCallback(update_progress_callback, num_epoch=self._cfg.train.max_epoch,
+                                                num_train_steps=math.ceil(len(dataset.get_subset(Subset.TRAINING)) / self._cfg.train.batch_size),
+                                                num_val_steps=0, num_test_steps=0)
+
         self.metrics_monitor = DefaultMetricsMonitor()
         self.stop_callback.reset()
 
@@ -275,7 +286,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                           rebuild_model=False, gpu_num=self.num_devices, split_models=False)
 
         init_acc, final_acc = run_training(self._cfg, datamanager, train_model, optimizer, scheduler, extra_device_ids,
-                                           self._cfg.train.lr, tb_writer=self.metrics_monitor, perf_monitor=self.perf_monitor,
+                                           self._cfg.train.lr, tb_writer=self.metrics_monitor, perf_monitor=time_monitor,
                                            stop_callback=self.stop_callback)
 
         improved = final_acc > init_acc

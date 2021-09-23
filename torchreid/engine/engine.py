@@ -331,7 +331,7 @@ class Engine:
         for self.epoch in range(self.start_epoch, self.max_epoch):
             # change the NumPy’s seed at every epoch
             np.random.seed(initial_seed + self.epoch)
-            if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_begin()
+            if perf_monitor and not lr_finder: perf_monitor.on_epoch_begin(self.epoch)
             if self.compression_ctrl is not None:
                 self.compression_ctrl.scheduler.epoch_step(self.epoch)
             avg_loss = self.train(
@@ -353,7 +353,7 @@ class Engine:
             if stop_callback and stop_callback.check_stop():
                 break
 
-            if perf_monitor and not lr_finder: perf_monitor.on_train_epoch_end()
+            if perf_monitor and not lr_finder: perf_monitor.on_epoch_end(self.epoch)
 
             if (((self.epoch + 1) >= start_eval
                and eval_freq > 0
@@ -481,7 +481,7 @@ class Engine:
         self.num_batches = len(self.train_loader)
         end = time.time()
         for self.batch_idx, data in enumerate(self.train_loader):
-            if perf_monitor and not lr_finder: perf_monitor.on_train_batch_begin()
+            if perf_monitor and not lr_finder: perf_monitor.on_train_batch_begin(self.batch_idx)
 
             data_time.update(time.time() - end)
 
@@ -493,7 +493,7 @@ class Engine:
 
             losses.update(loss_summary)
             accuracy.update(avg_acc)
-            if perf_monitor and not lr_finder: perf_monitor.on_train_batch_end()
+            if perf_monitor and not lr_finder: perf_monitor.on_train_batch_end(self.batch_idx)
 
             if not lr_finder and (((self.batch_idx + 1) % print_freq) == 0 or
                                         self.batch_idx == self.num_batches - 1):

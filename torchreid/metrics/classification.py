@@ -7,17 +7,20 @@ from terminaltables import AsciiTable
 
 from torchreid.utils import get_model_attr
 
-def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
+def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0, perf_monitor=None):
     with torch.no_grad():
         out_scores, gt_labels = [], []
-        for _, data in enumerate(data_loader):
+        for batch_idx, data in enumerate(data_loader):
             batch_images, batch_labels = data[0], data[1]
+            if perf_monitor: perf_monitor.on_test_batch_begin(batch_idx, None)
             if use_gpu:
                 batch_images = batch_images.cuda()
 
             if labelmap:
                 for i, label in enumerate(labelmap):
                     batch_labels[torch.where(batch_labels==i)] = label
+
+            if perf_monitor: perf_monitor.on_test_batch_end(batch_idx, None)
 
             out_scores.append(model(batch_images)[head_id])
             gt_labels.append(batch_labels)

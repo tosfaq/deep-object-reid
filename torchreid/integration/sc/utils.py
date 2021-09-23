@@ -11,15 +11,20 @@ import cv2 as cv
 
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.label import ScoredLabel, LabelEntity, Color
-from ote_sdk.entities.annotation import Annotation, AnnotationSceneKind
+from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind
+from ote_sdk.entities.datasets import Subset
+
+from ote_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
+                                           LabelSchemaEntity)
+from ote_sdk.entities.train_parameters import UpdateProgressCallback
+from ote_sdk.usecases.reporting.time_monitor_callback import \
+    TimeMonitorCallback
+
 from sc_sdk.entities.annotation import AnnotationScene, NullMediaIdentifier
 from sc_sdk.entities.datasets import Dataset, DatasetItem, NullDataset
-from ote_sdk.entities.datasets import Subset
 from sc_sdk.entities.image import Image
 from sc_sdk.entities.label import distinct_colors
 from sc_sdk.entities.dataset_storage import NullDatasetStorage
-from ote_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
-                                           LabelSchemaEntity)
 
 
 class ClassificationDatasetAdapter(Dataset):
@@ -157,9 +162,8 @@ class ClassificationDatasetAdapter(Dataset):
         image = Image(name=None, numpy=img, dataset_storage=NullDatasetStorage())
         labels = create_gt_scored_labels(self.data_info[indx][1])
         shapes = [Annotation(Rectangle.generate_full_box(), labels)]
-        annotation_scene = AnnotationScene(kind=AnnotationSceneKind.ANNOTATION,
-                                           media_identifier=NullMediaIdentifier(),
-                                           annotations=shapes)
+        annotation_scene = AnnotationSceneEntity(kind=AnnotationSceneKind.ANNOTATION,
+                                                 annotations=shapes)
         dataset_item = DatasetItem(image, annotation_scene)
         # dataset_item.append_labels(labels=[label])
 
@@ -279,3 +283,26 @@ def set_values_as_default(parameters):
         elif isinstance(v, dict) and 'value' in v:
             if v['value'] != v['default_value']:
                 v['value'] = v['default_value']
+
+
+class TrainingProgressCallback(TimeMonitorCallback):
+    def __init__(self, update_progress_callback: UpdateProgressCallback, **kwargs):
+        super().__init__(update_progress_callback=update_progress_callback, **kwargs)
+
+    def on_train_batch_end(self, batch, logs=None):
+        super().on_train_batch_end(batch, logs)
+        self.update_progress_callback(self.get_progress())
+
+
+class InferenceProgressCallback(TimeMonitorCallback):
+    def __init__(self, num_test_steps, update_progress_callback: UpdateProgressCallback):
+        super().__init__(
+            num_epoch=0,
+            num_train_steps=0,
+            num_val_steps=0,
+            num_test_steps=num_test_steps,
+            update_progress_callback=update_progress_callback)
+
+    def on_test_batch_end(self, batch=None, logs=None):
+        super().on_test_batch_end(batch, logs)
+        self.update_progress_callback(self.get_progress())
