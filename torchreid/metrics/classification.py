@@ -39,7 +39,8 @@ def score_extraction_from_ir(data_loader, model, labelmap=[]):
         gt_labels.append(label)
 
     out_scores = np.concatenate(out_scores, 0)
-    gt_labels = np.asarray(gt_labels)
+    gt_labels = torch.cat(gt_labels, 0).data.cpu().numpy()
+    gt_labels = gt_labels.reshape(out_scores.shape[0], -1)
 
     return out_scores, gt_labels
 
