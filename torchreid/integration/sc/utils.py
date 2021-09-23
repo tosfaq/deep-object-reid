@@ -20,7 +20,6 @@ from ote_sdk.entities.train_parameters import UpdateProgressCallback
 from ote_sdk.usecases.reporting.time_monitor_callback import \
     TimeMonitorCallback
 
-from sc_sdk.entities.annotation import AnnotationScene, NullMediaIdentifier
 from sc_sdk.entities.datasets import Dataset, DatasetItem, NullDataset
 from sc_sdk.entities.image import Image
 from sc_sdk.entities.label import distinct_colors

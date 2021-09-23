@@ -104,12 +104,18 @@ class DefaultMetricsMonitor(IMetricsMonitor):
 
     def add_scalar(self, capture: str, value: float, timestamp: int):
         if capture in self.metrics_dict:
-            self.metrics_dict[capture].append(value)
+            self.metrics_dict[capture].append((timestamp, value))
         else:
-            self.metrics_dict[capture] = [value,]
+            self.metrics_dict[capture] = [(timestamp, value),]
 
-    def get_metric_values(self, capture):
-        return self.metrics_dict[capture]
+    def get_metric_keys(self):
+        return self.metrics_dict.keys()
+
+    def get_metric_values(self, capture: str):
+        return [item[1] for item in self.metrics_dict[capture]]
+
+    def get_metric_timestamps(self, capture: str):
+        return [item[0] for item in self.metrics_dict[capture]]
 
     def close(self):
         pass

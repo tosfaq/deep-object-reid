@@ -26,7 +26,9 @@ from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
 from ote_sdk.entities.inference_parameters import InferenceParameters
-from ote_sdk.entities.metrics import MetricsGroup, CurveMetric, LineChartInfo
+from ote_sdk.entities.metrics import (MetricsGroup, CurveMetric, LineChartInfo,
+                                      InfoMetric, VisualizationInfo, VisualizationType,
+                                      Performance, ScoreMetric)
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.entities.train_parameters import TrainParameters, default_progress_callback
 from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
@@ -215,17 +217,29 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         return Dataset(None, predicted_items)
 
-    def generate_training_metrics_group(self) -> List[MetricsGroup]:
+    def _generate_training_metrics_group(self) -> Optional[List[MetricsGroup]]:
         """
-        Create additional metrics for the Dashboard.
+        Parses the classification logs to get metrics from the latest training run
+        :return output List[MetricsGroup]
+        """
+        output: List[MetricsGroup] = []
 
-        :return: List of MetricGroup
-        """
-        output = []
+        # Model architecture
+        architecture = InfoMetric(name='Model architecture', value=self._model_name)
+        visualization_info_architecture = VisualizationInfo(name="Model architecture",
+                                                            visualisation_type=VisualizationType.TEXT)
+        output.append(MetricsGroup(metrics=[architecture],
+                                   visualization_info=visualization_info_architecture))
+
+        # Learning curves
         if self.metrics_monitor is not None:
-            loss = CurveMetric(ys=self.metrics_monitor.get_metric_values('Loss/loss'), name="Training")
-            visualization_info = LineChartInfo(name="Loss curve", x_axis_label="Iteration", y_axis_label="Loss value")
-            output.append(MetricsGroup(metrics=[loss], visualization_info=visualization_info))
+            for key in self.metrics_monitor.get_metric_keys():
+                print(key)
+                metric_curve = CurveMetric(xs=self.metrics_monitor.get_metric_timestamps(key),
+                                           ys=self.metrics_monitor.get_metric_values(key), name=key)
+                visualization_info = LineChartInfo(name=key, x_axis_label="Timestamp", y_axis_label=key)
+                output.append(MetricsGroup(metrics=[metric_curve], visualization_info=visualization_info))
+
         return output
 
     def train(self, dataset: Dataset, output_model: ModelEntity, train_parameters: Optional[TrainParameters] = None):
@@ -240,7 +254,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         self._cfg.train.batch_size = configurable_parameters.learning_parameters.batch_size
         self._cfg.test.batch_size = max(1, configurable_parameters.learning_parameters.batch_size // 2)
-        self._cfg.train.max_epoch = configurable_parameters.learning_parameters.max_num_epochs
+        self._cfg.train.max_epoch = 1 #configurable_parameters.learning_parameters.max_num_epochs
 
         if train_parameters is not None:
             update_progress_callback = train_parameters.update_progress
@@ -290,6 +304,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                                            stop_callback=self.stop_callback)
 
         improved = final_acc > init_acc
+        training_metrics = self._generate_training_metrics_group()
 
         if self._cfg.use_gpu:
             train_model = train_model.module
@@ -307,6 +322,10 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             self.save_model(output_model)
             output_model.model_status = ModelStatus.SUCCESS
             self._model = deepcopy(train_model)
+            performance = Performance(score=ScoreMetric(value=final_acc, name="accuracy"),
+                                      dashboard_metrics=training_metrics)
+            logger.info(f'FINAL MODEL PERFORMANCE {performance}')
+            output_model.performance = performance
         else:
             logger.info("Model performance has not improved while training. No new model has been saved.")
 
