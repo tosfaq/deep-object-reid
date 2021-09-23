@@ -56,8 +56,8 @@ def main():
     sys.stdout = Logger(osp.join(cfg.data.save_dir, log_name))
 
     datamanager = torchreid.data.ImageDataManager(filter_classes=args.classes, **imagedata_kwargs(cfg))
-    num_classes = len(datamanager.test_loader[cfg.data.targets[0]]['query'].dataset.classes)
-
+    num_classes = datamanager.test_loader[cfg.data.targets[0]]['query'].dataset.num_train_pids[0]
+    cfg.train.ema.enable = False
     if not is_ie_model:
         model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
         load_pretrained_weights(model, cfg.model.load_weights)
@@ -73,7 +73,6 @@ def main():
         from torchreid.utils.ie_tools import VectorCNN
         from openvino.inference_engine import IECore
         cfg.test.batch_size = 1
-        cfg.train.ema.enable = False
         model = VectorCNN(IECore(), cfg.model.load_weights, 'CPU', switch_rb=True, **model_kwargs(cfg, num_classes))
         for _, dataloader in datamanager.test_loader.items():
             dataloader['query'].dataset.transform.transforms = \
