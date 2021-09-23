@@ -199,9 +199,9 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             if self._multilabel:
                 predicted_classes = labels[i]
                 item_labels = []
-                for i in range(predicted_classes.shape[0]):
-                    if predicted_classes[i] > 0.5:
-                        label = ScoredLabel(label=self._labels[i], probability=predicted_classes[i])
+                for j in range(predicted_classes.shape[0]):
+                    if predicted_classes[j] > 0.5:
+                        label = ScoredLabel(label=self._labels[j], probability=predicted_classes[j])
                         item_labels.append(label)
 
                 dataset_item.append_labels(item_labels)
@@ -234,7 +234,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         # Learning curves
         if self.metrics_monitor is not None:
             for key in self.metrics_monitor.get_metric_keys():
-                print(key)
                 metric_curve = CurveMetric(xs=self.metrics_monitor.get_metric_timestamps(key),
                                            ys=self.metrics_monitor.get_metric_values(key), name=key)
                 visualization_info = LineChartInfo(name=key, x_axis_label="Timestamp", y_axis_label=key)
@@ -254,7 +253,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         self._cfg.train.batch_size = configurable_parameters.learning_parameters.batch_size
         self._cfg.test.batch_size = max(1, configurable_parameters.learning_parameters.batch_size // 2)
-        self._cfg.train.max_epoch = 1 #configurable_parameters.learning_parameters.max_num_epochs
+        self._cfg.train.max_epoch = configurable_parameters.learning_parameters.max_num_epochs
 
         if train_parameters is not None:
             update_progress_callback = train_parameters.update_progress
@@ -328,8 +327,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             output_model.performance = performance
         else:
             logger.info("Model performance has not improved while training. No new model has been saved.")
-
-        self.progress_monitor = None
 
     def evaluate(
         self, output_resultset: ResultSet, evaluation_metric: Optional[str] = None
