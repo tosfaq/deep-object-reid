@@ -106,6 +106,7 @@ def main():
         scheduler = torchreid.optim.build_lr_scheduler(optimizer=optimizer,
                                                        num_iter=datamanager.num_iter,
                                                        **lr_scheduler_kwargs(cfg))
+    print(scheduler)
     # Loading model (and optimizer and scheduler in case of resuming training).
     # Note that if NNCF is used, loading is done inside NNCF part, so loading here is not required.
     if cfg.model.resume and check_isfile(cfg.model.resume) and not is_nncf_used:
