@@ -29,10 +29,10 @@ def main():
     parser.add_argument('--gpu-num', type=int, default=1, help='Number of GPUs for training. 0 is for CPU mode')
     parser.add_argument('--use-hardcoded-lr', action='store_true')
     parser.add_argument('-d','--domains', nargs='+', help='On what domains to train', required=False, default=['all'])
-    parser.add_argument('-lrs', '--lr-sets', type=json.loads, default='{"CIFAR100": 0.005, "pets": 0.005,'
-                                                                            '"caltech101": 0.015, "cars": 0.025, "flowers": 0.02,'
-                                                                            '"DTD": 0.008, "FOOD101": 0.015, "birdsnap": 0.015,'
-                                                                            '"FashionMNIST": 0.012, "SUN397": 0.008, "SVHN": 0.015,'
+    parser.add_argument('-lrs', '--lr-sets', type=json.loads, default='{"CIFAR100": 0.00387, "pets": 0.006434,'
+                                                                            '"caltech101": 0.00769, "cars": 0.01257, "flowers": 0.0155,'
+                                                                            '"DTD": 0.00597, "FOOD101": 0.004488, "birdsnap": 0.004488,'
+                                                                            '"FashionMNIST": 0.00471, "SUN397": 0.008, "SVHN": 0.00914,'
                                                                             '"attd_mi02_v3": 0.005, "attd_mi04_v4": 0.012, "lgchem": 0.015, "autism": 0.015}')
     parser.add_argument('--dump-results', type=bool, default=True, help='whether or not to dump results of the experiment')
     args = parser.parse_args()
