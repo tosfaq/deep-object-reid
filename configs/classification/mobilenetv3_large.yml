@@ -2,13 +2,13 @@ lr_finder:
   enable: True
   mode: TPE
   stop_after: False
-  num_epochs: 1
+  num_epochs: 6
   step: 0.001
   epochs_warmup: 1
   path_to_savefig: 'lr_finder.jpg'
   max_lr: 0.029
   min_lr: 0.005
-  n_trials: 1
+  n_trials: 15
 
 model:
   name: 'mobilenetv3_large'
@@ -19,7 +19,7 @@ model:
 
 
 custom_datasets:
-  roots: ['/ssd/datasets/CIFAR100/train', '/ssd/datasets/CIFAR100/val']
+  roots: ['data/CIFAR100/train', 'data/CIFAR100/val']
   types: ['classification_image_folder', 'classification_image_folder']
   names: ['CIFAR100_train', 'CIFAR100_val']
 

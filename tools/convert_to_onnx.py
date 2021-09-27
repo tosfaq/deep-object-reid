@@ -72,7 +72,7 @@ def main():
     parser.add_argument('--output-name', type=str, default='model',
                         help='Path to save ONNX model')
     parser.add_argument('--num-classes', type=int, nargs='+', default=None)
-    parser.add_argument('--opset', type=int, default=9)
+    parser.add_argument('--opset', type=int, default=11)
     parser.add_argument('--verbose', action='store_true',
                         help='Verbose mode for onnx.export')
     parser.add_argument('--disable-dyn-axes', default=False, action='store_true')
@@ -98,7 +98,10 @@ def main():
                                     args.num_classes, cfg.model.load_weights)
     model = build_model(**model_kwargs(cfg, num_classes))
     load_pretrained_weights(model, cfg.model.load_weights)
-    if 'tresnet' in cfg.model.name:
+    if cfg.model.name in {"mobilenetv3_large_21k"}:
+        # unsupported models for PyTorch 1.8
+        raise NotImplementedError
+    elif 'tresnet' in cfg.model.name:
         patch_InplaceAbn_forward()
     if is_nncf_used:
         print('Begin making NNCF changes in model')
