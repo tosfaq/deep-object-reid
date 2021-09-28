@@ -24,17 +24,15 @@ __all__ = ['pytcv_wrapped_models']
 AVAI_MODELS = {"mobilenetv2_large" : "mobilenetv2_w1"}
 
 class PTCVModel(ModelInterface):
-    def __init__(
-        self,
-        model_name,
-        num_classes,
-        loss='softmax',
-        IN_first=False,
-        pooling_type='avg',
-        **kwargs
-    ):
+    def __init__(self,
+                 model_name,
+                 num_classes,
+                 loss='softmax',
+                 IN_first=False,
+                 pooling_type='avg',
+                 **kwargs):
         super().__init__(**kwargs)
-        assert self.is_classification(), f"{model_name} model are adapted for classification tasks only"
+        assert self.is_classification(), f"{model_name} model is adapted for classification tasks only"
         self.pooling_type = pooling_type
         self.loss = loss
         assert isinstance(num_classes, int)
