@@ -62,8 +62,6 @@ def run_lr_finder(cfg, datamanager, model, optimizer, scheduler, classes,
     scheduler = torchreid.optim.build_lr_scheduler(optimizer=optimizer,
                                                    num_iter=datamanager.num_iter,
                                                    **lr_scheduler_kwargs(cfg))
-    print(scheduler)
-    print(optimizer)
 
     return cfg.train.lr, backup_model, optimizer, scheduler
 
@@ -95,8 +93,6 @@ def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids
     else:
         models, optimizers, schedulers = model, optimizer, scheduler
     print(f'Building {cfg.loss.name}-engine')
-    print(schedulers)
-    print(optimizer)
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers,
                           should_freeze_aux_models=should_freeze_aux_models,
                           nncf_metainfo=nncf_metainfo,

@@ -10,11 +10,8 @@ from .osnet_ain import *
 from .osnet_fpn import *
 from .ptcv_wrapper import *
 from .timm_wrapper import *
-from .tresnet import *
-from .resnet import *
 from .q2l import *
 from .transformer import *
-from .efficientnetv2 import *
 
 __model_factory = {
     # image classification models

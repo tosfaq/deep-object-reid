@@ -98,10 +98,7 @@ def main():
                                     args.num_classes, cfg.model.load_weights)
     model = build_model(**model_kwargs(cfg, num_classes))
     load_pretrained_weights(model, cfg.model.load_weights)
-    if cfg.model.name in {"mobilenetv3_large_21k"}:
-        # unsupported models for PyTorch 1.8
-        raise NotImplementedError
-    elif 'tresnet' in cfg.model.name:
+    if 'tresnet' in cfg.model.name:
         patch_InplaceAbn_forward()
     if is_nncf_used:
         print('Begin making NNCF changes in model')

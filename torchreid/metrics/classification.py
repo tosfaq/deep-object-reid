@@ -24,7 +24,6 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
 
         out_scores = torch.cat(out_scores, 0).data.cpu().numpy()
         gt_labels = torch.cat(gt_labels, 0).data.cpu().numpy()
-        # gt_labels = gt_labels.reshape(out_scores.shape[0], -1)
     return out_scores, gt_labels
 
 
@@ -45,8 +44,6 @@ def score_extraction_from_ir(data_loader, model, labelmap=[]):
     return out_scores, gt_labels
 
 def mean_top_k_accuracy(scores, labels, k=1):
-    print(scores.shape)
-    print(labels.shape)
     idx = np.argsort(-scores, axis=-1)[:, :k]
     labels = np.array(labels)
     matches = np.any(idx == labels.reshape([-1, 1]), axis=-1)
