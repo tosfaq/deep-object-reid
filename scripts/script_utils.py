@@ -111,7 +111,7 @@ def patch_InplaceAbn_forward():
     """
     Replace 'InplaceAbn.forward' with a more export-friendly implementation.
     """
-    from torch import nn as nn
+    from torch import nn
 
     def forward(self, x):
         weight = torch.abs(self.weight) + self.eps #torch.tensor(self.eps)
@@ -124,8 +124,6 @@ def patch_InplaceAbn_forward():
             x = nn.functional.leaky_relu(x, negative_slope=self.act_param)
         elif self.act_name == "elu":
             x = nn.functional.elu(x, alpha=self.act_param)
-        elif self.act_name == "identity":
-            x = x
         return x
 
     from timm.models.layers import InplaceAbn
