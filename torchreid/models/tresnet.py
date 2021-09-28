@@ -11,7 +11,7 @@ class TResnetTimm(ModelInterface):
                 **kwargs):
         super().__init__(**kwargs)
         dropout_rate = dropout_cls.p
-        self.model = timm.create_model('tresnet_l',
+        self.model = timm.create_model('tresnet_m',
                                         pretrained=pretrained,
                                         num_classes=num_classes,
                                         drop_rate=dropout_rate)

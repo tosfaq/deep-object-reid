@@ -9,6 +9,7 @@ from .osnet import *
 from .osnet_ain import *
 from .osnet_fpn import *
 from .ptcv_wrapper import *
+from .timm_wrapper import *
 from .tresnet import *
 from .resnet import *
 from .q2l import *
@@ -23,7 +24,6 @@ __model_factory = {
     'mobilenetv3_large_075': mobilenetv3_large_075,
     'mobilenetv3_large_150': mobilenetv3_large_150,
     'mobilenetv3_large_125': mobilenetv3_large_125,
-    'mobilenetv3_large_21k': mobilenetv3_large_21k,
     'efficientnet_b0': efficientnet_b0,
     'efficientnet_b1': efficientnet_b1,
     'efficientnet_b2': efficientnet_b2b,
@@ -32,14 +32,6 @@ __model_factory = {
     'efficientnet_b5': efficientnet_b5b,
     'efficientnet_b6': efficientnet_b6b,
     'efficientnet_b7': efficientnet_b7b,
-    'efficientnetv2_s_21k': tf_efficientnetv2_s_in21k,
-    'efficientnetv2_b0': tf_efficientnetv2_b0,
-    'efficientnet_lite1': tf_efficientnet_lite1,
-    'tresnet': tresnet,
-    'resnet101': resnet101,
-    'resnet101D': resnet101D,
-    'wide_resnet101': wide_resnet101,
-    'resnext101': resnext101,
 
     # reid-specific models
     'osnet_x1_0': osnet_x1_0,
@@ -60,8 +52,7 @@ __model_factory = {
     'mobile_face_net_se_2x': mobile_face_net_se_2x,
 }
 
-q2l_models = {'q2l_' + name : model for name, model in __model_factory.items()}
-__model_factory = {**__model_factory, **wrapped_models, **q2l_models}
+__model_factory = {**__model_factory, **pytcv_wrapped_models, **timm_wrapped_models}
 
 
 def build_model(name, **kwargs):
@@ -78,13 +69,15 @@ def build_model(name, **kwargs):
         >>> model = models.build_model('resnet50', 751, loss='softmax')
     """
     avai_models = list(__model_factory.keys())
-    if name not in avai_models:
-        raise KeyError('Unknown model: {}. Must be one of {}'.format(name, avai_models))
     if name.startswith('q2l'):
         backbone_name = name[4:]
+        if backbone_name not in avai_models:
+            raise KeyError('Unknown backbone for Q2L model: {}. Must be one of {}'.format(backbone_name, avai_models))
         backbone = __model_factory[backbone_name](**kwargs)
         transformer = build_transformer(**kwargs)
         model = build_q2l(backbone, transformer, **kwargs)
+    elif name not in avai_models:
+        raise KeyError('Unknown model: {}. Must be one of {}'.format(name, avai_models))
     else:
         model = __model_factory[name](**kwargs)
     return model

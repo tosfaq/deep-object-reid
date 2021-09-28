@@ -2,7 +2,7 @@ from .common import ModelInterface
 from torchreid.ops import Dropout
 import timm
 
-__ALL__ = ['tf_efficientnetv2_b0', 'tf_efficientnetv2_s_in21k', 'tf_efficientnet_lite1']
+__all__ = ['tf_efficientnetv2_b0', 'tf_efficientnetv2_s_in21k', 'tf_efficientnet_lite1']
 
 class EfficientNetTimm(ModelInterface):
     def __init__(self,

@@ -11,17 +11,17 @@
  limitations under the License.
 """
 
-from __future__ import absolute_import, division
 from functools import partial
 
 import torch.nn as nn
-from pytorchcv.model_provider import _models, get_model
+from pytorchcv.model_provider import get_model
 
 from torchreid.losses import AngleSimpleLinear
 from .common import ModelInterface
 
-__all__ = ['wrapped_models']
+__all__ = ['pytcv_wrapped_models']
 
+AVAI_MODELS = {"mobilenetv2_large" : "mobilenetv2_w1"}
 
 class PTCVModel(ModelInterface):
     def __init__(
@@ -34,6 +34,7 @@ class PTCVModel(ModelInterface):
         **kwargs
     ):
         super().__init__(**kwargs)
+        assert self.is_classification(), f"{model_name} model are adapted for classification tasks only"
         self.pooling_type = pooling_type
         self.loss = loss
         assert isinstance(num_classes, int)
@@ -50,7 +51,7 @@ class PTCVModel(ModelInterface):
 
         self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
 
-    def forward(self, x, return_featuremaps=False, get_embeddings=False):
+    def forward(self, x, return_featuremaps=False):
         if self.input_IN is not None:
             x = self.input_IN(x)
 
@@ -62,19 +63,6 @@ class PTCVModel(ModelInterface):
 
         logits = self.output_conv(glob_features).view(x.shape[0], -1)
 
-        if not self.training and self.is_classification():
-            return [logits]
+        return tuple(logits)
 
-        if get_embeddings:
-            out_data = [logits, glob_features.view(x.size(0), -1)]
-        elif self.loss in ['softmax', 'am_softmax']:
-            out_data = [logits]
-        elif self.loss in ['triplet']:
-            out_data = [logits, glob_features.view(x.size(0), -1)]
-        else:
-            raise KeyError("Unsupported loss: {}".format(self.loss))
-
-        return tuple(out_data)
-
-
-wrapped_models = {'ptcv_' + name : partial(PTCVModel, model_name=name) for name in _models.keys()}
+pytcv_wrapped_models = {dor_name : partial(PTCVModel, model_name=pytcv_name) for dor_name, pytcv_name in AVAI_MODELS.items()}
