@@ -13,8 +13,10 @@
 # and limitations under the License.
 
 import argparse
+import logging
 import os.path as osp
 import sys
+
 from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.configuration.helper import create
 from ote_sdk.entities.datasets import Subset
@@ -33,7 +35,6 @@ from ote_sdk.entities.resultset import ResultSetEntity
 from ote_sdk.entities.task_environment import TaskEnvironment
 
 from sc_sdk.entities.dataset_storage import NullDatasetStorage
-from sc_sdk.logging import logger_factory
 
 from torchreid.integration.sc.utils import (ClassificationDatasetAdapter,
                                             generate_label_schema,
@@ -41,7 +42,7 @@ from torchreid.integration.sc.utils import (ClassificationDatasetAdapter,
                                             set_values_as_default,
                                             get_task_class)
 
-logger = logger_factory.get_logger('Sample')
+logger = logging.getLogger(__name__)
 
 
 def parse_args():

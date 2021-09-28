@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions
 # and limitations under the License.
 
+import logging
 import os
 import tempfile
 
@@ -25,7 +26,7 @@ import PIL
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneKind
 from ote_sdk.entities.id import ID
 from ote_sdk.entities.inference_parameters import InferenceParameters
-from ote_sdk.entities.scored_label import ScoredLabel
+from ote_sdk.entities.label import ScoredLabel
 from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
@@ -44,7 +45,6 @@ from ote_sdk.usecases.tasks.interfaces.optimization_interface import (
 from sc_sdk.entities.annotation import AnnotationScene
 from sc_sdk.entities.datasets import Dataset
 from sc_sdk.entities.media_identifier import ImageIdentifier
-from sc_sdk.logging import logger_factory
 
 from compression.api import DataLoader
 from compression.engines.ie_engine import IEEngine
@@ -54,7 +54,7 @@ from compression.pipeline.initializer import create_pipeline
 
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 
-logger = logger_factory.get_logger("OTEClassificationTask")
+logger = logging.getLogger(__name__)
 
 def get_output(net, outputs, name):
     try:

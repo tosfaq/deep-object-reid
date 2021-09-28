@@ -1,15 +1,15 @@
 
 from attr import attrs
 from sys import maxsize
-from ote_sdk.configuration import ModelConfig, ModelLifecycle
+
 from ote_sdk.configuration.elements import (ParameterGroup,
                                             add_parameter_group,
                                             boolean_attribute,
-                                            configurable_boolean,
-                                            configurable_float,
                                             configurable_integer,
                                             selectable,
-                                            string_attribute)
+                                            string_attribute,
+                                            ModelConfig)
+from ote_sdk.configuration.model_lifecycle import ModelLifecycle
 
 from .parameters_enums import POTQuantizationPreset
 

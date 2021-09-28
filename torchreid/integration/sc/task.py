@@ -1,5 +1,5 @@
 import io
-from logging import fatal
+import logging
 import os
 import math
 from typing import List, Optional
@@ -45,9 +45,8 @@ from ote_sdk.entities.model import ModelEntity, ModelStatus
 
 from sc_sdk.entities.resultset import ResultSet
 from sc_sdk.entities.datasets import Dataset, Subset
-from sc_sdk.logging import logger_factory
 
-logger = logger_factory.get_logger("OTEClassificationTask")
+logger = logging.getLogger(__name__)
 
 
 class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExportTask, IUnload):
