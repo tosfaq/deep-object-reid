@@ -63,6 +63,9 @@ class PTCVModel(ModelInterface):
 
         logits = self.output_conv(glob_features).view(x.shape[0], -1)
 
-        return tuple(logits)
+        if not self.training:
+            return [logits]
+        return tuple([logits])
+
 
 pytcv_wrapped_models = {dor_name : partial(PTCVModel, model_name=pytcv_name) for dor_name, pytcv_name in AVAI_MODELS.items()}
