@@ -26,30 +26,34 @@ class Classification(ImageDataset):
         self.check_before_run(required_files)
 
         if mode == 'train':
-            train = self.load_annotation(
+            train, classes = self.load_annotation(
                 self.annot,
                 self.data_dir,
                 dataset_id=dataset_id
             )
-        else:
+            query = []
+
+        elif mode == 'query':
+            query, classes = self.load_annotation(
+                self.annot,
+                self.data_dir,
+                dataset_id=dataset_id
+            )
             train = []
 
-        if mode == 'query':
-            query = self.load_annotation(
-                self.annot,
-                self.data_dir,
-                dataset_id=dataset_id
-            )
         else:
-            query = []
+            classes = []
+            train, query = [], []
 
         gallery = []
 
         super(Classification, self).__init__(train, query, gallery, mode=mode, **kwargs)
+        self.classes = classes
 
     @staticmethod
     def load_annotation(annot_path, data_dir, dataset_id=0):
         out_data = []
+        classes = set()
         for line in open(annot_path):
             parts = line.strip().split(' ')
             if len(parts) != 2:
@@ -62,8 +66,10 @@ class Classification(ImageDataset):
                 continue
 
             label = int(label_str)
+            classes.add(label)
             out_data.append((full_image_path, label, 0, dataset_id, '', -1, -1))
-        return out_data
+        class_to_idx = {cls: indx for indx, cls in enumerate(classes)}
+        return out_data, class_to_idx
 
 
 class ExternalDatasetWrapper(ImageDataset):
@@ -209,27 +215,27 @@ class MultiLabelClassification(ImageDataset):
             self.data_dir, self.annot
         ]
         self.check_before_run(required_files)
-
         if mode == 'train':
-            train = self.load_annotation(
+            train, classes = self.load_annotation(
                 self.annot,
                 self.data_dir,
                 dataset_id=dataset_id
             )
-        else:
-            train = []
-
-        if mode == 'query':
-            query = self.load_annotation(
-                self.annot,
-                self.data_dir,
-                dataset_id=dataset_id
-            )
-        else:
             query = []
+        elif mode == 'query':
+            query, classes = self.load_annotation(
+                self.annot,
+                self.data_dir,
+                dataset_id=dataset_id
+            )
+            train = []
+        else:
+            classes = []
+            train, query = [], []
 
         gallery = []
         super(MultiLabelClassification, self).__init__(train, query, gallery, mode=mode, **kwargs)
+        self.classes = classes
 
     @staticmethod
     def load_annotation(annot_path, data_dir, dataset_id=0):
@@ -250,4 +256,4 @@ class MultiLabelClassification(ImageDataset):
                 out_data.append((full_image_path, tuple(labels_idx), 0, dataset_id, '', -1, -1))
         if img_wo_objects:
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
-        return out_data
+        return out_data, class_to_idx

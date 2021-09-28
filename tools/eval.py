@@ -56,7 +56,7 @@ def main():
     sys.stdout = Logger(osp.join(cfg.data.save_dir, log_name))
 
     datamanager = torchreid.data.ImageDataManager(filter_classes=args.classes, **imagedata_kwargs(cfg))
-    num_classes = datamanager.test_loader[cfg.data.targets[0]]['query'].dataset.num_train_pids[0]
+    num_classes = len(datamanager.test_loader[cfg.data.targets[0]]['query'].dataset.classes)
     cfg.train.ema.enable = False
     if not is_ie_model:
         model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))

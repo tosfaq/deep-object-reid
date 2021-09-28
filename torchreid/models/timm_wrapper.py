@@ -18,12 +18,12 @@ AVAI_MODELS = {
 
 class TimmModelsWrapper(ModelInterface):
     def __init__(self,
-                model_name,
-                pretrained=False,
-                dropout_cls = None,
-                pooling_type='avg',
-                num_classes=1000,
-                **kwargs):
+                 model_name,
+                 pretrained=False,
+                 dropout_cls = None,
+                 pooling_type='avg',
+                 num_classes=1000,
+                 **kwargs):
         super().__init__(**kwargs)
         assert self.is_classification(), f"{model_name} model are adapted for classification tasks only"
         self.is_mobilenet = True if model_name in ["mobilenetv3_large_100_miil_in21k", "mobilenetv3_large_100_miil"] else False
@@ -68,7 +68,7 @@ class TimmModelsWrapper(ModelInterface):
         return self.classifier(x.view(x.shape[0], -1))
 
 
-class ModelFabric:
+class ModelFactory:
     def __init__(self, model_name) -> None:
         self.model_name = model_name
 
@@ -79,4 +79,4 @@ class ModelFabric:
         net = TimmModelsWrapper(self.model_name, **kwargs)
         return net
 
-timm_wrapped_models = {dor_name : ModelFabric(model_name=timm_name) for dor_name, timm_name in AVAI_MODELS.items()}
+timm_wrapped_models = {dor_name : ModelFactory(model_name=timm_name) for dor_name, timm_name in AVAI_MODELS.items()}
