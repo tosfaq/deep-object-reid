@@ -42,6 +42,8 @@ from torchreid.integration.sc.utils import (ClassificationDatasetAdapter,
                                             set_values_as_default,
                                             get_task_class)
 
+
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
