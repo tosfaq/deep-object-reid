@@ -287,15 +287,16 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         optimizer = torchreid.optim.build_optimizer(train_model, **optimizer_kwargs(self._cfg))
 
-        if self._cfg.lr_finder.enable and self._cfg.lr_finder.mode == 'automatic':
+        if self._cfg.lr_finder.enable:
             scheduler = None
         else:
             scheduler = torchreid.optim.build_lr_scheduler(optimizer, num_iter=datamanager.num_iter,
                                                            **lr_scheduler_kwargs(self._cfg))
 
         if self._cfg.lr_finder.enable:
-            run_lr_finder(self._cfg, datamanager, train_model, optimizer, scheduler, None,
-                          rebuild_model=False, gpu_num=self.num_devices, split_models=False)
+            _, train_model, optimizer, scheduler = \
+                        run_lr_finder(self._cfg, datamanager, train_model, optimizer, scheduler, None,
+                                      rebuild_model=False, gpu_num=self.num_devices, split_models=False)
 
         init_acc, final_acc = run_training(self._cfg, datamanager, train_model, optimizer, scheduler, extra_device_ids,
                                            self._cfg.train.lr, tb_writer=self.metrics_monitor, perf_monitor=time_monitor,
