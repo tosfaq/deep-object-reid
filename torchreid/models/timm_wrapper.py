@@ -27,9 +27,9 @@ class TimmModelsWrapper(ModelInterface):
         super().__init__(**kwargs)
         assert self.is_classification(), f"{model_name} model is adapted for classification tasks only"
         self.is_mobilenet = True if model_name in ["mobilenetv3_large_100_miil_in21k", "mobilenetv3_large_100_miil"] else False
-        self.model = timm.create_model( model_name,
-                                   pretrained=pretrained,
-                                   num_classes=num_classes)
+        self.model = timm.create_model(model_name,
+                                       pretrained=pretrained,
+                                       num_classes=num_classes)
         self.num_features = (self.model.conv_head.in_channels
                              if self.is_mobilenet
                              else self.model.num_features)
