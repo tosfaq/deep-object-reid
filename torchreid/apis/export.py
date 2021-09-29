@@ -21,7 +21,8 @@ import torch
 
 from torch.onnx.symbolic_registry import register_op
 
-from scripts.script_utils import group_norm_symbolic, relu6_symbolic
+from scripts.script_utils import (group_norm_symbolic, hardsigmoid_symbolic,
+                                  relu6_symbolic)
 from torchreid.utils import random_image
 from torchreid.data.transforms import build_inference_transform
 
@@ -52,6 +53,8 @@ def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
 
     register_op("group_norm", group_norm_symbolic, "", opset)
     register_op("relu6", relu6_symbolic, "", opset)
+    register_op("hardsigmoid", hardsigmoid_symbolic, "", opset)
+
     with torch.no_grad():
         torch.onnx.export(
             model,
@@ -72,7 +75,7 @@ def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
             onnx.checker.check_model(net_from_onnx)
             print('ONNX check passed.')
         except onnx.onnx_cpp2py_export.checker.ValidationError as ex:
-            print('ONNX check failed: {}.'.format(ex))
+            print(f'ONNX check failed: {ex}.')
 
     return output_file_path
 

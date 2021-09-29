@@ -13,6 +13,7 @@ from scripts.default_config import (imagedata_kwargs, get_default_config,
                                     model_kwargs, optimizer_kwargs,
                                     lr_scheduler_kwargs, merge_from_files_with_base)
 
+
 def build_base_argparser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config-file', type=str, default='',
@@ -61,6 +62,7 @@ def reset_config(cfg, args):
 def build_datamanager(cfg, classification_classes_filter=None):
     return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
 
+
 def build_auxiliary_model(config_file, num_classes, use_gpu,
                           device_ids, num_iter, lr=None,
                           nncf_aux_config_file=None,
@@ -76,14 +78,16 @@ def build_auxiliary_model(config_file, num_classes, use_gpu,
                 f'the changes are:\n{pformat(aux_config_opts)}')
         aux_cfg.merge_from_list(aux_config_opts)
 
-    print('\nShow auxiliary configuration\n{}\n'.format(aux_cfg))
+    print(f'\nShow auxiliary configuration\n{aux_cfg}\n')
 
     if lr is not None:
         aux_cfg.train.lr = lr
         print(f"setting learning rate from main model: {lr}")
     model = torchreid.models.build_model(**model_kwargs(aux_cfg, num_classes))
     optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(aux_cfg))
-    scheduler = torchreid.optim.build_lr_scheduler(optimizer=optimizer, num_iter=num_iter, **lr_scheduler_kwargs(aux_cfg))
+    scheduler = torchreid.optim.build_lr_scheduler(optimizer=optimizer,
+                                                   num_iter=num_iter,
+                                                   **lr_scheduler_kwargs(aux_cfg))
 
     if aux_cfg.model.resume and check_isfile(aux_cfg.model.resume):
         aux_cfg.train.start_epoch = resume_from_checkpoint(
@@ -106,6 +110,29 @@ def build_auxiliary_model(config_file, num_classes, use_gpu,
 @parse_args('v')
 def relu6_symbolic(g, input_blob):
     return g.op("Clip", input_blob, min_f=0., max_f=6.)
+
+
+def patch_InplaceAbn_forward():
+    """
+    Replace 'InplaceAbn.forward' with a more export-friendly implementation.
+    """
+    from torch import nn
+
+    def forward(self, x):
+        weight = torch.abs(self.weight) + self.eps #torch.tensor(self.eps)
+        x = nn.functional.batch_norm(x, self.running_mean, self.running_var,
+                                     weight, self.bias,
+                                     self.training, self.momentum, self.eps)
+        if self.act_name == "relu":
+            x = nn.functional.relu(x)
+        elif self.act_name == "leaky_relu":
+            x = nn.functional.leaky_relu(x, negative_slope=self.act_param)
+        elif self.act_name == "elu":
+            x = nn.functional.elu(x, alpha=self.act_param)
+        return x
+
+    from timm.models.layers import InplaceAbn
+    InplaceAbn.forward = forward
 
 
 @parse_args('v', 'i', 'v', 'v', 'f', 'i')
@@ -131,13 +158,20 @@ def group_norm_symbolic(g, input_blob, num_groups, weight, bias, eps, cudnn_enab
     return output
 
 
+@parse_args("v")
+def hardsigmoid_symbolic(g, self):
+    # Set alpha_f to 1 / 6 to make op equivalent to PyTorch's definition of Hardsigmoid.
+    # See https://pytorch.org/docs/stable/generated/torch.nn.Hardsigmoid.html
+    return g.op("HardSigmoid", self, alpha_f=1 / 6)
+
+
 def is_config_parameter_set_from_command_line(cmd_line_opts, parameter_name):
     # Note that cmd_line_opts here should be compatible with
     # the function yacs.config.CfgNode.merge_from_list
     if not cmd_line_opts:
         return False
     key_names = cmd_line_opts[0::2]
-    return (parameter_name in key_names)
+    return parameter_name in key_names
 
 
 def put_main_model_on_the_device(model, use_gpu=True, gpu_num=1, num_aux_models=0, split_models=False):
@@ -178,29 +212,30 @@ def check_classification_classes(model, datamanager, classes, test_only=False):
             if len(ref_classes) != len(probe_classes):
                 return False
             return sorted(probe_classes.keys()) == sorted(ref_classes.keys())
-        else:
-            if len(ref_classes) > len(probe_classes):
+
+        if len(ref_classes) > len(probe_classes):
+            return False
+        probe_names = probe_classes.keys()
+        for cl in ref_classes.keys():
+            if cl not in probe_names:
                 return False
-            probe_names = probe_classes.keys()
-            for cl in ref_classes.keys():
-                if cl not in probe_names:
-                    return False
+
         return True
 
     classes_map = {v : k for k, v in enumerate(sorted(classes))} if classes else {}
     if test_only:
         for name, dataloader in datamanager.test_loader.items():
-            if not len(dataloader['query'].dataset.classes): # current text annotation doesn't contain classes names
+            if not dataloader['query'].dataset.classes: # current text annotation doesn't contain classes names
                 print(f'Warning: classes are not defined for validation dataset {name}')
                 continue
-            if not len(get_model_attr(model, 'classification_classes')):
-                print(f'Warning: classes are not provided in the current snapshot. Consistency checks are skipped.')
+            if not get_model_attr(model, 'classification_classes'):
+                print('Warning: classes are not provided in the current snapshot. Consistency checks are skipped.')
                 continue
             if not check_classes_consistency(get_model_attr(model, 'classification_classes'),
                                                 dataloader['query'].dataset.classes, strict=False):
                 raise ValueError('Inconsistent classes in evaluation dataset')
             if classes and not check_classes_consistency(classes_map,
-                                                                get_model_attr(model, 'classification_classes'), strict=True):
+                                                         get_model_attr(model, 'classification_classes'), strict=True):
                 raise ValueError('Classes provided via --classes should be the same as in the loaded model')
     elif classes:
         if not check_classes_consistency(classes_map,

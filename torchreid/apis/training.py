@@ -14,6 +14,7 @@
  limitations under the License.
 """
 
+import sys
 from copy import deepcopy
 
 import torchreid
@@ -30,19 +31,17 @@ from scripts.script_utils import (build_datamanager, build_auxiliary_model,
 
 def run_lr_finder(cfg, datamanager, model, optimizer, scheduler, classes,
                   rebuild_model=True, gpu_num=1, split_models=False):
-    if rebuild_model:
-        tmp_model = model
-    else:
-        tmp_model = deepcopy(model)
+    if not rebuild_model:
+        backup_model = deepcopy(model)
 
-    engine = build_engine(cfg, datamanager, tmp_model, optimizer, scheduler, initial_lr=cfg.train.lr)
+    engine = build_engine(cfg, datamanager, model, optimizer, scheduler, initial_lr=cfg.train.lr)
     lr_finder = LrFinder(engine=engine, **lr_finder_run_kwargs(cfg))
     aux_lr = lr_finder.process()
 
     print(f"Estimated learning rate: {aux_lr}")
     if cfg.lr_finder.stop_after:
         print("Finding learning rate finished. Terminate the training process")
-        exit()
+        sys.exit(0)
 
     # reload all parts of the training
     # we do not check classification parameters
@@ -53,16 +52,18 @@ def run_lr_finder(cfg, datamanager, model, optimizer, scheduler, classes,
     set_random_seed(cfg.train.seed, cfg.train.deterministic)
     datamanager = build_datamanager(cfg, classes)
     num_train_classes = datamanager.num_train_pids
+
     if rebuild_model:
-        model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
+        backup_model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
         num_aux_models = len(cfg.mutual_learning.aux_configs)
-        model, _ = put_main_model_on_the_device(model, cfg.use_gpu, gpu_num, num_aux_models, split_models)
-    optimizer = torchreid.optim.build_optimizer(model, **optimizer_kwargs(cfg))
+        backup_model, _ = put_main_model_on_the_device(backup_model, cfg.use_gpu, gpu_num, num_aux_models, split_models)
+
+    optimizer = torchreid.optim.build_optimizer(backup_model, **optimizer_kwargs(cfg))
     scheduler = torchreid.optim.build_lr_scheduler(optimizer=optimizer,
                                                    num_iter=datamanager.num_iter,
                                                    **lr_scheduler_kwargs(cfg))
 
-    return cfg.train.lr
+    return cfg.train.lr, backup_model, optimizer, scheduler
 
 
 def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids, init_lr,
@@ -76,7 +77,7 @@ def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids
     num_train_classes = datamanager.num_train_pids
 
     if num_aux_models > 0:
-        print('Enabled mutual learning between {} models.'.format(len(cfg.mutual_learning.aux_configs) + 1))
+        print(f'Enabled mutual learning between {len(cfg.mutual_learning.aux_configs) + 1} models.')
 
         models, optimizers, schedulers = [model], [optimizer], [scheduler]
         for config_file, device_ids in zip(cfg.mutual_learning.aux_configs, extra_device_ids):
@@ -91,7 +92,7 @@ def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids
             schedulers.append(aux_scheduler)
     else:
         models, optimizers, schedulers = model, optimizer, scheduler
-    print('Building {}-engine'.format(cfg.loss.name))
+    print(f'Building {cfg.loss.name}-engine')
     engine = build_engine(cfg, datamanager, models, optimizers, schedulers,
                           should_freeze_aux_models=should_freeze_aux_models,
                           nncf_metainfo=nncf_metainfo,

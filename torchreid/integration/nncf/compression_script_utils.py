@@ -6,7 +6,7 @@ from torchreid.utils import check_isfile, load_pretrained_weights, read_yaml
 from scripts.default_config import merge_from_files_with_base
 from scripts.script_utils import build_datamanager, is_config_parameter_set_from_command_line
 
-from .compression import (is_checkpoint_nncf, wrap_nncf_model)
+from torchreid.integration.nncf.compression import (is_checkpoint_nncf, wrap_nncf_model)
 
 def get_coeff_decrease_lr_for_nncf(nncf_training_config):
     if nncf_training_config and nncf_training_config.get('coeff_decrease_lr_for_nncf'):
@@ -158,7 +158,7 @@ def make_nncf_changes_in_eval(model, cfg):
     print(f'NNCF config path = {nncf_config_path}')
     checkpoint_path = cfg.model.load_weights
     datamanager_for_nncf = None
-    compression_ctrl, model, _ = \
+    _, model, _ = \
             wrap_nncf_model(model, cfg, datamanager_for_nncf,
                             checkpoint_path=checkpoint_path,
                             nncf_config_path=nncf_config_path)

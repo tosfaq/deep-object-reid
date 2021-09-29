@@ -5,6 +5,8 @@ import time
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
+from ptflops import get_model_complexity_info
+
 from scripts.default_config import (get_default_config,
                                     lr_scheduler_kwargs, model_kwargs,
                                     optimizer_kwargs,
@@ -17,7 +19,7 @@ from scripts.script_utils import (build_base_argparser, reset_config,
 import torchreid
 from torchreid.apis.training import run_lr_finder, run_training
 from torchreid.utils import (Logger, check_isfile, collect_env_info,
-                             compute_model_complexity, resume_from_checkpoint,
+                             resume_from_checkpoint,
                              set_random_seed, load_pretrained_weights)
 from torchreid.integration.nncf.compression import is_checkpoint_nncf
 from torchreid.integration.nncf.compression_script_utils import (get_nncf_changes_in_aux_training_config,
@@ -72,8 +74,9 @@ def main():
 
     print('Building main model: {}'.format(cfg.model.name))
     model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
-    num_params, flops = compute_model_complexity(model, (1, 3, cfg.data.height, cfg.data.width))
-    print('Main model complexity: params={:,} flops={:,}'.format(num_params, flops))
+    macs, num_params = get_model_complexity_info(model, (3, cfg.data.height, cfg.data.width),
+                                                 as_strings=False, verbose=False, print_per_layer_stat=False)
+    print('Main model complexity: params={:,} flops={:,}'.format(num_params, macs * 2))
 
     aux_lr = cfg.train.lr # placeholder, needed for aux models, may be filled by nncf part below
     if is_nncf_used:
@@ -118,8 +121,8 @@ def main():
     model, extra_device_ids = put_main_model_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
 
     if cfg.lr_finder.enable and not cfg.test.evaluate and not cfg.model.resume:
-        aux_lr = run_lr_finder(cfg, datamanager, model, optimizer, scheduler, args.classes,
-                               rebuild_model=True, gpu_num=args.gpu_num, split_models=args.split_models)
+        aux_lr, model, optimizer, scheduler = run_lr_finder(cfg, datamanager, model, optimizer, scheduler, args.classes,
+                                                            rebuild_model=True, gpu_num=args.gpu_num, split_models=args.split_models)
 
 
     log_dir = cfg.data.tb_log_dir if cfg.data.tb_log_dir else cfg.data.save_dir

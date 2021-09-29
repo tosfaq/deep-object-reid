@@ -20,6 +20,7 @@ import os
 import torch
 
 from scripts.default_config import get_default_config, model_kwargs, merge_from_files_with_base
+from scripts.script_utils import patch_InplaceAbn_forward
 from torchreid.apis.export import export_onnx, export_ir
 from torchreid.models import build_model
 from torchreid.utils import load_checkpoint, load_pretrained_weights
@@ -66,16 +67,16 @@ def reset_config(cfg):
 
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--config-file', type=str, default='',
+    parser.add_argument('--config-file', type=str, default='', required=True,
                         help='Path to config file')
     parser.add_argument('--output-name', type=str, default='model',
                         help='Path to save ONNX model')
     parser.add_argument('--num-classes', type=int, nargs='+', default=None)
-    parser.add_argument('--opset', type=int, default=9)
-    parser.add_argument('--verbose', default=False, action='store_true',
+    parser.add_argument('--opset', type=int, default=11)
+    parser.add_argument('--verbose', action='store_true',
                         help='Verbose mode for onnx.export')
     parser.add_argument('--disable-dyn-axes', default=False, action='store_true')
-    parser.add_argument('--export_ir', default=False, action='store_true')
+    parser.add_argument('--export_ir', action='store_true')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help='Modify config options using the command-line')
     args = parser.parse_args()
@@ -97,13 +98,14 @@ def main():
                                     args.num_classes, cfg.model.load_weights)
     model = build_model(**model_kwargs(cfg, num_classes))
     load_pretrained_weights(model, cfg.model.load_weights)
-
+    if 'tresnet' in cfg.model.name:
+        patch_InplaceAbn_forward()
     if is_nncf_used:
         print('Begin making NNCF changes in model')
         model = make_nncf_changes_in_eval(model, cfg)
         print('End making NNCF changes in model')
 
-    onnx_file_path = export_onnx(model.eval(), cfg, args.output_name, args.disable_dyn_axes, True, args.opset, True)
+    onnx_file_path = export_onnx(model.eval(), cfg, args.output_name, args.disable_dyn_axes, args.verbose, args.opset)
     if args.export_ir:
         export_ir(onnx_file_path, cfg.data.norm_mean, cfg.data.norm_std, os.path.dirname(os.path.abspath(onnx_file_path)))
 

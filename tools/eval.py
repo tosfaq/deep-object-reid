@@ -57,7 +57,7 @@ def main():
 
     datamanager = torchreid.data.ImageDataManager(filter_classes=args.classes, **imagedata_kwargs(cfg))
     num_classes = len(datamanager.test_loader[cfg.data.targets[0]]['query'].dataset.classes)
-
+    cfg.train.ema.enable = False
     if not is_ie_model:
         model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
         load_pretrained_weights(model, cfg.model.load_weights)
