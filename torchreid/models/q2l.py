@@ -53,6 +53,7 @@ class Qeruy2Label(ModelInterface):
                 backbone,
                 transfomer,
                 num_classes=80,
+                pretrain=False,
                 **kwargs):
         """[summary]
 
@@ -98,12 +99,13 @@ class Qeruy2Label(ModelInterface):
         return chain(self.transformer.parameters(), self.fc.parameters(), self.input_proj.parameters(), self.query_embed.parameters())
 
 
-def build_q2l(backbone, transformer, hidden_dim=2048, input_size=448, **kwargs):
+def build_q2l(backbone, transformer, hidden_dim=2048, pretrain=False, input_size=448, **kwargs):
     position_emb = build_position_encoding(hidden_dim=hidden_dim, img_size=input_size)
     wrapped_model = BackboneWrapper(backbone, position_emb)
     model = Qeruy2Label(
         backbone=wrapped_model,
         transfomer=transformer,
+        pretrain=pretrain,
         **kwargs
     )
 

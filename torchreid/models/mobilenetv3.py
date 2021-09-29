@@ -11,7 +11,7 @@ import timm
 from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
 
 __all__ = ['mobilenetv3_large', 'mobilenetv3_large_075', 'mobilenetv3_small', 'mobilenetv3_large_150',
-            'mobilenetv3_large_125', "mobilenetv3_large_21k"]
+            'mobilenetv3_large_125']
 
 pretrained_urls = {
     'mobilenetv3_small':
@@ -107,17 +107,21 @@ class InvertedResidual(nn.Module):
         else:
             return self.conv(x)
 
-class MobileNetV3Base(ModelInterface):
+
+class MobileNetV3(ModelInterface):
     def __init__(self,
-                num_classes=1000,
-                width_mult=1.,
-                in_channels=3,
-                input_size=(224, 224),
-                dropout_cls = None,
-                pooling_type='avg',
-                IN_first=False,
-                self_challenging_cfg=False,
-                **kwargs):
+                 cfgs,
+                 mode,
+                 IN_conv1=False,
+                 num_classes=1000,
+                 width_mult=1.,
+                 in_channels=3,
+                 input_size=(224, 224),
+                 dropout_cls = None,
+                 pooling_type='avg',
+                 IN_first=False,
+                 self_challenging_cfg=False,
+                 **kwargs):
 
         super().__init__(**kwargs)
         self.in_size = input_size
@@ -127,58 +131,6 @@ class MobileNetV3Base(ModelInterface):
         self.self_challenging_cfg = self_challenging_cfg
         self.width_mult = width_mult
         self.dropout_cls = dropout_cls
-
-    def infer_head(self, x, skip_pool=False):
-        raise NotImplementedError
-
-    def extract_features(self, x):
-        raise NotImplementedError
-
-    def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None):
-        if self.input_IN is not None:
-            x = self.input_IN(x)
-
-        y = self.extract_features(x)
-        if return_featuremaps:
-            return y
-
-        with no_nncf_head_context():
-            glob_features, logits = self.infer_head(y, skip_pool=False)
-        if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
-            glob_features = rsc(
-                features = glob_features,
-                scores = logits,
-                labels = gt_labels,
-                retain_p = 1.0 - self.self_challenging_cfg.drop_p,
-                retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
-            )
-
-            with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
-                _, logits = self.infer_head(x, skip_pool=True)
-
-        if not self.training and self.is_classification():
-            return [logits]
-
-        if get_embeddings:
-            out_data = [logits, glob_features]
-        elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
-                out_data = [logits]
-        elif self.loss in ['triplet']:
-            out_data = [logits, glob_features]
-        else:
-            raise KeyError("Unsupported loss: {}".format(self.loss))
-
-        return tuple(out_data)
-
-
-class MobileNetV3(MobileNetV3Base):
-    def __init__(self,
-                 cfgs,
-                 mode,
-                 IN_conv1=False,
-                 **kwargs):
-
-        super().__init__(**kwargs)
         # setting of inverted residual blocks
         self.cfgs = cfgs
         assert mode in ['large', 'small']
@@ -252,35 +204,41 @@ class MobileNetV3(MobileNetV3Base):
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
+    def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None):
+        if self.input_IN is not None:
+            x = self.input_IN(x)
 
-class MobileNetV3LargeTimm(MobileNetV3Base):
-    def __init__(self,
-                pretrained=False,
-                **kwargs):
+        y = self.extract_features(x)
+        if return_featuremaps:
+            return y
 
-        super().__init__(**kwargs)
-        self.model = timm.create_model('mobilenetv3_large_100_miil_in21k',
-                                        pretrained=pretrained,
-                                        num_classes=self.num_classes)
-        self.dropout = Dropout(**self.dropout_cls)
-        self.num_features = self.model.conv_head.in_channels
-        assert self.loss in ['softmax', 'asl'], "mobilenetv3_large_100_miil_in21k supports only softmax aor ASL losses"
+        with no_nncf_head_context():
+            glob_features, logits = self.infer_head(y, skip_pool=False)
+        if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
+            glob_features = rsc(
+                features = glob_features,
+                scores = logits,
+                labels = gt_labels,
+                retain_p = 1.0 - self.self_challenging_cfg.drop_p,
+                retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
+            )
 
-    def extract_features(self, x):
-        x = self.model.conv_stem(x)
-        x = self.model.bn1(x)
-        x = self.model.act1(x)
-        y = self.model.blocks(x)
-        return y
+            with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
+                _, logits = self.infer_head(x, skip_pool=True)
 
-    def infer_head(self, x, skip_pool=False):
-        glob_features = self.model.global_pool(x) if not skip_pool else x
-        x = self.model.conv_head(glob_features)
-        x = self.model.act2(x)
-        x = x.flatten(1)
-        x = self.dropout(x)
-        logits = self.model.classifier(x)
-        return glob_features, logits
+        if not self.training and self.is_classification():
+            return [logits]
+
+        if get_embeddings:
+            out_data = [logits, glob_features]
+        elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
+                out_data = [logits]
+        elif self.loss in ['triplet']:
+            out_data = [logits, glob_features]
+        else:
+            raise KeyError("Unsupported loss: {}".format(self.loss))
+
+        return tuple(out_data)
 
 
 def init_pretrained_weights(model, key='', **kwargs):
@@ -322,12 +280,6 @@ def init_pretrained_weights(model, key='', **kwargs):
         gdown.download(pretrained_urls[key], cached_file)
     model = load_pretrained_weights(model, cached_file, **kwargs)
 
-def mobilenetv3_large_21k(pretrained=False, **kwargs):
-    """
-    Constructs a MobileNetV3-Large_timm model
-    """
-    net = MobileNetV3LargeTimm(pretrained=pretrained, **kwargs)
-    return net
 
 def mobilenetv3_large_075(pretrained=False, **kwargs):
     """
@@ -358,6 +310,7 @@ def mobilenetv3_large_075(pretrained=False, **kwargs):
 
     return net
 
+
 def mobilenetv3_large(pretrained=False, **kwargs):
     """
     Constructs a MobileNetV3-Large model
@@ -386,6 +339,7 @@ def mobilenetv3_large(pretrained=False, **kwargs):
         init_pretrained_weights(net, key='mobilenetv3_large')
 
     return net
+
 
 def mobilenetv3_large_150(pretrained=False, **kwargs):
     """
@@ -416,6 +370,7 @@ def mobilenetv3_large_150(pretrained=False, **kwargs):
 
     return net
 
+
 def mobilenetv3_large_125(pretrained=False, **kwargs):
     """
     Constructs a MobileNetV3-Large model
@@ -444,6 +399,7 @@ def mobilenetv3_large_125(pretrained=False, **kwargs):
         raise NotImplementedError("The weights for this configuration are not available")
 
     return net
+
 
 def mobilenetv3_small(pretrained=False, **kwargs):
     """

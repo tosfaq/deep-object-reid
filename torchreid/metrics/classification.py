@@ -24,7 +24,6 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
 
         out_scores = torch.cat(out_scores, 0).data.cpu().numpy()
         gt_labels = torch.cat(gt_labels, 0).data.cpu().numpy()
-
     return out_scores, gt_labels
 
 
