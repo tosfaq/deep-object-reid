@@ -24,7 +24,8 @@ disable = arguments-differ,
           import-error,
           no-name-in-module,
           dangerous-default-value,
-          abstract-method
+          abstract-method,
+          unspecified-encoding
 
 max-line-length = 120
 ignore-docstrings = yes
