@@ -60,9 +60,9 @@ def get_output(net, outputs, name):
     try:
         key = net.get_ov_name_for_tensor(name)
         assert key in outputs, f'"{key}" is not a valid output identifier'
-    except KeyError:
+    except KeyError as err:
         if name not in outputs:
-            raise KeyError(f'Failed to identify output "{name}"')
+            raise KeyError(f'Failed to identify output "{name}"') from err
         key = name
     return outputs[key]
 
@@ -172,9 +172,9 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
         return dataset
 
     def evaluate(self,
-                 output_result_set: ResultSetEntity,
+                 output_resultset: ResultSetEntity,
                  evaluation_metric: Optional[str] = None):
-        return MetricsHelper.compute_accuracy(output_result_set).get_performance()
+        return MetricsHelper.compute_accuracy(output_resultset).get_performance()
 
     def optimize(self,
                  optimization_type: OptimizationType,

@@ -95,7 +95,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
             try:
                 load_pretrained_weights(model, pretrained_dict=model_data['model'])
-                logger.info(f"Loaded model weights from Task Environment")
+                logger.info("Loaded model weights from Task Environment")
                 logger.info(f"Model architecture: {self._model_name}")
             except BaseException as ex:
                 raise ValueError("Could not load the saved model. The model file structure is invalid.") \
@@ -108,7 +108,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                         f"architecture and general-purpose pretrained weights.")
         return model
 
-    def _create_model(self, сonfig, from_scratch: bool = False):
+    def _create_model(self, config, from_scratch: bool = False):
         """
         Creates a model, based on the configuration in config
         :param config: deep-object-reid configuration from which the model has to be built
@@ -116,7 +116,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         :return model: Model in training mode
         """
         num_train_classes = len(self._labels)
-        model = torchreid.models.build_model(**model_kwargs(сonfig, num_train_classes))
+        model = torchreid.models.build_model(**model_kwargs(config, num_train_classes))
         if self._cfg.model.load_weights:
             load_pretrained_weights(model, self._cfg.model.load_weights)
         return model
@@ -133,7 +133,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self._cfg.custom_datasets.roots = ['']*2
         self._cfg.data.sources = ['train']
         self._cfg.data.targets = ['val']
-        self._cfg.data.save_dir
+        self._cfg.data.save_dir = self._scratch_space
+
         self._cfg.test.test_before_train = True
         self.num_classes = len(self._labels)
 
@@ -246,7 +247,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         configurable_parameters = self._hyperparams
 
         if train_parameters is not None and train_parameters.train_on_empty_model:
-            train_model = self.create_model(self._cfg)
+            train_model = self._create_model(self._cfg)
         else:
             train_model = deepcopy(self._model)
 
@@ -262,7 +263,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         if self._cfg.train.ema.enable:
             validation_steps *= 2
         time_monitor = TrainingProgressCallback(update_progress_callback, num_epoch=self._cfg.train.max_epoch,
-                                                num_train_steps=math.ceil(len(dataset.get_subset(Subset.TRAINING)) / self._cfg.train.batch_size),
+                                                num_train_steps=math.ceil(len(dataset.get_subset(Subset.TRAINING)) /
+                                                                          self._cfg.train.batch_size),
                                                 num_val_steps=0, num_test_steps=0)
 
         self.metrics_monitor = DefaultMetricsMonitor()
@@ -281,7 +283,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         if self._cfg.use_gpu:
             main_device_ids = list(range(self.num_devices))
             extra_device_ids = [main_device_ids for _ in range(num_aux_models)]
-            train_model = DataParallel(train_model, device_ids=main_device_ids, output_device=0).cuda(main_device_ids[0])
+            train_model = DataParallel(train_model, device_ids=main_device_ids,
+                                       output_device=0).cuda(main_device_ids[0])
         else:
             extra_device_ids = [None for _ in range(num_aux_models)]
 
@@ -298,8 +301,9 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                         run_lr_finder(self._cfg, datamanager, train_model, optimizer, scheduler, None,
                                       rebuild_model=False, gpu_num=self.num_devices, split_models=False)
 
-        init_acc, final_acc = run_training(self._cfg, datamanager, train_model, optimizer, scheduler, extra_device_ids,
-                                           self._cfg.train.lr, tb_writer=self.metrics_monitor, perf_monitor=time_monitor,
+        init_acc, final_acc = run_training(self._cfg, datamanager, train_model, optimizer,
+                                           scheduler, extra_device_ids, self._cfg.train.lr,
+                                           tb_writer=self.metrics_monitor, perf_monitor=time_monitor,
                                            stop_callback=self.stop_callback)
 
         improved = final_acc > init_acc

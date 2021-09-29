@@ -93,11 +93,11 @@ class ClassificationDatasetAdapter(Dataset):
         def is_valid(filename):
             return not filename.startswith('.') and filename.lower().endswith(ALLOWED_EXTS)
 
-        def find_classes(dir, filter_names=None):
+        def find_classes(folder, filter_names=None):
             if filter_names:
-                classes = [d.name for d in os.scandir(dir) if d.is_dir() and d.name in filter_names]
+                classes = [d.name for d in os.scandir(folder) if d.is_dir() and d.name in filter_names]
             else:
-                classes = [d.name for d in os.scandir(dir) if d.is_dir()]
+                classes = [d.name for d in os.scandir(folder) if d.is_dir()]
             classes.sort()
             class_to_idx = {classes[i]: i for i in range(len(classes))}
             return class_to_idx
@@ -116,7 +116,7 @@ class ClassificationDatasetAdapter(Dataset):
                     if is_valid(path):
                         out_data.append((path, (target_class, ), 0, 0, '', -1, -1))
 
-        if not len(out_data):
+        if not out_data:
             print('Failed to locate images in folder ' + data_dir + f' with extensions {ALLOWED_EXTS}')
 
         return out_data, class_to_idx
@@ -154,7 +154,8 @@ class ClassificationDatasetAdapter(Dataset):
 
     def _load_item(self, indx: int):
         def create_gt_scored_labels(label_names):
-            return [ScoredLabel(label=self.label_name_to_project_label(label_name), probability=1.0) for label_name in label_names]
+            return [ScoredLabel(label=self.label_name_to_project_label(label_name),
+                                probability=1.0) for label_name in label_names]
 
         img = cv.imread(self.data_info[indx][0])
         img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
@@ -192,8 +193,9 @@ def generate_label_schema(label_names, multilabel=False):
     not_empty_labels = [LabelEntity(name=name, color=colors[i], domain=label_domain, id=i,
                                     is_empty=False, creation_date=datetime.datetime.now()) for i, name in
                         enumerate(label_names)]
-    emptylabel = LabelEntity(name=f"Empty label", color=Color(42, 43, 46),
-                       is_empty=True, domain=label_domain, id=len(not_empty_labels),creation_date=datetime.datetime.now())
+    emptylabel = LabelEntity(name="Empty label", color=Color(42, 43, 46),
+                             is_empty=True, domain=label_domain,
+                             id=len(not_empty_labels),creation_date=datetime.datetime.now())
 
     label_schema = LabelSchemaEntity()
     empty_group = LabelGroup(name="empty", labels=[emptylabel], group_type=LabelGroupType.EMPTY_LABEL)
@@ -218,7 +220,7 @@ class OTEClassificationDataset():
         self.labels = labels
         self.annotation = []
 
-        for i in range(len(self.ote_dataset)):
+        for i, _ in enumerate(self.ote_dataset):
             class_indices = []
             if hasattr(self.ote_dataset, 'get_item_labels'):
                 item_labels = self.ote_dataset.get_item_labels(i)
@@ -267,7 +269,8 @@ def reload_hyper_parameters(model_template):
     template_file = model_template.model_template_path
     template_dir = osp.dirname(template_file)
     temp_folder = tempfile.mkdtemp()
-    conf_yaml = [dep.source for dep in model_template.dependencies if dep.destination == model_template.hyper_parameters.base_path][0]
+    conf_yaml = [dep.source for dep in model_template.dependencies \
+                     if dep.destination == model_template.hyper_parameters.base_path][0]
     conf_yaml = osp.join(template_dir, conf_yaml)
     subprocess.run(f'cp {conf_yaml} {temp_folder}', check=True, shell=True)
     subprocess.run(f'cp {template_file} {temp_folder}', check=True, shell=True)
