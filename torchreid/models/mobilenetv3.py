@@ -1,7 +1,7 @@
 import math
 
+import torch
 import torch.nn as nn
-from torch.cuda.amp import autocast
 
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, EvalModeSetter, rsc
@@ -125,7 +125,6 @@ class MobileNetV3(ModelInterface):
 
         super().__init__(**kwargs)
         self.in_size = input_size
-        self.forward = autocast(enabled=True)(self.forward)
         self.num_classes = num_classes
         self.input_IN = nn.InstanceNorm2d(in_channels, affine=True) if IN_first else None
         self.pooling_type = pooling_type
