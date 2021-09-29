@@ -40,7 +40,7 @@ from ote_sdk.configuration import cfg_helper
 from ote_sdk.configuration.helper.utils import ids_to_strings
 from ote_sdk.entities.model import ModelPrecision
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
-from ote_sdk.entities.label import ScoredLabel
+from ote_sdk.entities.scored_label import ScoredLabel
 from ote_sdk.entities.model import ModelEntity, ModelStatus
 
 from sc_sdk.entities.resultset import ResultSet

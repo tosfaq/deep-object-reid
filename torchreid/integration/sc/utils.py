@@ -10,7 +10,9 @@ import subprocess
 import cv2 as cv
 
 from ote_sdk.entities.shapes.rectangle import Rectangle
-from ote_sdk.entities.label import ScoredLabel, LabelEntity, Color
+from ote_sdk.entities.scored_label import ScoredLabel
+from ote_sdk.entities.label import LabelEntity
+from ote_sdk.entities.color import Color
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind
 from ote_sdk.entities.datasets import Subset
 
