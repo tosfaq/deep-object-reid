@@ -1,5 +1,5 @@
 # Description.
-name: Custom Image Classification EfficinetNet-B0
+name: EfficinetNet-B0
 task_type: CLASSIFICATION
 task_family: VISION
 instantiation: "CLASS"
