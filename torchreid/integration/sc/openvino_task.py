@@ -90,6 +90,7 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
         self.input_blob_name = 'data'
         self.n, self.c, self.h, self.w = self.net.input_info[self.input_blob_name].tensor_desc.dims
         self.keep_aspect_ratio_resize = False
+        self.pad_value = 0
 
     @staticmethod
     def resize_image(image: np.ndarray, size: Tuple[int], keep_aspect_ratio: bool = False) -> np.ndarray:
@@ -132,8 +133,8 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
             media_identifier=media_identifier,
             annotations=anno)
 
-    def forward(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
-        return self.model.infer(inputs)
+    def forward(self, image: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        return self.model.infer(image)
 
 class OTEOpenVinoDataLoader(DataLoader):
     def __init__(self, dataset: Dataset, inferencer: BaseOpenVINOInferencer):
@@ -191,8 +192,10 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
         with tempfile.TemporaryDirectory() as tempdir:
             xml_path = os.path.join(tempdir, model_name + ".xml")
             bin_path = os.path.join(tempdir, model_name + ".bin")
-            open(xml_path, "wb").write(self.model.get_data("openvino.xml"))
-            open(bin_path, "wb").write(self.model.get_data("openvino.bin"))
+            with open(xml_path, "wb") as f:
+                f.write(self.model.get_data("openvino.xml"))
+            with open(bin_path, "wb") as f:
+                f.write(self.model.get_data("openvino.bin"))
 
             model_config = ADDict({
                 'model_name': model_name,
@@ -235,8 +238,10 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
 
         with tempfile.TemporaryDirectory() as tempdir:
             save_model(compressed_model, tempdir, model_name=model_name)
-            output_model.set_data("openvino.xml", open(os.path.join(tempdir, model_name + ".xml"), "rb").read())
-            output_model.set_data("openvino.bin", open(os.path.join(tempdir, model_name + ".bin"), "rb").read())
+            with open(os.path.join(tempdir, model_name + ".xml"), "rb") as f:
+                output_model.set_data("openvino.xml", f.read())
+            with open(os.path.join(tempdir, model_name + ".bin"), "rb") as f:
+                output_model.set_data("openvino.bin", f.read())
         output_model.model_status = ModelStatus.SUCCESS
 
         self.model = output_model

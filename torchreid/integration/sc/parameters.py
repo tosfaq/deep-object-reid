@@ -8,13 +8,14 @@ from ote_sdk.configuration.elements import (ParameterGroup,
                                             configurable_integer,
                                             selectable,
                                             string_attribute,
-                                            ModelConfig)
+                                            )
+from ote_sdk.configuration.configurable_parameters import ConfigurableParameters
 from ote_sdk.configuration.model_lifecycle import ModelLifecycle
 
 from .parameters_enums import POTQuantizationPreset
 
 @attrs
-class OTEClassificationParameters(ModelConfig):
+class OTEClassificationParameters(ConfigurableParameters):
     header = string_attribute("Configuration for an object detection task")
     description = header
 
