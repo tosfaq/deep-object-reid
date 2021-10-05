@@ -82,7 +82,7 @@ class MultilabelEngine(Engine):
             assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be enabled \
                                                                                  for all models or none of them"
         grad_scaler_enabled = mix_precision if mix_precision and not self.enable_sam else False
-        self.scaler = GradScaler(enabled=grad_scaler_enabled)
+        self.scaler = GradScaler(enabled=True)
         self.prev_smooth_top1 = 0.
 
     def forward_backward(self, data):
@@ -145,16 +145,23 @@ class MultilabelEngine(Engine):
                     self.scaler.step(self.optims[model_name])
                     self.scaler.update()
                 elif step == 1:
-                    # if self.clip_grad == 0: # this means that unscale_ wasn't applied
-                        # unscale parameters to perform SAM manipulations with parameters
-                        # self.scaler.unscale_(self.optims[model_name])
-                    # self.scaler.unscale_(self.optims[model_name])
                     assert self.enable_sam
-                    self.optims[model_name].first_step()
+                    if self.clip_grad == 0:
+                        # if self.clip_grad == 0  this means that unscale_ wasn't applied
+                        # unscale parameters to perform SAM manipulations with parameters
+                        self.scaler.unscale_(self.optims[model_name]) 
+                    # self.scaler.unscale_(self.optims[model_name])
+                    overflow = self.optims[model_name].first_step(self.scaler)
+                    if overflow:
+                        print("Overflow occurred. skipping step ...")
+                        self.scaler.update()
+                        loss_summary['loss'] = total_loss.item()
+                        return loss_summary, avg_acc
+                    self.scaler.update()
                 else:
                     assert self.enable_sam and step==2
-                    # do safe step according to parameters values
-                    # self.scaler.step(self.optims[model_name])
+                    if self.clip_grad == 0:
+                        self.scaler.unscale_(self.optims[model_name]) 
                     self.optims[model_name].second_step()
                     self.scaler.update()
 
