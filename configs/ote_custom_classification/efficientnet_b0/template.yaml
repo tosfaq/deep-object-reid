@@ -1,9 +1,10 @@
 # Description.
-name: EfficinetNet-B0
+name: EfficientNet-B0
+id: Custom Image Classification EfficinetNet-B0
 task_type: CLASSIFICATION
 task_family: VISION
 instantiation: "CLASS"
-summary: Custom Image Classification EfficinetNet-B0
+summary: Custom Image Classification EfficientNet-B0
 
 # Algo backend.
 # Would be better to have something more precise and self-contained, e.g.:  docker image or path to Python venv activation script?

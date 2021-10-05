@@ -1,5 +1,6 @@
 # Description.
 name: MobileNet-V3-large-1x
+id: Custom Image Classification MobileNet-V3-large-1x
 task_type: CLASSIFICATION
 task_family: VISION
 instantiation: "CLASS"
