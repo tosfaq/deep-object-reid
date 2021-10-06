@@ -77,7 +77,7 @@ def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
     return output_file_path
 
 
-def export_ir(onnx_model_path, norm_mean=[0,0,0], norm_std=[1,1,1], input_shape=[1, 3, 224, 224],
+def export_ir(onnx_model_path, norm_mean=[0,0,0], norm_std=[1,1,1], input_shape=None,
                 optimized_model_dir='./ir_model', data_type='FP32'):
     def get_mo_cmd():
         for mo_cmd in ('mo', 'mo.py'):

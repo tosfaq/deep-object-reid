@@ -31,7 +31,7 @@ from torchreid.integration.nncf.compression_script_utils import (make_nncf_chang
 
 def parse_num_classes(source_datasets, classification=False, num_classes=None, snap_path=None):
     if classification:
-        if snap_path is not None:
+        if snap_path:
             chkpt = load_checkpoint(snap_path)
             num_classes_from_snap = chkpt['num_classes'] if 'num_classes' in chkpt else None
 
@@ -98,7 +98,8 @@ def main():
                                     num_classes=args.num_classes, 
                                     snap_path=cfg.model.load_weights)
     model = build_model(**model_kwargs(cfg, num_classes))
-    load_pretrained_weights(model, cfg.model.load_weights)
+    if cfg.model.load_weights:
+        load_pretrained_weights(model, cfg.model.load_weights)
     if 'tresnet' in cfg.model.name:
         patch_InplaceAbn_forward()
     if is_nncf_used:
