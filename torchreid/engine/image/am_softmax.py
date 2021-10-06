@@ -25,6 +25,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.cuda.amp import GradScaler, autocast
+
 from torchreid import metrics
 from torchreid.engine import Engine
 from torchreid.utils import get_model_attr
@@ -32,10 +34,10 @@ from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss, MetricLosses,
                               get_regularizer, sample_mask)
 from torchreid.optim import SAM
 
+
 class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
-
     def __init__(self, datamanager, models, optimizers, reg_cfg, metric_cfg, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stoping, lr_decay_factor, loss_name, label_smooth,
                  margin_type, aug_type, decay_power, alpha, size, lr_finder, max_soft,
@@ -43,7 +45,7 @@ class ImageAMSoftmaxEngine(Engine):
                  duration_s, skip_steps_s, enable_masks, adaptive_margins, class_weighting,
                  attr_cfg, base_num_classes, symmetric_ce, mix_weight, enable_rsc,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
-                 target_metric, use_ema_decay, ema_decay, **kwargs):
+                 target_metric, use_ema_decay, ema_decay, mix_precision, **kwargs):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager,
                                                    models=models,
                                                    optimizers=optimizers,
@@ -88,6 +90,8 @@ class ImageAMSoftmaxEngine(Engine):
         self.max_soft = max_soft
         self.reformulate = reformulate
         self.prev_smooth_metric = 0.
+        self.scaler = GradScaler(enabled=mix_precision)
+        self.forward_backward = autocast(mix_precision)(self.forward_backward)
 
         num_classes = self.datamanager.num_train_pids
         if not isinstance(num_classes, (list, tuple)):
@@ -267,22 +271,34 @@ class ImageAMSoftmaxEngine(Engine):
 
             total_loss.backward(retain_graph=self.enable_metric_losses)
 
+            # backward pass
+            self.scaler.scale(total_loss).backward(retain_graph=False)
             for model_name in model_names:
-                if not self.models[model_name].training:
-                    continue
-                if self.clip_grad != 0:
+                if self.clip_grad != 0 and step == 1:
+                    self.scaler.unscale_(self.optims[model_name])
                     torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
-                for trg_id in range(self.num_targets):
-                    if self.enable_metric_losses:
-                        ml_loss_module = self.ml_losses[trg_id][model_name]
-                        ml_loss_module.end_iteration(do_backward=False)
-                if self.enable_sam and step == 1:
-                    self.optims[model_name].first_step()
-                elif self.enable_sam and step == 2:
-                    self.optims[model_name].second_step()
+                if not self.enable_sam and step == 1:
+                    self.scaler.step(self.optims[model_name])
+                    self.scaler.update()
                 elif step == 1:
-                    assert not self.enable_sam
-                    self.optims[model_name].step()
+                    assert self.enable_sam
+                    if self.clip_grad == 0:
+                        # if self.clip_grad == 0  this means that unscale_ wasn't applied
+                        # unscale parameters to perform SAM manipulations with parameters
+                        self.scaler.unscale_(self.optims[model_name]) 
+                    overflow = self.optims[model_name].first_step(self.scaler)
+                    self.scaler.update() # update scaler after first step
+                    if overflow:
+                        print("Overflow occurred. Skipping step ...")
+                        loss_summary['loss'] = total_loss.item()
+                        # skip second step  if overflow occurred 
+                        return loss_summary, avg_acc
+                else:
+                    assert self.enable_sam and step==2
+                    if self.clip_grad == 0:
+                        self.scaler.unscale_(self.optims[model_name]) 
+                    self.optims[model_name].second_step()
+                    self.scaler.update()
 
             loss_summary['loss'] = total_loss.item()
 

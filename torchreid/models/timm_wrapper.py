@@ -37,7 +37,7 @@ class TimmModelsWrapper(ModelInterface):
                              else self.model.num_features)
         self.dropout = Dropout(**dropout_cls)
         self.pooling_type = pooling_type
-        # self.forward = autocast(enabled=mix_precision)(self.forward)
+        self.forward = autocast(mix_precision)(self.forward)
         if self.loss in ["am_softmax", "am_binary"]:
             self.model.act2 = nn.PReLU()
             self.classifier = AngleSimpleLinear(self.num_features, num_classes)
@@ -45,7 +45,6 @@ class TimmModelsWrapper(ModelInterface):
             assert self.loss in ["softmax", "asl", "bce"]
             self.classifier = self.model.get_classifier()
 
-    @autocast(enabled=True)
     def forward(self, x, return_featuremaps=False, **kwargs):
         y = self.extract_features(x)
         if return_featuremaps:
