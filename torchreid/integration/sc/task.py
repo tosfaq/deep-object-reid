@@ -21,7 +21,7 @@ from scripts.default_config import (get_default_config,
                                     optimizer_kwargs, merge_from_files_with_base)
 from torchreid.integration.sc.monitors import StopCallback, DefaultMetricsMonitor
 from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingProgressCallback,
-                                            InferenceProgressCallback)
+                                            InferenceProgressCallback, get_actmap, preprocess_features_for_actmap)
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
@@ -45,6 +45,7 @@ from ote_sdk.entities.model import ModelEntity, ModelStatus
 
 from sc_sdk.entities.resultset import ResultSet
 from sc_sdk.entities.datasets import Dataset, Subset
+from sc_sdk.entities.result_media import ResultMedia
 
 logger = logging.getLogger(__name__)
 
@@ -187,8 +188,16 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self._model.eval()
         self._model.to(self.device)
         targets = list(datamanager.test_loader.keys())
-        scores, _ = score_extraction(datamanager.test_loader[targets[0]]['query'],
-                                     self._model, self._cfg.use_gpu, perf_monitor=time_monitor)
+        dump_features = not inference_parameters.is_evaluation
+        inference_results, _ = score_extraction(datamanager.test_loader[targets[0]]['query'],
+                                                self._model, self._cfg.use_gpu, perf_monitor=time_monitor,
+                                                get_features=dump_features)
+        if dump_features:
+            scores, features = inference_results
+            features = preprocess_features_for_actmap(features)
+        else:
+            scores = inference_results
+
         if self._multilabel:
             labels = 1. / (1 + np.exp(-scores))
         else:
@@ -196,6 +205,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         predicted_items = []
         for i in range(labels.shape[0]):
             dataset_item = dataset[i]
+
             if self._multilabel:
                 predicted_classes = labels[i]
                 item_labels = []
@@ -214,6 +224,13 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                 label = ScoredLabel(label=self._labels[class_idx], probability=class_prob)
                 dataset_item.append_labels([label])
                 predicted_items.append(dataset_item)
+
+            if dump_features:
+                dataset_item.get_annotations
+                actmap = get_actmap(features[i], (dataset_item.width, dataset_item.height))
+                result_media = ResultMedia(name=f"Saliency map", type="Saliency_map",
+                                           annotation_scene=None, numpy=actmap)
+                dataset_item.append_metadata_item(result_media)
 
         return Dataset(None, predicted_items)
 
