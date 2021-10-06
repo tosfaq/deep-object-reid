@@ -415,7 +415,7 @@ class Engine:
         if self.writer is not None:
             self.writer.close()
 
-        return top1
+        return self.best_metric
 
     def _freeze_aux_models(self):
         for model_name in self.model_names_to_freeze:

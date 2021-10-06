@@ -322,9 +322,9 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                 logger.info("Training finished, and it has an improved model")
             else:
                 logger.info("First training round, saving the model.")
+            load_pretrained_weights(self._model, os.path.join(self._scratch_space, 'best.pth'))
             self.save_model(output_model)
             output_model.model_status = ModelStatus.SUCCESS
-            self._model = deepcopy(train_model)
             performance = Performance(score=ScoreMetric(value=final_acc, name="accuracy"),
                                       dashboard_metrics=training_metrics)
             logger.info(f'FINAL MODEL PERFORMANCE {performance}')
