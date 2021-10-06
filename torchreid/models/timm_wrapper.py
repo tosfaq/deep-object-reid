@@ -24,7 +24,6 @@ class TimmModelsWrapper(ModelInterface):
                  dropout_cls = None,
                  pooling_type='avg',
                  num_classes=1000,
-                 mix_precision=False,
                  **kwargs):
         super().__init__(**kwargs)
         assert self.is_classification(), f"{model_name} model is adapted for classification tasks only"
@@ -37,7 +36,7 @@ class TimmModelsWrapper(ModelInterface):
                              else self.model.num_features)
         self.dropout = Dropout(**dropout_cls)
         self.pooling_type = pooling_type
-        self.forward = autocast(mix_precision)(self.forward)
+        self.forward = autocast(self.mix_precision)(self.forward)
         if self.loss in ["am_softmax", "am_binary"]:
             self.model.act2 = nn.PReLU()
             self.classifier = AngleSimpleLinear(self.num_features, num_classes)

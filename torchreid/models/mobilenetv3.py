@@ -2,6 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
+from torch.cuda.amp import autocast
 
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, EvalModeSetter, rsc
@@ -173,8 +174,8 @@ class MobileNetV3(ModelInterface):
                 Dropout(**self.dropout_cls),
                 AngleSimpleLinear(output_channel, self.num_classes),
             )
-
         self._initialize_weights()
+        self.forward = autocast(self.mix_precision)(self.forward)
 
     def extract_features(self, x):
         y = self.conv(self.features(x))
