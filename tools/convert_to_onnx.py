@@ -16,6 +16,7 @@
 
 import argparse
 import os
+import warnings
 
 import torch
 
@@ -100,6 +101,9 @@ def main():
     model = build_model(**model_kwargs(cfg, num_classes))
     if cfg.model.load_weights:
         load_pretrained_weights(model, cfg.model.load_weights)
+    else:
+        warnings.warn("No weights are passed through 'load_weights' parameter! "
+              "The model will be converted with random or pretrained weights", category=RuntimeWarning)
     if 'tresnet' in cfg.model.name:
         patch_InplaceAbn_forward()
     if is_nncf_used:

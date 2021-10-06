@@ -98,7 +98,8 @@ def export_ir(onnx_model_path, norm_mean=[0,0,0], norm_std=[1,1,1], input_shape=
                     f'--scale_values="{scale_values}" ' \
                     f'--output_dir="{optimized_model_dir}" ' \
                     f'--data_type {data_type} ' \
-                    f'--input_shape "{input_shape}" ' \
                     '--reverse_input_channels'
+    if input_shape:
+        command_line += f' --input_shape "{input_shape}" '
 
     run(command_line, shell=True, check=True)
