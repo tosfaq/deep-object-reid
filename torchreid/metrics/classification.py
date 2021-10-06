@@ -7,9 +7,9 @@ from terminaltables import AsciiTable
 
 from torchreid.utils import get_model_attr
 
-def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0, perf_monitor=None):
+def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0, perf_monitor=None, get_features=False):
     with torch.no_grad():
-        out_scores, gt_labels = [], []
+        out_scores, gt_labels, all_features = [], [], []
         for batch_idx, data in enumerate(data_loader):
             batch_images, batch_labels = data[0], data[1]
             if perf_monitor: perf_monitor.on_test_batch_begin(batch_idx, None)
@@ -22,11 +22,21 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0, perf_m
 
             if perf_monitor: perf_monitor.on_test_batch_end(batch_idx, None)
 
-            out_scores.append(model(batch_images)[head_id])
+            if get_features:
+                logits, features = model.forward(batch_images, return_featuremaps=get_features)[head_id]
+                all_features.append(features)
+            else:
+                logits = model.forward(batch_images)[head_id]
+
+            out_scores.append(logits)
             gt_labels.append(batch_labels)
 
         out_scores = torch.cat(out_scores, 0).data.cpu().numpy()
         gt_labels = torch.cat(gt_labels, 0).data.cpu().numpy()
+        if all_features:
+            all_features = torch.cat(all_features, 0).data.cpu().numpy()
+            return (out_scores, all_features), gt_labels
+
     return out_scores, gt_labels
 
 

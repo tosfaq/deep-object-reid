@@ -8,6 +8,7 @@ import tempfile
 import subprocess
 
 import cv2 as cv
+import numpy as np
 
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.scored_label import ScoredLabel
@@ -310,3 +311,22 @@ class InferenceProgressCallback(TimeMonitorCallback):
     def on_test_batch_end(self, batch=None, logs=None):
         super().on_test_batch_end(batch, logs)
         self.update_progress_callback(self.get_progress())
+
+
+def preprocess_features_for_actmap(features):
+    features = np.mean(features, axis=1)
+    b, h, w = features.shape
+    features = features.reshape(b, h * w)
+    features = np.exp(features)
+    features /= np.sum(features, axis=1, keepdims=True)
+    features = features.reshape(b, h, w)
+    return features
+
+
+def get_actmap(features, output_res):
+    am = cv.resize(features, output_res)
+    am = 255 * (am - np.min(am)) / (np.max(am) - np.min(am) + 1e-12)
+    am = np.uint8(np.floor(am))
+    am = cv.applyColorMap(am, cv.COLORMAP_JET)
+    cv.imwrite('am.png', am)
+    return am

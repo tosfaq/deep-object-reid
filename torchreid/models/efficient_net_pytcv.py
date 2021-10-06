@@ -369,11 +369,14 @@ class EfficientNet(ModelInterface):
             x = self.input_IN(x)
 
         y = self.features(x)
-        if return_featuremaps:
+        if return_featuremaps and not self.is_classification():
             return y
 
         glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
         logits = self.output(glob_features.view(x.shape[0], -1))
+
+        if return_featuremaps and self.is_classification():
+            return [(logits, y)]
 
         if not self.training and self.is_classification():
             return [logits]
@@ -381,7 +384,7 @@ class EfficientNet(ModelInterface):
         if get_embeddings:
             out_data = [logits, glob_features.view(x.shape[0], -1)]
         elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
-                out_data = [logits]
+            out_data = [logits]
 
         elif self.loss in ['triplet']:
             out_data = [logits, glob_features]

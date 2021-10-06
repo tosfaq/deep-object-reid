@@ -209,7 +209,7 @@ class MobileNetV3(ModelInterface):
             x = self.input_IN(x)
 
         y = self.extract_features(x)
-        if return_featuremaps:
+        if return_featuremaps and not self.is_classification():
             return y
 
         with no_nncf_head_context():
@@ -225,6 +225,9 @@ class MobileNetV3(ModelInterface):
 
             with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
                 _, logits = self.infer_head(x, skip_pool=True)
+
+        if return_featuremaps and self.is_classification():
+            return [(logits, y)]
 
         if not self.training and self.is_classification():
             return [logits]
