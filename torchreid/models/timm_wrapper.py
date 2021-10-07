@@ -5,6 +5,7 @@ from torchreid.losses import AngleSimpleLinear
 from .common import ModelInterface
 from torchreid.ops import Dropout
 from torch import nn
+from torch.cuda.amp import autocast
 
 __all__ = ["timm_wrapped_models"]
 AVAI_MODELS = {
@@ -37,6 +38,7 @@ class TimmModelsWrapper(ModelInterface):
                              else self.model.num_features)
         self.dropout = Dropout(**dropout_cls)
         self.pooling_type = pooling_type
+        self.forward = autocast(self.mix_precision)(self.forward)
         if self.loss in ["am_softmax", "am_binary"]:
             self.model.act2 = nn.PReLU()
             self.classifier = AngleSimpleLinear(self.num_features, num_classes)

@@ -18,6 +18,7 @@ import os
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
+from torch.cuda.amp import autocast
 
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout
@@ -356,6 +357,7 @@ class EfficientNet(ModelInterface):
                 out_features=num_classes))
 
         self._init_params()
+        self.forward = autocast(self.mix_precision)(self.forward)
 
     def _init_params(self):
         for name, module in self.named_modules():

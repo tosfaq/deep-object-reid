@@ -1,22 +1,25 @@
 from __future__ import absolute_import, division, print_function
+from enum import auto
 
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.cuda.amp import GradScaler, autocast
 
 from torchreid import metrics
 from torchreid.losses import AsymmetricLoss, AMBinaryLoss
+from torchreid.metrics.accuracy import accuracy
 from torchreid.optim import SAM
 from ..engine import Engine
 
 class MultilabelEngine(Engine):
     r"""Multilabel classification engine. It supports ASL, BCE and Angular margin loss with binary classification."""
-
     def __init__(self, datamanager, models, optimizers, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stoping, lr_decay_factor, loss_name, label_smooth,
                  lr_finder, m, s, sym_adjustment, auto_balance, amb_k, amb_t, clip_grad,
                  should_freeze_aux_models, nncf_metainfo, initial_lr,
-                 target_metric, use_ema_decay, ema_decay, asl_gamma_pos, asl_gamma_neg, asl_p_m, **kwargs):
+                 target_metric, use_ema_decay, ema_decay, asl_gamma_pos, asl_gamma_neg, asl_p_m,
+                 mix_precision, **kwargs):
 
         super().__init__(datamanager,
                         models=models,
@@ -76,10 +79,13 @@ class MultilabelEngine(Engine):
         self.num_classes = num_classes
         self.num_targets = len(self.num_classes)
         self.enable_sam = isinstance(self.optims[self.main_model_name], SAM)
+
         for model_name in self.get_model_names():
             assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be enabled \
                                                                                  for all models or none of them"
+        self.scaler = GradScaler(enabled=mix_precision)
         self.prev_smooth_top1 = 0.
+        self.forward_backward = autocast(mix_precision)(self.forward_backward)
 
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx
@@ -132,19 +138,33 @@ class MultilabelEngine(Engine):
 
                 total_loss += coeff_mutual_learning * mutual_loss
             # backward pass
-            total_loss.backward(retain_graph=False)
-
+            self.scaler.scale(total_loss).backward(retain_graph=False)
             for model_name in model_names:
-                if self.clip_grad != 0:
+                if self.clip_grad != 0 and step == 1:
+                    self.scaler.unscale_(self.optims[model_name])
                     torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
                 if not self.enable_sam and step == 1:
-                    self.optims[model_name].step()
+                    self.scaler.step(self.optims[model_name])
+                    self.scaler.update()
                 elif step == 1:
                     assert self.enable_sam
-                    self.optims[model_name].first_step()
+                    if self.clip_grad == 0:
+                        # if self.clip_grad == 0  this means that unscale_ wasn't applied
+                        # unscale parameters to perform SAM manipulations with parameters
+                        self.scaler.unscale_(self.optims[model_name]) 
+                    overflow = self.optims[model_name].first_step(self.scaler)
+                    self.scaler.update() # update scaler after first step
+                    if overflow:
+                        print("Overflow occurred. Skipping step ...")
+                        loss_summary['loss'] = total_loss.item()
+                        # skip second step  if overflow occurred 
+                        return loss_summary, avg_acc
                 else:
                     assert self.enable_sam and step==2
+                    if self.clip_grad == 0:
+                        self.scaler.unscale_(self.optims[model_name]) 
                     self.optims[model_name].second_step()
+                    self.scaler.update()
 
             loss_summary['loss'] = total_loss.item()
 

@@ -1,12 +1,9 @@
 '''
 Imported from: https://github.com/google-research/sam
-
 Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
-
       http://www.apache.org/licenses/LICENSE-2.0
-
  Unless required by applicable law or agreed to in writing, software
  distributed under the License is distributed on an "AS IS" BASIS,
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -30,6 +27,10 @@ class SAM(torch.optim.Optimizer):
 
     @torch.no_grad()
     def first_step(self, zero_grad=False):
+        if self._has_overflow(self.param_groups):
+            if zero_grad: self.zero_grad()
+            return True
+
         grad_norm = self._grad_norm()
         for group in self.param_groups:
             scale = self.rho / (grad_norm + 1e-12)
@@ -41,9 +42,14 @@ class SAM(torch.optim.Optimizer):
                 p.add_(e_w)  # climb to the local maximum "w + e(w)"
 
         if zero_grad: self.zero_grad()
+        return False
 
     @torch.no_grad()
     def second_step(self, zero_grad=False):
+        if self._has_overflow(self.param_groups):
+            if zero_grad: self.zero_grad()
+            return
+
         for group in self.param_groups:
             for p in group["params"]:
                 if p.grad is None: continue
@@ -69,3 +75,33 @@ class SAM(torch.optim.Optimizer):
                     p=2
                )
         return norm
+
+    @staticmethod
+    def _has_overflow(params):
+        ''' Check whether the gradient overflow occurred in model parameters '''
+        def _has_inf_or_nan(x):
+            try:
+                # if x is half, the .float() incurs an additional deep copy, but it's necessary if
+                # Pytorch's .sum() creates a one-element tensor of the same type as x
+                # (which is true for some recent version of pytorch).
+                cpu_sum = float(x.float().sum())
+                # More efficient version that can be used if .sum() returns a Python scalar
+                # cpu_sum = float(x.sum())
+            except RuntimeError as instance:
+                # We want to check if inst is actually an overflow exception.
+                # RuntimeError could come from a different error.
+                # If so, we still want the exception to propagate.
+                if "value cannot be converted" not in instance.args[0]:
+                    raise
+                return True
+            else:
+                if cpu_sum == float('inf') or cpu_sum == -float('inf') or cpu_sum != cpu_sum:
+                    return True
+                return False
+
+        for group in params:
+            for p in group["params"]:
+                if p.grad is not None and _has_inf_or_nan(p.grad.data):
+                    return True
+
+        return False
