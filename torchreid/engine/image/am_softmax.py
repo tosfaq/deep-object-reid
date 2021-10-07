@@ -269,10 +269,9 @@ class ImageAMSoftmaxEngine(Engine):
                     loss_summary['compression_loss'] = compression_loss
                     total_loss += compression_loss
 
-            total_loss.backward(retain_graph=self.enable_metric_losses)
-
             # backward pass
-            self.scaler.scale(total_loss).backward(retain_graph=False)
+            self.scaler.scale(total_loss).backward(retain_graph=self.enable_metric_losses)
+
             for model_name in model_names:
                 if not self.models[model_name].training:
                     continue
@@ -292,7 +291,7 @@ class ImageAMSoftmaxEngine(Engine):
                         # if self.clip_grad == 0  this means that unscale_ wasn't applied,
                         # so we manually unscale the parameters to perform SAM manipulations
                         self.scaler.unscale_(self.optims[model_name]) 
-                    overflow = self.optims[model_name].first_step(zero_grad=True)
+                    overflow = self.optims[model_name].first_step()
                     self.scaler.update() # update scaler after first step
                     if overflow:
                         print("Overflow occurred. Skipping step ...")
@@ -303,7 +302,7 @@ class ImageAMSoftmaxEngine(Engine):
                     assert self.enable_sam and step==2
                     # unscale the parameters to perform SAM manipulations
                     self.scaler.unscale_(self.optims[model_name])
-                    self.optims[model_name].second_step(zero_grad=True)
+                    self.optims[model_name].second_step()
                     self.scaler.update()
 
             loss_summary['loss'] = total_loss.item()
