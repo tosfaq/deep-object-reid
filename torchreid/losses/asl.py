@@ -18,7 +18,7 @@ class AsymmetricLoss(nn.Module):
         self.eps = eps
 
         # prevent memory allocation and gpu uploading every iteration, and encourages inplace operations
-        self.targets = self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
+        self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
 
     def get_last_scale(self):
         return 1.
@@ -34,7 +34,6 @@ class AsymmetricLoss(nn.Module):
             targets = targets * (1-self.label_smooth)
             targets[targets == 0] = self.label_smooth
 
-        self.targets = targets
         self.anti_targets = 1 - targets
 
         # Calculating Probabilities
@@ -46,15 +45,15 @@ class AsymmetricLoss(nn.Module):
             self.xs_neg.add_(self.clip).clamp_(max=1)
 
         # Basic BCE calculation
-        self.loss = self.targets * torch.log(self.xs_pos.clamp(min=self.eps))
+        self.loss = targets * torch.log(self.xs_pos.clamp(min=self.eps))
         self.loss.add_(self.anti_targets * torch.log(self.xs_neg.clamp(min=self.eps)))
 
         # Asymmetric Focusing
         if self.gamma_neg > 0 or self.gamma_pos > 0:
-            self.xs_pos = self.xs_pos * self.targets
+            self.xs_pos = self.xs_pos * targets
             self.xs_neg = self.xs_neg * self.anti_targets
             self.asymmetric_w = torch.pow(1 - self.xs_pos - self.xs_neg,
-                                          self.gamma_pos * self.targets + self.gamma_neg * self.anti_targets)
+                                          self.gamma_pos * targets + self.gamma_neg * self.anti_targets)
             self.loss *= self.asymmetric_w
 
         # sum reduction over batch
