@@ -79,7 +79,7 @@ class AMBinaryLoss(nn.Module):
         self.s=s
 
         # prevent memory allocation and gpu uploading every iteration, and encourages inplace operations
-        self.targets = self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
+        self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
 
     def get_last_scale(self):
         return self.s
@@ -95,10 +95,9 @@ class AMBinaryLoss(nn.Module):
         targets: targets (multi-label binarized vector)
         """
         if self.label_smooth > 0:
-            targets = targets * (1-self.label_smooth)
+            targets = targets * (1 - self.label_smooth)
             targets[targets == 0] = self.label_smooth
 
-        self.targets = targets
         self.anti_targets = 1 - targets
 
         if self.sym_adjustment:
@@ -110,8 +109,8 @@ class AMBinaryLoss(nn.Module):
 
         if self.auto_balance:
             assert not self.asymmetric_focus, "Auto balance is not compatible with asymmetric focussing"
-            K = self.targets.size(1)
-            C = self.targets.sum(1, keepdim=True) # number of target classes for each sample
+            K = targets.size(1)
+            C = targets.sum(1, keepdim=True) # number of target classes for each sample
             balance_koeff_pos = (K - C) / K # balance loss
             balance_koeff_neg = 1 - balance_koeff_pos
         elif self.asymmetric_focus:
@@ -121,15 +120,15 @@ class AMBinaryLoss(nn.Module):
             assert not self.asymmetric_focus and not self.auto_balance
             balance_koeff_pos = self.k / self.s
             balance_koeff_neg = (1 - self.k) / self.s
-        self.loss = balance_koeff_pos * self.targets * torch.log(1 + torch.exp(-self.s * (cos_theta - self.m)))
+        self.loss = balance_koeff_pos * targets * torch.log(1 + torch.exp(-self.s * (cos_theta - self.m)))
         self.loss.add_(balance_koeff_neg * self.anti_targets * torch.log(1 + torch.exp(self.s * (cos_theta + self.m))))
 
         # Asymmetric Focusing
         if self.asymmetric_focus:
-            self.xs_pos *= self.targets
-            self.xs_neg *= self.anti_targets
+            self.xs_pos = self.xs_pos * targets
+            self.xs_neg = self.xs_neg * self.anti_targets
             self.asymmetric_w = torch.pow(1 - self.xs_pos - self.xs_neg,
-                                          self.gamma_pos * self.targets + self.gamma_neg * self.anti_targets)
+                                          self.gamma_pos * targets + self.gamma_neg * self.anti_targets)
             self.loss *= self.asymmetric_w
 
         return self.loss.sum()
