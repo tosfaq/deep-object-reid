@@ -33,9 +33,7 @@ class TimmModelsWrapper(ModelInterface):
         self.model = timm.create_model(model_name,
                                        pretrained=pretrained,
                                        num_classes=num_classes)
-        self.num_features = (self.model.conv_head.out_channels
-                             if self.is_mobilenet
-                             else self.model.num_features)
+        self.num_features = self.model.num_features
         self.dropout = Dropout(**dropout_cls)
         self.pooling_type = pooling_type
         self.forward = autocast(self.mix_precision)(self.forward)
