@@ -226,7 +226,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                 predicted_items.append(dataset_item)
 
             if dump_features:
-                dataset_item.get_annotations
                 actmap = get_actmap(features[i], (dataset_item.width, dataset_item.height))
                 result_media = ResultMedia(name=f"Saliency map", type="Saliency_map",
                                            annotation_scene=None, numpy=actmap)
