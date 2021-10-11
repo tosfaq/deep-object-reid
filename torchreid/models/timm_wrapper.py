@@ -44,10 +44,13 @@ class TimmModelsWrapper(ModelInterface):
 
     def forward(self, x, return_featuremaps=False, **kwargs):
         y = self.extract_features(x)
-        if return_featuremaps:
+        if return_featuremaps and not self.is_classification():
             return y
         glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
         logits = self.infer_head(glob_features)
+        if return_featuremaps and self.is_classification():
+            return [(logits, y)]
+
         if not self.training:
             return [logits]
         return tuple([logits])
