@@ -217,6 +217,14 @@ def main():
         if key not in domains:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
+        if cfg.model.name == 'efficientnetv2_s_21k':
+            lrs_dict = {
+                "CIFAR100": 0.004488, "pets": 0.009,
+                "caltech101": 0.013554, "cars": 0.001551, "flowers": 0.001062,
+                "DTD": 0.009936, "FOOD101": 0.004396, "birdsnap": 0.004488,
+                "FashionMNIST": 0.012, "SUN397": 0.008, "SVHN": 0.015,
+                "attd_mi02_v3": 0.005, "attd_mi04_v4": 0.012, "lgchem": 0.015, "autism": 0.015
+            }
         path_to_exp_folder = cfg['data']['save_dir']
         name_train = params['names'][0]
         name_val = params['names'][1]

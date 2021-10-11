@@ -90,6 +90,7 @@ class ImageAMSoftmaxEngine(Engine):
         self.max_soft = max_soft
         self.reformulate = reformulate
         self.prev_smooth_metric = 0.
+        print(mix_precision)
         self.scaler = GradScaler(enabled=mix_precision)
         self.forward_backward = autocast(mix_precision)(self.forward_backward)
 
