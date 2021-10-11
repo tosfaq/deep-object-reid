@@ -328,5 +328,4 @@ def get_actmap(features, output_res):
     am = 255 * (am - np.min(am)) / (np.max(am) - np.min(am) + 1e-12)
     am = np.uint8(np.floor(am))
     am = cv.applyColorMap(am, cv.COLORMAP_JET)
-    cv.imwrite('am.png', am)
     return am
