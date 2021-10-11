@@ -217,7 +217,7 @@ def main():
         if key not in domains:
             continue
         cfg = read_config(yaml, path_to_base_cfg)
-        if cfg.model.name == 'efficientnetv2_s_21k':
+        if cfg['model']['name'] == 'efficientnetv2_s_21k':
             lrs_dict = {
                 "CIFAR100": 0.004488, "pets": 0.009,
                 "caltech101": 0.013554, "cars": 0.001551, "flowers": 0.001062,
