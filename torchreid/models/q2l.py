@@ -40,7 +40,7 @@ class BackboneWrapper(nn.Module):
         super().__init__()
         self.backbone = backbone
         self.position_embedding = position_embedding
-        self.num_channels = backbone.get_num_head_features()
+        self.num_channels = backbone.get_num_features()
 
     def forward(self, input):
         out = self.backbone(input, return_featuremaps=True)
