@@ -48,7 +48,7 @@ class BackboneWrapper(nn.Module):
         return [out], [pos]
 
 
-class Qeruy2Label(ModelInterface):
+class Query2Label(ModelInterface):
     def __init__(self,
                 backbone,
                 transfomer,
@@ -102,7 +102,7 @@ class Qeruy2Label(ModelInterface):
 def build_q2l(backbone, transformer, hidden_dim=2048, pretrain=False, input_size=448, **kwargs):
     position_emb = build_position_encoding(hidden_dim=hidden_dim, img_size=input_size)
     wrapped_model = BackboneWrapper(backbone, position_emb)
-    model = Qeruy2Label(
+    model = Query2Label(
         backbone=wrapped_model,
         transfomer=transformer,
         pretrain=pretrain,
