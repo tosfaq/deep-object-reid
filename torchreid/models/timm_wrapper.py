@@ -1,5 +1,4 @@
 import timm
-from functools import partial
 
 from torchreid.losses import AngleSimpleLinear
 from .common import ModelInterface
@@ -34,6 +33,8 @@ class TimmModelsWrapper(ModelInterface):
                                        pretrained=pretrained,
                                        num_classes=num_classes)
         self.num_features = self.model.num_features
+        self.num_head_features = (self.model.conv_head.in_channels if self.is_mobilenet
+                                  else self.model.num_features)
         self.dropout = Dropout(**dropout_cls)
         self.pooling_type = pooling_type
         self.forward = autocast(self.mix_precision)(self.forward)

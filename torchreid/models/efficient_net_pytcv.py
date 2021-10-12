@@ -296,7 +296,7 @@ class EfficientNet(ModelInterface):
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
         self.pooling_type = pooling_type
-        self.num_features = final_block_channels
+        self.num_features = self.num_head_features = final_block_channels
         activation = "swish"
         self.features = nn.Sequential()
         self.features.add_module("init_block", EffiInitBlock(

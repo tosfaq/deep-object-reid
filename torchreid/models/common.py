@@ -36,6 +36,7 @@ class ModelInterface(nn.Module):
         self.classification_classes = {}
         self.is_ie_model = False
         self.loss = loss
+        self.num_head_features = feature_dim
         self.num_features = feature_dim
         self.mix_precision = mix_precision
         self.use_angle_simple_linear = True if loss in ['am_softmax', 'am_binary'] else False
@@ -45,6 +46,9 @@ class ModelInterface(nn.Module):
 
     def get_num_features(self):
         return self.num_features
+
+    def get_num_head_features(self):
+        return self.num_head_features
 
     @staticmethod
     def _glob_feature_vector(x, mode, reduce_dims=True):

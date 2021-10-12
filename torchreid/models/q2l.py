@@ -40,7 +40,7 @@ class BackboneWrapper(nn.Module):
         super().__init__()
         self.backbone = backbone
         self.position_embedding = position_embedding
-        self.num_channels = backbone.get_num_features()
+        self.num_channels = backbone.get_num_head_features()
 
     def forward(self, input):
         out = self.backbone(input, return_featuremaps=True)
@@ -66,7 +66,7 @@ class Query2Label(ModelInterface):
         self.backbone = backbone
         self.transformer = transfomer
         self.num_class = num_classes
-        assert self.loss in ['asl', 'bce'], "Q2L supports only ASL or BCE losses"
+        assert self.loss in ['asl', 'bce', 'am_binary'], "Q2L supports only ASL, BCE pr AM Binary losses"
         assert self.is_classification(), "Q2L model is adapted for multilabel setup only"
 
         hidden_dim = transfomer.get_hidden_dim()
@@ -74,7 +74,6 @@ class Query2Label(ModelInterface):
         self.input_proj = nn.Conv2d(backbone_features, hidden_dim, kernel_size=1)
         self.query_embed = nn.Embedding(num_classes, hidden_dim)
         self.fc = GroupWiseLinear(num_classes, hidden_dim, use_bias=True)
-
 
     def forward(self, input):
         src, pos = self.backbone(input)
@@ -87,7 +86,7 @@ class Query2Label(ModelInterface):
         if not self.training:
             return [logits]
 
-        elif self.loss in ['asl', 'bce']:
+        elif self.loss in ['asl', 'bce', 'am_binary']:
                 out_data = [logits]
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))

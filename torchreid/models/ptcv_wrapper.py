@@ -45,7 +45,7 @@ class PTCVModel(ModelInterface):
             self.output_conv = nn.Conv2d(in_channels=model.output.in_channels, out_channels=num_classes, kernel_size=1, stride=1, bias=False)
         else:
             self.output_conv = AngleSimpleLinear(model.output.in_channels, num_classes)
-            self.num_features = model.output.in_channels
+            self.num_features = self.num_head_features = model.output.in_channels
 
         self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
 

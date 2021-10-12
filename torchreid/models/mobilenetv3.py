@@ -151,7 +151,7 @@ class MobileNetV3(ModelInterface):
             layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs))
             input_channel = output_channel
         self.features = nn.Sequential(*layers)
-        self.num_features = exp_size
+        self.num_features = self.num_head_features = exp_size
         # building last several layers
         self.conv = conv_1x1_bn(input_channel, exp_size, self.loss)
         output_channel = {'large': 1280, 'small': 1024}
