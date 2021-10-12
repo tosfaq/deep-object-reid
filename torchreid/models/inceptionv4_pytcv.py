@@ -613,7 +613,7 @@ class InceptionV4(ModelInterface):
         self.pooling_type = pooling_type
         self.loss = loss
         self.self_challenging_cfg = self_challenging_cfg
-        self.num_features = 1536
+        self.num_features = self.num_head_features = 1536
 
         layers = [4, 8, 4]
         normal_units = [InceptionAUnit, InceptionBUnit, InceptionCUnit]

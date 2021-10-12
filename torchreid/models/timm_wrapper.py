@@ -1,5 +1,4 @@
 import timm
-from functools import partial
 
 from torchreid.losses import AngleSimpleLinear
 from .common import ModelInterface
@@ -33,15 +32,15 @@ class TimmModelsWrapper(ModelInterface):
         self.model = timm.create_model(model_name,
                                        pretrained=pretrained,
                                        num_classes=num_classes)
-        self.num_features = (self.model.conv_head.in_channels
-                             if self.is_mobilenet
+        self.num_head_features = self.model.num_features
+        self.num_features = (self.model.conv_head.in_channels if self.is_mobilenet
                              else self.model.num_features)
         self.dropout = Dropout(**dropout_cls)
         self.pooling_type = pooling_type
         self.forward = autocast(self.mix_precision)(self.forward)
         if self.loss in ["am_softmax", "am_binary"]:
             self.model.act2 = nn.PReLU()
-            self.classifier = AngleSimpleLinear(self.num_features, num_classes)
+            self.classifier = AngleSimpleLinear(self.num_head_features, num_classes)
         else:
             assert self.loss in ["softmax", "asl", "bce"]
             self.classifier = self.model.get_classifier()

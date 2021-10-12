@@ -48,7 +48,7 @@ class BackboneWrapper(nn.Module):
         return [out], [pos]
 
 
-class Qeruy2Label(ModelInterface):
+class Query2Label(ModelInterface):
     def __init__(self,
                 backbone,
                 transfomer,
@@ -66,7 +66,7 @@ class Qeruy2Label(ModelInterface):
         self.backbone = backbone
         self.transformer = transfomer
         self.num_class = num_classes
-        assert self.loss in ['asl', 'bce'], "Q2L supports only ASL or BCE losses"
+        assert self.loss in ['asl', 'bce', 'am_binary'], "Q2L supports only ASL, BCE pr AM Binary losses"
         assert self.is_classification(), "Q2L model is adapted for multilabel setup only"
 
         hidden_dim = transfomer.get_hidden_dim()
@@ -74,7 +74,6 @@ class Qeruy2Label(ModelInterface):
         self.input_proj = nn.Conv2d(backbone_features, hidden_dim, kernel_size=1)
         self.query_embed = nn.Embedding(num_classes, hidden_dim)
         self.fc = GroupWiseLinear(num_classes, hidden_dim, use_bias=True)
-
 
     def forward(self, input):
         src, pos = self.backbone(input)
@@ -87,7 +86,7 @@ class Qeruy2Label(ModelInterface):
         if not self.training:
             return [logits]
 
-        elif self.loss in ['asl', 'bce']:
+        elif self.loss in ['asl', 'bce', 'am_binary']:
                 out_data = [logits]
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
@@ -102,7 +101,7 @@ class Qeruy2Label(ModelInterface):
 def build_q2l(backbone, transformer, hidden_dim=2048, pretrain=False, input_size=448, **kwargs):
     position_emb = build_position_encoding(hidden_dim=hidden_dim, img_size=input_size)
     wrapped_model = BackboneWrapper(backbone, position_emb)
-    model = Qeruy2Label(
+    model = Query2Label(
         backbone=wrapped_model,
         transfomer=transformer,
         pretrain=pretrain,
