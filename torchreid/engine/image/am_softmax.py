@@ -404,8 +404,8 @@ class ImageAMSoftmaxEngine(Engine):
                         neg_mask = ~pos_mask
 
                         trg_mask_values = torch.where(pos_mask,
-                                                    torch.ones_like(pos_float_mask),
-                                                    torch.zeros_like(pos_float_mask))
+                                                      torch.ones_like(pos_float_mask),
+                                                      torch.zeros_like(pos_float_mask))
                         num_positives = trg_mask_values.sum(dim=(1, 2, 3), keepdim=True)
                         num_negatives = float(att_map_size[0] * att_map_size[1]) - num_positives
 
