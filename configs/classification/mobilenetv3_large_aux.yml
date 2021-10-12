@@ -36,6 +36,7 @@ train:
   gamma: 0.1
   sam:
     rho: 0.05
+  mix_precision: True
 
 test:
   batch_size: 128

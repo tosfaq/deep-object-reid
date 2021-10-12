@@ -357,7 +357,6 @@ class EfficientNet(ModelInterface):
                 out_features=num_classes))
 
         self._init_params()
-        self.forward = autocast(self.mix_precision)(self.forward)
 
     def _init_params(self):
         for name, module in self.named_modules():
@@ -367,30 +366,31 @@ class EfficientNet(ModelInterface):
                     init.constant_(module.bias, 0)
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False):
-        if self.input_IN is not None:
-            x = self.input_IN(x)
+        with autocast(enabled=self.mix_precision):
+            if self.input_IN is not None:
+                x = self.input_IN(x)
 
-        y = self.features(x)
-        if return_featuremaps:
-            return y
+            y = self.features(x)
+            if return_featuremaps:
+                return y
 
-        glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
-        logits = self.output(glob_features.view(x.shape[0], -1))
+            glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
+            logits = self.output(glob_features.view(x.shape[0], -1))
 
-        if not self.training and self.is_classification():
-            return [logits]
+            if not self.training and self.is_classification():
+                return [logits]
 
-        if get_embeddings:
-            out_data = [logits, glob_features.view(x.shape[0], -1)]
-        elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
-                out_data = [logits]
+            if get_embeddings:
+                out_data = [logits, glob_features.view(x.shape[0], -1)]
+            elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
+                    out_data = [logits]
 
-        elif self.loss in ['triplet']:
-            out_data = [logits, glob_features]
-        else:
-            raise KeyError("Unsupported loss: {}".format(self.loss))
+            elif self.loss in ['triplet']:
+                out_data = [logits, glob_features]
+            else:
+                raise KeyError("Unsupported loss: {}".format(self.loss))
 
-        return tuple(out_data)
+            return tuple(out_data)
 
 
 def get_efficientnet(version,
