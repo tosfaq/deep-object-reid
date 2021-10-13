@@ -325,6 +325,7 @@ class Engine:
         assert start_epoch != max_epoch, "the last epoch number cannot be equal the start one"
         self.fixbase_epoch = fixbase_epoch
         test_acc = AverageMeter()
+        top1, should_save_ema_model = 0, False
         print('=> Start training')
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_begin()

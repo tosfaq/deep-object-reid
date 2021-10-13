@@ -550,7 +550,8 @@ class ImageAMSoftmaxEngine(Engine):
         is_candidate_for_best = False
         current_metric = np.round(top1, 4)
         if self.best_metric >= current_metric:
-            if round(self.current_lr, 8) <= round(self.lb_lr, 8):
+            # one drop has been done -> start early stopping
+            if round(self.current_lr, 8) < round(self.initial_lr, 8):
                 self.iter_to_wait += 1
                 if self.iter_to_wait >= self.train_patience:
                     print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
