@@ -199,7 +199,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             scores = inference_results
 
         if self._multilabel:
-            labels = 1. / (1 + np.exp(-scores))
+            labels = 1. / (1. + np.exp(-1. * scores))
         else:
             labels = np.argmax(scores, axis=1)
         predicted_items = []
@@ -227,7 +227,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
             if dump_features:
                 actmap = get_actmap(features[i], (dataset_item.width, dataset_item.height))
-                result_media = ResultMedia(name=f"Saliency map", type="Saliency_map",
+                result_media = ResultMedia(name="Saliency map", type="Saliency_map",
                                            annotation_scene=None, numpy=actmap)
                 dataset_item.append_metadata_item(result_media)
 

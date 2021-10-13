@@ -138,6 +138,7 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
 
 class OTEOpenVinoDataLoader(DataLoader):
     def __init__(self, dataset: Dataset, inferencer: BaseOpenVINOInferencer):
+        super().__init__(config=None)
         self.dataset = dataset
         self.inferencer = inferencer
 
