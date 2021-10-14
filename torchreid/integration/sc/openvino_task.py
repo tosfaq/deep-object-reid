@@ -255,7 +255,7 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
         output_model.model_status = ModelStatus.SUCCESS
         output_model.model_format = ModelFormat.OPENVINO
         output_model.optimization_type = OptimizationType.POT
-        output_model.optimization_methods = OptimizationMethod.QUANTIZATION
+        output_model.optimization_methods = [OptimizationMethod.QUANTIZATION]
         output_model.precision = [ModelPrecision.INT8]
 
         self.model = output_model
