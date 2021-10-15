@@ -11,7 +11,6 @@ import torch
 import numpy as np
 
 import torchreid
-from torchreid import data
 from torchreid.ops import DataParallel
 from torchreid.apis.export import export_onnx, export_ir
 from torchreid.apis.training import run_lr_finder, run_training
@@ -49,6 +48,7 @@ from ote_sdk.entities.metadata import FloatMetadata
 from sc_sdk.entities.resultset import ResultSet
 from sc_sdk.entities.datasets import Dataset, Subset
 from sc_sdk.entities.result_media import ResultMedia
+from sc_sdk.entities.tensor import Tensor
 
 logger = logging.getLogger(__name__)
 
@@ -194,12 +194,12 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         dump_features = not inference_parameters.is_evaluation
         inference_results, _ = score_extraction(datamanager.test_loader[targets[0]]['query'],
                                                 self._model, self._cfg.use_gpu, perf_monitor=time_monitor,
-                                                get_features=dump_features)
+                                                feature_dump_mode='all' if dump_features else 'vecs')
         if dump_features:
-            scores, features = inference_results
+            scores, features, feature_vecs = inference_results
             features = preprocess_features_for_actmap(features)
         else:
-            scores = inference_results
+            scores, feature_vecs = inference_results
 
         if self._multilabel:
             labels = 1. / (1. + np.exp(-1. * scores))
@@ -232,6 +232,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
             active_score_media = FloatMetadata(name="Active score", value=active_score)
             dataset_item.append_metadata_item(active_score_media)
+            feature_vec_media = Tensor(name="representation_vector", numpy=feature_vecs[i])
+            dataset_item.append_metadata_item(feature_vec_media)
 
             if dump_features:
                 actmap = get_actmap(features[i], (dataset_item.width, dataset_item.height))
