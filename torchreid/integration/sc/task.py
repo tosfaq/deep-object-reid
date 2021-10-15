@@ -27,9 +27,9 @@ from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
 from ote_sdk.entities.inference_parameters import InferenceParameters
-from ote_sdk.entities.metrics import (MetricsGroup, CurveMetric, LineChartInfo,
+from ote_sdk.entities.metrics import (LineMetricsGroup, CurveMetric, LineChartInfo,
                                       InfoMetric, VisualizationInfo, VisualizationType,
-                                      Performance, ScoreMetric)
+                                      Performance, ScoreMetric, MetricsGroup, TextMetricsGroup)
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.entities.train_parameters import TrainParameters, default_progress_callback
 from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
@@ -255,8 +255,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         architecture = InfoMetric(name='Model architecture', value=self._model_name)
         visualization_info_architecture = VisualizationInfo(name="Model architecture",
                                                             visualisation_type=VisualizationType.TEXT)
-        output.append(MetricsGroup(metrics=[architecture],
-                                   visualization_info=visualization_info_architecture))
+        output.append(TextMetricsGroup(metrics=[architecture],
+                                       visualization_info=visualization_info_architecture))
 
         # Learning curves
         if self.metrics_monitor is not None:
@@ -264,7 +264,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                 metric_curve = CurveMetric(xs=self.metrics_monitor.get_metric_timestamps(key),
                                            ys=self.metrics_monitor.get_metric_values(key), name=key)
                 visualization_info = LineChartInfo(name=key, x_axis_label="Timestamp", y_axis_label=key)
-                output.append(MetricsGroup(metrics=[metric_curve], visualization_info=visualization_info))
+                output.append(LineMetricsGroup(metrics=[metric_curve], visualization_info=visualization_info))
 
         return output
 
