@@ -376,7 +376,7 @@ class EfficientNet(ModelInterface):
         logits = self.output(glob_features.view(x.shape[0], -1))
 
         if return_featuremaps and self.is_classification():
-            return [(logits, y)]
+            return [(logits, y, glob_features)]
 
         if not self.training and self.is_classification():
             return [logits]

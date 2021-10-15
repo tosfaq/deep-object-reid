@@ -227,7 +227,7 @@ class MobileNetV3(ModelInterface):
                 _, logits = self.infer_head(x, skip_pool=True)
 
         if return_featuremaps and self.is_classification():
-            return [(logits, y)]
+            return [(logits, y, glob_features)]
 
         if not self.training and self.is_classification():
             return [logits]

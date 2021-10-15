@@ -49,7 +49,7 @@ class TimmModelsWrapper(ModelInterface):
         glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
         logits = self.infer_head(glob_features)
         if return_featuremaps and self.is_classification():
-            return [(logits, y)]
+            return [(logits, y, glob_features)]
 
         if not self.training:
             return [logits]
