@@ -43,7 +43,7 @@ from ote_sdk.entities.model import ModelPrecision
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
 from ote_sdk.entities.scored_label import ScoredLabel
 from ote_sdk.entities.model import ModelEntity, ModelStatus
-from ote_sdk.entities.metadata import FloatMetadata
+from ote_sdk.entities.metadata import FloatMetadata, FloatType
 
 from sc_sdk.entities.resultset import ResultSet
 from sc_sdk.entities.datasets import Dataset, Subset
@@ -230,7 +230,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                 dataset_item.append_labels([label])
                 predicted_items.append(dataset_item)
 
-            active_score_media = FloatMetadata(name="Active score", value=active_score)
+            active_score_media = FloatMetadata(name="Active score", value=active_score,
+                                               float_type=FloatType.ACTIVE_SCORE)
             dataset_item.append_metadata_item(active_score_media)
             feature_vec_media = Tensor(name="representation_vector", numpy=feature_vecs[i])
             dataset_item.append_metadata_item(feature_vec_media)
