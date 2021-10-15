@@ -11,6 +11,7 @@ import torch
 import numpy as np
 
 import torchreid
+from torchreid import data
 from torchreid.ops import DataParallel
 from torchreid.apis.export import export_onnx, export_ir
 from torchreid.apis.training import run_lr_finder, run_training
@@ -21,7 +22,8 @@ from scripts.default_config import (get_default_config,
                                     optimizer_kwargs, merge_from_files_with_base)
 from torchreid.integration.sc.monitors import StopCallback, DefaultMetricsMonitor
 from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingProgressCallback,
-                                            InferenceProgressCallback, get_actmap, preprocess_features_for_actmap)
+                                            InferenceProgressCallback, get_actmap, preprocess_features_for_actmap,
+                                            active_score_from_probs)
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
@@ -42,6 +44,7 @@ from ote_sdk.entities.model import ModelPrecision
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
 from ote_sdk.entities.scored_label import ScoredLabel
 from ote_sdk.entities.model import ModelEntity, ModelStatus
+from ote_sdk.entities.metadata import FloatMetadata
 
 from sc_sdk.entities.resultset import ResultSet
 from sc_sdk.entities.datasets import Dataset, Subset
@@ -208,6 +211,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
             if self._multilabel:
                 predicted_classes = labels[i]
+                active_score = active_score_from_probs(predicted_classes)
                 item_labels = []
                 for j in range(predicted_classes.shape[0]):
                     if predicted_classes[j] > 0.5:
@@ -220,16 +224,20 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                 class_idx = labels[i]
                 scores[i] = np.exp(scores[i])
                 scores[i] /= np.sum(scores[i])
+                active_score = active_score_from_probs(scores[i])
                 class_prob = float(scores[i, class_idx].squeeze())
                 label = ScoredLabel(label=self._labels[class_idx], probability=class_prob)
                 dataset_item.append_labels([label])
                 predicted_items.append(dataset_item)
 
+            active_score_media = FloatMetadata(name="Active score", value=active_score)
+            dataset_item.append_metadata_item(active_score_media)
+
             if dump_features:
                 actmap = get_actmap(features[i], (dataset_item.width, dataset_item.height))
-                result_media = ResultMedia(name="Saliency map", type="Saliency_map",
-                                           annotation_scene=dataset_item.annotation_scene, numpy=actmap)
-                dataset_item.append_metadata_item(result_media)
+                saliency_media = ResultMedia(name="Saliency map", type="Saliency_map",
+                                             annotation_scene=dataset_item.annotation_scene, numpy=actmap)
+                dataset_item.append_metadata_item(saliency_media)
 
         return Dataset(None, predicted_items)
 

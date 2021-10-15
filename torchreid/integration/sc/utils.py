@@ -329,3 +329,9 @@ def get_actmap(features, output_res):
     am = np.uint8(np.floor(am))
     am = cv.applyColorMap(am, cv.COLORMAP_JET)
     return am
+
+
+def active_score_from_probs(predicitons):
+    top_idxs = np.argpartition(predicitons, -2)[-2:]
+    top_probs = predicitons[top_idxs]
+    return np.max(top_probs) - np.min(top_probs)
