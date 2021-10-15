@@ -25,8 +25,7 @@ from ote_sdk.entities.model import (
     ModelEntity,
     ModelPrecision,
     ModelStatus,
-    ModelOptimizationType,
-    OptimizationMethod,
+    ModelOptimizationType
 )
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import OptimizationType
