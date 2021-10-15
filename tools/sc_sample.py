@@ -25,8 +25,7 @@ from ote_sdk.entities.model import (
     ModelEntity,
     ModelPrecision,
     ModelStatus,
-    ModelOptimizationType,
-    OptimizationMethod,
+    ModelOptimizationType
 )
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import OptimizationType
@@ -154,13 +153,6 @@ def main(args):
         optimized_model = ModelEntity(
             dataset,
             environment.get_model_configuration(),
-            optimization_type=ModelOptimizationType.POT,
-            optimization_methods=OptimizationMethod.QUANTIZATION,
-            optimization_objectives={},
-            precision=[ModelPrecision.INT8],
-            target_device=TargetDevice.CPU,
-            performance_improvement={},
-            model_size_reduction=1.,
             model_status=ModelStatus.NOT_READY)
         openvino_task.optimize(
             OptimizationType.POT,

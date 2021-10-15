@@ -34,7 +34,14 @@ from ote_sdk.usecases.exportable_code.inference import BaseOpenVINOInferencer
 from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
 from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from ote_sdk.entities.task_environment import TaskEnvironment
-from ote_sdk.entities.model import ModelStatus, ModelEntity
+from ote_sdk.entities.model import (
+    ModelStatus,
+    ModelEntity,
+    ModelFormat,
+    OptimizationMethod,
+    ModelPrecision,
+)
+
 from ote_sdk.entities.label import LabelEntity
 from ote_sdk.entities.resultset import ResultSetEntity
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import (
@@ -243,7 +250,13 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
                 output_model.set_data("openvino.xml", f.read())
             with open(os.path.join(tempdir, model_name + ".bin"), "rb") as f:
                 output_model.set_data("openvino.bin", f.read())
+
+        # set model attributes for quantized model
         output_model.model_status = ModelStatus.SUCCESS
+        output_model.model_format = ModelFormat.OPENVINO
+        output_model.optimization_type = OptimizationType.POT
+        output_model.optimization_methods = [OptimizationMethod.QUANTIZATION]
+        output_model.precision = [ModelPrecision.INT8]
 
         self.model = output_model
         self.inferencer = self.load_inferencer()
