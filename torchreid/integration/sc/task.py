@@ -44,8 +44,8 @@ from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExpo
 from ote_sdk.entities.scored_label import ScoredLabel
 from ote_sdk.entities.model import ModelEntity, ModelStatus
 from ote_sdk.entities.metadata import FloatMetadata, FloatType
+from ote_sdk.entities.resultset import ResultSetEntity
 
-from sc_sdk.entities.resultset import ResultSet
 from sc_sdk.entities.datasets import Dataset, Subset
 from sc_sdk.entities.result_media import ResultMedia
 from sc_sdk.entities.tensor import Tensor
@@ -360,7 +360,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             logger.info("Model performance has not improved while training. No new model has been saved.")
 
     def evaluate(
-        self, output_resultset: ResultSet, evaluation_metric: Optional[str] = None
+        self, output_resultset: ResultSetEntity, evaluation_metric: Optional[str] = None
     ):
         performance = MetricsHelper.compute_accuracy(output_resultset).get_performance()
         logger.info(f"Computes performance of {performance}")
