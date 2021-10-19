@@ -1,7 +1,7 @@
 lr_finder:
-  enable: True
+  enable: False
   mode: TPE
-  stop_after: True
+  stop_after: False
   num_epochs: 7
   step: 0.001
   epochs_warmup: 1
@@ -14,10 +14,9 @@ model:
   name: 'mobilenetv3_large_21k'
   type: 'multilabel'
   pretrained: True
-  save_all_chkpts: True
-  feature_dim: 1280
+  save_all_chkpts: False
   dropout_cls:
-    p: 0.2
+    p: 0.1
 
 custom_datasets:
   roots: ['/data/train.json', '/data/val.json']
@@ -30,8 +29,8 @@ data:
   targets: ['val_data']
   height: 448
   width: 448
-  norm_mean: [0.485, 0.456, 0.406]
-  norm_std: [0.229, 0.224, 0.225]
+  norm_mean: [0, 0, 0]
+  norm_std: [1, 1, 1]
   save_dir: 'output/mulitilabel/mobilenetv3'
   workers: 6
   transforms:

@@ -59,8 +59,8 @@ def reset_config(cfg, args):
         cfg.mutual_learning.aux_configs = args.auxiliary_models_cfg
 
 
-def build_datamanager(cfg, classification_classes_filter=None):
-    return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
+def build_datamanager(cfg, classification_classes_filter=None, proxy=False):
+    return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, proxy=proxy, **imagedata_kwargs(cfg))
 
 
 def build_auxiliary_model(config_file, num_classes, use_gpu,

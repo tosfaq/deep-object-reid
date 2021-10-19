@@ -92,7 +92,6 @@ class LrFinder:
         self.step = step
         self.n_trials = n_trials
         self.num_epochs = num_epochs
-        # assert self.num_epochs > 3, "Number of epochs to find an optimal learning rate less than 3. It's pointless"
         self.path_to_savefig = path_to_savefig
         self.seed = seed
         self.stop_callback = stop_callback

@@ -10,6 +10,30 @@ import numpy as np
 from ruamel.yaml import YAML
 
 
+def get_lr_sets(model_name: str):
+    if "mobilenet" in model_name:
+        return {"CIFAR100": 0.005, "pets": 0.005, "caltech101": 0.015, 
+                "cars": 0.025, "flowers": 0.02, "DTD": 0.008, "FOOD101": 0.015, 
+                "birdsnap": 0.015,"FashionMNIST": 0.012, "SUN397": 0.008, "SVHN": 0.015,
+                "attd_mi02_v3": 0.005, "attd_mi04_v4": 0.012, "lgchem": 0.015, "autism": 0.015}
+
+    elif 'efficientnet_b0' == model_name:
+        return {"CIFAR100": 0.005, "pets": 0.005, "caltech101": 0.015, 
+                "cars": 0.025, "flowers": 0.02, "DTD": 0.008, "FOOD101": 0.015, 
+                "birdsnap": 0.015,"FashionMNIST": 0.012, "SUN397": 0.008, "SVHN": 0.015,
+                "attd_mi02_v3": 0.005, "attd_mi04_v4": 0.012, "lgchem": 0.015, "autism": 0.015}
+    elif 'efficientnetv2_s' in model_name:
+        return {"CIFAR100": 0.004488, "pets": 0.00597, "caltech101": 0.01355, 
+                "cars": 0.0155, "flowers": 0.010624, "DTD": 0.009936, "FOOD101": 0.0043962, 
+                "birdsnap": 0.004488,"FashionMNIST": 0.0048896, "SUN397": 0.008, "SVHN": 0.015,
+                "attd_mi02_v3": 0.005, "attd_mi04_v4": 0.012, "lgchem": 0.015, "autism": 0.015}
+    else:
+        print("Unknown model. Use stadart predefined lrs")
+        return {"CIFAR100": 0.003, "pets": 0.003, "caltech101": 0.003, 
+                "cars": 0.003, "flowers": 0.003, "DTD": 0.003, "FOOD101": 0.003, 
+                "birdsnap": 0.003,"FashionMNIST": 0.003, "SUN397": 0.003, "SVHN": 0.003,
+                "attd_mi02_v3": 0.003, "attd_mi04_v4": 0.003, "lgchem": 0.003, "autism": 0.003}
+
 def read_config(yaml: YAML, config_path: str):
     yaml.default_flow_style = True
     with open(config_path, 'r') as f:
@@ -29,11 +53,6 @@ def main():
     parser.add_argument('--gpu-num', type=int, default=1, help='Number of GPUs for training. 0 is for CPU mode')
     parser.add_argument('--use-hardcoded-lr', action='store_true')
     parser.add_argument('-d','--domains', nargs='+', help='On what domains to train', required=False, default=['all'])
-    parser.add_argument('-lrs', '--lr-sets', type=json.loads, default='{"CIFAR100": 0.005, "pets": 0.005,'
-                                                                            '"caltech101": 0.015, "cars": 0.025, "flowers": 0.02,'
-                                                                            '"DTD": 0.008, "FOOD101": 0.015, "birdsnap": 0.015,'
-                                                                            '"FashionMNIST": 0.012, "SUN397": 0.008, "SVHN": 0.015,'
-                                                                            '"attd_mi02_v3": 0.005, "attd_mi04_v4": 0.012, "lgchem": 0.015, "autism": 0.015}')
     parser.add_argument('--dump-results', type=bool, default=True, help='whether or not to dump results of the experiment')
     args = parser.parse_args()
     yaml = YAML()
@@ -41,168 +60,109 @@ def main():
     # datasets to experiment with
     datasets = dict(
         CIFAR100=dict(
-            resolution=(224, 224),
-            epochs=35,
             roots=['CIFAR100/train', 'CIFAR100/val'],
             names=['CIFAR100_train', 'CIFAR100_val'],
             types=['classification_image_folder', 'classification_image_folder'],
             sources='CIFAR100_train',
             targets='CIFAR100_val',
-            batch_size=128,
-            num_C=100
         ),
         SUN397=dict(
-            resolution=(224, 224),
-            epochs=60,
             roots=['SUN397/train.txt', 'SUN397/val.txt'],
             names=['SUN397_train', 'SUN397_val'],
             types=['classification', 'classification'],
             sources='SUN397_train',
             targets='SUN397_val',
-            batch_size=128,
-            num_C=397
         ),
         flowers=dict(
-            resolution=(224, 224),
-            epochs=50,
             roots=['flowers/train.txt', 'flowers/val.txt'],
             names=['flowers_train', 'flowers_val'],
             types=['classification', 'classification'],
             sources='flowers_train',
             targets='flowers_val',
-            batch_size=128,
-            num_C=102
         ),
         fashionMNIST=dict(
-            resolution=(224, 224),
-            epochs=35,
             roots=['fashionMNIST/train', 'fashionMNIST/val'],
             names=['fashionMNIST_train', 'fashionMNIST_val'],
             types=['classification_image_folder', 'classification_image_folder'],
             sources='fashionMNIST_train',
             targets='fashionMNIST_val',
-            batch_size=128,
-            num_C=10
         ),
         SVHN=dict(
-            resolution=(224, 224),
-            epochs=50,
             roots=['SVHN/train', 'SVHN/val'],
             names=['SVHN_train', 'SVHN_val'],
             types=['classification_image_folder', 'classification_image_folder'],
             sources='SVHN_train',
             targets='SVHN_val',
-            batch_size=128,
-            num_C=10
         ),
         cars=dict(
-            resolution=(224, 224),
-            epochs=110,
             roots=['cars/train.txt', 'cars/val.txt'],
             names=['cars_train', 'cars_val'],
             types=['classification', 'classification'],
             sources='cars_train',
             targets='cars_val',
-            batch_size=128,
-            num_C=196
         ),
         DTD=dict(
-            resolution=(224, 224),
-            epochs=70,
             roots=['DTD/train', 'DTD/val'],
             names=['DTD_train', 'DTD_val'],
             types=['classification_image_folder', 'classification_image_folder'],
             sources='DTD_train',
             targets='DTD_val',
-            batch_size=128,
-            num_C=47
         ),
         pets=dict(
-            resolution=(224, 224),
-            epochs=60,
             roots=['pets/train.txt', 'pets/val.txt'],
             names=['pets_train', 'pets_val'],
             types=['classification', 'classification'],
             sources='pets_train',
             targets='pets_val',
-            batch_size=128,
-            num_C=37
         ),
         birdsnap=dict(
-            resolution=(224, 224),
-            epochs=35,
             roots=['birdsnap/train.txt', 'birdsnap/val.txt'],
             names=['birdsnap_train', 'birdsnap_val'],
             types=['classification', 'classification'],
             sources='birdsnap_train',
             targets='birdsnap_val',
-            batch_size=128,
-            num_C=500
         ),
         caltech101=dict(
-            resolution=(224, 224),
-            epochs=55,
             roots=['caltech101/train.txt', 'caltech101/val.txt'],
             names=['caltech101_train', 'caltech101_val'],
             types=['classification', 'classification'],
             sources='caltech101_train',
             targets='caltech101_val',
-            batch_size=128,
-            num_C=101
         ),
         FOOD101=dict(
-            resolution=(224, 224),
-            epochs=35,
             roots=['FOOD101/train.txt', 'FOOD101/val.txt'],
             names=['FOOD101_train', 'FOOD101_val'],
             types=['classification', 'classification'],
             sources='FOOD101_train',
             targets='FOOD101_val',
-            batch_size=128,
-            num_C=101
         ),
-        LGChenck=dict(
-            resolution=(224, 224),
-            roots=['LGChenck/Dataset_1', 'LGChenck/Dataset_2'],
-            names=['LGChenck_train', 'LGChenck_val'],
-            types=['classification_image_folder', 'classification_image_folder'],
-            sources='LGChenck_train',
-            targets='LGChenck_val',
-            batch_size=128,
-            num_C=101
+        lg_chem=dict(
+            roots=['lg_chem/train.txt', 'lg_chem/val.txt'],
+            names=['lg_chem_train', 'lg_chem_val'],
+            types=['classification', 'classification'],
+            sources='lg_chem_train',
+            targets='lg_chem_val',
         ),
         autism=dict(
-            resolution=(224, 224),
-            epochs=35,
             roots=['autism/train', 'autism/val'],
             names=['autism_train', 'autism_val'],
             types=['classification_image_folder', 'classification_image_folder'],
             sources='autism_train',
             targets='autism_val',
-            batch_size=128,
-            num_C=101
         ),
         attd_mi04_v4=dict(
-            resolution=(224, 224),
-            epochs=35,
             roots=['attd_mi04_v4/train.txt', 'attd_mi04_v4/val.txt'],
             names=['attd_mi04_v4_train', 'attd_mi04_v4_val'],
             types=['classification', 'classification'],
             sources='attd_mi04_v4_train',
             targets='attd_mi04_v4_val',
-            batch_size=128,
-            num_C=101
         ),
         attd_mi02_v3=dict(
-            resolution=(224, 224),
-            epochs=35,
             roots=['attd_mi02_v3/train.txt', 'attd_mi02_v3/val.txt'],
             names=['attd_mi02_v3_train', 'attd_mi02_v3_val'],
             types=['classification', 'classification'],
             sources='attd_mi02_v3_train',
             targets='attd_mi02_v3_val',
-            batch_size=128,
-            num_C=101
         )
     )
 
@@ -211,12 +171,13 @@ def main():
     domains = args.domains
     if 'all' in domains:
         domains = set(datasets.keys())
-    lrs_dict = args.lr_sets
 
-    for key, params in datasets.items():
-        if key not in domains:
-            continue
+    for key in domains:
+        params = datasets[key]
         cfg = read_config(yaml, path_to_base_cfg)
+        lrs_dict = get_lr_sets(cfg["model"]["name"])
+        if key in ["attd_mi02_v3", "attd_mi04_v4", "lg_chem", "fashionMNIST", "SVHN"]:
+            cfg['data']['transforms']['augmix']['grey_imgs'] = True
         path_to_exp_folder = cfg['data']['save_dir']
         name_train = params['names'][0]
         name_val = params['names'][1]
@@ -264,7 +225,7 @@ def main():
             os.remove(tmp_path_to_cfg)
     # after training combine all outputs in one file
     if args.dump_results:
-        path_to_bash = str(Path.cwd() / 'parse_output.sh')
+        path_to_bash = str(Path.cwd() / 'tools/classification/parse_output.sh')
         run(f'bash {path_to_bash} {path_to_exp_folder}', shell=True)
         saver = dict()
         path_to_file = f"{path_to_exp_folder}/combine_all.txt"
