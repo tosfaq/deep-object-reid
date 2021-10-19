@@ -363,6 +363,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self, output_resultset: ResultSetEntity, evaluation_metric: Optional[str] = None
     ):
         performance = MetricsHelper.compute_accuracy(output_resultset).get_performance()
+        performance.dashboard_metrics = []
         logger.info(f"Computes performance of {performance}")
         output_resultset.performance = performance
 
