@@ -66,33 +66,12 @@ def main():
             sources='CIFAR100_train',
             targets='CIFAR100_val',
         ),
-        SUN397=dict(
-            roots=['SUN397/train.txt', 'SUN397/val.txt'],
-            names=['SUN397_train', 'SUN397_val'],
-            types=['classification', 'classification'],
-            sources='SUN397_train',
-            targets='SUN397_val',
-        ),
         flowers=dict(
             roots=['flowers/train.txt', 'flowers/val.txt'],
             names=['flowers_train', 'flowers_val'],
             types=['classification', 'classification'],
             sources='flowers_train',
             targets='flowers_val',
-        ),
-        fashionMNIST=dict(
-            roots=['fashionMNIST/train', 'fashionMNIST/val'],
-            names=['fashionMNIST_train', 'fashionMNIST_val'],
-            types=['classification_image_folder', 'classification_image_folder'],
-            sources='fashionMNIST_train',
-            targets='fashionMNIST_val',
-        ),
-        SVHN=dict(
-            roots=['SVHN/train', 'SVHN/val'],
-            names=['SVHN_train', 'SVHN_val'],
-            types=['classification_image_folder', 'classification_image_folder'],
-            sources='SVHN_train',
-            targets='SVHN_val',
         ),
         cars=dict(
             roots=['cars/train.txt', 'cars/val.txt'],
@@ -197,8 +176,6 @@ def main():
         cfg['custom_datasets']['types'] = [type_train, type_val]
         cfg['custom_datasets']['names'] = [name_train, name_val]
 
-        cfg['data']['height'] = params['resolution'][0]
-        cfg['data']['width'] = params['resolution'][1]
         cfg['data']['save_dir'] = path_to_exp_folder + f"/{key}"
 
         source = params['sources']

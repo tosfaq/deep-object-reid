@@ -47,7 +47,6 @@ def main():
     # datasets to experiment with
     datasets = dict(
         coco=dict(
-            resolution=(448, 448),
             roots=['coco/train.json', 'coco/val.json'],
             names=['coco_train', 'coco_val'],
             types=['multilabel_classification', 'multilabel_classification'],
@@ -55,7 +54,6 @@ def main():
             targets='coco_val',
         ),
         voc=dict(
-            resolution=(448, 448),
             roots=['mlc_voc_2007/train.json', 'mlc_voc_2007/val.json'],
             names=['voc_train', 'voc_val'],
             types=['multilabel_classification', 'multilabel_classification'],
@@ -63,7 +61,6 @@ def main():
             targets='voc_val',
         ),
         vg500=dict(
-            resolution=(448, 448),
             roots=['VG500/train.json', 'VG500/val.json'],
             names=['VG500_train', 'VG500_val'],
             types=['multilabel_classification', 'multilabel_classification'],
@@ -71,7 +68,6 @@ def main():
             targets='VG500_val',
         ),
         nus_wide=dict(
-            resolution=(448, 448),
             roots=['nus_wide/train.json', 'nus_wide/val.json'],
             names=['nus_wide_train', 'nus_wide_val'],
             types=['multilabel_classification', 'multilabel_classification'],
@@ -109,8 +105,6 @@ def main():
         cfg['custom_datasets']['types'] = [type_train, type_val]
         cfg['custom_datasets']['names'] = [name_train, name_val]
 
-        cfg['data']['height'] = params['resolution'][0]
-        cfg['data']['width'] = params['resolution'][1]
         cfg['data']['save_dir'] = path_to_exp_folder + f"/{key}"
 
         source = params['sources']
