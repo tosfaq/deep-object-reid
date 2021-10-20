@@ -80,7 +80,7 @@ train:
   patience: 5
   gamma: 0.1
   sam:
-    rho: 0.05
+    rho: 0.2
   ema:
     enable: True
     ema_decay: 0.999

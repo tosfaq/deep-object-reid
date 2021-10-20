@@ -1,5 +1,5 @@
 lr_finder:
-  enable: False
+  enable: True
   mode: TPE
   stop_after: False
   num_epochs: 7
