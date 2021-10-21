@@ -2,6 +2,7 @@ import argparse
 import os.path as osp
 import sys
 import time
+from torch._C import device
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
@@ -109,8 +110,9 @@ def main():
     # Loading model (and optimizer and scheduler in case of resuming training).
     # Note that if NNCF is used, loading is done inside NNCF part, so loading here is not required.
     if cfg.model.resume and check_isfile(cfg.model.resume) and not is_nncf_used:
+        device_ = 'cuda' if cfg.use_gpu else 'cpu'
         cfg.train.start_epoch = resume_from_checkpoint(
-            cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler
+            cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler, device=device_
             )
     elif cfg.model.load_weights and check_isfile(cfg.model.load_weights) and not is_nncf_used:
         load_pretrained_weights(model, cfg.model.load_weights)
