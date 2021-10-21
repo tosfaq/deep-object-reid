@@ -190,6 +190,7 @@ class ImageDataManager(DataManager):
         min_samples_per_id=0,
         num_sampled_packages=1,
         filter_classes=None,
+        proxy=False
     ):
 
         super(ImageDataManager, self).__init__(
@@ -227,6 +228,7 @@ class ImageDataManager(DataManager):
                 min_id_samples=min_samples_per_id,
                 num_sampled_packages=num_sampled_packages,
                 filter_classes=filter_classes,
+                proxy=proxy
             ))
         train_dataset = sum(train_dataset)
 

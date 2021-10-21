@@ -34,7 +34,8 @@ def run_lr_finder(cfg, datamanager, model, optimizer, scheduler, classes,
     if not rebuild_model:
         backup_model = deepcopy(model)
 
-    engine = build_engine(cfg, datamanager, model, optimizer, scheduler, initial_lr=cfg.train.lr)
+    proxy_datamanager = build_datamanager(cfg, proxy=True)
+    engine = build_engine(cfg, proxy_datamanager, model, optimizer, scheduler, initial_lr=cfg.train.lr)
     lr_finder = LrFinder(engine=engine, **lr_finder_run_kwargs(cfg))
     aux_lr = lr_finder.process()
 

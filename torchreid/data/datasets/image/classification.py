@@ -6,6 +6,7 @@ import json
 from PIL import Image
 
 from ..dataset import ImageDataset
+from torchreid.data.datasets import dataset
 
 
 class Classification(ImageDataset):
@@ -137,7 +138,8 @@ class ClassificationImageFolder(ImageDataset):
     """Classification dataset representing raw folders without annotation files.
     """
 
-    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, filter_classes=None, **kwargs):
+    def __init__(self, root='', mode='train', dataset_id=0, 
+                 load_masks=False, filter_classes=None, proxy=False, **kwargs):
         if load_masks:
             raise NotImplementedError
 
@@ -150,7 +152,7 @@ class ClassificationImageFolder(ImageDataset):
 
         if mode == 'train':
             train, classes = self.load_annotation(
-                self.root, filter_classes, dataset_id
+                self.root, filter_classes, dataset_id, proxy
             )
             query = []
         elif mode == 'query':
@@ -170,7 +172,7 @@ class ClassificationImageFolder(ImageDataset):
 
 
     @staticmethod
-    def load_annotation(data_dir, filter_classes=None, dataset_id=0):
+    def load_annotation(data_dir, filter_classes=None, dataset_id=0, proxy=False):
         ALLOWED_EXTS = ('.jpg', '.jpeg', '.png', '.gif')
         def is_valid(filename):
             return not filename.startswith('.') and filename.lower().endswith(ALLOWED_EXTS)
@@ -200,6 +202,9 @@ class ClassificationImageFolder(ImageDataset):
 
         if not len(out_data):
             print('Failed to locate images in folder ' + data_dir + f' with extensions {ALLOWED_EXTS}')
+
+        if proxy:
+            out_data = create_proxy_data(out_data)
 
         return out_data, class_to_idx
 
@@ -262,3 +267,19 @@ class MultiLabelClassification(ImageDataset):
         if img_wo_objects:
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
         return out_data, class_to_idx
+
+def create_proxy_data(out_data):
+    from sklearn.model_selection import train_test_split
+    proxy_size = 1500
+    dataset_id = out_data[0][3]
+    labels = []
+    paths = []
+    if len(out_data) > proxy_size:
+        for d in out_data:
+            paths.append(d[0])
+            labels.append(d[1])
+        size = round(proxy_size / len(paths), 2)
+        data_1, data_2, y_1, y_2 = train_test_split(paths, labels, stratify=labels, test_size=size)
+        out_data = [(data_2[i], y_2[i], 0, dataset_id, '', -1, -1) for i in range(len(data_2))]
+        print(len(out_data), len(data_2), len(data_1))         
+    return out_data
