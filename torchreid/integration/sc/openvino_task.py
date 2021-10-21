@@ -44,6 +44,7 @@ from ote_sdk.entities.model import (
 
 from ote_sdk.entities.label import LabelEntity
 from ote_sdk.entities.resultset import ResultSetEntity
+from ote_sdk.entities.annotation import AnnotationSceneEntity
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import (
     IOptimizationTask,
     OptimizationType,
@@ -79,6 +80,7 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
         self,
         hparams: OTEClassificationParameters,
         labels: List[LabelEntity],
+        multilabel: bool,
         model_file: Union[str, bytes],
         weight_file: Union[str, bytes, None] = None,
         device: str = "CPU",
@@ -98,6 +100,7 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
         self.n, self.c, self.h, self.w = self.net.input_info[self.input_blob_name].tensor_desc.dims
         self.keep_aspect_ratio_resize = False
         self.pad_value = 0
+        self.multilabel = multilabel
 
     @staticmethod
     def resize_image(image: np.ndarray, size: Tuple[int], keep_aspect_ratio: bool = False) -> np.ndarray:
@@ -125,14 +128,22 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
         dict_inputs = {self.input_blob_name: resized_image}
         return dict_inputs, meta
 
-    def post_process(self, prediction: Dict[str, np.ndarray], metadata: Dict[str, Any]) -> AnnotationScene:
+    def post_process(self, prediction: Dict[str, np.ndarray], metadata: Dict[str, Any]) -> AnnotationSceneEntity:
         raw_output = get_output(self.net, prediction, 'reid_embedding').reshape(-1)
-        i = np.argmax(raw_output)
-        raw_output = np.exp(raw_output)
-        raw_output /= np.sum(raw_output)
-
-        assigned_label = [ScoredLabel(self.labels[i], probability=raw_output[i])]
-        anno = [Annotation(Rectangle.generate_full_box(), labels=assigned_label)]
+        if self.multilabel:
+            raw_output = 1. / (1. + np.exp(-1. * raw_output))
+            item_labels = []
+            for j in range(raw_output.shape[0]):
+                if raw_output[j] > 0.5:
+                    label = ScoredLabel(label=self.labels[j], probability=raw_output[j])
+                    item_labels.append(label)
+            anno = [Annotation(Rectangle.generate_full_box(), labels=item_labels)]
+        else:
+            i = np.argmax(raw_output)
+            raw_output = np.exp(raw_output)
+            raw_output /= np.sum(raw_output)
+            assigned_label = [ScoredLabel(self.labels[i], probability=raw_output[i])]
+            anno = [Annotation(Rectangle.generate_full_box(), labels=assigned_label)]
         media_identifier = ImageIdentifier(image_id=ID())
 
         return AnnotationScene(
@@ -168,8 +179,10 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
 
     def load_inferencer(self) -> OpenVINOClassificationInferencer:
         labels = self.task_environment.label_schema.get_labels(include_empty=False)
+        is_multilabel = len(self.task_environment.label_schema.get_groups(False)) > 1
         return OpenVINOClassificationInferencer(self.hparams,
                                                 labels,
+                                                is_multilabel,
                                                 self.model.get_data("openvino.xml"),
                                                 self.model.get_data("openvino.bin"))
 
