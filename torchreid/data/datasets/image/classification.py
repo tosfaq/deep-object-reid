@@ -13,7 +13,7 @@ class Classification(ImageDataset):
     """Classification dataset.
     """
 
-    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, **kwargs):
+    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, proxy=False, **kwargs):
         if load_masks:
             raise NotImplementedError
 
@@ -30,7 +30,8 @@ class Classification(ImageDataset):
             train, classes = self.load_annotation(
                 self.annot,
                 self.data_dir,
-                dataset_id=dataset_id
+                dataset_id=dataset_id,
+                proxy=proxy
             )
             query = []
 
@@ -52,7 +53,7 @@ class Classification(ImageDataset):
         self.classes = classes
 
     @staticmethod
-    def load_annotation(annot_path, data_dir, dataset_id=0):
+    def load_annotation(annot_path, data_dir, dataset_id=0, proxy=False):
         out_data = []
         classes_from_data = set()
         predefined_classes = []
@@ -75,6 +76,8 @@ class Classification(ImageDataset):
             out_data.append((full_image_path, label, 0, dataset_id, '', -1, -1))
         classes = predefined_classes if predefined_classes else classes_from_data
         class_to_idx = {cls: indx for indx, cls in enumerate(classes)}
+        if proxy:
+            out_data = create_proxy_data(out_data)
         return out_data, class_to_idx
 
 
@@ -274,6 +277,7 @@ def create_proxy_data(out_data):
     dataset_id = out_data[0][3]
     labels = []
     paths = []
+    print("HERE.", len(out_data))
     if len(out_data) > proxy_size:
         for d in out_data:
             paths.append(d[0])
