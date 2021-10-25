@@ -63,9 +63,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         logger.info(f"Scratch space created at {self._scratch_space}")
 
         self._task_environment = task_environment
-        self._hyperparams = hyperparams = task_environment.get_hyper_parameters(OTEClassificationParameters)
-
-        self._model_name = hyperparams.algo_backend.model_name
+        self._model_name = self._hyperparams.algo_backend.model_name
         self._labels = task_environment.get_labels(False)
         self._multilabel = len(task_environment.label_schema.get_groups(False)) > 1
 
@@ -88,6 +86,10 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         self.stop_callback = StopCallback()
         self.metrics_monitor = DefaultMetricsMonitor()
+
+    @property
+    def _hyperparams(self):
+        return self._task_environment.get_hyper_parameters(OTEClassificationParameters)
 
     def _load_model(self, model: ModelEntity):
         if model is not None:
@@ -274,16 +276,14 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
     def train(self, dataset: Dataset, output_model: ModelEntity, train_parameters: Optional[TrainParameters] = None):
         """ Trains a model on a dataset """
 
-        configurable_parameters = self._hyperparams
-
         if train_parameters is not None and train_parameters.train_on_empty_model:
             train_model = self._create_model(self._cfg)
         else:
             train_model = deepcopy(self._model)
 
-        self._cfg.train.batch_size = configurable_parameters.learning_parameters.batch_size
-        self._cfg.test.batch_size = max(1, configurable_parameters.learning_parameters.batch_size // 2)
-        self._cfg.train.max_epoch = configurable_parameters.learning_parameters.max_num_epochs
+        self._cfg.train.batch_size = self._hyperparams.learning_parameters.batch_size
+        self._cfg.test.batch_size = max(1, self._hyperparams.learning_parameters.batch_size // 2)
+        self._cfg.train.max_epoch = self._hyperparams.learning_parameters.max_num_epochs
 
         if train_parameters is not None:
             update_progress_callback = train_parameters.update_progress
