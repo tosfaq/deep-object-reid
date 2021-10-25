@@ -55,6 +55,7 @@ class OTEClassificationParameters(ConfigurableParameters):
 
         template = string_attribute("template.yaml")
         model = string_attribute("main_model.yaml")
+        multilabel_model = string_attribute("main_model_multilabel.yaml")
         model_name = string_attribute("image classification model")
 
     @attrs

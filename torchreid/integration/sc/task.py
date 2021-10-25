@@ -127,7 +127,10 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
     def _patch_config(self, base_dir: str):
         self._cfg = get_default_config()
-        config_file_path = os.path.join(base_dir, self._hyperparams.algo_backend.model)
+        if self._multilabel:
+            config_file_path = os.path.join(base_dir, self._hyperparams.algo_backend.multilabel_model)
+        else:
+            config_file_path = os.path.join(base_dir, self._hyperparams.algo_backend.model)
         merge_from_files_with_base(self._cfg, config_file_path)
         self._cfg.use_gpu = torch.cuda.device_count() > 0
         self.num_devices = 1 if self._cfg.use_gpu else 0
