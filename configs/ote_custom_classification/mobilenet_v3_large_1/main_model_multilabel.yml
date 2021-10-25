@@ -1,0 +1,81 @@
+lr_finder:
+  enable: False
+  mode: TPE
+  stop_after: False
+  num_epochs: 6
+  step: 0.001
+  epochs_warmup: 1
+  path_to_savefig: 'lr_finder.jpg'
+  max_lr: 0.029
+  min_lr: 0.005
+  n_trials: 15
+
+model:
+  name: 'mobilenetv3_large_21k'
+  type: 'multilabel'
+  pretrained: True
+  save_all_chkpts: False
+  dropout_cls:
+    p: 0.1
+
+custom_datasets:
+  roots: ['datasets/mlc_voc_2007/train.json', 'datasets/mlc_voc_2007/val.json']
+  types: ['multilabel_classification', 'multilabel_classification']
+  names: ['VOC_train', 'VOC_val']
+
+data:
+  root: './'
+  sources: ['VOC_train']
+  targets: ['VOC_val']
+  height: 448
+  width: 448
+  norm_mean: [0., 0., 0.]
+  norm_std: [1., 1., 1.]
+  save_dir: 'experiments/mobilenetv3/voc/log'
+  workers: 12
+  transforms:
+    random_flip:
+      enable: True
+      p: 0.5
+    randaugment:
+      enable: True
+    cutout:
+      enable: True
+      p: 0.35
+      cutout_factor: 0.3
+
+loss:
+  name: 'asl'
+  softmax:
+    s: 1.0
+    compute_s: False
+  asl:
+    gamma_pos: 0.
+    gamma_neg: 4.
+
+sampler:
+  train_sampler: 'RandomSampler'
+
+train:
+  optim: 'sam'
+  lr: 0.0002
+  nbd: True
+  max_epoch: 80
+  weight_decay: 5e-4
+  batch_size: 128
+  lr_scheduler: 'onecycle'
+  pct_start: 0.2
+  early_stoping: True
+  train_patience: 5
+  lr_decay_factor: 1000
+  deterministic: True
+  gamma: 0.1
+  ema:
+    enable: True
+    ema_decay: 0.9995
+  mix_precision: True
+
+test:
+  batch_size: 128
+  evaluate: False
+  eval_freq: 5
