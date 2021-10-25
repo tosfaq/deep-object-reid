@@ -53,6 +53,7 @@ def main():
     parser.add_argument('--gpu-num', type=int, default=1, help='Number of GPUs for training. 0 is for CPU mode')
     parser.add_argument('--use-hardcoded-lr', action='store_true')
     parser.add_argument('-d','--domains', nargs='+', help='On what domains to train', required=False, default=['all'])
+    parser.add_argument('-lrs','--lr-sets', nargs='+', help='lrs for datasets in sorted order', required=False, default=[])
     parser.add_argument('--dump-results', type=bool, default=True, help='whether or not to dump results of the experiment')
     args = parser.parse_args()
     yaml = YAML()
@@ -146,11 +147,16 @@ def main():
     )
 
     path_to_base_cfg = args.config
+    cllrs = dict()
     # write datasets you want to skip
     domains = args.domains
     if 'all' in domains:
-        domains = set(datasets.keys())
-
+        domains = list(datasets.keys())
+    domains.sort()
+    if args.lr_sets:
+        assert len(args.lr_sets) == len(domains)
+        for i, key in enumerate(domains):
+            cllrs[key] = args.lr_sets[i]
     for key in domains:
         params = datasets[key]
         cfg = read_config(yaml, path_to_base_cfg)
@@ -166,7 +172,10 @@ def main():
         root_val = args.root + os.sep + params['roots'][1]
         if args.use_hardcoded_lr:
             print("WARNING: Using hardcoded LR")
-            if key in lrs_dict:
+            if key in cllrs:
+                cfg['lr_finder']["enable"] = False
+                cfg["train"]["lr"] = cllrs[key]
+            elif key in lrs_dict:
                 cfg['lr_finder']["enable"] = False
                 cfg["train"]["lr"] = lrs_dict[key]
             else:
