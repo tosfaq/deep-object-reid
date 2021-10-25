@@ -361,6 +361,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             output_model.performance = performance
         else:
             logger.info("Model performance has not improved while training. No new model has been saved.")
+            output_model.model_status = ModelStatus.NOT_IMPROVED
 
     def evaluate(
         self, output_resultset: ResultSetEntity, evaluation_metric: Optional[str] = None
