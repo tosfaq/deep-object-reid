@@ -88,87 +88,86 @@ class MultilabelEngine(Engine):
         self.prev_smooth_top1 = 0.
 
     def forward_backward(self, data):
-        with autocast(enabled=self.mix_precision):
-            n_iter = self.epoch * self.num_batches + self.batch_idx
+        n_iter = self.epoch * self.num_batches + self.batch_idx
 
-            train_records = self.parse_data_for_train(data, output_dict=True, use_gpu=self.use_gpu)
-            imgs, obj_ids = train_records['img'], train_records['obj_id']
+        train_records = self.parse_data_for_train(data, output_dict=True, use_gpu=self.use_gpu)
+        imgs, obj_ids = train_records['img'], train_records['obj_id']
 
-            model_names = self.get_model_names()
-            num_models = len(model_names)
-            steps = [1,2] if self.enable_sam and not self.lr_finder else [1]
-            # forward pass
-            for step in steps:
-                # if sam is enabled then statistics will be written each step, but will be saved only the second time
-                # this is made just for convinience
-                avg_acc = 0.0
-                out_logits = [[] for _ in range(self.num_targets)]
-                total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-                loss_summary = dict()
+        model_names = self.get_model_names()
+        num_models = len(model_names)
+        steps = [1,2] if self.enable_sam and not self.lr_finder else [1]
+        # forward pass
+        for step in steps:
+            # if sam is enabled then statistics will be written each step, but will be saved only the second time
+            # this is made just for convinience
+            avg_acc = 0.0
+            out_logits = [[] for _ in range(self.num_targets)]
+            total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
+            loss_summary = dict()
 
-                for model_name in model_names:
-                    self.optims[model_name].zero_grad()
-                    model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
-                        self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name)
-                    avg_acc += model_avg_acc / float(num_models)
-                    total_loss += model_loss / float(num_models)
-                    loss_summary.update(model_loss_summary)
+            for model_name in model_names:
+                self.optims[model_name].zero_grad()
+                model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
+                    self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name)
+                avg_acc += model_avg_acc / float(num_models)
+                total_loss += model_loss / float(num_models)
+                loss_summary.update(model_loss_summary)
 
-                    for trg_id in range(self.num_targets):
-                        if model_logits[trg_id] is not None:
-                            out_logits[trg_id].append(model_logits[trg_id])
-                model_num = len(model_names)
-                # compute mutual loss
-                if len(model_names) > 1:
-                    mutual_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-                    for trg_id in range(self.num_targets):
-                        if len(out_logits[trg_id]) <= 1:
-                            continue
-                        for model_i, logits_i in enumerate(out_logits[trg_id]):
-                            probabilities_i = torch.sigmoid(logits_i)
-                            kl_loss = 0
-                            for model_j, logits_j in enumerate(out_logits[trg_id]):
-                                if model_i != model_j:
-                                    probabilities_j = torch.sigmoid(logits_j)
-                                    kl_loss += self.kl_div_binary(probabilities_i, probabilities_j)
-                            mutual_loss += kl_loss / (model_num - 1)
-                            loss_summary['mutual_{}/{}'.format(trg_id, model_names[model_i])] = mutual_loss.item()
+                for trg_id in range(self.num_targets):
+                    if model_logits[trg_id] is not None:
+                        out_logits[trg_id].append(model_logits[trg_id])
+            model_num = len(model_names)
+            # compute mutual loss
+            if len(model_names) > 1:
+                mutual_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
+                for trg_id in range(self.num_targets):
+                    if len(out_logits[trg_id]) <= 1:
+                        continue
+                    for model_i, logits_i in enumerate(out_logits[trg_id]):
+                        probabilities_i = torch.sigmoid(logits_i)
+                        kl_loss = 0
+                        for model_j, logits_j in enumerate(out_logits[trg_id]):
+                            if model_i != model_j:
+                                probabilities_j = torch.sigmoid(logits_j)
+                                kl_loss += self.kl_div_binary(probabilities_i, probabilities_j)
+                        mutual_loss += kl_loss / (model_num - 1)
+                        loss_summary['mutual_{}/{}'.format(trg_id, model_names[model_i])] = mutual_loss.item()
 
-                    should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
-                    coeff_mutual_learning = int(not should_turn_off_mutual_learning)
+                should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
+                coeff_mutual_learning = int(not should_turn_off_mutual_learning)
 
-                    total_loss += coeff_mutual_learning * mutual_loss
+                total_loss += coeff_mutual_learning * mutual_loss
 
-                # backward pass
-                self.scaler.scale(total_loss).backward(retain_graph=False)
-                for model_name in model_names:
-                    if self.clip_grad != 0 and step == 1:
-                        self.scaler.unscale_(self.optims[model_name])
-                        torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
-                    if not self.enable_sam and step == 1:
-                        self.scaler.step(self.optims[model_name])
-                        self.scaler.update()
-                    elif step == 1:
-                        assert self.enable_sam
-                        if self.clip_grad == 0:
-                            # if self.clip_grad == 0  this means that unscale_ wasn't applied
-                            # unscale parameters to perform SAM manipulations with parameters
-                            self.scaler.unscale_(self.optims[model_name]) 
-                        overflow = self.optims[model_name].first_step(self.scaler)
-                        self.scaler.update() # update scaler after first step
-                        if overflow:
-                            print("Overflow occurred. Skipping step ...")
-                            loss_summary['loss'] = total_loss.item()
-                            # skip second step  if overflow occurred 
-                            return loss_summary, avg_acc
-                    else:
-                        assert self.enable_sam and step==2
-                        if self.clip_grad == 0:
-                            self.scaler.unscale_(self.optims[model_name]) 
-                        self.optims[model_name].second_step()
-                        self.scaler.update()
+            # backward pass
+            self.scaler.scale(total_loss).backward(retain_graph=False)
+            for model_name in model_names:
+                if self.clip_grad != 0 and step == 1:
+                    self.scaler.unscale_(self.optims[model_name])
+                    torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
+                if not self.enable_sam and step == 1:
+                    self.scaler.step(self.optims[model_name])
+                    self.scaler.update()
+                elif step == 1:
+                    assert self.enable_sam
+                    if self.clip_grad == 0:
+                        # if self.clip_grad == 0  this means that unscale_ wasn't applied
+                        # unscale parameters to perform SAM manipulations with parameters
+                        self.scaler.unscale_(self.optims[model_name]) 
+                    overflow = self.optims[model_name].first_step(self.scaler)
+                    self.scaler.update() # update scaler after first step
+                    if overflow:
+                        print("Overflow occurred. Skipping step ...")
+                        loss_summary['loss'] = total_loss.item()
+                        # skip second step  if overflow occurred 
+                        return loss_summary, avg_acc
+                else:
+                    assert self.enable_sam and step==2
+                    if self.clip_grad == 0:
+                        self.scaler.unscale_(self.optims[model_name]) 
+                    self.optims[model_name].second_step()
+                    self.scaler.update()
 
-                loss_summary['loss'] = total_loss.item()
+            loss_summary['loss'] = total_loss.item()
 
             return loss_summary, avg_acc
 
