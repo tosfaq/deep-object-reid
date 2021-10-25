@@ -6,6 +6,8 @@ from ote_sdk.configuration.elements import (ParameterGroup,
                                             add_parameter_group,
                                             boolean_attribute,
                                             configurable_integer,
+                                            configurable_boolean,
+                                            configurable_float,
                                             selectable,
                                             string_attribute,
                                             )
@@ -58,6 +60,34 @@ class OTEClassificationParameters(ConfigurableParameters):
         model_name = string_attribute("image classification model")
 
     @attrs
+    class __NNCFOptimization(ParameterGroup):
+        header = string_attribute("Optimization by NNCF")
+        description = header
+
+        enable_quantization = configurable_boolean(
+            default_value=True,
+            header="Enable quantization algorithm",
+            description="Enable quantization algorithm",
+            affects_outcome_of=ModelLifecycle.TRAINING
+        )
+
+        enable_pruning = configurable_boolean(
+            default_value=False,
+            header="Enable filter pruning algorithm",
+            description="Enable filter pruning algorithm",
+            affects_outcome_of=ModelLifecycle.TRAINING
+        )
+
+        maximal_accuracy_degradation = configurable_float(
+            default_value=1.0,
+            min_value=0.0,
+            max_value=100.0,
+            header="Maximum accuracy degradation",
+            description="The maximal allowed accuracy metric drop",
+            affects_outcome_of=ModelLifecycle.TRAINING
+        )
+
+    @attrs
     class __POTParameter(ParameterGroup):
         header = string_attribute("POT Parameters")
         description = header
@@ -76,4 +106,5 @@ class OTEClassificationParameters(ConfigurableParameters):
 
     learning_parameters = add_parameter_group(__LearningParameters)
     algo_backend = add_parameter_group(__AlgoBackend)
+    nncf_optimization = add_parameter_group(__NNCFOptimization)
     pot_parameters = add_parameter_group(__POTParameter)

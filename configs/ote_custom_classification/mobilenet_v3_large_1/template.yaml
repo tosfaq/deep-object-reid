@@ -19,7 +19,7 @@ application:
 
 # Task implementation.
 entrypoints:
-  base: torchreid.integration.sc.task.OTEClassificationTask
+  base: torchreid.integration.sc.train_task.OTEClassificationTrainingTask
   openvino: torchreid.integration.sc.openvino_task.OpenVINOClassificationTask
 
 # Task and hyperparameters.

@@ -310,11 +310,20 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None):
                        if not pretrained_dict
                        else pretrained_dict)
 
+
+    state_dict=None
+    # Support SC_SDK
+    if 'model' in checkpoint:
+        state_dict = checkpoint['model']
+    if 'labels' in checkpoint:
+        model.classification_classes = checkpoint['labels']
+    # Old names
     if 'classes_map' in checkpoint:
         model.classification_classes = checkpoint['classes_map']
     if 'state_dict' in checkpoint:
         state_dict = checkpoint['state_dict']
-    else:
+
+    if state_dict is None:
         state_dict = checkpoint
 
     model_dict = model.state_dict()

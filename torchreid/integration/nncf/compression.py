@@ -46,11 +46,15 @@ def create_nncf_metainfo(nncf_compression_enabled, nncf_config):
         }
     return nncf_metainfo
 
-def is_checkpoint_nncf(filename):
-    nncf_metainfo = _get_nncf_metainfo_from_checkpoint(filename)
-    if not nncf_metainfo:
+def is_state_nncf(state):
+    return bool(state.get('meta',{}).get('nncf_enable_compression', False))
+
+def is_checkpoint_nncf(path):
+    try:
+        checkpoint = torch.load(path, map_location='cpu')
+        return is_state_nncf(checkpoint)
+    except FileNotFoundError:
         return False
-    return nncf_metainfo.get('nncf_compression_enabled', False)
 
 def _load_checkpoint_for_nncf(model, filename, map_location=None, strict=False):
     """Load checkpoint from a file or URI.
@@ -73,11 +77,13 @@ def _load_checkpoint_for_nncf(model, filename, map_location=None, strict=False):
         state_dict = checkpoint
     elif isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
         state_dict = checkpoint['state_dict']
+    elif isinstance(checkpoint, dict) and 'model' in checkpoint:
+        state_dict = checkpoint['model']
     else:
         raise RuntimeError(
             f'No state_dict found in checkpoint file {filename}')
     _ = load_state(model, state_dict, strict)
-    return checkpoint
+    return checkpoint, checkpoint.get('compression_state', None)
 
 def get_default_nncf_compression_config(h, w):
     """
@@ -192,9 +198,10 @@ def wrap_nncf_model(model, cfg, datamanager_for_init,
         wrapped_loader = ReidInitializeDataLoader(train_loader)
         nncf_config = register_default_init_args(nncf_config, wrapped_loader, device=cur_device)
         resuming_state_dict = None
+        compression_state = None
     else:
         print(f'Loading NNCF model from {checkpoint_path}')
-        resuming_state_dict = _load_checkpoint_for_nncf(model, checkpoint_path, map_location=cur_device)
+        resuming_state_dict, compression_state = _load_checkpoint_for_nncf(model, checkpoint_path, map_location=cur_device)
         print(f'Loaded NNCF model from {checkpoint_path}')
 
     transform = build_inference_transform(
@@ -234,7 +241,7 @@ def wrap_nncf_model(model, cfg, datamanager_for_init,
                                                       nncf_config,
                                                       dummy_forward_fn=dummy_forward,
                                                       wrap_inputs_fn=wrap_inputs,
-                                                      compression_state=resuming_state_dict)
+                                                      compression_state=compression_state)
 
     return compression_ctrl, model, nncf_metainfo
 

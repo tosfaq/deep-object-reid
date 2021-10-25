@@ -19,8 +19,9 @@ application:
 
 # Task implementation.
 entrypoints:
-  base: torchreid.integration.sc.task.OTEClassificationTask
+  base: torchreid.integration.sc.train_task.OTEClassificationTrainingTask
   openvino: torchreid.integration.sc.openvino_task.OpenVINOClassificationTask
+  nncf: torchreid.integration.sc.nncf_task.OTEClassificationNNCFTask
 
 # Task and hyperparameters.
 hyper_parameters:
@@ -33,25 +34,6 @@ hyper_parameters:
         default_value: 200
       learning_rate:
         default_value: 0.001
-
-# # Available model optimizations and their configuration.
-# optimization:
-#   output_format:
-#     onnx:
-#       default: true
-#     openvino:
-#       default: true
-#       input_format: BGR
-#       normalize_input: true
-#       precision: FP32
-#       pot: ~
-#   nncf:
-#     quantization:
-#       config: compression_config.json
-#       default: false
-#     sparsity:
-#       config: compression_config.json
-#       default: false
 
 # Training resources.
 max_nodes: 1
