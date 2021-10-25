@@ -33,7 +33,7 @@ def run_lr_finder(cfg, datamanager, model, optimizer, scheduler, classes,
                   rebuild_model=True, gpu_num=1, split_models=False):
     if not rebuild_model:
         backup_model = deepcopy(model)
-
+    model.mix_precision = False
     engine = build_engine(cfg, datamanager, model, optimizer, scheduler, initial_lr=cfg.train.lr)
     lr_finder = LrFinder(engine=engine, **lr_finder_run_kwargs(cfg))
     aux_lr = lr_finder.process()
