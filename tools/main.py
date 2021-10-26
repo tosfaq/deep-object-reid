@@ -2,7 +2,6 @@ import argparse
 import os.path as osp
 import sys
 import time
-from torch._C import device
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
