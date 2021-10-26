@@ -19,14 +19,14 @@ model:
     p: 0.1
 
 custom_datasets:
-  roots: ['/ssd/datasets/nus_wide/train.json', '/ssd/datasets/nus_wide/val.json']
+  roots: ['data/coco/train.json', 'data/coco/val.json']
   types: ['multilabel_classification', 'multilabel_classification']
-  names: ['nus_wide_train', 'nus_wide_val']
+  names: ['coco_train', 'coco_val']
 
 data:
   root: './'
-  sources: ['train_data']
-  targets: ['val_data']
+  sources: ['coco_data']
+  targets: ['coco_data']
   height: 448
   width: 448
   norm_mean: [0.485, 0.456, 0.406]
@@ -80,7 +80,7 @@ train:
     enable: True
     ema_decay: 0.9995
   mix_precision: True
-  
+
 test:
   batch_size: 128
   evaluate: False

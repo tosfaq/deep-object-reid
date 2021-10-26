@@ -21,26 +21,26 @@ __all__ = [
     'load_pretrained_weights', 'ModelEmaV2'
 ]
 
+
+def params_to_device(param, device):
+    def tensor_to_device(param, device):
+        param.data = param.data.to(device)
+        if param._grad is not None:
+            param._grad.data = param._grad.data.to(device)
+
+    if isinstance(param, torch.Tensor):
+        tensor_to_device(param, device)
+    elif isinstance(param, dict):
+        for subparam in param.values():
+            tensor_to_device(subparam, device)
+
 def optimizer_to(optim, device):
     for param in optim.state.values():
-        # Not sure there are any global tensors in the state dict
-        if isinstance(param, torch.Tensor):
-            param.data = param.data.to(device)
-            if param._grad is not None:
-                param._grad.data = param._grad.data.to(device)
-        elif isinstance(param, dict):
-            for subparam in param.values():
-                if isinstance(subparam, torch.Tensor):
-                    subparam.data = subparam.data.to(device)
-                    if subparam._grad is not None:
-                        subparam._grad.data = subparam._grad.data.to(device)
+        params_to_device(param, device)
 
 def scheduler_to(sched, device):
     for param in sched.__dict__.values():
-        if isinstance(param, torch.Tensor):
-            param.data = param.data.to(device)
-            if param._grad is not None:
-                param._grad.data = param._grad.data.to(device)
+        params_to_device(param, device)
 
 def save_checkpoint(
     state, save_dir, is_best=False, remove_module_from_keys=False, name='model'
