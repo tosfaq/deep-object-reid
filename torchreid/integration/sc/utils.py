@@ -16,7 +16,7 @@ from ote_sdk.entities.label import LabelEntity
 from ote_sdk.entities.color import Color
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind
 from ote_sdk.entities.datasets import Subset
-
+from ote_sdk.entities.label import Domain
 from ote_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
                                            LabelSchemaEntity)
 from ote_sdk.entities.train_parameters import UpdateProgressCallback
@@ -36,9 +36,8 @@ class ClassificationDatasetAdapter(Dataset):
                  val_ann_file=None,
                  val_data_root=None,
                  test_ann_file=None,
-                 test_data_root=None,
-                 **kwargs):
-        super().__init__(**kwargs)
+                 test_data_root=None):
+        super().__init__(dataset_storage=NullDatasetStorage())
         self.data_roots = {}
         self.ann_files = {}
         self.multilabel = False
@@ -51,6 +50,7 @@ class ClassificationDatasetAdapter(Dataset):
         if test_data_root:
             self.data_roots[Subset.TESTING] = test_data_root
             self.ann_files[Subset.TESTING] = test_ann_file
+
         self.annotations = {}
         for k, v in self.data_roots.items():
             if v:
@@ -66,7 +66,6 @@ class ClassificationDatasetAdapter(Dataset):
         self.labels = None
         self.label_map = None
         self.set_labels_obtained_from_annotation()
-        self.project_labels = None
 
     @staticmethod
     def _load_annotation_multilabel(annot_path, data_dir):
@@ -135,11 +134,8 @@ class ClassificationDatasetAdapter(Dataset):
             self.labels = labels
         assert self.labels is not None
 
-    def set_project_labels(self, project_labels):
-        self.project_labels = project_labels
-
     def label_name_to_project_label(self, label_name):
-        return [label for label in self.project_labels if label.name == label_name][0]
+        return [label for label in self.get_labels() if label.name == label_name][0]
 
     def init_as_subset(self, subset: Subset):
         self.data_info = self.annotations[subset][0]
@@ -177,12 +173,11 @@ class ClassificationDatasetAdapter(Dataset):
         return len(self.data_info)
 
     def get_labels(self) -> list:
-        return self.labels
+        return [LabelEntity(l, Domain.CLASSIFICATION) for l in self.labels]
 
     def get_subset(self, subset: Subset) -> Dataset:
         dataset = deepcopy(self)
         if dataset.init_as_subset(subset):
-            dataset.project_labels = self.project_labels
             return dataset
         return NullDataset()
 
