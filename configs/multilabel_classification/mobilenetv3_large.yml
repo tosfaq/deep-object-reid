@@ -1,5 +1,5 @@
 lr_finder:
-  enable: True
+  enable: False
   mode: TPE
   stop_after: False
   num_epochs: 7
@@ -31,7 +31,7 @@ data:
   width: 448
   norm_mean: [0, 0, 0]
   norm_std: [1, 1, 1]
-  save_dir: 'output/mulitilabel/mobilenetv3'
+  save_dir: 'output/mulitilabel/mobilenetv3_large_21k'
   workers: 6
   transforms:
     random_flip:
@@ -41,7 +41,7 @@ data:
       enable: True
     cutout:
       enable: True
-      cutout_factor: 0.3
+      cutout_factor: 0.35
       p: 0.35
 
 loss:
@@ -65,7 +65,7 @@ train:
   nbd: True
   max_epoch: 80
   weight_decay: 5e-4
-  batch_size: 32
+  batch_size: 64
   lr_scheduler: 'onecycle'
   early_stoping: True
   pct_start: 0.2
@@ -79,7 +79,8 @@ train:
   ema:
     enable: True
     ema_decay: 0.9997
-
+  mix_precision: True
+  
 test:
   batch_size: 128
   evaluate: False
