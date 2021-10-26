@@ -37,10 +37,18 @@ ext_modules = [
 
 def get_requirements(filename='requirements.txt'):
     here = osp.dirname(osp.realpath(__file__))
+    requires = []
+    links = []
     with open(osp.join(here, filename), 'r') as f:
-        requires = [line.replace('\n', '') for line in f.readlines()]
-    return requires
+        for line in f.readlines():
+            line = line.replace('\n', '')
+            if '-f http' in line:
+                links.append(line)
+            else:
+                requires.append(line)
+    return requires, links
 
+packages, links = get_requirements()
 
 setup(
     name='torchreid',
@@ -50,8 +58,9 @@ setup(
     license='MIT',
     long_description=readme(),
     url='https://github.com/KaiyangZhou/deep-person-reid',
+    dependency_links=links,
     packages=find_packages(),
-    install_requires=get_requirements(),
+    install_requires=packages,
     keywords=['Person Re-Identification', 'Deep Learning', 'Computer Vision'],
     ext_modules=cythonize(ext_modules)
 )
