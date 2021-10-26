@@ -22,7 +22,8 @@ from scripts.default_config import (get_default_config,
 from torchreid.integration.sc.monitors import StopCallback, DefaultMetricsMonitor
 from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingProgressCallback,
                                             InferenceProgressCallback, get_actmap, preprocess_features_for_actmap,
-                                            active_score_from_probs)
+                                            active_score_from_probs, get_multiclass_predictions,
+                                            get_multilabel_predictions, sigmoid_numpy, softmax_numpy)
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
@@ -207,34 +208,22 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             scores, feature_vecs = inference_results
 
         if self._multilabel:
-            labels = 1. / (1. + np.exp(-1. * scores))
-        else:
-            labels = np.argmax(scores, axis=1)
+            scores = sigmoid_numpy(scores)
+
         predicted_items = []
-        for i in range(labels.shape[0]):
+        for i in range(scores.shape[0]):
             dataset_item = dataset[i]
 
             if self._multilabel:
-                predicted_classes = labels[i]
-                active_score = active_score_from_probs(predicted_classes)
-                item_labels = []
-                for j in range(predicted_classes.shape[0]):
-                    if predicted_classes[j] > 0.5:
-                        label = ScoredLabel(label=self._labels[j], probability=predicted_classes[j])
-                        item_labels.append(label)
-
-                dataset_item.append_labels(item_labels)
-                predicted_items.append(dataset_item)
+                item_labels = get_multilabel_predictions(scores[i], self._labels, activate=False)
             else:
-                class_idx = labels[i]
-                scores[i] = np.exp(scores[i])
-                scores[i] /= np.sum(scores[i])
-                active_score = active_score_from_probs(scores[i])
-                class_prob = float(scores[i, class_idx].squeeze())
-                label = ScoredLabel(label=self._labels[class_idx], probability=class_prob)
-                dataset_item.append_labels([label])
-                predicted_items.append(dataset_item)
+                scores[i] = softmax_numpy(scores[i])
+                item_labels = get_multiclass_predictions(scores[i], self._labels, activate=False)
 
+            dataset_item.append_labels(item_labels)
+            predicted_items.append(dataset_item)
+
+            active_score = active_score_from_probs(scores[i])
             active_score_media = FloatMetadata(name="Active score", value=active_score,
                                                float_type=FloatType.ACTIVE_SCORE)
             dataset_item.append_metadata_item(active_score_media)

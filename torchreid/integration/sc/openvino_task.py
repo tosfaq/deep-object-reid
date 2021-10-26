@@ -61,6 +61,7 @@ from compression.graph.model_utils import compress_model_weights, get_nodes_by_t
 from compression.pipeline.initializer import create_pipeline
 
 from torchreid.integration.sc.parameters import OTEClassificationParameters
+from torchreid.integration.sc.utils import get_multiclass_predictions,  get_multilabel_predictions
 
 logger = logging.getLogger(__name__)
 
@@ -131,19 +132,10 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
     def post_process(self, prediction: Dict[str, np.ndarray], metadata: Dict[str, Any]) -> AnnotationSceneEntity:
         raw_output = get_output(self.net, prediction, 'reid_embedding').reshape(-1)
         if self.multilabel:
-            raw_output = 1. / (1. + np.exp(-1. * raw_output))
-            item_labels = []
-            for j in range(raw_output.shape[0]):
-                if raw_output[j] > 0.5:
-                    label = ScoredLabel(label=self.labels[j], probability=raw_output[j])
-                    item_labels.append(label)
-            anno = [Annotation(Rectangle.generate_full_box(), labels=item_labels)]
+            item_labels = get_multilabel_predictions(raw_output, self.labels)
         else:
-            i = np.argmax(raw_output)
-            raw_output = np.exp(raw_output)
-            raw_output /= np.sum(raw_output)
-            assigned_label = [ScoredLabel(self.labels[i], probability=raw_output[i])]
-            anno = [Annotation(Rectangle.generate_full_box(), labels=assigned_label)]
+            item_labels = get_multiclass_predictions(raw_output, self.labels)
+        anno = [Annotation(Rectangle.generate_full_box(), labels=item_labels)]
         media_identifier = ImageIdentifier(image_id=ID())
 
         return AnnotationScene(

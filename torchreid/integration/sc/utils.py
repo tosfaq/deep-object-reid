@@ -6,6 +6,7 @@ from copy import deepcopy
 import importlib
 import tempfile
 import subprocess
+from typing import List
 
 import cv2 as cv
 import numpy as np
@@ -331,7 +332,37 @@ def get_actmap(features, output_res):
     return am
 
 
-def active_score_from_probs(predicitons):
-    top_idxs = np.argpartition(predicitons, -2)[-2:]
-    top_probs = predicitons[top_idxs]
+def active_score_from_probs(predictions):
+    top_idxs = np.argpartition(predictions, -2)[-2:]
+    top_probs = predictions[top_idxs]
     return np.max(top_probs) - np.min(top_probs)
+
+
+def sigmoid_numpy(x: np.ndarray):
+    return 1. / (1. + np.exp(-1. * x))
+
+
+def softmax_numpy(x: np.ndarray):
+    x = np.exp(x)
+    x /= np.sum(x)
+    return x
+
+
+def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity], activate: bool = True):
+    i = np.argmax(logits)
+    if activate:
+        logits = softmax_numpy(logits)
+    return [ScoredLabel(labels[i], probability=logits[i])]
+
+
+def get_multilabel_predictions(logits: np.ndarray, labels: List[LabelEntity],
+                               pos_thr: float = 0.5, activate: bool = True):
+    if activate:
+        logits = sigmoid_numpy(logits)
+    item_labels = []
+    for i in range(logits.shape[0]):
+        if logits[i] > pos_thr:
+            label = ScoredLabel(label=labels[i], probability=logits[i])
+            item_labels.append(label)
+
+    return item_labels
