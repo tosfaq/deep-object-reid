@@ -146,7 +146,7 @@ class Dataset:
             else:
                 pids[dataset_id].add(record[1])
             cams[dataset_id].add(record[2])
-        num_pids = {dataset_id: len(dataset_pids) for dataset_id, dataset_pids in pids.items()}
+        num_pids = {dataset_id: max(dataset_pids) + 1 for dataset_id, dataset_pids in pids.items()}
         num_cams = {dataset_id: len(dataset_cams) for dataset_id, dataset_cams in cams.items()}
         return num_pids, num_cams
 

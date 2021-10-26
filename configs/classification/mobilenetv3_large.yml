@@ -45,11 +45,11 @@ data:
       angle: (-10,10)
     cutout:
       enable: True
-      cutout_factor: 0.3
+      cutout_factor: 0.35
       p: 0.35
     augmix:
       enable: True
-      cfg_str: "augmix-m4-w2"
+      cfg_str: "augmix-m5-w3"
 
 loss:
   name: 'softmax'
@@ -84,6 +84,7 @@ train:
   ema:
     enable: True
     ema_decay: 0.999
+  mix_precision: True
 
 test:
   batch_size: 128
