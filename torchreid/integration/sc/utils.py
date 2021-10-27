@@ -13,7 +13,7 @@ import numpy as np
 
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.scored_label import ScoredLabel
-from ote_sdk.entities.label import LabelEntity
+from ote_sdk.entities.label import LabelEntity, Domain
 from ote_sdk.entities.color import Color
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind
 from ote_sdk.entities.datasets import Subset
@@ -26,7 +26,6 @@ from ote_sdk.usecases.reporting.time_monitor_callback import \
 
 from sc_sdk.entities.datasets import Dataset, DatasetItem, NullDataset
 from sc_sdk.entities.image import Image
-from sc_sdk.entities.label import distinct_colors
 from sc_sdk.entities.dataset_storage import NullDatasetStorage
 
 
@@ -68,9 +67,7 @@ class ClassificationDatasetAdapter(Dataset):
         self.labels = None
         self.label_map = None
         self.set_labels_obtained_from_annotation()
-        colors = distinct_colors(len(self.labels)) if len(self.labels) > 0 else []
-        self.project_labels = [LabelEntity(name=name, color=colors[i], domain="classification", id=i,
-                                    is_empty=False, creation_date=datetime.datetime.now()) for i, name in
+        self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION) for i, name in
                                enumerate(self.labels)]
 
     @staticmethod
@@ -199,14 +196,9 @@ class ClassificationDatasetAdapter(Dataset):
 
 
 def generate_label_schema(label_names, multilabel=False):
-    label_domain = "classification"
-    colors = distinct_colors(len(label_names)) if len(label_names) > 0 else []
-    not_empty_labels = [LabelEntity(name=name, color=colors[i], domain=label_domain, id=i,
-                                    is_empty=False, creation_date=datetime.datetime.now()) for i, name in
+    not_empty_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False) for i, name in
                         enumerate(label_names)]
-    emptylabel = LabelEntity(name="Empty label", color=Color(42, 43, 46),
-                             is_empty=True, domain=label_domain,
-                             id=len(not_empty_labels),creation_date=datetime.datetime.now())
+    emptylabel = LabelEntity(name="Empty label", is_empty=True, domain=Domain.CLASSIFICATION)
 
     label_schema = LabelSchemaEntity()
     empty_group = LabelGroup(name="empty", labels=[emptylabel], group_type=LabelGroupType.EMPTY_LABEL)

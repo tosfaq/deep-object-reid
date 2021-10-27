@@ -8,7 +8,6 @@ import tempfile
 import shutil
 
 import torch
-import numpy as np
 
 import torchreid
 from torchreid.ops import DataParallel
@@ -42,7 +41,6 @@ from ote_sdk.configuration import cfg_helper
 from ote_sdk.configuration.helper.utils import ids_to_strings
 from ote_sdk.entities.model import ModelPrecision
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
-from ote_sdk.entities.scored_label import ScoredLabel
 from ote_sdk.entities.model import ModelEntity, ModelStatus
 from ote_sdk.entities.metadata import FloatMetadata, FloatType
 from ote_sdk.entities.resultset import ResultSetEntity
@@ -371,7 +369,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             onnx_model_path = os.path.join(optimized_model_dir, 'model.onnx')
             export_onnx(self._model.eval(), self._cfg, onnx_model_path)
             export_ir(onnx_model_path, self._cfg.data.norm_mean, self._cfg.data.norm_std,
-                      optimized_model_dir, optimized_model_precision.name)
+                      optimized_model_dir=optimized_model_dir, data_type=optimized_model_precision.name)
 
             bin_file = [f for f in os.listdir(optimized_model_dir) if f.endswith('.bin')][0]
             xml_file = [f for f in os.listdir(optimized_model_dir) if f.endswith('.xml')][0]

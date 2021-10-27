@@ -33,8 +33,6 @@ from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.resultset import ResultSetEntity
 from ote_sdk.entities.task_environment import TaskEnvironment
 
-from sc_sdk.entities.dataset_storage import NullDatasetStorage
-
 from torchreid.integration.sc.utils import (ClassificationDatasetAdapter,
                                             generate_label_schema,
                                             reload_hyper_parameters,
