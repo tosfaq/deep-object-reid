@@ -83,11 +83,6 @@ else
       echo "if CUDA version is 10.2, then PyTorch must be either 1.8.1 or 1.9.0"
       exit 1
     fi
-  elif [[ "${CUDA_VERSION_CODE}" == "111" ]] ; then
-    if [[ "${TORCH_VERSION}" != "1.9.0" ]]; then
-      echo "if CUDA version is 11.1, then PyTorch must be 1.9.0"
-      exit 1
-    fi
   fi
 fi
 
@@ -108,9 +103,11 @@ elif [[ $CUDA_VERSION_CODE == "102" ]]; then
   echo torchvision==${TORCHVISION_VERSION} >> ${CONSTRAINTS_FILE}
   pip install torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} -c ${CONSTRAINTS_FILE} || exit 1
 else
+  export TORCH_VERSION=1.8.2
+  export TORCHVISION_VERSION=0.9.2
   echo torch==${TORCH_VERSION}+cu${CUDA_VERSION_CODE} >> ${CONSTRAINTS_FILE}
   echo torchvision==${TORCHVISION_VERSION}+cu${CUDA_VERSION_CODE} >> ${CONSTRAINTS_FILE}
-  pip install torch==${TORCH_VERSION}+cu${CUDA_VERSION_CODE} torchvision==${TORCHVISION_VERSION}+cu${CUDA_VERSION_CODE} -f https://download.pytorch.org/whl/torch_stable.html \
+  pip install torch==${TORCH_VERSION}+cu${CUDA_VERSION_CODE} torchvision==${TORCHVISION_VERSION}+cu${CUDA_VERSION_CODE} -f https://download.pytorch.org/whl/lts/1.8/torch_lts.html \
           -c ${CONSTRAINTS_FILE} || exit 1
 fi
 
