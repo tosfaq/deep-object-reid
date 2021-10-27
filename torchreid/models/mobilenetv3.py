@@ -2,6 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
+from torch.cuda.amp import autocast
 
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, EvalModeSetter, rsc
@@ -150,11 +151,12 @@ class MobileNetV3(ModelInterface):
             layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs))
             input_channel = output_channel
         self.features = nn.Sequential(*layers)
-        self.num_features = exp_size
         # building last several layers
         self.conv = conv_1x1_bn(input_channel, exp_size, self.loss)
         output_channel = {'large': 1280, 'small': 1024}
         output_channel = make_divisible(output_channel[mode] * self.width_mult, 8) if self.width_mult > 1.0 else output_channel[mode]
+        self.num_head_features = output_channel
+        self.num_features = exp_size
 
         if self.loss == 'softmax' or self.loss == 'asl':
             self.classifier = nn.Sequential(
@@ -173,7 +175,6 @@ class MobileNetV3(ModelInterface):
                 Dropout(**self.dropout_cls),
                 AngleSimpleLinear(output_channel, self.num_classes),
             )
-
         self._initialize_weights()
 
     def extract_features(self, x):
@@ -205,43 +206,44 @@ class MobileNetV3(ModelInterface):
                 m.bias.data.zero_()
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None):
-        if self.input_IN is not None:
-            x = self.input_IN(x)
+        with autocast(enabled=self.mix_precision):
+            if self.input_IN is not None:
+                x = self.input_IN(x)
 
-        y = self.extract_features(x)
-        if return_featuremaps and not self.is_classification():
-            return y
+            y = self.extract_features(x)
+            if return_featuremaps and not self.is_classification():
+                return y
 
-        with no_nncf_head_context():
-            glob_features, logits = self.infer_head(y, skip_pool=False)
-        if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
-            glob_features = rsc(
-                features = glob_features,
-                scores = logits,
-                labels = gt_labels,
-                retain_p = 1.0 - self.self_challenging_cfg.drop_p,
-                retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
-            )
+            with no_nncf_head_context():
+                glob_features, logits = self.infer_head(y, skip_pool=False)
+            if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
+                glob_features = rsc(
+                    features = glob_features,
+                    scores = logits,
+                    labels = gt_labels,
+                    retain_p = 1.0 - self.self_challenging_cfg.drop_p,
+                    retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
+                )
 
             with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
                 _, logits = self.infer_head(x, skip_pool=True)
 
-        if return_featuremaps and self.is_classification():
-            return [(logits, y, glob_features)]
+            if return_featuremaps and self.is_classification():
+                return [(logits, y, glob_features)]
 
-        if not self.training and self.is_classification():
-            return [logits]
+            if not self.training and self.is_classification():
+                return [logits]
 
-        if get_embeddings:
-            out_data = [logits, glob_features]
-        elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
-                out_data = [logits]
-        elif self.loss in ['triplet']:
-            out_data = [logits, glob_features]
-        else:
-            raise KeyError("Unsupported loss: {}".format(self.loss))
+            if get_embeddings:
+                out_data = [logits, glob_features]
+            elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
+                    out_data = [logits]
+            elif self.loss in ['triplet']:
+                out_data = [logits, glob_features]
+            else:
+                raise KeyError("Unsupported loss: {}".format(self.loss))
 
-        return tuple(out_data)
+            return tuple(out_data)
 
 
 def init_pretrained_weights(model, key='', **kwargs):

@@ -54,9 +54,13 @@ class Classification(ImageDataset):
     @staticmethod
     def load_annotation(annot_path, data_dir, dataset_id=0):
         out_data = []
-        classes = set()
+        classes_from_data = set()
+        predefined_classes = []
         for line in open(annot_path):
             parts = line.strip().split(' ')
+            if parts[0] == "classes":
+                predefined_classes = parts[1].split(',')
+                continue
             if len(parts) != 2:
                 print("line doesn't fits pattern. Expected: 'relative_path/to/image label'")
                 continue
@@ -67,8 +71,9 @@ class Classification(ImageDataset):
                 continue
 
             label = int(label_str)
-            classes.add(label)
+            classes_from_data.add(label)
             out_data.append((full_image_path, label, 0, dataset_id, '', -1, -1))
+        classes = predefined_classes if predefined_classes else classes_from_data
         class_to_idx = {cls: indx for indx, cls in enumerate(classes)}
         return out_data, class_to_idx
 

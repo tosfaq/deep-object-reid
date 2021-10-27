@@ -26,6 +26,7 @@ class ModelInterface(nn.Module):
                 feature_dim,
                 pretrained=False,
                 loss='softmax',
+                mix_precision=False,
                 **kwargs):
         super().__init__()
 
@@ -35,14 +36,19 @@ class ModelInterface(nn.Module):
         self.classification_classes = {}
         self.is_ie_model = False
         self.loss = loss
+        self.num_head_features = feature_dim
         self.num_features = feature_dim
-        self.use_angle_simple_linear = True if loss == 'am_softmax' else False
+        self.mix_precision = mix_precision
+        self.use_angle_simple_linear = True if loss in ['am_softmax', 'am_binary'] else False
 
     def is_classification(self):
         return self.type == 'classification' or self.type == 'multilabel'
 
     def get_num_features(self):
         return self.num_features
+
+    def get_num_head_features(self):
+        return self.num_head_features
 
     @staticmethod
     def _glob_feature_vector(x, mode, reduce_dims=True):

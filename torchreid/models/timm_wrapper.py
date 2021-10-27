@@ -1,10 +1,10 @@
 import timm
-from functools import partial
 
 from torchreid.losses import AngleSimpleLinear
 from .common import ModelInterface
 from torchreid.ops import Dropout
 from torch import nn
+from torch.cuda.amp import autocast
 
 __all__ = ["timm_wrapped_models"]
 AVAI_MODELS = {
@@ -13,6 +13,8 @@ AVAI_MODELS = {
                 'tresnet' : 'tresnet_m',
                 'efficientnetv2_s_21k': 'tf_efficientnetv2_s_in21k',
                 'efficientnetv2_s_1k': 'tf_efficientnetv2_s_in21ft1k',
+                'efficientnetv2_m_21k': 'tf_efficientnetv2_m_in21k',
+                'efficientnetv2_m_1k': 'tf_efficientnetv2_m_in21ft1k',
                 'efficientnetv2_b0' : 'tf_efficientnetv2_b0',
               }
 
@@ -30,30 +32,31 @@ class TimmModelsWrapper(ModelInterface):
         self.model = timm.create_model(model_name,
                                        pretrained=pretrained,
                                        num_classes=num_classes)
-        self.num_features = (self.model.conv_head.in_channels
-                             if self.is_mobilenet
+        self.num_head_features = self.model.num_features
+        self.num_features = (self.model.conv_head.in_channels if self.is_mobilenet
                              else self.model.num_features)
         self.dropout = Dropout(**dropout_cls)
         self.pooling_type = pooling_type
         if self.loss in ["am_softmax", "am_binary"]:
             self.model.act2 = nn.PReLU()
-            self.classifier = AngleSimpleLinear(self.num_features, num_classes)
+            self.classifier = AngleSimpleLinear(self.num_head_features, num_classes)
         else:
             assert self.loss in ["softmax", "asl", "bce"]
             self.classifier = self.model.get_classifier()
 
     def forward(self, x, return_featuremaps=False, **kwargs):
-        y = self.extract_features(x)
-        if return_featuremaps and not self.is_classification():
-            return y
-        glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
-        logits = self.infer_head(glob_features)
-        if return_featuremaps and self.is_classification():
-            return [(logits, y, glob_features)]
+        with autocast(enabled=self.mix_precision):
+            y = self.extract_features(x)
+            if return_featuremaps and not self.is_classification():
+                return y
+            glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
+            logits = self.infer_head(glob_features)
+            if return_featuremaps and self.is_classification():
+                return [(logits, y, glob_features)]
 
-        if not self.training:
-            return [logits]
-        return tuple([logits])
+            if not self.training:
+                return [logits]
+            return tuple([logits])
 
     def extract_features(self, x):
         if self.is_mobilenet:

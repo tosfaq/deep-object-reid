@@ -164,6 +164,7 @@ def get_default_config():
     cfg.train.sam = CN()
     cfg.train.sam.rho = 0.05
     cfg.train.sam.adaptive = False
+    cfg.train.mix_precision = False
 
 
     # optimizer
@@ -600,6 +601,7 @@ def model_kwargs(cfg, num_classes):
         'dropout_cfg': cfg.model.dropout_backbone,
         'dropout_cls': cfg.model.dropout_cls,
         'feature_dim': cfg.model.feature_dim,
+        'mix_precision': cfg.train.mix_precision,
         'fpn_cfg': cfg.model.fpn,
         'pooling_type': cfg.model.pooling_type,
         'input_size': (cfg.data.height, cfg.data.width),

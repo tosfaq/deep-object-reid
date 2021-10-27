@@ -16,6 +16,7 @@
 
 import argparse
 import os
+import warnings
 
 import torch
 
@@ -31,7 +32,7 @@ from torchreid.integration.nncf.compression_script_utils import (make_nncf_chang
 
 def parse_num_classes(source_datasets, classification=False, num_classes=None, snap_path=None):
     if classification:
-        if snap_path is not None:
+        if snap_path:
             chkpt = load_checkpoint(snap_path)
             num_classes_from_snap = chkpt['num_classes'] if 'num_classes' in chkpt else None
 
@@ -93,21 +94,37 @@ def main():
         print(f'Using NNCF -- making NNCF changes in config')
         cfg = make_nncf_changes_in_main_training_config(cfg, args.opts)
     cfg.freeze()
-
-    num_classes = parse_num_classes(cfg.data.sources, cfg.model.type == 'classification' or cfg.model.type == 'multilabel',
-                                    args.num_classes, cfg.model.load_weights)
+    num_classes = parse_num_classes(source_datasets=cfg.data.sources, 
+                                    classification=cfg.model.type == 'classification' or cfg.model.type == 'multilabel',
+                                    num_classes=args.num_classes, 
+                                    snap_path=cfg.model.load_weights)
     model = build_model(**model_kwargs(cfg, num_classes))
-    load_pretrained_weights(model, cfg.model.load_weights)
+    if cfg.model.load_weights:
+        load_pretrained_weights(model, cfg.model.load_weights)
+    else:
+        warnings.warn("No weights are passed through 'load_weights' parameter! "
+              "The model will be converted with random or pretrained weights", category=RuntimeWarning)
     if 'tresnet' in cfg.model.name:
         patch_InplaceAbn_forward()
     if is_nncf_used:
         print('Begin making NNCF changes in model')
         model = make_nncf_changes_in_eval(model, cfg)
         print('End making NNCF changes in model')
-
-    onnx_file_path = export_onnx(model.eval(), cfg, args.output_name, args.disable_dyn_axes, args.verbose, args.opset)
+    onnx_file_path = export_onnx(model=model.eval(), 
+                                 cfg=cfg, 
+                                 output_file_path=args.output_name, 
+                                 disable_dyn_axes=args.disable_dyn_axes, 
+                                 verbose=args.verbose, 
+                                 opset=args.opset, 
+                                 extra_check=True)
     if args.export_ir:
-        export_ir(onnx_file_path, cfg.data.norm_mean, cfg.data.norm_std, os.path.dirname(os.path.abspath(onnx_file_path)))
+        input_shape = [1, 3, cfg.data.height, cfg.data.width]
+        export_ir(onnx_model_path=onnx_file_path, 
+                  norm_mean=cfg.data.norm_mean, 
+                  norm_std=cfg.data.norm_std, 
+                  input_shape=input_shape, 
+                  optimized_model_dir=os.path.dirname(os.path.abspath(onnx_file_path)), 
+                  data_type='FP32')
 
 
 if __name__ == '__main__':

@@ -18,6 +18,7 @@ import os
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
+from torch.cuda.amp import autocast
 
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout
@@ -295,7 +296,7 @@ class EfficientNet(ModelInterface):
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
         self.pooling_type = pooling_type
-        self.num_features = final_block_channels
+        self.num_features = self.num_head_features = final_block_channels
         activation = "swish"
         self.features = nn.Sequential()
         self.features.add_module("init_block", EffiInitBlock(
@@ -365,33 +366,33 @@ class EfficientNet(ModelInterface):
                     init.constant_(module.bias, 0)
 
     def forward(self, x, return_featuremaps=False, get_embeddings=False):
-        if self.input_IN is not None:
-            x = self.input_IN(x)
+        with autocast(enabled=self.mix_precision):
+            if self.input_IN is not None:
+                x = self.input_IN(x)
 
-        y = self.features(x)
-        if return_featuremaps and not self.is_classification():
-            return y
+            y = self.features(x)
+            if return_featuremaps and not self.is_classification():
+                return y
 
-        glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
-        logits = self.output(glob_features.view(x.shape[0], -1))
+            glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
+            logits = self.output(glob_features.view(x.shape[0], -1))
 
-        if return_featuremaps and self.is_classification():
-            return [(logits, y, glob_features)]
+            if return_featuremaps and self.is_classification():
+                return [(logits, y, glob_features)]
 
-        if not self.training and self.is_classification():
-            return [logits]
+            if not self.training and self.is_classification():
+                return [logits]
 
-        if get_embeddings:
-            out_data = [logits, glob_features.view(x.shape[0], -1)]
-        elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
-            out_data = [logits]
+            if get_embeddings:
+                out_data = [logits, glob_features.view(x.shape[0], -1)]
+            elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
+                out_data = [logits]
+            elif self.loss in ['triplet']:
+                out_data = [logits, glob_features]
+            else:
+                raise KeyError("Unsupported loss: {}".format(self.loss))
 
-        elif self.loss in ['triplet']:
-            out_data = [logits, glob_features]
-        else:
-            raise KeyError("Unsupported loss: {}".format(self.loss))
-
-        return tuple(out_data)
+            return tuple(out_data)
 
 
 def get_efficientnet(version,

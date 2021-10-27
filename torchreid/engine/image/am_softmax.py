@@ -25,6 +25,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.cuda.amp import GradScaler, autocast
+
 from torchreid import metrics
 from torchreid.engine import Engine
 from torchreid.utils import get_model_attr
@@ -32,10 +34,10 @@ from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss, MetricLosses,
                               get_regularizer, sample_mask)
 from torchreid.optim import SAM
 
+
 class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
-
     def __init__(self, datamanager, models, optimizers, reg_cfg, metric_cfg, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stoping, lr_decay_factor, loss_name, label_smooth,
                  margin_type, aug_type, decay_power, alpha, size, lr_finder, max_soft,
@@ -43,7 +45,7 @@ class ImageAMSoftmaxEngine(Engine):
                  duration_s, skip_steps_s, enable_masks, adaptive_margins, class_weighting,
                  attr_cfg, base_num_classes, symmetric_ce, mix_weight, enable_rsc,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
-                 target_metric, use_ema_decay, ema_decay, **kwargs):
+                 target_metric, use_ema_decay, ema_decay, mix_precision, **kwargs):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager,
                                                    models=models,
                                                    optimizers=optimizers,
@@ -88,6 +90,8 @@ class ImageAMSoftmaxEngine(Engine):
         self.max_soft = max_soft
         self.reformulate = reformulate
         self.prev_smooth_metric = 0.
+        self.mix_precision = mix_precision
+        self.scaler = GradScaler(enabled=mix_precision)
 
         num_classes = self.datamanager.num_train_pids
         if not isinstance(num_classes, (list, tuple)):
@@ -265,148 +269,167 @@ class ImageAMSoftmaxEngine(Engine):
                     loss_summary['compression_loss'] = compression_loss
                     total_loss += compression_loss
 
-            total_loss.backward(retain_graph=self.enable_metric_losses)
+            # backward pass
+            self.scaler.scale(total_loss).backward(retain_graph=self.enable_metric_losses)
 
             for model_name in model_names:
                 if not self.models[model_name].training:
                     continue
-                if self.clip_grad != 0:
+                if self.clip_grad != 0 and step == 1:
+                    self.scaler.unscale_(self.optims[model_name])
                     torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
                 for trg_id in range(self.num_targets):
                     if self.enable_metric_losses:
                         ml_loss_module = self.ml_losses[trg_id][model_name]
                         ml_loss_module.end_iteration(do_backward=False)
-                if self.enable_sam and step == 1:
-                    self.optims[model_name].first_step()
-                elif self.enable_sam and step == 2:
-                    self.optims[model_name].second_step()
+                if not self.enable_sam and step == 1:
+                    self.scaler.step(self.optims[model_name])
+                    self.scaler.update()
                 elif step == 1:
-                    assert not self.enable_sam
-                    self.optims[model_name].step()
+                    assert self.enable_sam
+                    if self.clip_grad == 0:
+                        # if self.clip_grad == 0  this means that unscale_ wasn't applied,
+                        # so we manually unscale the parameters to perform SAM manipulations
+                        self.scaler.unscale_(self.optims[model_name])
+                    overflow = self.optims[model_name].first_step()
+                    self.scaler.update() # update scaler after first step
+                    if overflow:
+                        print("Overflow occurred. Skipping step ...")
+                        loss_summary['loss'] = total_loss.item()
+                        # skip second step  if overflow occurred
+                        return loss_summary, avg_acc
+                else:
+                    assert self.enable_sam and step==2
+                    # unscale the parameters to perform SAM manipulations
+                    self.scaler.unscale_(self.optims[model_name])
+                    self.optims[model_name].second_step()
+                    self.scaler.update()
 
             loss_summary['loss'] = total_loss.item()
 
         return loss_summary, avg_acc
 
     def _single_model_losses(self, model, train_records, imgs, obj_ids, n_iter, model_name, num_packages):
-        run_kwargs = self._prepare_run_kwargs(obj_ids)
-        model_output = model(imgs, **run_kwargs)
-        all_logits, all_embeddings, extra_data = self._parse_model_output(model_output)
+        with autocast(enabled=self.mix_precision):
+            run_kwargs = self._prepare_run_kwargs(obj_ids)
+            model_output = model(imgs, **run_kwargs)
+            all_logits, all_embeddings, extra_data = self._parse_model_output(model_output)
 
-        total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-        out_logits = []
-        loss_summary = dict()
+            total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
+            out_logits = []
+            loss_summary = dict()
 
-        num_trg_losses = 0
-        avg_acc = 0
+            num_trg_losses = 0
+            avg_acc = 0
 
-        for trg_id in range(self.num_targets):
-            trg_mask = train_records['dataset_id'] == trg_id
-            trg_obj_ids = obj_ids[trg_mask]
-            trg_num_samples = trg_obj_ids.numel()
-            if trg_num_samples == 0:
-                out_logits.append(None)
-                continue
+            for trg_id in range(self.num_targets):
+                trg_mask = train_records['dataset_id'] == trg_id
 
-            trg_logits = all_logits[trg_id][trg_mask]
-            main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, aug_index=self.aug_index,
-                                                lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
-            avg_acc += metrics.accuracy(trg_logits, trg_obj_ids)[0].item()
-            loss_summary['main_{}/{}'.format(trg_id, model_name)] = main_loss.item()
-
-            scaled_trg_logits = self.main_losses[trg_id].get_last_scale() * trg_logits
-            out_logits.append(scaled_trg_logits)
-
-            trg_loss = main_loss
-            if self.enable_metric_losses:
-                ml_loss_module = self.ml_losses[trg_id][model_name]
-                embd = all_embeddings[trg_id][trg_mask]
-
-                ml_loss_module.init_iteration()
-                ml_loss, ml_loss_summary = ml_loss_module(embd, trg_logits, trg_obj_ids, n_iter)
-
-                loss_summary['ml_{}/{}'.format(trg_id, model_name)] = ml_loss.item()
-                loss_summary.update(ml_loss_summary)
-                trg_loss += ml_loss
-
-            if num_packages > 1 and self.mix_weight > 0.0:
-                mix_all_logits = scaled_trg_logits.view(-1, num_packages, scaled_trg_logits.size(1))
-                mix_log_probs = torch.log_softmax(mix_all_logits, dim=2)
-
-                with torch.no_grad():
-                    trg_mix_probs = torch.softmax(mix_all_logits, dim=2).mean(dim=1, keepdim=True)
-
-                mixing_loss = (trg_mix_probs * mix_log_probs).sum(dim=2).neg().mean()
-
-                loss_summary['mix_{}/{}'.format(trg_id, model_name)] = mixing_loss.item()
-                trg_loss += self.mix_weight * mixing_loss
-
-            total_loss += trg_loss
-            num_trg_losses += 1
-        total_loss /= float(num_trg_losses)
-        avg_acc /= float(num_trg_losses)
-
-        if self.enable_attr and train_records['attr'] is not None:
-            attributes = train_records['attr']
-            all_attr_logits = extra_data['attr_logits']
-
-            num_attr_losses = 0
-            total_attr_loss = 0
-            for attr_name, attr_loss_module in self.attr_losses.items():
-                attr_labels = attributes[self.attr_name_map[attr_name]]
-                valid_attr_mask = attr_labels >= 0
-
-                attr_labels = attr_labels[valid_attr_mask]
-                if attr_labels.numel() == 0:
+                trg_obj_ids = obj_ids[trg_mask]
+                trg_num_samples = trg_obj_ids.numel()
+                if trg_num_samples == 0:
+                    out_logits.append(None)
                     continue
 
-                attr_logits = all_attr_logits[attr_name][valid_attr_mask]
+                trg_logits = all_logits[trg_id][trg_mask]
+                main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, aug_index=self.aug_index,
+                                                    lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
+                avg_acc += metrics.accuracy(trg_logits, trg_obj_ids)[0].item()
+                loss_summary['main_{}/{}'.format(trg_id, model_name)] = main_loss.item()
 
-                attr_loss = attr_loss_module(attr_logits, attr_labels, iteration=n_iter)
-                loss_summary['{}/{}'.format(attr_name, model_name)] = attr_loss.item()
+                scaled_trg_logits = self.main_losses[trg_id].get_last_scale() * trg_logits
+                out_logits.append(scaled_trg_logits)
 
-                total_attr_loss += attr_loss
-                num_attr_losses += 1
+                trg_loss = main_loss
+                if self.enable_metric_losses:
+                    ml_loss_module = self.ml_losses[trg_id][model_name]
+                    embd = all_embeddings[trg_id][trg_mask]
 
-            total_loss += total_attr_loss / float(max(1, num_attr_losses))
+                    ml_loss_module.init_iteration()
+                    ml_loss, ml_loss_summary = ml_loss_module(embd, trg_logits, trg_obj_ids, n_iter)
 
-        if self.enable_masks and train_records['mask'] is not None:
-            att_loss_val = 0.0
-            for att_map in extra_data['att_maps']:
-                if att_map is not None:
+                    loss_summary['ml_{}/{}'.format(trg_id, model_name)] = ml_loss.item()
+                    loss_summary.update(ml_loss_summary)
+                    trg_loss += ml_loss
+
+                if num_packages > 1 and self.mix_weight > 0.0:
+                    mix_all_logits = scaled_trg_logits.view(-1, num_packages, scaled_trg_logits.size(1))
+                    mix_log_probs = torch.log_softmax(mix_all_logits, dim=2)
+
                     with torch.no_grad():
-                        att_map_size = att_map.size()[2:]
-                        pos_float_mask = F.interpolate(train_records['mask'], size=att_map_size, mode='nearest')
-                        pos_mask = pos_float_mask > 0.0
-                        neg_mask = ~pos_mask
+                        trg_mix_probs = torch.softmax(mix_all_logits, dim=2).mean(dim=1, keepdim=True)
 
-                        trg_mask_values = torch.where(pos_mask,
-                                                      torch.ones_like(pos_float_mask),
-                                                      torch.zeros_like(pos_float_mask))
-                        num_positives = trg_mask_values.sum(dim=(1, 2, 3), keepdim=True)
-                        num_negatives = float(att_map_size[0] * att_map_size[1]) - num_positives
+                    mixing_loss = (trg_mix_probs * mix_log_probs).sum(dim=2).neg().mean()
 
-                        batch_factor = 1.0 / float(att_map.size(0))
-                        pos_weights = batch_factor / num_positives.clamp_min(1.0)
-                        neg_weights = batch_factor / num_negatives.clamp_min(1.0)
+                    loss_summary['mix_{}/{}'.format(trg_id, model_name)] = mixing_loss.item()
+                    trg_loss += self.mix_weight * mixing_loss
 
-                    att_errors = torch.abs(att_map - trg_mask_values)
-                    att_pos_errors = (pos_weights * att_errors)[pos_mask].sum()
-                    att_neg_errors = (neg_weights * att_errors)[neg_mask].sum()
+                total_loss += trg_loss
+                num_trg_losses += 1
+            total_loss /= float(num_trg_losses)
+            avg_acc /= float(num_trg_losses)
 
-                    att_loss_val += 0.5 * (att_pos_errors + att_neg_errors)
+            if self.enable_attr and train_records['attr'] is not None:
+                attributes = train_records['attr']
+                all_attr_logits = extra_data['attr_logits']
 
-            if att_loss_val > 0.0:
-                loss_summary['att/{}'.format(model_name)] = att_loss_val.item()
-                total_loss += att_loss_val
+                num_attr_losses = 0
+                total_attr_loss = 0
+                for attr_name, attr_loss_module in self.attr_losses.items():
+                    attr_labels = attributes[self.attr_name_map[attr_name]]
+                    valid_attr_mask = attr_labels >= 0
 
-        if self.regularizer is not None and (self.epoch + 1) > self.fixbase_epoch:
-            reg_loss = self.regularizer(model)
+                    attr_labels = attr_labels[valid_attr_mask]
+                    if attr_labels.numel() == 0:
+                        continue
 
-            loss_summary['reg/{}'.format(model_name)] = reg_loss.item()
-            total_loss += reg_loss
+                    attr_logits = all_attr_logits[attr_name][valid_attr_mask]
 
-        return total_loss, loss_summary, avg_acc, out_logits
+                    attr_loss = attr_loss_module(attr_logits, attr_labels, iteration=n_iter)
+                    loss_summary['{}/{}'.format(attr_name, model_name)] = attr_loss.item()
+
+                    total_attr_loss += attr_loss
+                    num_attr_losses += 1
+
+                total_loss += total_attr_loss / float(max(1, num_attr_losses))
+
+            if self.enable_masks and train_records['mask'] is not None:
+                att_loss_val = 0.0
+                for att_map in extra_data['att_maps']:
+                    if att_map is not None:
+                        with torch.no_grad():
+                            att_map_size = att_map.size()[2:]
+                            pos_float_mask = F.interpolate(train_records['mask'], size=att_map_size, mode='nearest')
+                            pos_mask = pos_float_mask > 0.0
+                            neg_mask = ~pos_mask
+
+                            trg_mask_values = torch.where(pos_mask,
+                                                        torch.ones_like(pos_float_mask),
+                                                        torch.zeros_like(pos_float_mask))
+                            num_positives = trg_mask_values.sum(dim=(1, 2, 3), keepdim=True)
+                            num_negatives = float(att_map_size[0] * att_map_size[1]) - num_positives
+
+                            batch_factor = 1.0 / float(att_map.size(0))
+                            pos_weights = batch_factor / num_positives.clamp_min(1.0)
+                            neg_weights = batch_factor / num_negatives.clamp_min(1.0)
+
+                        att_errors = torch.abs(att_map - trg_mask_values)
+                        att_pos_errors = (pos_weights * att_errors)[pos_mask].sum()
+                        att_neg_errors = (neg_weights * att_errors)[neg_mask].sum()
+
+                        att_loss_val += 0.5 * (att_pos_errors + att_neg_errors)
+
+                if att_loss_val > 0.0:
+                    loss_summary['att/{}'.format(model_name)] = att_loss_val.item()
+                    total_loss += att_loss_val
+
+            if self.regularizer is not None and (self.epoch + 1) > self.fixbase_epoch:
+                reg_loss = self.regularizer(model)
+
+                loss_summary['reg/{}'.format(model_name)] = reg_loss.item()
+                total_loss += reg_loss
+
+            return total_loss, loss_summary, avg_acc, out_logits
 
     def _prepare_run_kwargs(self, gt_labels):
         run_kwargs = dict()
@@ -527,7 +550,8 @@ class ImageAMSoftmaxEngine(Engine):
         is_candidate_for_best = False
         current_metric = np.round(top1, 4)
         if self.best_metric >= current_metric:
-            if round(self.current_lr, 8) <= round(self.lb_lr, 8):
+            # one drop has been done -> start early stopping
+            if round(self.current_lr, 8) < round(self.initial_lr, 8):
                 self.iter_to_wait += 1
                 if self.iter_to_wait >= self.train_patience:
                     print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))

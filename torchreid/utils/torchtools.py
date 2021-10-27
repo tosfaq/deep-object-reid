@@ -22,6 +22,26 @@ __all__ = [
 ]
 
 
+def params_to_device(param, device):
+    def tensor_to_device(param, device):
+        param.data = param.data.to(device)
+        if param._grad is not None:
+            param._grad.data = param._grad.data.to(device)
+
+    if isinstance(param, torch.Tensor):
+        tensor_to_device(param, device)
+    elif isinstance(param, dict):
+        for subparam in param.values():
+            tensor_to_device(subparam, device)
+
+def optimizer_to(optim, device):
+    for param in optim.state.values():
+        params_to_device(param, device)
+
+def scheduler_to(sched, device):
+    for param in sched.__dict__.values():
+        params_to_device(param, device)
+
 def save_checkpoint(
     state, save_dir, is_best=False, remove_module_from_keys=False, name='model'
 ):
@@ -105,7 +125,7 @@ def load_checkpoint(fpath):
     return checkpoint
 
 
-def resume_from_checkpoint(fpath, model, optimizer=None, scheduler=None):
+def resume_from_checkpoint(fpath, model, optimizer=None, scheduler=None, device='cpu'):
     r"""Resumes training from a checkpoint.
 
     This will load (1) model weights and (2) ``state_dict``
@@ -136,9 +156,11 @@ def resume_from_checkpoint(fpath, model, optimizer=None, scheduler=None):
     print('Loaded model weights')
     if optimizer is not None and 'optimizer' in checkpoint.keys():
         optimizer.load_state_dict(checkpoint['optimizer'])
+        optimizer_to(optimizer, device)
         print('Loaded optimizer')
     if scheduler is not None and 'scheduler' in checkpoint.keys():
         scheduler.load_state_dict(checkpoint['scheduler'])
+        scheduler_to(scheduler, device)
         print('Loaded scheduler')
     if 'epoch' in checkpoint:
         start_epoch = checkpoint['epoch']
