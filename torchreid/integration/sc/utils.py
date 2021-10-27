@@ -359,7 +359,7 @@ def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity], ac
     i = np.argmax(logits)
     if activate:
         logits = softmax_numpy(logits)
-    return [ScoredLabel(labels[i], probability=logits[i])]
+    return [ScoredLabel(labels[i], probability=float(logits[i]))]
 
 
 def get_multilabel_predictions(logits: np.ndarray, labels: List[LabelEntity],
@@ -369,7 +369,7 @@ def get_multilabel_predictions(logits: np.ndarray, labels: List[LabelEntity],
     item_labels = []
     for i in range(logits.shape[0]):
         if logits[i] > pos_thr:
-            label = ScoredLabel(label=labels[i], probability=logits[i])
+            label = ScoredLabel(label=labels[i], probability=float(logits[i]))
             item_labels.append(label)
 
     return item_labels
