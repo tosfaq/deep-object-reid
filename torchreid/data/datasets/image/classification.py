@@ -273,17 +273,19 @@ class MultiLabelClassification(ImageDataset):
 
 def create_proxy_data(out_data):
     from sklearn.model_selection import train_test_split
-    proxy_size = 1500
+    proxy_size = 2000
     dataset_id = out_data[0][3]
     labels = []
     paths = []
     print("HERE.", len(out_data))
     if len(out_data) > proxy_size:
+        adapt_proxy_size = max(1000, 0.2 * len(out_data))
+        size = round(adapt_proxy_size / len(paths), 2)
         for d in out_data:
             paths.append(d[0])
             labels.append(d[1])
-        size = round(proxy_size / len(paths), 2)
-        data_1, data_2, y_1, y_2 = train_test_split(paths, labels, stratify=labels, test_size=size)
+        data_1, data_2, _, y_2 = train_test_split(paths, labels, stratify=labels, test_size=size)
         out_data = [(data_2[i], y_2[i], 0, dataset_id, '', -1, -1) for i in range(len(data_2))]
         print(len(out_data), len(data_2), len(data_1))         
     return out_data
+    
