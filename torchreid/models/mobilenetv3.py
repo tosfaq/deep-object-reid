@@ -225,8 +225,8 @@ class MobileNetV3(ModelInterface):
                     retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
                 )
 
-            with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
-                _, logits = self.infer_head(x, skip_pool=True)
+                with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
+                    _, logits = self.infer_head(x, skip_pool=True)
 
             if return_featuremaps and self.is_classification():
                 return [(logits, y, glob_features)]
