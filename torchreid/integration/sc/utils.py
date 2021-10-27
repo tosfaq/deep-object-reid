@@ -38,8 +38,9 @@ class ClassificationDatasetAdapter(Dataset):
                  val_data_root=None,
                  test_ann_file=None,
                  test_data_root=None,
+                 dataset_storage=NullDatasetStorage(),
                  **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(dataset_storage=dataset_storage, **kwargs)
         self.data_roots = {}
         self.ann_files = {}
         self.multilabel = False
@@ -67,7 +68,10 @@ class ClassificationDatasetAdapter(Dataset):
         self.labels = None
         self.label_map = None
         self.set_labels_obtained_from_annotation()
-        self.project_labels = None
+        colors = distinct_colors(len(self.labels)) if len(self.labels) > 0 else []
+        self.project_labels = [LabelEntity(name=name, color=colors[i], domain="classification", id=i,
+                                    is_empty=False, creation_date=datetime.datetime.now()) for i, name in
+                               enumerate(self.labels)]
 
     @staticmethod
     def _load_annotation_multilabel(annot_path, data_dir):
@@ -177,7 +181,10 @@ class ClassificationDatasetAdapter(Dataset):
         assert self.data_info is not None
         return len(self.data_info)
 
-    def get_labels(self) -> list:
+    def get_labels(self) -> List[LabelEntity]: # this should be removed after migration to ote_sdk Dataset
+        return self.project_labels
+
+    def get_labels_str(self) -> List[str]:
         return self.labels
 
     def get_subset(self, subset: Subset) -> Dataset:
