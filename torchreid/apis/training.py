@@ -33,7 +33,6 @@ def run_lr_finder(cfg, datamanager, model, optimizer, scheduler, classes,
                   rebuild_model=True, gpu_num=1, split_models=False):
     if not rebuild_model:
         backup_model = deepcopy(model)
-    model.mix_precision = False
     proxy_datamanager = build_datamanager(cfg, proxy=True, classification_classes_filter=classes)
     engine = build_engine(cfg, proxy_datamanager, model, optimizer, scheduler, initial_lr=cfg.train.lr)
     lr_finder = LrFinder(engine=engine, **lr_finder_run_kwargs(cfg))
@@ -50,7 +49,6 @@ def run_lr_finder(cfg, datamanager, model, optimizer, scheduler, classes,
     # since it's done above and lr finder cannot change parameters of the datasets
     cfg.train.lr = aux_lr
     cfg.lr_finder.enable = False
-    model.mix_precision = cfg.train.mix_precision
     set_random_seed(cfg.train.seed, cfg.train.deterministic)
     datamanager = build_datamanager(cfg, proxy=False, classification_classes_filter=classes)
     num_train_classes = datamanager.num_train_pids
