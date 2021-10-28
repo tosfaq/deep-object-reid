@@ -11,7 +11,7 @@ lr_finder:
   n_trials: 15
 
 model:
-  name: 'efficientnetv2_s_21k'
+  name: 'efficientnetv2__21k'
   type: 'multilabel'
   pretrained: True
   save_all_chkpts: False
@@ -79,7 +79,7 @@ train:
   ema:
     enable: True
     ema_decay: 0.9995
-  mix_precision: True
+  mix_precision: False
 
 test:
   batch_size: 128

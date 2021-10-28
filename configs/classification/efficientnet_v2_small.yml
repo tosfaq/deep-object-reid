@@ -65,7 +65,7 @@ train:
   nbd: True
   max_epoch: 200
   weight_decay: 5e-4
-  batch_size: 64
+  batch_size: 60
   fixbase_epoch: 0
   lr_scheduler: 'warmup'
   warmup: 5
@@ -82,7 +82,7 @@ train:
     enable: True
     ema_decay: 0.999
   mix_precision: True
-  
+
 test:
   batch_size: 128
   evaluate: False
