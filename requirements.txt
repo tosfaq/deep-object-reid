@@ -21,9 +21,8 @@ pytorchcv
 terminaltables
 torch-lr-finder==0.2.1
 onnx
--f https://download.pytorch.org/whl/lts/1.8/torch_lts.html
-torchvision==0.9.2
-torch==1.8.2
+torchvision==0.9.*
+torch==1.8.*
 optuna
 timm
 addict
