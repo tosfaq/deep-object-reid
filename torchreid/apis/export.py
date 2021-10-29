@@ -41,10 +41,9 @@ def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
     input_blob = transform(input_img).unsqueeze(0).to(device)
 
     input_names = ['data']
-    output_names = ['reid_embedding']
+    output_names = ['output']
     if not disable_dyn_axes:
-        dynamic_axes = {'data': {0: 'batch_size', 1: 'channels', 2: 'height', 3: 'width'},
-                        'reid_embedding': {0: 'batch_size', 1: 'dim'}}
+        dynamic_axes = {'data': {0: 'batch_size', 1: 'channels', 2: 'height', 3: 'width'}}
     else:
         dynamic_axes = {}
 
