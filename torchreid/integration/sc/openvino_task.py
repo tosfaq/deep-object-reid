@@ -129,7 +129,7 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
         return dict_inputs, meta
 
     def post_process(self, prediction: Dict[str, np.ndarray], metadata: Dict[str, Any]) -> AnnotationSceneEntity:
-        raw_output = get_output(self.net, prediction, 'reid_embedding').reshape(-1)
+        raw_output = get_output(self.net, prediction, 'output').reshape(-1)
         if self.multilabel:
             item_labels = get_multilabel_predictions(raw_output, self.labels)
         else:
