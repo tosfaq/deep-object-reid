@@ -43,6 +43,11 @@ fi
 # Create virtual environment
 $PYTHON_NAME -m venv ${venv_dir} --prompt="classification"
 
+if ! [ -e "${venv_dir}/bin/activate" ]; then
+  echo "The virtual environment was not created."
+  exit
+fi
+
 . ${venv_dir}/bin/activate
 
 # Get CUDA version.
@@ -65,8 +70,8 @@ if [ -e "$CUDA_HOME" ]; then
 fi
 
 # install PyTorch and MMCV.
-export TORCH_VERSION=1.8.1
-export TORCHVISION_VERSION=0.9.1
+export TORCH_VERSION=1.8.2
+export TORCHVISION_VERSION=0.9.2
 
 if [[ -z ${CUDA_VERSION} ]]; then
   echo "CUDA was not found, installing dependencies in CPU-only mode. If you want to use CUDA, set CUDA_HOME and CUDA_VERSION beforehand."
@@ -75,35 +80,24 @@ else
   CUDA_VERSION_CODE=$(echo ${CUDA_VERSION} | sed -e "s/\.//" -e "s/\(...\).*/\1/")
   echo "Using CUDA_VERSION ${CUDA_VERSION}"
   if [[ "${CUDA_VERSION_CODE}" != "111" ]] && [[ "${CUDA_VERSION_CODE}" != "102" ]] ; then
-    echo "CUDA version must be either 10.2 or 11.1"
+    echo "CUDA version must be either 11.1 or 10.2"
     exit 1
   fi
-  if [[ "${CUDA_VERSION_CODE}" == "102" ]] ; then
-    if [[ "${TORCH_VERSION}" != "1.8.1" ]] && [[ "${TORCH_VERSION}" != "1.9.0" ]]; then
-      echo "if CUDA version is 10.2, then PyTorch must be either 1.8.1 or 1.9.0"
-      exit 1
-    fi
-  fi
+  echo "export CUDA_HOME=${CUDA_HOME}" >> ${venv_dir}/bin/activate
 fi
 
 CONSTRAINTS_FILE=$(tempfile)
 
 if [[ -z $CUDA_VERSION_CODE ]]; then
+  pip install torch==${TORCH_VERSION}+cpu torchvision==${TORCHVISION_VERSION}+cpu -f https://download.pytorch.org/whl/lts/1.8/torch_lts.html \
+          -c ${CONSTRAINTS_FILE} || exit 1
   echo torch==${TORCH_VERSION}+cpu >> ${CONSTRAINTS_FILE}
   echo torchvision==${TORCHVISION_VERSION}+cpu >> ${CONSTRAINTS_FILE}
-  pip install torch==${TORCH_VERSION}+cpu torchvision==${TORCHVISION_VERSION}+cpu -f https://download.pytorch.org/whl/torch_stable.html \
-          -c ${CONSTRAINTS_FILE} || exit 1
-elif [[ $CUDA_VERSION_CODE == "102" ]]; then
-  echo torch==${TORCH_VERSION} >> ${CONSTRAINTS_FILE}
-  echo torchvision==${TORCHVISION_VERSION} >> ${CONSTRAINTS_FILE}
-  pip install torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} -c ${CONSTRAINTS_FILE} || exit 1
 else
-  export TORCH_VERSION=1.8.2
-  export TORCHVISION_VERSION=0.9.2
-  echo torch==${TORCH_VERSION}+cu${CUDA_VERSION_CODE} >> ${CONSTRAINTS_FILE}
-  echo torchvision==${TORCHVISION_VERSION}+cu${CUDA_VERSION_CODE} >> ${CONSTRAINTS_FILE}
   pip install torch==${TORCH_VERSION}+cu${CUDA_VERSION_CODE} torchvision==${TORCHVISION_VERSION}+cu${CUDA_VERSION_CODE} -f https://download.pytorch.org/whl/lts/1.8/torch_lts.html \
           -c ${CONSTRAINTS_FILE} || exit 1
+  echo torch==${TORCH_VERSION}+cu${CUDA_VERSION_CODE} >> ${CONSTRAINTS_FILE}
+  echo torchvision==${TORCHVISION_VERSION}+cu${CUDA_VERSION_CODE} >> ${CONSTRAINTS_FILE}
 fi
 
 # Install other requirements.
