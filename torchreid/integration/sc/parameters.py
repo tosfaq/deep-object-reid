@@ -5,6 +5,7 @@ from sys import maxsize
 from ote_sdk.configuration.elements import (ParameterGroup,
                                             add_parameter_group,
                                             boolean_attribute,
+                                            configurable_float,
                                             configurable_integer,
                                             selectable,
                                             string_attribute,
