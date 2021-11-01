@@ -1,3 +1,4 @@
+import time
 import os
 import json
 from os import path as osp
@@ -294,7 +295,18 @@ class TrainingProgressCallback(TimeMonitorCallback):
 
     def on_train_batch_end(self, batch, logs=None):
         super().on_train_batch_end(batch, logs)
-        self.update_progress_callback(self.get_progress())
+        self.update_progress_callback(self.get_progress(), logs)
+
+    def on_epoch_end(self, epoch, logs=None):
+        self.past_epoch_duration.append(time.time() - self.start_epoch_time)
+        self.__calculate_average_epoch()
+        self.update_progress_callback(self.get_progress(), logs)
+
+    def __calculate_average_epoch(self):
+        if len(self.past_epoch_duration) > self.epoch_history:
+            self.past_epoch_duration.remove(self.past_epoch_duration[0])
+        self.average_epoch = sum(self.past_epoch_duration) / len(
+            self.past_epoch_duration)
 
 
 class InferenceProgressCallback(TimeMonitorCallback):
