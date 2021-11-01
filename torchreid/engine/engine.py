@@ -356,8 +356,6 @@ class Engine:
             if stop_callback and stop_callback.check_stop():
                 break
 
-            if perf_monitor and not lr_finder: perf_monitor.on_epoch_end(self.epoch)
-
             if (((self.epoch + 1) >= start_eval
                and eval_freq > 0
                and (self.epoch+1) % eval_freq == 0
@@ -379,6 +377,8 @@ class Engine:
                 test_acc.update(top1) 
                 smooth_top1 = test_acc.avg
             target_metric = smooth_top1 if self.target_metric == 'test_acc' else avg_loss
+
+            if perf_monitor and not lr_finder: perf_monitor.on_epoch_end(self.epoch, top1)
 
             if not lr_finder and not self.per_batch_annealing:
                 self.update_lr(output_avg_metric = target_metric)
