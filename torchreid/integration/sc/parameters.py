@@ -47,6 +47,15 @@ class OTEClassificationParameters(ConfigurableParameters):
             affects_outcome_of=ModelLifecycle.TRAINING
         )
 
+        learning_rate = configurable_float(
+            default_value=0.01,
+            min_value=1e-07,
+            max_value=1e-01,
+            header="Learning rate",
+            description="Increasing this value will speed up training convergence but might make it unstable.",
+            affects_outcome_of=ModelLifecycle.TRAINING
+        )
+
     @attrs
     class __AlgoBackend(ParameterGroup):
         header = string_attribute("Internal Algo Backend parameters")
