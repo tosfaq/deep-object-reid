@@ -157,7 +157,7 @@ def evaluate_classification(dataloader, model, use_gpu, topk=(1,), labelmap=[]):
     return cmc, m_ap, norm_cm
 
 
-def evaluate_multilabel_classification(dataloader, model, use_gpu):
+def evaluate_multilabel_classification(dataloader, model, use_gpu, scale=1.):
 
     def average_precision(output, target):
         epsilon = 1e-8
@@ -227,7 +227,7 @@ def evaluate_multilabel_classification(dataloader, model, use_gpu):
     else:
         scores, labels = score_extraction(dataloader, model, use_gpu)
 
-    scores = 1. / (1 + np.exp(-scores))
+    scores = 1. / (1 + np.exp(-scores * scale))
     mAP_score = mAP(labels, scores)
 
     return mAP_score
