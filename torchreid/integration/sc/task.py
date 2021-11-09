@@ -194,6 +194,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self._cfg.custom_datasets.roots = [OTEClassificationDataset(dataset, labels, self._multilabel),
                                            OTEClassificationDataset(dataset, labels, self._multilabel)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
+        mix_precision_status = self._model.mix_precision
+        self._model.mix_precision = False
         self._model.eval()
         self._model.to(self.device)
         targets = list(datamanager.test_loader.keys())
@@ -201,6 +203,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         inference_results, _ = score_extraction(datamanager.test_loader[targets[0]]['query'],
                                                 self._model, self._cfg.use_gpu, perf_monitor=time_monitor,
                                                 feature_dump_mode='all' if dump_features else 'vecs')
+        self._model.mix_precision = mix_precision_status
         if dump_features:
             scores, features, feature_vecs = inference_results
             features = preprocess_features_for_actmap(features)
@@ -371,7 +374,10 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             os.makedirs(optimized_model_dir, exist_ok=True)
 
             onnx_model_path = os.path.join(optimized_model_dir, 'model.onnx')
+            mix_precision_status = self._model.mix_precision
+            self._model.mix_precision = False
             export_onnx(self._model.eval(), self._cfg, onnx_model_path)
+            self._model.mix_precision = mix_precision_status
             export_ir(onnx_model_path, self._cfg.data.norm_mean, self._cfg.data.norm_std,
                       optimized_model_dir=optimized_model_dir, data_type=optimized_model_precision.name)
 
