@@ -19,14 +19,14 @@ model:
     p: 0.1
 
 custom_datasets:
-  roots: ['data/coco/train.json', 'data/coco/val.json']
+  roots: ['/ssd/datasets/coco/train.json', '/ssd/datasets/coco/val.json']
   types: ['multilabel_classification', 'multilabel_classification']
   names: ['coco_train', 'coco_val']
 
 data:
   root: './'
-  sources: ['coco_data']
-  targets: ['coco_data']
+  sources: ['coco_train']
+  targets: ['coco_val']
   height: 448
   width: 448
   norm_mean: [0, 0, 0]
@@ -65,7 +65,7 @@ train:
   nbd: True
   max_epoch: 80
   weight_decay: 5e-4
-  batch_size: 64
+  batch_size: 8
   lr_scheduler: 'onecycle'
   early_stoping: True
   pct_start: 0.2

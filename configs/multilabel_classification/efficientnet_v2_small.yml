@@ -25,8 +25,8 @@ custom_datasets:
 
 data:
   root: './'
-  sources: ['coco_data']
-  targets: ['coco_data']
+  sources: ['coco_train']
+  targets: ['coco_val']
   height: 448
   width: 448
   norm_mean: [0.5, 0.5, 0.5]

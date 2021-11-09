@@ -236,13 +236,13 @@ class ImageDataManager(DataManager):
         assert isinstance(self._num_train_pids, list)
         assert isinstance(self._num_train_cams, list)
         assert len(self._num_train_pids) == len(self._num_train_cams)
-
+        batch_size_train = self.calculate_batch(batch_size_train, len(train_dataset))
         self.train_loader = torch.utils.data.DataLoader(
             train_dataset,
             sampler=build_train_sampler(
                 train_dataset.train,
                 train_sampler,
-                batch_size=max(1, min(batch_size_train, len(train_dataset))) ,
+                batch_size= max(1, min(batch_size_train, len(train_dataset))),
                 batch_num_instances=batch_num_instances,
                 epoch_num_instances=epoch_num_instances,
                 fill_instances=fill_instances,
@@ -342,3 +342,10 @@ class ImageDataManager(DataManager):
         print('  target            : {}'.format(self.targets))
         print('  *****************************************')
         print('\n')
+
+    @staticmethod
+    def calculate_batch(cur_batch, data_len):
+        ''' This heuristic is essential for training small datasets '''
+        if data_len <= 2500:
+            return max(int(np.ceil(np.sqrt(data_len) / 2.5)), 6)
+        return cur_batch

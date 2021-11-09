@@ -235,10 +235,9 @@ def main():
                     top1 = str(saver[key]['Rank-1'][best_top_1_idx])
                     mAP = str(saver[key]['mAP'][best_top_1_idx])
                     top5 = str(saver[key]['Rank-5'][best_top_1_idx])
-                    snapshot = str(best_top_1_idx)
-                    values += mAP + ';' + top1 + ';' + top5 + ';' + snapshot + ';'
+                    values += mAP + ';' + top1 + ';' + top5 + ';'
                 else:
-                    values += '-1;-1;-1;-1;'
+                    values += '-1;-1;-1;'
 
             f.write(f"\n{names}\n{values}")
 

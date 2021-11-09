@@ -54,7 +54,6 @@ def main():
 
     log_name = 'test.log' + time.strftime('-%Y-%m-%d-%H-%M-%S')
     sys.stdout = Logger(osp.join(cfg.data.save_dir, log_name))
-
     datamanager = torchreid.data.ImageDataManager(filter_classes=args.classes, **imagedata_kwargs(cfg))
     num_classes = len(datamanager.test_loader[cfg.data.targets[0]]['query'].dataset.classes)
     cfg.train.ema.enable = False
