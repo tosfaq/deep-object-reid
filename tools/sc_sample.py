@@ -63,9 +63,7 @@ def main(args):
         test_data_root=osp.join(args.data_dir, 'val'),
         test_ann_file=osp.join(args.data_dir, 'val.json'))
 
-    labels_schema = generate_label_schema(dataset.get_labels_str(), dataset.is_multilabel())
-    labels_list = labels_schema.get_labels(False)
-    dataset.set_project_labels(labels_list)
+    labels_schema = generate_label_schema(dataset.get_labels(), dataset.is_multilabel())
     logger.info(f'Train dataset: {len(dataset.get_subset(Subset.TRAINING))} items')
     logger.info(f'Validation dataset: {len(dataset.get_subset(Subset.VALIDATION))} items')
 

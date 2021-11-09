@@ -36,7 +36,6 @@ class ClassificationDatasetAdapter(DatasetEntity):
                  test_ann_file=None,
                  test_data_root=None,
                  **kwargs):
-        super().__init__(**kwargs)
         self.data_roots = {}
         self.ann_files = {}
         self.multilabel = False
@@ -61,11 +60,26 @@ class ClassificationDatasetAdapter(DatasetEntity):
                     self.annotations[k] = self._load_annotation(self.data_roots[k])
                     assert not self.multilabel
 
-        self.labels = None
         self.label_map = None
-        self.set_labels_obtained_from_annotation()
-        self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION) for i, name in
+        self.labels = None
+        self._set_labels_obtained_from_annotation()
+        self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False) for i, name in
                                enumerate(self.labels)]
+
+        dataset_items = []
+        for subset in self.annotations:
+            subset_data = self.annotations[subset][0]
+            for data_info in subset_data:
+                image = Image(file_path=data_info[0])
+                labels = [ScoredLabel(label=self._label_name_to_project_label(label_name),
+                                      probability=1.0) for label_name in data_info[1]]
+                shapes = [Annotation(Rectangle.generate_full_box(), labels)]
+                annotation_scene = AnnotationSceneEntity(kind=AnnotationSceneKind.ANNOTATION,
+                                                         annotations=shapes)
+                dataset_item = DatasetItemEntity(image, annotation_scene, subset=subset)
+                dataset_items.append(dataset_item)
+
+        super().__init__(items=dataset_items, **kwargs)
 
     @staticmethod
     def _load_annotation_multilabel(annot_path, data_dir):
@@ -80,7 +94,6 @@ class ClassificationDatasetAdapter(DatasetEntity):
                 rel_image_path, img_labels = img_info
                 full_image_path = osp.join(data_dir, rel_image_path)
                 labels_idx = [lbl for lbl in img_labels if lbl in class_to_idx]
-                # labels_idx = [class_to_idx[lbl] for lbl in img_labels if lbl in class_to_idx]
                 assert full_image_path
                 if not labels_idx:
                     img_wo_objects += 1
@@ -123,7 +136,7 @@ class ClassificationDatasetAdapter(DatasetEntity):
 
         return out_data, class_to_idx
 
-    def set_labels_obtained_from_annotation(self):
+    def _set_labels_obtained_from_annotation(self):
         self.labels = None
         self.label_map = {}
         for subset in self.data_roots:
@@ -134,63 +147,14 @@ class ClassificationDatasetAdapter(DatasetEntity):
             self.labels = labels
         assert self.labels is not None
 
-    def set_project_labels(self, project_labels):
-        self.project_labels = project_labels
-
-    def label_name_to_project_label(self, label_name):
+    def _label_name_to_project_label(self, label_name):
         return [label for label in self.project_labels if label.name == label_name][0]
-
-    def init_as_subset(self, subset: Subset):
-        self.data_info = self.annotations[subset][0]
-        return True
-
-    def get_item_labels(self, indx):
-        return self.data_info[indx][1]
-
-    def __getitem__(self, indx) -> DatasetItemEntity:
-        if isinstance(indx, slice):
-            slice_list = range(self.__len__())[indx]
-            return [self._load_item(i) for i in slice_list]
-
-        return self._load_item(indx)
-
-    def _load_item(self, indx: int):
-        def create_gt_scored_labels(label_names):
-            return [ScoredLabel(label=self.label_name_to_project_label(label_name),
-                                probability=1.0) for label_name in label_names]
-
-        image = Image(file_path=self.data_info[indx][0])
-        labels = create_gt_scored_labels(self.data_info[indx][1])
-
-        shapes = [Annotation(Rectangle.generate_full_box(), labels)]
-        annotation_scene = AnnotationSceneEntity(kind=AnnotationSceneKind.ANNOTATION,
-                                                 annotations=shapes)
-        dataset_item = DatasetItemEntity(image, annotation_scene)
-        # dataset_item.append_labels(labels=[label])
-
-        return dataset_item
-
-    def __len__(self) -> int:
-        assert self.data_info is not None
-        return len(self.data_info)
-
-    def get_labels_str(self) -> List[str]:
-        return self.labels
-
-    def get_subset(self, subset: Subset) -> DatasetEntity:
-        dataset = deepcopy(self)
-        if dataset.init_as_subset(subset):
-            dataset.project_labels = self.project_labels
-            return dataset
-        return DatasetEntity(items=[])
 
     def is_multilabel(self):
         return self.multilabel
 
 
-def generate_label_schema(label_names, multilabel=False):
-    not_empty_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False) for i, name in
-                        enumerate(label_names)]
+def generate_label_schema(not_empty_labels, multilabel=False):
     emptylabel = LabelEntity(name="Empty label", is_empty=True, domain=Domain.CLASSIFICATION)
 
     label_schema = LabelSchemaEntity()
@@ -218,16 +182,11 @@ class OTEClassificationDataset():
 
         for i, _ in enumerate(self.ote_dataset):
             class_indices = []
-            if hasattr(self.ote_dataset, 'get_item_labels'):
-                item_labels = self.ote_dataset.get_item_labels(i)
-                for ote_lbl in item_labels:
-                    class_indices.append(self.labels.index(ote_lbl))
+            if self.ote_dataset[i].get_shapes_labels():
+                for ote_lbl in self.ote_dataset[i].get_shapes_labels():
+                    class_indices.append(self.labels.index(ote_lbl.name))
             else:
-                if self.ote_dataset[i].get_shapes_labels():
-                    for ote_lbl in self.ote_dataset[i].get_shapes_labels():
-                        class_indices.append(self.labels.index(ote_lbl.name))
-                else:
-                    class_indices.append(0)
+                class_indices.append(0)
 
             if self.multilabel:
                 self.annotation.append({'label': tuple(class_indices)})
