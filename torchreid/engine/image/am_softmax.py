@@ -121,14 +121,14 @@ class ImageAMSoftmaxEngine(Engine):
                 scale_factor = 1.0
             else:
                 scale_factor = np.log(trg_num_classes - 1) / np.log(base_num_classes - 1)
-
+            self.scale = scale_factor * s
             if loss_name == 'softmax':
                 self.main_losses.append(CrossEntropyLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
                     augmentations=self.aug_type,
                     conf_penalty=conf_penalty,
-                    scale=scale_factor * s
+                    scale=self.scale
                 ))
             elif loss_name == 'am_softmax':
                 trg_class_counts = datamanager.data_counts[trg_id]
@@ -141,7 +141,7 @@ class ImageAMSoftmaxEngine(Engine):
                     aug_type=aug_type,
                     conf_penalty=conf_penalty,
                     m=m,
-                    s=scale_factor * s,
+                    s=self.scale,
                     end_s=scale_factor * end_s if self._valid(end_s) else None,
                     duration_s=duration_s * self.num_batches if self._valid(duration_s) else None,
                     skip_steps_s=skip_steps_s * self.num_batches if self._valid(skip_steps_s) else None,

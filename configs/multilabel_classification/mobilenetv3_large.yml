@@ -65,7 +65,7 @@ train:
   nbd: True
   max_epoch: 80
   weight_decay: 5e-4
-  batch_size: 8
+  batch_size: 64
   lr_scheduler: 'onecycle'
   early_stoping: True
   pct_start: 0.2
