@@ -170,7 +170,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         torch.save(modelinfo, buffer)
         output_model.set_data("weights.pth", buffer.getvalue())
 
-    def infer(self, dataset: DatasetEntity, inference_parameters: Optional[InferenceParameters] = None) -> DatasetEntity:
+    def infer(self, dataset: DatasetEntity,
+              inference_parameters: Optional[InferenceParameters] = None) -> DatasetEntity:
         """
         Perform inference on the given dataset.
 
@@ -261,7 +262,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         return output
 
-    def train(self, dataset: DatasetEntity, output_model: ModelEntity, train_parameters: Optional[TrainParameters] = None):
+    def train(self, dataset: DatasetEntity, output_model: ModelEntity,
+              train_parameters: Optional[TrainParameters] = None):
         """ Trains a model on a dataset """
 
         if train_parameters is not None and train_parameters.train_on_empty_model:

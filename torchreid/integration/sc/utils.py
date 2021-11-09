@@ -2,7 +2,6 @@ import time
 import os
 import json
 from os import path as osp
-from copy import deepcopy
 import importlib
 import tempfile
 import subprocess
@@ -10,7 +9,6 @@ from typing import List
 
 import cv2 as cv
 import numpy as np
-from ote_sdk.entities.id import ID
 
 from ote_sdk.entities.image import Image
 from ote_sdk.entities.shapes.rectangle import Rectangle
@@ -63,13 +61,12 @@ class ClassificationDatasetAdapter(DatasetEntity):
         self.label_map = None
         self.labels = None
         self._set_labels_obtained_from_annotation()
-        self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False) for i, name in
+        self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False, id=i) for i, name in
                                enumerate(self.labels)]
 
         dataset_items = []
-        for subset in self.annotations:
-            subset_data = self.annotations[subset][0]
-            for data_info in subset_data:
+        for subset, subset_data in self.annotations.items():
+            for data_info in subset_data[0]:
                 image = Image(file_path=data_info[0])
                 labels = [ScoredLabel(label=self._label_name_to_project_label(label_name),
                                       probability=1.0) for label_name in data_info[1]]

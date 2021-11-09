@@ -169,7 +169,8 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
                                                 self.model.get_data("openvino.xml"),
                                                 self.model.get_data("openvino.bin"))
 
-    def infer(self, dataset: DatasetEntity, inference_parameters: Optional[InferenceParameters] = None) -> DatasetEntity:
+    def infer(self, dataset: DatasetEntity,
+              inference_parameters: Optional[InferenceParameters] = None) -> DatasetEntity:
         from tqdm import tqdm
         for dataset_item in tqdm(dataset):
             dataset_item.annotation_scene = self.inferencer.predict(dataset_item.numpy)
