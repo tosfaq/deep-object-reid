@@ -44,10 +44,11 @@ from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExpo
 from ote_sdk.entities.model import ModelEntity, ModelStatus
 from ote_sdk.entities.metadata import FloatMetadata, FloatType
 from ote_sdk.entities.resultset import ResultSetEntity
+from ote_sdk.entities.tensor import TensorEntity
+from ote_sdk.entities.result_media import ResultMediaEntity
+from ote_sdk.entities.datasets import DatasetEntity
+from ote_sdk.entities.subset import Subset
 
-from sc_sdk.entities.datasets import Dataset, Subset
-from sc_sdk.entities.result_media import ResultMedia
-from sc_sdk.entities.tensor import Tensor
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +170,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         torch.save(modelinfo, buffer)
         output_model.set_data("weights.pth", buffer.getvalue())
 
-    def infer(self, dataset: Dataset, inference_parameters: Optional[InferenceParameters] = None) -> Dataset:
+    def infer(self, dataset: DatasetEntity, inference_parameters: Optional[InferenceParameters] = None) -> DatasetEntity:
         """
         Perform inference on the given dataset.
 
@@ -225,16 +226,16 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             active_score_media = FloatMetadata(name="Active score", value=active_score,
                                                float_type=FloatType.ACTIVE_SCORE)
             dataset_item.append_metadata_item(active_score_media)
-            feature_vec_media = Tensor(name="representation_vector", numpy=feature_vecs[i])
+            feature_vec_media = TensorEntity(name="representation_vector", numpy=feature_vecs[i])
             dataset_item.append_metadata_item(feature_vec_media)
 
             if dump_features:
                 actmap = get_actmap(features[i], (dataset_item.width, dataset_item.height))
-                saliency_media = ResultMedia(name="Saliency map", type="Saliency_map",
-                                             annotation_scene=dataset_item.annotation_scene, numpy=actmap)
+                saliency_media = ResultMediaEntity(name="Saliency map", type="Saliency_map",
+                                                   annotation_scene=dataset_item.annotation_scene, numpy=actmap)
                 dataset_item.append_metadata_item(saliency_media)
 
-        return Dataset(None, predicted_items)
+        return DatasetEntity(items=predicted_items)
 
     def _generate_training_metrics_group(self) -> Optional[List[MetricsGroup]]:
         """
@@ -260,7 +261,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         return output
 
-    def train(self, dataset: Dataset, output_model: ModelEntity, train_parameters: Optional[TrainParameters] = None):
+    def train(self, dataset: DatasetEntity, output_model: ModelEntity, train_parameters: Optional[TrainParameters] = None):
         """ Trains a model on a dataset """
 
         if train_parameters is not None and train_parameters.train_on_empty_model:

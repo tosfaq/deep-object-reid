@@ -24,7 +24,6 @@ import numpy as np
 import PIL
 
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneKind
-from ote_sdk.entities.id import ID
 from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.shapes.rectangle import Rectangle
@@ -48,10 +47,7 @@ from ote_sdk.usecases.tasks.interfaces.optimization_interface import (
     IOptimizationTask,
     OptimizationType,
 )
-
-from sc_sdk.entities.annotation import AnnotationScene
-from sc_sdk.entities.datasets import Dataset
-from sc_sdk.entities.media_identifier import ImageIdentifier
+from ote_sdk.entities.datasets import DatasetEntity
 
 from compression.api import DataLoader
 from compression.engines.ie_engine import IEEngine
@@ -135,18 +131,14 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
         else:
             item_labels = get_multiclass_predictions(raw_output, self.labels)
         anno = [Annotation(Rectangle.generate_full_box(), labels=item_labels)]
-        media_identifier = ImageIdentifier(image_id=ID())
 
-        return AnnotationScene(
-            kind=AnnotationSceneKind.PREDICTION,
-            media_identifier=media_identifier,
-            annotations=anno)
+        return AnnotationSceneEntity(kind=AnnotationSceneKind.PREDICTION, annotations=anno)
 
     def forward(self, image: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         return self.model.infer(image)
 
 class OTEOpenVinoDataLoader(DataLoader):
-    def __init__(self, dataset: Dataset, inferencer: BaseOpenVINOInferencer):
+    def __init__(self, dataset: DatasetEntity, inferencer: BaseOpenVINOInferencer):
         super().__init__(config=None)
         self.dataset = dataset
         self.inferencer = inferencer
@@ -177,7 +169,7 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
                                                 self.model.get_data("openvino.xml"),
                                                 self.model.get_data("openvino.bin"))
 
-    def infer(self, dataset: Dataset, inference_parameters: Optional[InferenceParameters] = None) -> Dataset:
+    def infer(self, dataset: DatasetEntity, inference_parameters: Optional[InferenceParameters] = None) -> DatasetEntity:
         from tqdm import tqdm
         for dataset_item in tqdm(dataset):
             dataset_item.annotation_scene = self.inferencer.predict(dataset_item.numpy)
@@ -191,7 +183,7 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
 
     def optimize(self,
                  optimization_type: OptimizationType,
-                 dataset: Dataset,
+                 dataset: DatasetEntity,
                  output_model: ModelEntity,
                  optimization_parameters: Optional[OptimizationParameters]):
 

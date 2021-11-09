@@ -10,25 +10,24 @@ from typing import List
 
 import cv2 as cv
 import numpy as np
+from ote_sdk.entities.id import ID
 
+from ote_sdk.entities.image import Image
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.scored_label import ScoredLabel
 from ote_sdk.entities.label import LabelEntity, Domain
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind
-from ote_sdk.entities.datasets import Subset
-
+from ote_sdk.entities.datasets import DatasetEntity
+from ote_sdk.entities.dataset_item import DatasetItemEntity
 from ote_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
                                            LabelSchemaEntity)
+from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.train_parameters import UpdateProgressCallback
 from ote_sdk.usecases.reporting.time_monitor_callback import \
     TimeMonitorCallback
 
-from sc_sdk.entities.datasets import Dataset, DatasetItem, NullDataset
-from sc_sdk.entities.image import Image
-from sc_sdk.entities.dataset_storage import NullDatasetStorage
 
-
-class ClassificationDatasetAdapter(Dataset):
+class ClassificationDatasetAdapter(DatasetEntity):
     def __init__(self,
                  train_ann_file=None,
                  train_data_root=None,
@@ -36,9 +35,8 @@ class ClassificationDatasetAdapter(Dataset):
                  val_data_root=None,
                  test_ann_file=None,
                  test_data_root=None,
-                 dataset_storage=NullDatasetStorage(),
                  **kwargs):
-        super().__init__(dataset_storage=dataset_storage, **kwargs)
+        super().__init__(**kwargs)
         self.data_roots = {}
         self.ann_files = {}
         self.multilabel = False
@@ -149,7 +147,7 @@ class ClassificationDatasetAdapter(Dataset):
     def get_item_labels(self, indx):
         return self.data_info[indx][1]
 
-    def __getitem__(self, indx) -> DatasetItem:
+    def __getitem__(self, indx) -> DatasetItemEntity:
         if isinstance(indx, slice):
             slice_list = range(self.__len__())[indx]
             return [self._load_item(i) for i in slice_list]
@@ -161,14 +159,13 @@ class ClassificationDatasetAdapter(Dataset):
             return [ScoredLabel(label=self.label_name_to_project_label(label_name),
                                 probability=1.0) for label_name in label_names]
 
-        img = cv.imread(self.data_info[indx][0])
-        img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
-        image = Image(name=None, numpy=img, dataset_storage=NullDatasetStorage())
+        image = Image(file_path=self.data_info[indx][0])
         labels = create_gt_scored_labels(self.data_info[indx][1])
+
         shapes = [Annotation(Rectangle.generate_full_box(), labels)]
         annotation_scene = AnnotationSceneEntity(kind=AnnotationSceneKind.ANNOTATION,
                                                  annotations=shapes)
-        dataset_item = DatasetItem(image, annotation_scene)
+        dataset_item = DatasetItemEntity(image, annotation_scene)
         # dataset_item.append_labels(labels=[label])
 
         return dataset_item
@@ -177,18 +174,15 @@ class ClassificationDatasetAdapter(Dataset):
         assert self.data_info is not None
         return len(self.data_info)
 
-    def get_labels(self) -> List[LabelEntity]: # this should be removed after migration to ote_sdk Dataset
-        return self.project_labels
-
     def get_labels_str(self) -> List[str]:
         return self.labels
 
-    def get_subset(self, subset: Subset) -> Dataset:
+    def get_subset(self, subset: Subset) -> DatasetEntity:
         dataset = deepcopy(self)
         if dataset.init_as_subset(subset):
             dataset.project_labels = self.project_labels
             return dataset
-        return NullDataset()
+        return DatasetEntity(items=[])
 
     def is_multilabel(self):
         return self.multilabel
