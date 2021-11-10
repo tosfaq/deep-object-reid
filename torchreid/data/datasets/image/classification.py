@@ -126,7 +126,7 @@ class ExternalDatasetWrapper(ImageDataset):
             label = targets
         else:
             label = int(label)
-        return input_image, label, 0
+        return input_image, label, 0, 0
 
     @staticmethod
     def load_annotation(data_provider, filter_classes=None, dataset_id=0):
