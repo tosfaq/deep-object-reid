@@ -29,6 +29,7 @@ from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
 from ote_sdk.usecases.exportable_code.inference import BaseOpenVINOInferencer
+from ote_sdk.entities.scored_label import ScoredLabel
 from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
 from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from ote_sdk.entities.task_environment import TaskEnvironment
@@ -56,9 +57,12 @@ from compression.graph.model_utils import compress_model_weights, get_nodes_by_t
 from compression.pipeline.initializer import create_pipeline
 
 from torchreid.integration.sc.parameters import OTEClassificationParameters
-from torchreid.integration.sc.utils import get_multiclass_predictions,  get_multilabel_predictions
+from torchreid.integration.sc.utils import (get_multiclass_predictions,
+                                            get_multilabel_predictions,
+                                            get_empty_label)
 
 logger = logging.getLogger(__name__)
+
 
 def get_output(net, outputs, name):
     try:
@@ -76,6 +80,7 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
         self,
         hparams: OTEClassificationParameters,
         labels: List[LabelEntity],
+        empty_label: LabelEntity,
         multilabel: bool,
         model_file: Union[str, bytes],
         weight_file: Union[str, bytes, None] = None,
@@ -97,6 +102,7 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
         self.keep_aspect_ratio_resize = False
         self.pad_value = 0
         self.multilabel = multilabel
+        self.empty_label = empty_label
 
     @staticmethod
     def resize_image(image: np.ndarray, size: Tuple[int], keep_aspect_ratio: bool = False) -> np.ndarray:
@@ -128,6 +134,8 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
         raw_output = get_output(self.net, prediction, 'output').reshape(-1)
         if self.multilabel:
             item_labels = get_multilabel_predictions(raw_output, self.labels)
+            if not item_labels:
+                item_labels = [ScoredLabel(self.empty_label, probability=1.)]
         else:
             item_labels = get_multiclass_predictions(raw_output, self.labels)
         anno = [Annotation(Rectangle.generate_full_box(), labels=item_labels)]
@@ -136,6 +144,7 @@ class OpenVINOClassificationInferencer(BaseOpenVINOInferencer):
 
     def forward(self, image: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         return self.model.infer(image)
+
 
 class OTEOpenVinoDataLoader(DataLoader):
     def __init__(self, dataset: DatasetEntity, inferencer: BaseOpenVINOInferencer):
@@ -153,11 +162,13 @@ class OTEOpenVinoDataLoader(DataLoader):
     def __len__(self):
         return len(self.dataset)
 
+
 class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationTask):
     def __init__(self, task_environment: TaskEnvironment):
         self.task_environment = task_environment
         self.hparams = self.task_environment.get_hyper_parameters(OTEClassificationParameters)
         self.model = self.task_environment.model
+        self.empty_label = get_empty_label(task_environment)
         self.inferencer = self.load_inferencer()
 
     def load_inferencer(self) -> OpenVINOClassificationInferencer:
@@ -165,6 +176,7 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
         is_multilabel = len(self.task_environment.label_schema.get_groups(False)) > 1
         return OpenVINOClassificationInferencer(self.hparams,
                                                 labels,
+                                                self.empty_label,
                                                 is_multilabel,
                                                 self.model.get_data("openvino.xml"),
                                                 self.model.get_data("openvino.bin"))

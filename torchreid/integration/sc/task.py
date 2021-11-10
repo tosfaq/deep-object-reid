@@ -22,7 +22,8 @@ from torchreid.integration.sc.monitors import StopCallback, DefaultMetricsMonito
 from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingProgressCallback,
                                             InferenceProgressCallback, get_actmap, preprocess_features_for_actmap,
                                             active_score_from_probs, get_multiclass_predictions,
-                                            get_multilabel_predictions, sigmoid_numpy, softmax_numpy)
+                                            get_multilabel_predictions, sigmoid_numpy, softmax_numpy,
+                                            get_empty_label)
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
@@ -44,6 +45,7 @@ from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExpo
 from ote_sdk.entities.model import ModelEntity, ModelStatus
 from ote_sdk.entities.metadata import FloatMetadata, FloatType
 from ote_sdk.entities.resultset import ResultSetEntity
+from ote_sdk.entities.scored_label import ScoredLabel
 from ote_sdk.entities.tensor import TensorEntity
 from ote_sdk.entities.result_media import ResultMediaEntity
 from ote_sdk.entities.datasets import DatasetEntity
@@ -64,7 +66,11 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         self._task_environment = task_environment
         self._model_name = self._hyperparams.algo_backend.model_name
-        self._labels = task_environment.get_labels(False)
+        if len(task_environment.get_labels(False)) == 1:
+            self._labels = task_environment.get_labels(include_empty=True)
+        else:
+            self._labels = task_environment.get_labels(include_empty=False)
+        self._empty_label = get_empty_label(task_environment)
         self._multilabel = len(task_environment.label_schema.get_groups(False)) > 1
 
         template_file_path = task_environment.model_template.model_template_path
@@ -219,6 +225,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
             if self._multilabel:
                 item_labels = get_multilabel_predictions(scores[i], self._labels, activate=False)
+                if not item_labels:
+                    item_labels = [ScoredLabel(self._empty_label, probability=1.)]
             else:
                 scores[i] = softmax_numpy(scores[i])
                 item_labels = get_multiclass_predictions(scores[i], self._labels, activate=False)
