@@ -38,7 +38,7 @@ def score_extraction_from_ir(data_loader, model, labelmap=[]):
         gt_labels.append(label)
 
     out_scores = np.concatenate(out_scores, 0)
-    gt_labels = torch.cat(gt_labels, 0).data.cpu().numpy()
+    gt_labels = np.array(gt_labels) if len(gt_labels) == 1 else np.concatenate(gt_labels, 0)
     gt_labels = gt_labels.reshape(out_scores.shape[0], -1)
 
     return out_scores, gt_labels
@@ -157,7 +157,7 @@ def evaluate_classification(dataloader, model, use_gpu, topk=(1,), labelmap=[]):
     return cmc, m_ap, norm_cm
 
 
-def evaluate_multilabel_classification(dataloader, model, use_gpu):
+def evaluate_multilabel_classification(dataloader, model, use_gpu, scale=1.):
 
     def average_precision(output, target):
         epsilon = 1e-8
@@ -227,7 +227,7 @@ def evaluate_multilabel_classification(dataloader, model, use_gpu):
     else:
         scores, labels = score_extraction(dataloader, model, use_gpu)
 
-    scores = 1. / (1 + np.exp(-scores))
+    scores = 1. / (1 + np.exp(-scores * scale))
     mAP_score = mAP(labels, scores)
 
     return mAP_score

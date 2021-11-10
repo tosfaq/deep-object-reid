@@ -74,6 +74,27 @@ def main():
             sources='nus_wide_train',
             targets='nus_wide_val',
         ),
+        pets=dict(
+            roots=['oxford_pets/train.json', 'oxford_pets/val.json'],
+            names=['oxford_pets_train', 'oxford_pets_val'],
+            types=['multilabel_classification', 'multilabel_classification'],
+            sources='oxford_pets_train',
+            targets='oxford_pets_val',
+        ),
+        bbcd=dict(
+            roots=['BBCD/train.json', 'BBCD/val.json'],
+            names=['bbcd_train', 'bbcd_val'],
+            types=['multilabel_classification', 'multilabel_classification'],
+            sources='bbcd_train',
+            targets='bbcd_val',
+        ),
+        aerial_maritime=dict(
+            roots=['Aerial_Maritime/train.json', 'Aerial_Maritime/val.json'],
+            names=['aerial_maritime_train', 'aerial_maritime_val'],
+            types=['multilabel_classification', 'multilabel_classification'],
+            sources='aerial_maritime_train',
+            targets='aerial_maritime_val',
+        ),
     )
 
     path_to_base_cfg = args.config
@@ -143,7 +164,7 @@ def main():
                     saver[next_dataset] = dict()
                     continue
                 else:
-                    for metric in ['mAP', 'Rank-1', 'Rank-5']:
+                    for metric in ['mAP', 'F_O', 'mean_F_C']:
                         if line.strip().startswith(metric):
                             if not metric in saver[next_dataset]:
                                 saver[next_dataset][metric] = []
@@ -160,14 +181,13 @@ def main():
             for key in sorted(datasets.keys()):
                 names += key + ' '
                 if key in saver:
-                    best_top_1_idx = np.argmax(saver[key]['Rank-1'])
-                    top1 = str(saver[key]['Rank-1'][best_top_1_idx])
+                    best_top_1_idx = np.argmax(saver[key]['F_O'])
+                    fo = str(saver[key]['F_O'][best_top_1_idx])
                     mAP = str(saver[key]['mAP'][best_top_1_idx])
-                    top5 = str(saver[key]['Rank-5'][best_top_1_idx])
-                    snapshot = str(best_top_1_idx)
-                    values += mAP + ';' + top1 + ';' + top5 + ';' + snapshot + ';'
+                    fc = str(saver[key]['mean_F_C'][best_top_1_idx])
+                    values += mAP + ';' + fo + ';' + fc + ';'
                 else:
-                    values += '-1;-1;-1;-1;'
+                    values += '-1;-1;-1;'
 
             f.write(f"\n{names}\n{values}")
 

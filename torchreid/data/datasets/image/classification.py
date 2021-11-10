@@ -140,9 +140,7 @@ class ClassificationImageFolder(ImageDataset):
     def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, filter_classes=None, **kwargs):
         if load_masks:
             raise NotImplementedError
-
         self.root = osp.abspath(osp.expanduser(root))
-
         required_files = [
             self.root
         ]
