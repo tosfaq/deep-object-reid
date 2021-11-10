@@ -102,7 +102,7 @@ class AMBinaryLoss(nn.Module):
         if self.sym_adjustment:
             cos_theta = self.sym_adjust(cos_theta)
 
-        # Calculating Probabilities
+       # Calculating Probabilities
         self.xs_pos = torch.sigmoid(self.s * (cos_theta - self.m))
         self.xs_neg = torch.sigmoid(self.s * (-cos_theta - self.m))
 
@@ -119,8 +119,8 @@ class AMBinaryLoss(nn.Module):
             assert not self.asymmetric_focus and not self.auto_balance
             balance_koeff_pos = self.k / self.s
             balance_koeff_neg = (1 - self.k) / self.s
-        self.loss = balance_koeff_pos * targets * torch.log(1 + torch.exp(-self.xs_pos))
-        self.loss.add_(balance_koeff_neg * self.anti_targets * torch.log(1 + torch.exp(-self.xs_neg)))
+        self.loss = balance_koeff_pos * targets * torch.log(1 + torch.exp(-self.s * (cos_theta - self.m)))
+        self.loss.add_(balance_koeff_neg * self.anti_targets * torch.log(1 + torch.exp(self.s * (cos_theta + self.m))))
 
         # Asymmetric Focusing
         if self.asymmetric_focus:
