@@ -27,8 +27,8 @@ data:
   root: './'
   sources: ['coco_data']
   targets: ['coco_data']
-  height: 448
-  width: 448
+  height: 224
+  width: 224
   norm_mean: [0.485, 0.456, 0.406]
   norm_std: [0.229, 0.224, 0.225]
   save_dir: 'output/mulitilabel/efficientnet_b0'
