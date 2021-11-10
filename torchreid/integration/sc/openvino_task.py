@@ -24,7 +24,7 @@ import numpy as np
 import PIL
 
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneKind
-from ote_sdk.entities.inference_parameters import InferenceParameters
+from ote_sdk.entities.inference_parameters import InferenceParameters, default_progress_callback
 from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
@@ -171,10 +171,14 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
 
     def infer(self, dataset: DatasetEntity,
               inference_parameters: Optional[InferenceParameters] = None) -> DatasetEntity:
-        from tqdm import tqdm
-        for dataset_item in tqdm(dataset):
+        update_progress_callback = default_progress_callback
+        if inference_parameters is not None:
+            update_progress_callback = inference_parameters.update_progress
+        dataset_size = len(dataset)
+        for i, dataset_item in enumerate(dataset, 1):
             dataset_item.annotation_scene = self.inferencer.predict(dataset_item.numpy)
             dataset_item.append_labels(dataset_item.annotation_scene.annotations[0].get_labels())
+            update_progress_callback(int(i / dataset_size * 100))
         return dataset
 
     def evaluate(self,
