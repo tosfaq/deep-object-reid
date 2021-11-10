@@ -150,7 +150,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         self._cfg.data.targets = ['val']
         self._cfg.data.save_dir = self._scratch_space
 
-        self._cfg.test.test_before_train = True
+        self._cfg.test.test_before_train = False
         self.num_classes = len(self._labels)
 
         for i, conf in enumerate(self._cfg.mutual_learning.aux_configs):
@@ -333,12 +333,11 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                         run_lr_finder(self._cfg, datamanager, train_model, optimizer, scheduler, None,
                                       rebuild_model=False, gpu_num=self.num_devices, split_models=False)
 
-        init_acc, final_acc = run_training(self._cfg, datamanager, train_model, optimizer,
-                                           scheduler, extra_device_ids, self._cfg.train.lr,
-                                           tb_writer=self.metrics_monitor, perf_monitor=time_monitor,
-                                           stop_callback=self.stop_callback)
+        _, final_acc = run_training(self._cfg, datamanager, train_model, optimizer,
+                                    scheduler, extra_device_ids, self._cfg.train.lr,
+                                    tb_writer=self.metrics_monitor, perf_monitor=time_monitor,
+                                    stop_callback=self.stop_callback)
 
-        improved = final_acc > init_acc
         training_metrics = self._generate_training_metrics_group()
 
         if self._cfg.use_gpu:
@@ -349,10 +348,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             logger.info('Training cancelled.')
             return
 
-        if improved:
-            logger.info("Training finished, and it has an improved model")
-        else:
-            logger.info("Model performance has not improved while training")
+        logger.info("Training finished.")
 
         load_pretrained_weights(self._model, os.path.join(self._scratch_space, 'best.pth'))
         self.save_model(output_model)
