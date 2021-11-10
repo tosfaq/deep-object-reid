@@ -50,7 +50,7 @@ data:
     
 
 loss:
-  name: 'am_softmax'
+  name: 'softmax'
   softmax:
     compute_s: True
 
@@ -82,7 +82,7 @@ train:
   ema:
     enable: True
     ema_decay: 0.999
-  mix_precision: True
+  mix_precision: False
 
 test:
   batch_size: 128

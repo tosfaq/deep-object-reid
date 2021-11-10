@@ -49,7 +49,7 @@ data:
       p: 0.35
 
 loss:
-  name: 'am_softmax'
+  name: 'softmax'
   softmax:
     compute_s: True
 
