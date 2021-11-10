@@ -341,21 +341,18 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             logger.info('Training cancelled.')
             return
 
-        if improved or self._task_environment.model is None:
-            if improved:
-                logger.info("Training finished, and it has an improved model")
-            else:
-                logger.info("First training round, saving the model.")
-            load_pretrained_weights(self._model, os.path.join(self._scratch_space, 'best.pth'))
-            self.save_model(output_model)
-            output_model.model_status = ModelStatus.SUCCESS
-            performance = Performance(score=ScoreMetric(value=final_acc, name="accuracy"),
-                                      dashboard_metrics=training_metrics)
-            logger.info(f'FINAL MODEL PERFORMANCE {performance}')
-            output_model.performance = performance
+        if improved:
+            logger.info("Training finished, and it has an improved model")
         else:
-            logger.info("Model performance has not improved while training. No new model has been saved.")
-            output_model.model_status = ModelStatus.NOT_IMPROVED
+            logger.info("Model performance has not improved while training")
+
+        load_pretrained_weights(self._model, os.path.join(self._scratch_space, 'best.pth'))
+        self.save_model(output_model)
+        output_model.model_status = ModelStatus.SUCCESS
+        performance = Performance(score=ScoreMetric(value=final_acc, name="accuracy"),
+                                  dashboard_metrics=training_metrics)
+        logger.info(f'FINAL MODEL PERFORMANCE {performance}')
+        output_model.performance = performance
 
     def evaluate(
         self, output_resultset: ResultSetEntity, evaluation_metric: Optional[str] = None
