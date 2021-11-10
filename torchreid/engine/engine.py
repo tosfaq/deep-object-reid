@@ -84,7 +84,7 @@ class Engine:
         self.best_metric = 0.0
         self.max_epoch = None
         self.num_batches = None
-        self.s = 1.
+        self.scale = 1.
         assert target_metric in ['train_loss', 'test_acc']
         self.target_metric = target_metric
         self.epoch = None
@@ -683,7 +683,7 @@ class Engine:
 
     @torch.no_grad()
     def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, dataset_name, lr_finder):
-        mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader, model, self.use_gpu, self.s)
+        mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader, model, self.use_gpu, self.scale)
 
         if self.writer is not None and not lr_finder:
             self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)

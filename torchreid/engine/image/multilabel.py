@@ -65,7 +65,7 @@ class MultilabelEngine(Engine):
                     m=m,
                     k=amb_k,
                     t=amb_t,
-                    s=self.scale,
+                    s=s,
                     sym_adjustment=sym_adjustment,
                     auto_balance=auto_balance,
                     gamma_neg=asl_gamma_neg,
