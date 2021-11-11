@@ -44,7 +44,7 @@ class MultilabelEngine(Engine):
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
         self.num_classes = num_classes
-
+        self.scale = s
         for _ in enumerate(self.num_classes):
             if loss_name == 'asl':
                 self.main_losses.append(AsymmetricLoss(

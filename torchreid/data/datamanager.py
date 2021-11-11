@@ -175,6 +175,7 @@ class ImageDataManager(DataManager):
         combineall=False,
         batch_size_train=32,
         batch_size_test=32,
+        correct_batch_size = False,
         workers=4,
         train_sampler='RandomSampler',
         batch_num_instances=4,
@@ -236,19 +237,20 @@ class ImageDataManager(DataManager):
         assert isinstance(self._num_train_pids, list)
         assert isinstance(self._num_train_cams, list)
         assert len(self._num_train_pids) == len(self._num_train_cams)
-
-        train_bs = max(1, min(batch_size_train, len(train_dataset)))
+        if correct_batch_size:
+            batch_size_train = self.calculate_batch(batch_size_train, len(train_dataset))
+        batch_size_train = max(1, min(batch_size_train, len(train_dataset)))
         self.train_loader = torch.utils.data.DataLoader(
             train_dataset,
             sampler=build_train_sampler(
                 train_dataset.train,
                 train_sampler,
-                batch_size=train_bs,
+                batch_size=batch_size_train,
                 batch_num_instances=batch_num_instances,
                 epoch_num_instances=epoch_num_instances,
                 fill_instances=fill_instances,
             ),
-            batch_size=train_bs,
+            batch_size=batch_size_train,
             shuffle=False,
             worker_init_fn=worker_init_fn,
             num_workers=workers,
@@ -343,3 +345,10 @@ class ImageDataManager(DataManager):
         print('  target            : {}'.format(self.targets))
         print('  *****************************************')
         print('\n')
+
+    @staticmethod
+    def calculate_batch(cur_batch, data_len):
+        ''' This heuristic improves multilabel training on small datasets '''
+        if data_len <= 2500:
+            return max(int(np.ceil(np.sqrt(data_len) / 2.5)), 6)
+        return cur_batch

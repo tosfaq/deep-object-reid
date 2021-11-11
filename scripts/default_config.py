@@ -131,6 +131,7 @@ def get_default_config():
     cfg.train.max_epoch = 60
     cfg.train.start_epoch = 0
     cfg.train.batch_size = 32
+    cfg.train.correct_batch_size = False
     cfg.train.early_stoping = False # switch on exit on metric plataeu method
     cfg.train.train_patience = 10 # define how much epochs to wait after scheduler process
     cfg.train.open_layers = ['classifier']  # layers for training while keeping others frozen
@@ -526,6 +527,7 @@ def imagedata_kwargs(cfg):
         'combineall': cfg.data.combineall,
         'batch_size_train': cfg.train.batch_size,
         'batch_size_test': cfg.test.batch_size,
+        'correct_batch_size': cfg.train.correct_batch_size,
         'workers': cfg.data.workers,
         'batch_num_instances': cfg.sampler.batch_num_instances,
         'epoch_num_instances': cfg.sampler.epoch_num_instances,
@@ -533,7 +535,6 @@ def imagedata_kwargs(cfg):
         'train_sampler': cfg.sampler.train_sampler,
         'enable_masks': cfg.data.enable_masks,
         'num_sampled_packages': cfg.data.num_sampled_packages,
-        # image
         'cuhk03_labeled': cfg.cuhk03.labeled_images,
         'cuhk03_classic_split': cfg.cuhk03.classic_split,
         'market1501_500k': cfg.market1501.use_500k_distractors,

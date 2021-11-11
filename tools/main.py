@@ -62,8 +62,6 @@ def main():
     sys.stdout = Logger(osp.join(cfg.data.save_dir, log_name))
 
     print('Show configuration\n{}\n'.format(cfg))
-    print('Collecting env info ...')
-    print('** System info **\n{}\n'.format(collect_env_info()))
 
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True
