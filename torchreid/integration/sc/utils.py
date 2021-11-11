@@ -160,11 +160,12 @@ def get_empty_label(task_environment) -> LabelEntity:
 
 
 def generate_label_schema(not_empty_labels, multilabel=False):
-    emptylabel = LabelEntity(name="Empty label", is_empty=True, domain=Domain.CLASSIFICATION)
+    assert len(not_empty_labels) > 1
 
     label_schema = LabelSchemaEntity()
-    empty_group = LabelGroup(name="empty", labels=[emptylabel], group_type=LabelGroupType.EMPTY_LABEL)
     if multilabel:
+        emptylabel = LabelEntity(name="Empty label", is_empty=True, domain=Domain.CLASSIFICATION)
+        empty_group = LabelGroup(name="empty", labels=[emptylabel], group_type=LabelGroupType.EMPTY_LABEL)
         single_groups = []
         for label in not_empty_labels:
             single_groups.append(LabelGroup(name=label.name, labels=[label], group_type=LabelGroupType.EXCLUSIVE))
@@ -173,7 +174,6 @@ def generate_label_schema(not_empty_labels, multilabel=False):
     else:
         main_group = LabelGroup(name="labels", labels=not_empty_labels, group_type=LabelGroupType.EXCLUSIVE)
         label_schema.add_group(main_group)
-        label_schema.add_group(empty_group, exclusive_with=[main_group])
     return label_schema
 
 
