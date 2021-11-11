@@ -219,7 +219,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         if self._multilabel:
             scores = sigmoid_numpy(scores)
 
-        predicted_items = []
         for i in range(scores.shape[0]):
             dataset_item = dataset[i]
 
@@ -232,7 +231,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                 item_labels = get_multiclass_predictions(scores[i], self._labels, activate=False)
 
             dataset_item.append_labels(item_labels)
-            predicted_items.append(dataset_item)
 
             active_score = active_score_from_probs(scores[i])
             active_score_media = FloatMetadata(name="Active score", value=active_score,
@@ -247,7 +245,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                                                    annotation_scene=dataset_item.annotation_scene, numpy=actmap)
                 dataset_item.append_metadata_item(saliency_media)
 
-        return DatasetEntity(items=predicted_items)
+        return dataset
 
     def _generate_training_metrics_group(self) -> Optional[List[MetricsGroup]]:
         """
