@@ -261,7 +261,7 @@ def evaluate_multilabel_classification(dataloader, model, use_gpu):
     else:
         scores, labels = score_extraction(dataloader, model, use_gpu)
 
-    scores = 1. / (1 + np.exp(-scores))
+    scores = 1. / (1 + np.exp(-scores * scale))
     mAP_score = mAP(labels, scores)
 
     return mAP_score
