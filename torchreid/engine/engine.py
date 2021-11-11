@@ -325,7 +325,7 @@ class Engine:
         self.max_epoch = max_epoch
         assert start_epoch != max_epoch, "the last epoch number cannot be equal the start one"
         if self.early_stoping or self.target_metric == 'test_acc':
-            assert eval_freq == 1, "early stopping works only with evaluation on each epoch" 
+            assert eval_freq == 1, "early stopping works only with evaluation on each epoch"
         self.fixbase_epoch = fixbase_epoch
         test_acc = AverageMeter()
         top1, smooth_top1, should_save_ema_model = 0, 0, False
@@ -375,7 +375,7 @@ class Engine:
                     lr_finder=lr_finder,
                 )
             if top1:
-                test_acc.update(top1) 
+                test_acc.update(top1)
                 smooth_top1 = test_acc.avg
             target_metric = smooth_top1 if self.target_metric == 'test_acc' else avg_loss
 
