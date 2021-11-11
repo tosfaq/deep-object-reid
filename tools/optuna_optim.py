@@ -45,8 +45,8 @@ def finish_process(study):
 
 def objective(cfg, args, trial):
     # Generate the trials.
-    t = trial.suggest_int("t", 1, 5)
-    cfg.loss.am_binary.amb_t = t
+    lr = trial.suggest_float("lr", 0.0001, 0.01)
+    cfg.train.lr = lr
 
     # geterate damanager
     num_aux_models = len(cfg.mutual_learning.aux_configs)
@@ -100,7 +100,7 @@ def objective(cfg, args, trial):
     obj = 0
     engine.start_epoch = 0
     engine.max_epoch = args.epochs
-    print(f"\nnext trial with [t: {t}]")
+    print(f"\nnext trial with [lr: {lr}]")
 
     for engine.epoch in range(args.epochs):
         np.random.seed(cfg.train.seed + engine.epoch)

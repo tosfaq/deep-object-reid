@@ -196,7 +196,7 @@ def get_default_config():
     cfg.loss.softmax.conf_penalty = 0.0
     cfg.loss.softmax.pr_product = False
     cfg.loss.softmax.m = 0.35
-    cfg.loss.softmax.s = 30.0
+    cfg.loss.softmax.s = 30.
     cfg.loss.softmax.compute_s = False
     cfg.loss.softmax.end_s = -1.0
     cfg.loss.softmax.duration_s = -1
@@ -212,7 +212,7 @@ def get_default_config():
     cfg.loss.am_binary = CN()
     cfg.loss.am_binary.sym_adjustment = False
     cfg.loss.am_binary.auto_balance = False
-    cfg.loss.am_binary.amb_k = 0.8
+    cfg.loss.am_binary.amb_k = 0.7
     cfg.loss.am_binary.amb_t = 1.
     cfg.loss.triplet = CN()
     cfg.loss.triplet.margin = 0.3  # distance margin
