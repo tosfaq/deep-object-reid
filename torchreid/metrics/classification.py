@@ -207,13 +207,11 @@ def evaluate_multilabel_classification(dataloader, model, use_gpu, scale=1.):
 
         return precision_at_i
 
-
     def mAP(targs, preds, pos_thr=0.5):
         """Returns the model's average precision for each class
         Return:
             ap (FloatTensor): 1xK tensor, with avg precision for each class k
         """
-
         if np.size(preds) == 0:
             return 0
         ap = np.zeros((preds.shape[1]))
@@ -222,12 +220,10 @@ def evaluate_multilabel_classification(dataloader, model, use_gpu, scale=1.):
             scores = preds[:, k]
             targets = targs[:, k]
             ap[k] = average_precision(scores, targets)
-
         tp, fp, fn, tn = [], [], [], []
         for k in range(preds.shape[0]):
             scores = preds[k,:]
             targets = targs[k,:]
-
             pred = (scores > pos_thr).astype(np.int32)
             tp.append(((pred + targets) == 2).sum())
             fp.append(((pred - targets) == 1).sum())
@@ -256,7 +252,7 @@ def evaluate_multilabel_classification(dataloader, model, use_gpu, scale=1.):
     else:
         scores, labels = score_extraction(dataloader, model, use_gpu)
 
-    scores = 1. / (1 + np.exp(-scores))
+    scores = 1. / (1 + np.exp(-scores * scale))
     mAP_score = mAP(labels, scores)
 
     return mAP_score

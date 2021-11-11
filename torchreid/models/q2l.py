@@ -82,6 +82,8 @@ class Query2Label(ModelInterface):
         query_input = self.query_embed.weight
         hs = self.transformer(self.input_proj(src), query_input, pos)[0] # B,K,d
         logits = self.fc(hs[-1])
+        if self.similarity_adjustment:
+            logits = self.sym_adjust(logits, self.similarity_adjustment)
 
         if not self.training:
             return [logits]

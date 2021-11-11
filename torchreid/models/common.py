@@ -27,6 +27,7 @@ class ModelInterface(nn.Module):
                 pretrained=False,
                 loss='softmax',
                 mix_precision=False,
+                similarity_adjustment=None,
                 **kwargs):
         super().__init__()
 
@@ -35,6 +36,7 @@ class ModelInterface(nn.Module):
         self.pretrained = pretrained
         self.classification_classes = {}
         self.is_ie_model = False
+        self.similarity_adjustment = similarity_adjustment
         self.loss = loss
         self.num_head_features = feature_dim
         self.num_features = feature_dim
@@ -49,6 +51,10 @@ class ModelInterface(nn.Module):
 
     def get_num_head_features(self):
         return self.num_head_features
+
+    @staticmethod
+    def sym_adjust(z, t):
+        return 2 * torch.pow((z + 1)/2, t) - 1
 
     @staticmethod
     def _glob_feature_vector(x, mode, reduce_dims=True):

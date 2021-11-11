@@ -618,6 +618,7 @@ def model_kwargs(cfg, num_classes):
         'type': cfg.model.type,
         'self_challenging_cfg': cfg.model.self_challenging_cfg,
         'hidden_dim': cfg.model.transformer.hidden_dim,
+        'similarity_adjustment': cfg.loss.am_binary.amb_t,
         'dropout': cfg.model.transformer.dropout,
         'nheads': cfg.model.transformer.nheads,
         'dim_feedforward': cfg.model.transformer.dim_feedforward,

@@ -188,6 +188,8 @@ class MobileNetV3(ModelInterface):
             glob_features = x
 
         logits = self.classifier(glob_features.view(x.shape[0], -1))
+        if self.similarity_adjustment:
+            logits = self.sym_adjust(logits, self.similarity_adjustment)
         return glob_features, logits
 
     def _initialize_weights(self):
