@@ -254,13 +254,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         """
         output: List[MetricsGroup] = []
 
-        # Model architecture
-        architecture = InfoMetric(name='Model architecture', value=self._model_name)
-        visualization_info_architecture = VisualizationInfo(name="Model architecture",
-                                                            visualisation_type=VisualizationType.TEXT)
-        output.append(TextMetricsGroup(metrics=[architecture],
-                                       visualization_info=visualization_info_architecture))
-
         # Learning curves
         if self.metrics_monitor is not None:
             for key in self.metrics_monitor.get_metric_keys():
