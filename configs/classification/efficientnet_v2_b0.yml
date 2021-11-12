@@ -30,7 +30,7 @@ data:
   width: 224
   norm_mean: [0.485, 0.456, 0.406]
   norm_std: [0.229, 0.224, 0.225]
-  save_dir: 'output/efficientv2_b0/log_raw'
+  save_dir: 'output/efficientv2_b0/log'
   workers: 6
   transforms:
     random_flip:
