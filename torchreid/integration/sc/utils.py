@@ -178,17 +178,21 @@ def generate_label_schema(not_empty_labels, multilabel=False):
 
 
 class OTEClassificationDataset():
-    def __init__(self, ote_dataset, labels, multilabel=False):
+    def __init__(self, ote_dataset: DatasetEntity, labels, multilabel=False,
+                 keep_empty_label=False):
         super().__init__()
         self.ote_dataset = ote_dataset
         self.multilabel = multilabel
         self.labels = labels
         self.annotation = []
+        self.keep_empty_label = keep_empty_label
 
         for i, _ in enumerate(self.ote_dataset):
             class_indices = []
-            if self.ote_dataset[i].get_shapes_labels():
-                for ote_lbl in self.ote_dataset[i].get_shapes_labels():
+            item_labels = self.ote_dataset[i].get_roi_labels(self.labels,
+                                                             include_empty=self.keep_empty_label)
+            if item_labels:
+                for ote_lbl in item_labels:
                     class_indices.append(self.labels.index(ote_lbl.name))
             else:
                 class_indices.append(0)

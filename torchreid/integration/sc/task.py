@@ -193,8 +193,10 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                                                  update_progress_callback)
 
         labels = [label.name for label in self._labels]
-        self._cfg.custom_datasets.roots = [OTEClassificationDataset(dataset, labels, self._multilabel),
-                                           OTEClassificationDataset(dataset, labels, self._multilabel)]
+        self._cfg.custom_datasets.roots = [OTEClassificationDataset(dataset, labels, self._multilabel,
+                                                                    keep_empty_label=self._empty_label in self._labels),
+                                           OTEClassificationDataset(dataset, labels, self._multilabel,
+                                                                    keep_empty_label=self._empty_label in self._labels)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
         mix_precision_status = self._model.mix_precision
         self._model.mix_precision = False
