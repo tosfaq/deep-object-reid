@@ -71,9 +71,9 @@ def setup_configurable_parameters(template_dir, max_num_epochs=10):
 
 def init_environment(params, model_template, number_of_images=10):
     resolution = (224, 224)
-    colors = [(0,255,0), (0,0,255), (255,0,0)]
+    colors = [(0,255,0), (0,0,255)]
     cls_names = ['b', 'g']
-    texts = ['Blue', 'Green', 'Red']
+    texts = ['Blue', 'Green']
     labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False) for i, name in
                 enumerate(cls_names)]
 
@@ -113,15 +113,18 @@ def init_environment(params, model_template, number_of_images=10):
     return environment, dataset
 
 
-@e2e_pytest_api
-def test_training_progress_tracking():
+@pytest.fixture()
+def default_task_setup():
     hyper_parameters, model_template = setup_configurable_parameters(DEFAULT_TEMPLATE_DIR, max_num_epochs=5)
     task_environment, dataset = init_environment(hyper_parameters, model_template, 20)
+    return (OTEClassificationTask(task_environment=task_environment), task_environment, dataset)
 
-    task = OTEClassificationTask(task_environment=task_environment)
 
+@e2e_pytest_api
+def test_training_progress_tracking(default_task_setup):
     print('Task initialized, model training starts.')
     training_progress_curve = []
+    task, task_environment, dataset = default_task_setup
 
     def progress_callback(progress: float, score: Optional[float] = None):
         training_progress_curve.append(progress)
@@ -142,11 +145,8 @@ def test_training_progress_tracking():
 
 
 @e2e_pytest_api
-def test_inference_progress_tracking():
-    hyper_parameters, model_template = setup_configurable_parameters(DEFAULT_TEMPLATE_DIR, max_num_epochs=5)
-    task_environment, dataset = init_environment(hyper_parameters, model_template, 20)
-
-    task = OTEClassificationTask(task_environment=task_environment)
+def test_inference_progress_tracking(default_task_setup):
+    task, task_environment, dataset = default_task_setup
 
     print('Task initialized, model inference starts.')
     inference_progress_curve = []
