@@ -229,7 +229,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             dataset_item.append_labels(item_labels)
 
             active_score = active_score_from_probs(scores[i])
-            active_score_media = FloatMetadata(name="Active score", value=active_score,
+            active_score_media = FloatMetadata(name="active_score", value=active_score,
                                                float_type=FloatType.ACTIVE_SCORE)
             dataset_item.append_metadata_item(active_score_media)
             feature_vec_media = TensorEntity(name="representation_vector", numpy=feature_vecs[i])
@@ -237,7 +237,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
             if dump_features:
                 actmap = get_actmap(features[i], (dataset_item.width, dataset_item.height))
-                saliency_media = ResultMediaEntity(name="Saliency map", type="Saliency_map",
+                saliency_media = ResultMediaEntity(name="saliency_map", type="Saliency map",
                                                    annotation_scene=dataset_item.annotation_scene, numpy=actmap)
                 dataset_item.append_metadata_item(saliency_media)
 
