@@ -29,8 +29,7 @@ from torchreid.metrics.classification import score_extraction
 
 from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.entities.metrics import (LineMetricsGroup, CurveMetric, LineChartInfo,
-                                      InfoMetric, VisualizationInfo, VisualizationType,
-                                      Performance, ScoreMetric, MetricsGroup, TextMetricsGroup)
+                                      Performance, ScoreMetric, MetricsGroup)
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.entities.train_parameters import TrainParameters, default_progress_callback
 from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
@@ -265,10 +264,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
               train_parameters: Optional[TrainParameters] = None):
         """ Trains a model on a dataset """
 
-        if train_parameters is not None and train_parameters.train_on_empty_model:
-            train_model = self._create_model(self._cfg)
-        else:
-            train_model = deepcopy(self._model)
+        train_model = deepcopy(self._model)
 
         self._cfg.train.lr = self._hyperparams.learning_parameters.learning_rate
         self._cfg.train.batch_size = self._hyperparams.learning_parameters.batch_size
@@ -338,7 +334,9 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         logger.info("Training finished.")
 
-        load_pretrained_weights(self._model, os.path.join(self._scratch_space, 'best.pth'))
+        best_snap_path = os.path.join(self._scratch_space, 'best.pth')
+        if os.path.isfile(best_snap_path):
+            load_pretrained_weights(self._model, best_snap_path)
         self.save_model(output_model)
         output_model.model_status = ModelStatus.SUCCESS
         performance = Performance(score=ScoreMetric(value=final_acc, name="accuracy"),
