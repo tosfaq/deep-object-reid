@@ -1,25 +1,6 @@
 description: Configuration for an image classification task
 header: Configuration for an image classification task
 learning_parameters:
-  max_num_epochs:
-    affects_outcome_of: TRAINING
-    default_value: 200
-    description: Increasing this value causes the results to be more robust but training
-      time will be longer.
-    editable: true
-    header: Maximum number of training epochs
-    max_value: 100000
-    min_value: 1
-    type: INTEGER
-    ui_rules:
-      action: DISABLE_EDITING
-      operator: AND
-      rules: []
-      type: UI_RULES
-    value: 200
-    visible_in_ui: true
-    warning: Increasing this value may cause the system to use more memory than available,
-      potentially causing out of memory errors, please update with caution.
   batch_size:
     affects_outcome_of: TRAINING
     default_value: 32
@@ -36,7 +17,6 @@ learning_parameters:
       operator: AND
       rules: []
       type: UI_RULES
-    value: 32
     visible_in_ui: true
     warning: Increasing this value may cause the system to use more memory than available,
       potentially causing out of memory errors, please update with caution.
@@ -57,32 +37,27 @@ learning_parameters:
       operator: AND
       rules: []
       type: UI_RULES
-    value: 0.01
-    visible_in_ui: false
+    visible_in_ui: true
     warning: null
-  num_workers:
-    affects_outcome_of: NONE
-    default_value: 0
-    description: Increasing this value might improve training speed however it might
-      cause out of memory errors. If the number of workers is set to zero, data loading
-      will happen in the main training thread.
+  max_num_epochs:
+    affects_outcome_of: TRAINING
+    default_value: 200
+    description: Increasing this value causes the results to be more robust but training
+      time will be longer.
     editable: true
-    header: Number of cpu threads to use during batch generation
-    max_value: 8
-    min_value: 0
+    header: Maximum number of training epochs
+    max_value: 100000
+    min_value: 1
     type: INTEGER
     ui_rules:
       action: DISABLE_EDITING
       operator: AND
       rules: []
       type: UI_RULES
-    value: 0
     visible_in_ui: true
     warning: null
   type: PARAMETER_GROUP
   visible_in_ui: true
-type: CONFIGURABLE_PARAMETERS
-visible_in_ui: true
 pot_parameters:
   description: POT Parameters
   header: POT Parameters
@@ -90,7 +65,7 @@ pot_parameters:
     affects_outcome_of: NONE
     default_value: Performance
     description: Quantization preset that defines quantization scheme
-    editable: False
+    editable: false
     enum_name: POTQuantizationPreset
     header: Preset
     options:
@@ -102,14 +77,13 @@ pot_parameters:
       operator: AND
       rules: []
       type: UI_RULES
-    value: Performance
-    visible_in_ui: False
+    visible_in_ui: false
     warning: null
   stat_subset_size:
     affects_outcome_of: NONE
     default_value: 300
     description: Number of data samples used for post-training optimization
-    editable: True
+    editable: true
     header: Number of data samples
     max_value: 9223372036854775807
     min_value: 1
@@ -119,8 +93,9 @@ pot_parameters:
       operator: AND
       rules: []
       type: UI_RULES
-    value: 300
-    visible_in_ui: True
+    visible_in_ui: true
     warning: null
   type: PARAMETER_GROUP
   visible_in_ui: true
+type: CONFIGURABLE_PARAMETERS
+visible_in_ui: true

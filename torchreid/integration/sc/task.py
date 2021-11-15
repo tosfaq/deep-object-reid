@@ -65,7 +65,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         logger.info(f"Scratch space created at {self._scratch_space}")
 
         self._task_environment = task_environment
-        self._model_name = self._hyperparams.algo_backend.model_name
         if len(task_environment.get_labels(False)) == 1:
             self._labels = task_environment.get_labels(include_empty=True)
         else:
@@ -108,7 +107,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             try:
                 load_pretrained_weights(model, pretrained_dict=model_data['model'])
                 logger.info("Loaded model weights from Task Environment")
-                logger.info(f"Model architecture: {self._model_name}")
             except BaseException as ex:
                 raise ValueError("Could not load the saved model. The model file structure is invalid.") \
                     from ex
@@ -116,8 +114,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             # If there is no trained model yet, create model with pretrained weights as defined in the model config
             # file.
             model = self._create_model(self._cfg, from_scratch=False)
-            logger.info(f"No trained model in project yet. Created new model with '{self._model_name}' "
-                        f"architecture and general-purpose pretrained weights.")
+            logger.info("No trained model in project yet. Created new model with general-purpose pretrained weights.")
         return model
 
     def _create_model(self, config, from_scratch: bool = False):
@@ -136,9 +133,9 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
     def _patch_config(self, base_dir: str):
         self._cfg = get_default_config()
         if self._multilabel:
-            config_file_path = os.path.join(base_dir, self._hyperparams.algo_backend.multilabel_model)
+            config_file_path = os.path.join(base_dir, 'main_model_multilabel.yaml')
         else:
-            config_file_path = os.path.join(base_dir, self._hyperparams.algo_backend.model)
+            config_file_path = os.path.join(base_dir, 'main_model.yaml')
         merge_from_files_with_base(self._cfg, config_file_path)
         self._cfg.use_gpu = torch.cuda.device_count() > 0
         self.num_devices = 1 if self._cfg.use_gpu else 0

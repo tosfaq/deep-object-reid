@@ -17,7 +17,7 @@ from .parameters_enums import POTQuantizationPreset
 
 @attrs
 class OTEClassificationParameters(ConfigurableParameters):
-    header = string_attribute("Configuration for an object detection task")
+    header = string_attribute("Configuration for an image classification task")
     description = header
 
     @attrs
@@ -58,17 +58,6 @@ class OTEClassificationParameters(ConfigurableParameters):
         )
 
     @attrs
-    class __AlgoBackend(ParameterGroup):
-        header = string_attribute("Internal Algo Backend parameters")
-        description = header
-        visible_in_ui = boolean_attribute(False)
-
-        template = string_attribute("template.yaml")
-        model = string_attribute("main_model.yaml")
-        multilabel_model = string_attribute("main_model_multilabel.yaml")
-        model_name = string_attribute("image classification model")
-
-    @attrs
     class __POTParameter(ParameterGroup):
         header = string_attribute("POT Parameters")
         description = header
@@ -86,5 +75,4 @@ class OTEClassificationParameters(ConfigurableParameters):
                             editable=False, visible_in_ui=False)
 
     learning_parameters = add_parameter_group(__LearningParameters)
-    algo_backend = add_parameter_group(__AlgoBackend)
     pot_parameters = add_parameter_group(__POTParameter)
