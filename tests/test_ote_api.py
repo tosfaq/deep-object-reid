@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions
 # and limitations under the License.
 
+# pylint:disable=redefined-outer-name, protected-access
+
 import os.path as osp
 import random
 from typing import Optional
@@ -117,7 +119,11 @@ def init_environment(params, model_template, number_of_images=10):
 def default_task_setup():
     hyper_parameters, model_template = setup_configurable_parameters(DEFAULT_TEMPLATE_DIR, max_num_epochs=5)
     task_environment, dataset = init_environment(hyper_parameters, model_template, 20)
-    return (OTEClassificationTask(task_environment=task_environment), task_environment, dataset)
+    task = OTEClassificationTask(task_environment=task_environment)
+
+    yield (task, task_environment, dataset)
+
+    task._delete_scratch_space()
 
 
 @e2e_pytest_api
@@ -146,7 +152,7 @@ def test_training_progress_tracking(default_task_setup):
 
 @e2e_pytest_api
 def test_inference_progress_tracking(default_task_setup):
-    task, task_environment, dataset = default_task_setup
+    task, _, dataset = default_task_setup
 
     print('Task initialized, model inference starts.')
     inference_progress_curve = []
