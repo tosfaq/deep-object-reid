@@ -257,10 +257,10 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
         compress_model_weights(compressed_model)
 
         with tempfile.TemporaryDirectory() as tempdir:
-            save_model(compressed_model, tempdir, model_name=model_name)
-            with open(os.path.join(tempdir, model_name + ".xml"), "rb") as f:
+            save_model(compressed_model, tempdir, model_name="model")
+            with open(os.path.join(tempdir, "model.xml"), "rb") as f:
                 output_model.set_data("openvino.xml", f.read())
-            with open(os.path.join(tempdir, model_name + ".bin"), "rb") as f:
+            with open(os.path.join(tempdir, "model.bin"), "rb") as f:
                 output_model.set_data("openvino.bin", f.read())
 
         # set model attributes for quantized model
