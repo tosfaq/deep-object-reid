@@ -18,7 +18,7 @@ model:
   feature_dim: 1280
 
 mutual_learning:
-  aux_configs: ['aux_model.yaml']
+  aux_configs: ['configs/classification/mobilenetv3_large_aux.yml']
 
 custom_datasets:
   roots: ['data/CIFAR100/train', 'data/CIFAR100/val']
