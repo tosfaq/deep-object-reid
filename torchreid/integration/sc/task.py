@@ -192,10 +192,9 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         time_monitor = InferenceProgressCallback(math.ceil(len(dataset) / self._cfg.test.batch_size),
                                                  update_progress_callback)
 
-        labels = [label.name for label in self._labels]
-        self._cfg.custom_datasets.roots = [OTEClassificationDataset(dataset, labels, self._multilabel,
+        self._cfg.custom_datasets.roots = [OTEClassificationDataset(dataset, self._labels, self._multilabel,
                                                                     keep_empty_label=self._empty_label in self._labels),
-                                           OTEClassificationDataset(dataset, labels, self._multilabel,
+                                           OTEClassificationDataset(dataset, self._labels, self._multilabel,
                                                                     keep_empty_label=self._empty_label in self._labels)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
         mix_precision_status = self._model.mix_precision
@@ -291,9 +290,10 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         set_random_seed(self._cfg.train.seed)
         train_subset = dataset.get_subset(Subset.TRAINING)
         val_subset = dataset.get_subset(Subset.VALIDATION)
-        labels = [label.name for label in self._labels]
-        self._cfg.custom_datasets.roots = [OTEClassificationDataset(train_subset, labels, self._multilabel),
-                                           OTEClassificationDataset(val_subset, labels, self._multilabel)]
+        self._cfg.custom_datasets.roots = [OTEClassificationDataset(train_subset, self._labels, self._multilabel,
+                                                                    keep_empty_label=self._empty_label in self._labels),
+                                           OTEClassificationDataset(val_subset, self._labels, self._multilabel,
+                                                                    keep_empty_label=self._empty_label in self._labels)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
 
         num_aux_models = len(self._cfg.mutual_learning.aux_configs)

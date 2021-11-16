@@ -186,6 +186,7 @@ class OTEClassificationDataset():
         self.labels = labels
         self.annotation = []
         self.keep_empty_label = keep_empty_label
+        self.label_names = [label.name for label in self.labels]
 
         for i, _ in enumerate(self.ote_dataset):
             class_indices = []
@@ -193,7 +194,7 @@ class OTEClassificationDataset():
                                                              include_empty=self.keep_empty_label)
             if item_labels:
                 for ote_lbl in item_labels:
-                    class_indices.append(self.labels.index(ote_lbl.name))
+                    class_indices.append(self.label_names.index(ote_lbl.name))
             else:
                 class_indices.append(0)
 
@@ -214,7 +215,7 @@ class OTEClassificationDataset():
         return self.annotation
 
     def get_classes(self):
-        return self.labels
+        return self.label_names
 
 
 def get_task_class(path):
