@@ -10,7 +10,7 @@ class AsymmetricLoss(nn.Module):
                     probability_margin=0.05, eps=1e-8,
                     label_smooth=0.):
         super().__init__()
-
+        self.bce = nn.MultiLabelSoftMarginLoss()
         self.gamma_neg = gamma_neg
         self.gamma_pos = gamma_pos
         self.label_smooth = label_smooth
@@ -27,6 +27,8 @@ class AsymmetricLoss(nn.Module):
         inputs: input logits
         targets: targets (multi-label binarized vector)
         """
+        if self.gamma_neg == 0 and self.gamma_pos == 0:
+            return self.bce(inputs, targets)
         if self.label_smooth > 0:
             targets = targets * (1-self.label_smooth)
             targets[targets == 0] = self.label_smooth

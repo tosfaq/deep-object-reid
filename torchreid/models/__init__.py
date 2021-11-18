@@ -14,6 +14,7 @@ from .ptcv_wrapper import *
 from .timm_wrapper import *
 from .q2l import *
 from .transformer import *
+from .gcn import build_image_gcn
 
 __model_factory = {
     # image classification models
@@ -57,6 +58,12 @@ def build_model(name, **kwargs):
         backbone = __model_factory[backbone_name](**kwargs)
         transformer = build_transformer(**kwargs)
         model = build_q2l(backbone, transformer, **kwargs)
+    if name.startswith('gcn'):
+        backbone_name = name[4:]
+        if backbone_name not in avai_models:
+            raise KeyError('Unknown backbone for Q2L model: {}. Must be one of {}'.format(backbone_name, avai_models))
+        backbone = __model_factory[backbone_name](**kwargs)
+        model = build_image_gcn(backbone, word_matrix_path='voc_glove_word2vec.pkl', adj_file='voc_adj.pkl', **kwargs)
     elif name not in avai_models:
         raise KeyError('Unknown model: {}. Must be one of {}'.format(name, avai_models))
     else:
