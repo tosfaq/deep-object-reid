@@ -205,13 +205,13 @@ class MobileNetV3(ModelInterface):
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
-    def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None):
+    def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None, return_all=False):
         with autocast(enabled=self.mix_precision):
             if self.input_IN is not None:
                 x = self.input_IN(x)
 
             y = self.extract_features(x)
-            if return_featuremaps and not self.is_classification():
+            if return_featuremaps:
                 return y
 
             with no_nncf_head_context():
@@ -228,7 +228,7 @@ class MobileNetV3(ModelInterface):
                 with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
                     _, logits = self.infer_head(x, skip_pool=True)
 
-            if return_featuremaps and self.is_classification():
+            if return_all:
                 return [(logits, y, glob_features)]
 
             if not self.training and self.is_classification():

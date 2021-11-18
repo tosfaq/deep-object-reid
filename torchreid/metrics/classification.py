@@ -30,7 +30,7 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0, perf_m
 
             if return_featuremaps:
                 logits, features, global_features = model.forward(batch_images,
-                                                                  return_featuremaps=return_featuremaps)[head_id]
+                                                                  return_all=return_featuremaps)[head_id]
                 if feature_dump_mode == __FEATURE_DUMP_MODES[1]:
                     all_feature_maps.append(features)
                 all_feature_vecs.append(global_features)

@@ -365,19 +365,19 @@ class EfficientNet(ModelInterface):
                 if module.bias is not None:
                     init.constant_(module.bias, 0)
 
-    def forward(self, x, return_featuremaps=False, get_embeddings=False):
+    def forward(self, x, return_featuremaps=False, get_embeddings=False, return_all=False):
         with autocast(enabled=self.mix_precision):
             if self.input_IN is not None:
                 x = self.input_IN(x)
 
             y = self.features(x)
-            if return_featuremaps and not self.is_classification():
+            if return_featuremaps:
                 return y
 
             glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
             logits = self.output(glob_features.view(x.shape[0], -1))
 
-            if return_featuremaps and self.is_classification():
+            if return_all:
                 return [(logits, y, glob_features)]
 
             if not self.training and self.is_classification():
