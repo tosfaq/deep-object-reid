@@ -40,7 +40,7 @@ class OTEClassificationParameters(ConfigurableParameters):
         max_num_epochs = configurable_integer(
             default_value=200,
             min_value=1,
-            max_value=100000,
+            max_value=1000,
             header="Maximum number of training epochs",
             description="Increasing this value causes the results to be more robust but training time "
             "will be longer.",
