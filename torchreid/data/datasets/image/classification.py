@@ -207,7 +207,14 @@ class MultiLabelClassification(ImageDataset):
     """Multi label classification dataset.
     """
 
+<<<<<<< HEAD
     def __init__(self, root='', mode='train', **kwargs):
+=======
+    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False,
+                vectors_path=None, **kwargs):
+        if load_masks:
+            raise NotImplementedError
+>>>>>>> changes for gcn experiments
 
         self.root = osp.abspath(osp.expanduser(root))
         self.data_dir = osp.dirname(self.root)
@@ -222,9 +229,17 @@ class MultiLabelClassification(ImageDataset):
                 self.annot,
                 self.data_dir,
             )
+<<<<<<< HEAD
             test = []
         elif mode == 'test':
             test, classes = self.load_annotation(
+=======
+            if vectors_path:
+                self.prepare_word_embedings()
+            query = []
+        elif mode == 'query':
+            query, classes = self.load_annotation(
+>>>>>>> changes for gcn experiments
                 self.annot,
                 self.data_dir,
             )
@@ -238,7 +253,11 @@ class MultiLabelClassification(ImageDataset):
         self.classes = classes
 
     @staticmethod
+<<<<<<< HEAD
     def load_annotation(annot_path, data_dir):
+=======
+    def load_annotation(annot_path, data_dir, dataset_id=0, vectors_path=None):
+>>>>>>> changes for gcn experiments
         out_data = []
         with open(annot_path) as f:
             annotation = json.load(f)
@@ -257,3 +276,32 @@ class MultiLabelClassification(ImageDataset):
         if img_wo_objects:
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
         return out_data, class_to_idx
+
+    @staticmethod
+    def prepare_word_embedings(label_set, vectors_path):
+        with open(vectors_path, 'r') as f:
+            vectors = {}
+            for line in f:
+                vals = line.rstrip().split(' ')
+                vectors[vals[0]] = [float(x) for x in vals[1:]]
+        word_embedings = []
+        for label in label_set:
+            if label not in label_set:
+                print(f'label: {label} is out of dictionary!\n')
+                word_embedings.append(vectors['<unk>'])
+            word_embedings.append(vectors[label])
+
+        return word_embedings
+
+    @staticmethod
+    def prepare_adj_matrix(label_set, out_data):
+        num_classes = len(label_set)
+        M = np.zeros((num_classes,num_classes))
+        for item in out_data:
+            item_labels = item[1]
+            if len(item_labels) > 1:
+                for pair in permutations(item_labels, 2):
+                    i,j = pair
+                    M[i,j] += 1
+
+        return M
