@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-
+import torch.nn.functional as F
 
 class AsymmetricLoss(nn.Module):
     ''' Notice - optimized version, minimizes memory allocation and gpu uploading,
@@ -15,6 +15,7 @@ class AsymmetricLoss(nn.Module):
         self.gamma_pos = gamma_pos
         self.label_smooth = label_smooth
         self.clip = probability_margin
+        self.bce = nn.MultiLabelSoftMarginLoss()
         self.eps = eps
 
         # prevent memory allocation and gpu uploading every iteration, and encourages inplace operations
@@ -30,6 +31,8 @@ class AsymmetricLoss(nn.Module):
         inputs: input logits
         targets: targets (multi-label binarized vector)
         """
+        if not self.gamma_neg and not self.gamma_pos:
+            return self.bce(inputs, targets)
         if self.label_smooth > 0:
             targets = targets * (1-self.label_smooth)
             targets[targets == 0] = self.label_smooth
@@ -55,9 +58,12 @@ class AsymmetricLoss(nn.Module):
             self.asymmetric_w = torch.pow(1 - self.xs_pos - self.xs_neg,
                                           self.gamma_pos * targets + self.gamma_neg * self.anti_targets)
             self.loss *= self.asymmetric_w
+            self.loss *= -1
+
+        self.loss = self.loss.sum(dim=1) / inputs.size(1)
 
         # sum reduction over batch
-        return -self.loss.sum()
+        return self.loss.sum() / inputs.size(0)
 
 
 class AMBinaryLoss(nn.Module):
@@ -98,8 +104,8 @@ class AMBinaryLoss(nn.Module):
         self.anti_targets = 1 - targets
 
        # Calculating Probabilities
-        self.xs_pos = torch.sigmoid(self.s * (cos_theta - self.m))
-        self.xs_neg = torch.sigmoid(self.s * (-cos_theta - self.m))
+        xs_pos = torch.sigmoid(self.s * (cos_theta - self.m))
+        xs_neg = torch.sigmoid(- self.s * (cos_theta + self.m))
 
         if self.auto_balance:
             assert not self.asymmetric_focus, "Auto balance is not compatible with asymmetric focussing"
@@ -108,16 +114,29 @@ class AMBinaryLoss(nn.Module):
             balance_koeff_pos = (K - C) / K # balance loss
             balance_koeff_neg = 1 - balance_koeff_pos
         elif self.asymmetric_focus:
-            # Asymmetric Focusing
             if self.clip is not None and self.clip > 0:
-                self.xs_neg.add_(self.clip).clamp_(max=1)
-            balance_koeff_pos = torch.pow(self.xs_neg, self.gamma_pos)
-            balance_koeff_neg = torch.pow(self.xs_pos, self.gamma_neg)
+                xs_neg = (xs_neg + self.clip).clamp(max=1)
+            # Asymmetric Focusing
+            pt0 = xs_pos * targets
+            pt1 = xs_neg * (1 - targets)  # pt = p if t > 0 else 1-p
+            pt = pt0 + pt1
+            one_sided_gamma = self.gamma_pos * targets + self.gamma_neg * (1 - targets)
+            one_sided_w = torch.pow(1 - pt, one_sided_gamma)
+            # balance_koeff_pos = torch.pow(self.xs_neg, self.gamma_pos)
+            balance_koeff_pos = 1.
+            # balance_koeff_neg = torch.pow(self.xs_pos, self.gamma_neg)
+            balance_koeff_neg = 1.
         else:
             assert not self.asymmetric_focus and not self.auto_balance
             balance_koeff_pos = self.k / self.s
             balance_koeff_neg = (1 - self.k) / self.s
-        self.loss = balance_koeff_pos * targets * torch.log(1 + torch.exp(-self.s * (cos_theta - self.m)))
-        self.loss.add_(balance_koeff_neg * self.anti_targets * torch.log(1 + torch.exp(self.s * (cos_theta + self.m))))
+        # self.loss = balance_koeff_pos * targets * torch.log(1 + torch.exp(-self.s * (cos_theta - self.m)))
+        self.loss = balance_koeff_pos * targets * F.logsigmoid(self.s * (cos_theta - self.m)) + balance_koeff_neg * self.anti_targets * F.logsigmoid(- self.s * (cos_theta + self.m))
+        # self.loss.add_(balance_koeff_neg * self.anti_targets * torch.log(1 + torch.exp(self.s * (cos_theta + self.m))))
 
-        return self.loss.sum()
+        if self.asymmetric_focus:
+            self.loss *= one_sided_w
+            
+        self.loss = -1 * self.loss.sum(dim=1) / cos_theta.size(1)
+
+        return self.loss.sum() / cos_theta.size(0)

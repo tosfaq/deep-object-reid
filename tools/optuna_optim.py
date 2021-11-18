@@ -47,7 +47,7 @@ def objective(cfg, args, trial):
     # Generate the trials.
     # m = trial.suggest_float("m", 0.01, 0.7)
     # s = trial.suggest_int("s", 5, 60)
-    lr = trial.suggest_float("lr", 0.0001, 0.01)
+    lr = trial.suggest_float("lr", 0.0001, 0.05)
     # t = trial.suggest_int("t", 1, 7)
     # cfg.loss.softmax.m = m
     # cfg.loss.softmax.s = s
