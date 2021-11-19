@@ -107,6 +107,11 @@ def build_auxiliary_model(config_file, num_classes, use_gpu,
     return model, optimizer, scheduler
 
 
+@parse_args('v')
+def relu6_symbolic(g, input_blob):
+    return g.op("Clip", input_blob, min_f=0., max_f=6.)
+
+
 def patch_InplaceAbn_forward():
     """
     Replace 'InplaceAbn.forward' with a more export-friendly implementation.

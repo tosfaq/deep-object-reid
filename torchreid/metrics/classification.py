@@ -7,11 +7,18 @@ from terminaltables import AsciiTable
 
 from torchreid.utils import get_model_attr
 
-def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
+
+__FEATURE_DUMP_MODES = ['none', 'all', 'vecs']
+
+def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0, perf_monitor=None, feature_dump_mode='none'):
+    assert feature_dump_mode in __FEATURE_DUMP_MODES
+    return_featuremaps = feature_dump_mode != __FEATURE_DUMP_MODES[0]
+
     with torch.no_grad():
-        out_scores, gt_labels = [], []
-        for _, data in enumerate(data_loader):
+        out_scores, gt_labels, all_feature_maps, all_feature_vecs = [], [], [], []
+        for batch_idx, data in enumerate(data_loader):
             batch_images, batch_labels = data[0], data[1]
+            if perf_monitor: perf_monitor.on_test_batch_begin(batch_idx, None)
             if use_gpu:
                 batch_images = batch_images.cuda()
 
@@ -19,11 +26,33 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0):
                 for i, label in enumerate(labelmap):
                     batch_labels[torch.where(batch_labels==i)] = label
 
-            out_scores.append(model(batch_images)[head_id])
+            if perf_monitor: perf_monitor.on_test_batch_end(batch_idx, None)
+
+            if return_featuremaps:
+                logits, features, global_features = model.forward(batch_images,
+                                                                  return_all=return_featuremaps)[head_id]
+                if feature_dump_mode == __FEATURE_DUMP_MODES[1]:
+                    all_feature_maps.append(features)
+                all_feature_vecs.append(global_features)
+            else:
+                logits = model.forward(batch_images)[head_id]
+
+            out_scores.append(logits)
             gt_labels.append(batch_labels)
 
         out_scores = torch.cat(out_scores, 0).data.cpu().numpy()
         gt_labels = torch.cat(gt_labels, 0).data.cpu().numpy()
+
+        if all_feature_vecs:
+            all_feature_vecs = torch.cat(all_feature_vecs, 0).data.cpu().numpy()
+            all_feature_vecs = all_feature_vecs.reshape(all_feature_vecs.shape[0], -1)
+            if feature_dump_mode == __FEATURE_DUMP_MODES[2]:
+                return (out_scores, all_feature_vecs), gt_labels
+
+        if all_feature_maps:
+            all_feature_maps = torch.cat(all_feature_maps, 0).data.cpu().numpy()
+            return (out_scores, all_feature_maps, all_feature_vecs), gt_labels
+
     return out_scores, gt_labels
 
 

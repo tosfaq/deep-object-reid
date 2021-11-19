@@ -4,6 +4,7 @@ import os.path as osp
 import json
 
 from PIL import Image
+import torch
 
 from ..dataset import ImageDataset
 
@@ -82,6 +83,7 @@ class ExternalDatasetWrapper(ImageDataset):
         if load_masks:
             raise NotImplementedError
         self.data_provider = data_provider
+        self.dataset_id = dataset_id
 
         if mode == 'train':
             train, classes = self.load_annotation(
@@ -117,7 +119,14 @@ class ExternalDatasetWrapper(ImageDataset):
     def __getitem__(self, idx: int):
         input_image = self.get_input(idx)
         label = self.data_provider[idx]['label']
-        return input_image, label, 0
+        if isinstance(label, (tuple, list)): # when multi-label classification is available
+            targets = torch.zeros(self.num_train_pids[self.dataset_id])
+            for obj in label:
+                targets[int(obj)] = 1
+            label = targets
+        else:
+            label = int(label)
+        return input_image, label, 0, 0
 
     @staticmethod
     def load_annotation(data_provider, filter_classes=None, dataset_id=0):

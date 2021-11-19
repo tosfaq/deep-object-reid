@@ -21,7 +21,8 @@ import torch
 
 from torch.onnx.symbolic_registry import register_op
 
-from scripts.script_utils import group_norm_symbolic, hardsigmoid_symbolic
+from scripts.script_utils import (group_norm_symbolic, hardsigmoid_symbolic,
+                                  relu6_symbolic)
 from torchreid.utils import random_image
 from torchreid.data.transforms import build_inference_transform
 
@@ -36,7 +37,8 @@ def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
     )
 
     input_img = random_image(cfg.data.height, cfg.data.width)
-    input_blob = transform(input_img).unsqueeze(0)
+    device = next(model.parameters()).device
+    input_blob = transform(input_img).unsqueeze(0).to(device)
 
     input_names = ['data']
     output_names = ['output']
@@ -49,6 +51,7 @@ def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
         output_file_path += '.onnx'
 
     register_op("group_norm", group_norm_symbolic, "", opset)
+    register_op("relu6", relu6_symbolic, "", opset)
     register_op("hardsigmoid", hardsigmoid_symbolic, "", opset)
 
     with torch.no_grad():

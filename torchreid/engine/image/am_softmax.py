@@ -290,13 +290,13 @@ class ImageAMSoftmaxEngine(Engine):
                     if self.clip_grad == 0:
                         # if self.clip_grad == 0  this means that unscale_ wasn't applied,
                         # so we manually unscale the parameters to perform SAM manipulations
-                        self.scaler.unscale_(self.optims[model_name]) 
+                        self.scaler.unscale_(self.optims[model_name])
                     overflow = self.optims[model_name].first_step()
                     self.scaler.update() # update scaler after first step
                     if overflow:
                         print("Overflow occurred. Skipping step ...")
                         loss_summary['loss'] = total_loss.item()
-                        # skip second step  if overflow occurred 
+                        # skip second step  if overflow occurred
                         return loss_summary, avg_acc
                 else:
                     assert self.enable_sam and step==2

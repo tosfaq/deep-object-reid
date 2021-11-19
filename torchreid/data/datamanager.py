@@ -239,12 +239,13 @@ class ImageDataManager(DataManager):
         assert len(self._num_train_pids) == len(self._num_train_cams)
         if correct_batch_size:
             batch_size_train = self.calculate_batch(batch_size_train, len(train_dataset))
+        batch_size_train = max(1, min(batch_size_train, len(train_dataset)))
         self.train_loader = torch.utils.data.DataLoader(
             train_dataset,
             sampler=build_train_sampler(
                 train_dataset.train,
                 train_sampler,
-                batch_size= max(1, min(batch_size_train, len(train_dataset))),
+                batch_size=batch_size_train,
                 batch_num_instances=batch_num_instances,
                 epoch_num_instances=epoch_num_instances,
                 fill_instances=fill_instances,

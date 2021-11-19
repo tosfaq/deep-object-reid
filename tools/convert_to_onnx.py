@@ -93,10 +93,11 @@ def main():
     if is_nncf_used:
         print(f'Using NNCF -- making NNCF changes in config')
         cfg = make_nncf_changes_in_main_training_config(cfg, args.opts)
+    cfg.train.mix_precision = False
     cfg.freeze()
-    num_classes = parse_num_classes(source_datasets=cfg.data.sources, 
+    num_classes = parse_num_classes(source_datasets=cfg.data.sources,
                                     classification=cfg.model.type == 'classification' or cfg.model.type == 'multilabel',
-                                    num_classes=args.num_classes, 
+                                    num_classes=args.num_classes,
                                     snap_path=cfg.model.load_weights)
     model = build_model(**model_kwargs(cfg, num_classes))
     if cfg.model.load_weights:
@@ -110,20 +111,20 @@ def main():
         print('Begin making NNCF changes in model')
         model = make_nncf_changes_in_eval(model, cfg)
         print('End making NNCF changes in model')
-    onnx_file_path = export_onnx(model=model.eval(), 
-                                 cfg=cfg, 
-                                 output_file_path=args.output_name, 
-                                 disable_dyn_axes=args.disable_dyn_axes, 
-                                 verbose=args.verbose, 
-                                 opset=args.opset, 
+    onnx_file_path = export_onnx(model=model.eval(),
+                                 cfg=cfg,
+                                 output_file_path=args.output_name,
+                                 disable_dyn_axes=args.disable_dyn_axes,
+                                 verbose=args.verbose,
+                                 opset=args.opset,
                                  extra_check=True)
     if args.export_ir:
         input_shape = [1, 3, cfg.data.height, cfg.data.width]
-        export_ir(onnx_model_path=onnx_file_path, 
-                  norm_mean=cfg.data.norm_mean, 
-                  norm_std=cfg.data.norm_std, 
-                  input_shape=input_shape, 
-                  optimized_model_dir=os.path.dirname(os.path.abspath(onnx_file_path)), 
+        export_ir(onnx_model_path=onnx_file_path,
+                  norm_mean=cfg.data.norm_mean,
+                  norm_std=cfg.data.norm_std,
+                  input_shape=input_shape,
+                  optimized_model_dir=os.path.dirname(os.path.abspath(onnx_file_path)),
                   data_type='FP32')
 
 

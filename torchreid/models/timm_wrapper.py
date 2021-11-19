@@ -44,13 +44,17 @@ class TimmModelsWrapper(ModelInterface):
             assert self.loss in ["softmax", "asl", "bce"]
             self.classifier = self.model.get_classifier()
 
-    def forward(self, x, return_featuremaps=False, **kwargs):
+    def forward(self, x, return_featuremaps=False, return_all=False, **kwargs):
         with autocast(enabled=self.mix_precision):
             y = self.extract_features(x)
             if return_featuremaps:
                 return y
             glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
             logits = self.infer_head(glob_features)
+
+            if return_all:
+                return [(logits, y, glob_features)]
+
             if not self.training:
                 return [logits]
             return tuple([logits])

@@ -165,9 +165,10 @@ class LrFinder:
         study = optuna.create_study(study_name='classification task', direction="maximize", sampler=self.samplers[self.mode])
         objective_partial = partial(self.engine.run, max_epoch=self.num_epochs, lr_finder=self.engine_cfg, start_eval=0, eval_freq=1,
                                 stop_callback=self.stop_callback)
+        objective = lambda trial: objective_partial(trial)[0]
         try:
             start_time = time.time()
-            study.optimize(objective_partial, n_trials=self.n_trials, timeout=None)
+            study.optimize(objective, n_trials=self.n_trials, timeout=None)
             elapsed = round(time.time() - start_time)
             print(f"--- learning rate estimation finished with elapsed time: {datetime.timedelta(seconds=elapsed)} ---")
 
