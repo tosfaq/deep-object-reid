@@ -1,4 +1,5 @@
 import timm
+import torch
 
 from torchreid.losses import AngleSimpleLinear
 from .common import ModelInterface
@@ -29,6 +30,7 @@ class TimmModelsWrapper(ModelInterface):
         super().__init__(**kwargs)
         assert self.is_classification(), f"{model_name} model is adapted for classification tasks only"
         self.is_mobilenet = True if model_name in ["mobilenetv3_large_100_miil_in21k", "mobilenetv3_large_100_miil"] else False
+        self.num_classes = num_classes
         self.model = timm.create_model(model_name,
                                        pretrained=pretrained,
                                        num_classes=num_classes)
@@ -49,10 +51,25 @@ class TimmModelsWrapper(ModelInterface):
             y = self.extract_features(x)
             if return_featuremaps:
                 return y
-            glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
-            logits = self.infer_head(glob_features)
+            #glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
+            #logits = self.infer_head(glob_features)
+
+            y_raw = torch.zeros((y.shape[0], self.num_classes, y.shape[-2], y.shape[-1])).to(y.device)
+            for i in range(y.shape[-2]):
+                for j in range(y.shape[-1]):
+                    y_raw[:,:,i,j] = self.infer_head(y[:,:,i:i+1,j:j+1])
+            y_raw = y_raw.flatten(2)
+
+            y_avg = torch.mean(y_raw, dim=2)
+            y_max = torch.max(y_raw, dim=2)[0]
+            logits = y_avg + y_max
+            for t in [1., 2., 4.]:
+                s_t = nn.functional.softmax(t * y_raw, dim=2)
+                y_t = torch.sum(y_raw * s_t, dim=2)
+                logits += y_t
 
             if return_all:
+                glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
                 return [(logits, y, glob_features)]
 
             if not self.training:
