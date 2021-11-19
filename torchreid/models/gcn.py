@@ -103,9 +103,9 @@ class Image_GCNN(ModelInterface):
     
     def get_config_optim(self, lr, lrp):
         return [
-                {'params': self.backbone.parameters(), 'lr': lr * lrp},
-                {'params': self.gc1.parameters(), 'lr': lr},
-                {'params': self.gc2.parameters(), 'lr': lr},
+                {'params': self.backbone.parameters(), 'lr': lr},
+                {'params': self.gc1.parameters(), 'lr': lrp},
+                {'params': self.gc2.parameters(), 'lr': lrp},
                 ]
 
 
