@@ -1,8 +1,8 @@
 lr_finder:
-  enable: False
+  enable: True
   mode: TPE
   stop_after: False
-  num_epochs: 6
+  num_epochs: 7
   step: 0.001
   smooth_f: 0.01
   epochs_warmup: 1
@@ -82,7 +82,7 @@ train:
   ema:
     enable: True
     ema_decay: 0.999
-  mix_precision: False
+  mix_precision: True
 
 test:
   batch_size: 128
