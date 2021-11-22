@@ -60,8 +60,6 @@ class AsymmetricLoss(nn.Module):
             self.loss *= self.asymmetric_w
             self.loss *= -1
 
-        self.loss = self.loss.sum(dim=1) / inputs.size(1)
-
         # sum reduction over batch
         return self.loss.sum() / inputs.size(0)
 
@@ -136,8 +134,5 @@ class AMBinaryLoss(nn.Module):
 
         if self.asymmetric_focus:
             self.loss *= one_sided_w
-            
-        # self.loss = -1 * self.loss.sum(dim=1) / cos_theta.size(1)
 
-        # return - self.loss.sum()
         return - self.loss.sum() / cos_theta.size(0)
