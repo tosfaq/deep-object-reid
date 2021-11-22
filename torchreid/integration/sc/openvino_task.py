@@ -195,9 +195,12 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
         return dataset
 
     def evaluate(self,
-                 output_resultset: ResultSetEntity,
+                 output_result_set: ResultSetEntity,
                  evaluation_metric: Optional[str] = None):
-        return MetricsHelper.compute_accuracy(output_resultset).get_performance()
+        if evaluation_metric is not None:
+            logger.warning(f'Requested to use {evaluation_metric} metric,'
+                            'but parameter is ignored. Use accuracy instead.')
+        output_result_set.performance = MetricsHelper.compute_accuracy(output_result_set).get_performance()
 
     def optimize(self,
                  optimization_type: OptimizationType,
