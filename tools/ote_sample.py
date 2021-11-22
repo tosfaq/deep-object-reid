@@ -16,17 +16,13 @@ import argparse
 import logging
 import os.path as osp
 import sys
+import time
 
 from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.configuration.helper import create
 from ote_sdk.entities.datasets import Subset
-from ote_sdk.entities.model_template import parse_model_template, TargetDevice
-from ote_sdk.entities.model import (
-    ModelEntity,
-    ModelPrecision,
-    ModelStatus,
-    ModelOptimizationType
-)
+from ote_sdk.entities.model_template import parse_model_template
+from ote_sdk.entities.model import ModelEntity, ModelStatus
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import OptimizationType
 from ote_sdk.entities.optimization_parameters import OptimizationParameters
@@ -35,8 +31,6 @@ from ote_sdk.entities.task_environment import TaskEnvironment
 
 from torchreid.integration.sc.utils import (ClassificationDatasetAdapter,
                                             generate_label_schema,
-                                            reload_hyper_parameters,
-                                            set_values_as_default,
                                             get_task_class)
 
 
@@ -49,11 +43,16 @@ def parse_args():
     parser.add_argument('template_file_path', help='path to template file')
     parser.add_argument('--data-dir', default='data')
     parser.add_argument('--export', action='store_true')
+    parser.add_argument('--debug-dump-folder', default='')
     args = parser.parse_args()
     return args
 
 
 def main(args):
+    if args.debug_dump_folder:
+        from torchreid.utils import Logger
+        log_name = 'ote_task.log' + time.strftime('-%Y-%m-%d-%H-%M-%S')
+        sys.stdout = Logger(osp.join(args.debug_dump_folder, log_name))
     logger.info('Initialize dataset')
     dataset = ClassificationDatasetAdapter(
         train_data_root=osp.join(args.data_dir, 'train'),
@@ -152,6 +151,7 @@ def main(args):
         logger.info('Performance of optimized model:')
         openvino_task.evaluate(resultset)
         logger.info(str(resultset.performance))
+
 
 if __name__ == '__main__':
     args = parse_args()
