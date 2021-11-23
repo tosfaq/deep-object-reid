@@ -210,8 +210,6 @@ def get_default_config():
     cfg.loss.asl.gamma_neg = 0.
     cfg.loss.asl.p_m = 0.05
     cfg.loss.am_binary = CN()
-    cfg.loss.am_binary.sym_adjustment = False
-    cfg.loss.am_binary.auto_balance = False
     cfg.loss.am_binary.amb_k = 0.7
     cfg.loss.am_binary.amb_t = 1.
     cfg.loss.triplet = CN()

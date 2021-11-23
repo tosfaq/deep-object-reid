@@ -62,18 +62,16 @@ class AsymmetricLoss(nn.Module):
 
 class AMBinaryLoss(nn.Module):
     def __init__(self, m=0.35, k=0.8, t=1, s=30,
-                eps=1e-8, sym_adjustment=False, auto_balance=False,
-                label_smooth=0., gamma_neg=0, gamma_pos=0, probability_margin=0.05):
+                eps=1e-8, label_smooth=0., gamma_neg=0, 
+                gamma_pos=0, probability_margin=0.05):
+
         super().__init__()
-        self.sym_adjustment = sym_adjustment
         self.gamma_neg = gamma_neg
         self.gamma_pos = gamma_pos
         self.asymmetric_focus = gamma_neg > 0 or gamma_pos > 0
-        self.auto_balance = auto_balance
         self.eps = eps
         self.label_smooth = label_smooth
         self.m = m
-        self.t = t
         self.k = k
         self.s = s
         self.clip = probability_margin
@@ -96,13 +94,7 @@ class AMBinaryLoss(nn.Module):
             targets[targets == 0] = self.label_smooth
         self.anti_targets = 1 - targets
 
-        if self.auto_balance:
-            assert not self.asymmetric_focus, "Auto balance is not compatible with asymmetric focussing"
-            K = targets.size(1)
-            C = targets.sum(1, keepdim=True) # number of target classes for each sample
-            balance_koeff_pos = (K - C) / K # balance loss
-            balance_koeff_neg = 1 - balance_koeff_pos
-        elif self.asymmetric_focus:
+        if self.asymmetric_focus:
             # Calculating Probabilities
             xs_pos = torch.sigmoid(self.s * (cos_theta - self.m))
             xs_neg = torch.sigmoid(- self.s * (cos_theta + self.m))
@@ -116,11 +108,12 @@ class AMBinaryLoss(nn.Module):
             one_sided_w = torch.pow(pt, one_sided_gamma) # P_pos ** gamm_neg * (...) + P_neg ** gamma_pos * (...)
             balance_koeff_pos, balance_koeff_neg = 1., 1.
         else:
-            assert not self.asymmetric_focus and not self.auto_balance
+            assert not self.asymmetric_focus
             balance_koeff_pos = self.k / self.s
             balance_koeff_neg = (1 - self.k) / self.s
 
-        self.loss = balance_koeff_pos * targets * F.logsigmoid(self.s * (cos_theta - self.m)) + balance_koeff_neg * self.anti_targets * F.logsigmoid(- self.s * (cos_theta + self.m))
+        self.loss = balance_koeff_pos * targets * F.logsigmoid(self.s * (cos_theta - self.m))
+        self.loss.add_(balance_koeff_neg * self.anti_targets * F.logsigmoid(- self.s * (cos_theta + self.m)))
 
         if self.asymmetric_focus:
             self.loss *= one_sided_w
