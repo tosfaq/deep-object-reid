@@ -12,8 +12,8 @@ def gen_A(num_classes, t, adj_file):
     _nums = result['nums']
     _nums = _nums[:, np.newaxis]
     _adj = _adj / _nums
-    # _adj[_adj < t] = 0
-    # _adj[_adj >= t] = 1
+    _adj[_adj < t] = 0
+    _adj[_adj >= t] = 1
     _adj = _adj * 0.25 / (_adj.sum(0, keepdims=True) + 1e-6)
     _adj = _adj + np.identity(num_classes, np.int)
     return _adj
@@ -62,8 +62,8 @@ class Image_GCNN(ModelInterface):
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
         self.pooling = nn.MaxPool2d(14, 14)
 
-        self.gc1 = GraphConvolution(in_channel, 480)
-        self.gc2 = GraphConvolution(480, 960)
+        self.gc1 = GraphConvolution(in_channel, 1024)
+        self.gc2 = GraphConvolution(1024, 2048)
         self.relu = nn.LeakyReLU(0.2)
         self.A = nn.Parameter(torch.from_numpy(adj_matrix).float())
 
