@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 class AsymmetricLoss(nn.Module):
     ''' Notice - optimized version, minimizes memory allocation and gpu uploading,
@@ -97,17 +98,19 @@ class AMBinaryLoss(nn.Module):
             # Calculating Probabilities
             xs_pos = torch.sigmoid(self.s * (cos_theta - self.m))
             xs_neg = torch.sigmoid(- self.s * (cos_theta + self.m))
+            # Asymmetric Probability Shifting
             if self.clip is not None and self.clip > 0:
                 xs_neg = (xs_neg + self.clip).clamp(max=1)
-            # Asymmetric Focusing
             pt0 = xs_neg * targets
             pt1 = xs_pos * (1 - targets)
             pt = pt0 + pt1
             one_sided_gamma = self.gamma_pos * targets + self.gamma_neg * (1 - targets)
-            one_sided_w = torch.pow(pt, one_sided_gamma) # P_pos ** gamm_neg * (...) + P_neg ** gamma_pos * (...)
+            # P_pos ** gamm_neg * (...) + P_neg ** gamma_pos * (...)
+            one_sided_w = torch.pow(pt, one_sided_gamma)
             balance_koeff_pos, balance_koeff_neg = 1., 1.
         else:
             assert not self.asymmetric_focus
+            # SphereFace2 balancing coefficients
             balance_koeff_pos = self.k / self.s
             balance_koeff_neg = (1 - self.k) / self.s
 
