@@ -65,7 +65,6 @@ class MultilabelEngine(Engine):
                 label_smooth=label_smooth,
             )
 
-
         self.enable_sam = isinstance(self.optims[self.main_model_name], SAM)
 
         for model_name in self.get_model_names():
