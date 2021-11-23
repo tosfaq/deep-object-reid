@@ -61,7 +61,7 @@ class AsymmetricLoss(nn.Module):
 
 class AMBinaryLoss(nn.Module):
     def __init__(self, m=0.35, k=0.8, t=1, s=30,
-                eps=1e-8, label_smooth=0., gamma_neg=0, 
+                eps=1e-8, label_smooth=0., gamma_neg=0,
                 gamma_pos=0, probability_margin=0.05):
 
         super().__init__()
