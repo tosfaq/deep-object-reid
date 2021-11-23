@@ -131,7 +131,7 @@ def _build_optim(model,
     # we switch off nbd when lr_finder enabled
     # because optimizer builded once and lr in biases isn't changed
     elif nbd and not lr_finder:
-        decay, bias_no_decay, weight_no_decay, csra = [], [], [], []
+        decay, bias_no_decay, weight_no_decay = [], [], []
         compression_params = set()
         CompressionParameter = get_compression_parameter()
         if CompressionParameter:
@@ -144,8 +144,6 @@ def _build_optim(model,
                 continue  # Param is already registered
             elif not param.requires_grad:
                 continue  # frozen weights
-            elif 'conv_head' in name or 'classifier' in name:
-                csra.append(param)
             elif name.endswith("bias"):
                 bias_no_decay.append(param)
             elif len(param.shape) == 1:
@@ -156,7 +154,6 @@ def _build_optim(model,
                 decay.append(param)
 
         param_groups = [{'params': decay, 'lr': lr, 'weight_decay': weight_decay},
-                        {'params': csra, 'lr': lr*4, 'weight_decay': weight_decay},
                         {'params': bias_no_decay, 'lr': 2 * lr, 'weight_decay': 0.0},
                         {'params': weight_no_decay, 'lr': lr, 'weight_decay': 0.0}]
         if compression_params:
