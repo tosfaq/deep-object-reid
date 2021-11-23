@@ -63,8 +63,6 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             asl_gamma_neg=cfg.loss.asl.gamma_neg,
             asl_gamma_pos=cfg.loss.asl.gamma_pos,
             asl_p_m=cfg.loss.asl.p_m,
-            sym_adjustment=cfg.loss.am_binary.sym_adjustment,
-            auto_balance=cfg.loss.am_binary.auto_balance,
             amb_k = cfg.loss.am_binary.amb_k,
             amb_t=cfg.loss.am_binary.amb_t,
             mix_precision=cfg.train.mix_precision)
