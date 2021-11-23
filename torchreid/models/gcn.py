@@ -62,8 +62,8 @@ class Image_GCNN(ModelInterface):
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
         self.pooling = nn.MaxPool2d(14, 14)
 
-        self.gc1 = GraphConvolution(in_channel, 1024)
-        self.gc2 = GraphConvolution(1024, 2048)
+        self.gc1 = GraphConvolution(in_channel, 480)
+        self.gc2 = GraphConvolution(480, 960)
         self.relu = nn.LeakyReLU(0.2)
         self.A = nn.Parameter(torch.from_numpy(adj_matrix).float())
 
