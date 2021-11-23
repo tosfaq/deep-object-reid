@@ -60,13 +60,14 @@ class TimmModelsWrapper(ModelInterface):
                     y_raw[:,:,i,j] = self.infer_head(y[:,:,i:i+1,j:j+1])
             y_raw = y_raw.flatten(2)
 
+            lambd = 0.1
             y_avg = torch.mean(y_raw, dim=2)
             y_max = torch.max(y_raw, dim=2)[0]
-            logits = y_avg + y_max
-            for t in [1., 2., 4.]:
+            logits = y_avg + lambd * y_max
+            for t in [1.]:
                 s_t = nn.functional.softmax(t * y_raw, dim=2)
                 y_t = torch.sum(y_raw * s_t, dim=2)
-                logits += y_t
+                logits += lambd * y_t
 
             if return_all:
                 glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
