@@ -186,7 +186,7 @@ def evaluate_classification(dataloader, model, use_gpu, topk=(1,), labelmap=[]):
     return cmc, m_ap, norm_cm
 
 
-def evaluate_multilabel_classification(dataloader, model, use_gpu, scale=1.):
+def evaluate_multilabel_classification(dataloader, model, use_gpu):
 
     def average_precision(output, target):
         epsilon = 1e-8
