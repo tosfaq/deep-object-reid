@@ -188,8 +188,6 @@ class MobileNetV3(ModelInterface):
             glob_features = x
 
         logits = self.classifier(glob_features.view(x.shape[0], -1))
-        if self.similarity_adjustment:
-            logits = self.sym_adjust(logits, self.similarity_adjustment)
         return glob_features, logits
 
     def _initialize_weights(self):
@@ -288,7 +286,6 @@ def init_pretrained_weights(model, key='', **kwargs):
     cached_file = os.path.join(model_dir, filename)
     if not os.path.exists(cached_file):
         gdown.download(pretrained_urls[key], cached_file)
-        
     model = load_pretrained_weights(model, cached_file, **kwargs)
 
 
