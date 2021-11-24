@@ -27,7 +27,8 @@ class ModelInterface(nn.Module):
                 pretrained=False,
                 loss='softmax',
                 mix_precision=False,
-                similarity_adjustment=None,
+                similarity_adjustment=False,
+                amb_t = 1.,
                 **kwargs):
         super().__init__()
 
@@ -37,6 +38,7 @@ class ModelInterface(nn.Module):
         self.classification_classes = {}
         self.is_ie_model = False
         self.similarity_adjustment = similarity_adjustment
+        self.amb_t = amb_t
         self.loss = loss
         self.num_head_features = feature_dim
         self.num_features = feature_dim

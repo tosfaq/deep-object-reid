@@ -667,7 +667,7 @@ class InceptionV4(ModelInterface):
 
         logits = self.output(glob_features.view(x.shape[0], -1))
         if self.similarity_adjustment:
-            logits = self.sym_adjust(logits, self.similarity_adjustment)
+            logits = self.sym_adjust(logits, self.amb_t)
 
         if self.training and self.self_challenging_cfg.enable and gt_labels is not None:
             glob_features = rsc(

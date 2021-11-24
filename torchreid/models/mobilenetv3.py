@@ -230,6 +230,9 @@ class MobileNetV3(ModelInterface):
                 with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
                     _, logits = self.infer_head(x, skip_pool=True)
 
+            if self.similarity_adjustment:
+                logits = self.sym_adjust(logits, self.amb_t)
+
             if return_all:
                 return [(logits, y, glob_features)]
 
@@ -285,6 +288,7 @@ def init_pretrained_weights(model, key='', **kwargs):
     cached_file = os.path.join(model_dir, filename)
     if not os.path.exists(cached_file):
         gdown.download(pretrained_urls[key], cached_file)
+        
     model = load_pretrained_weights(model, cached_file, **kwargs)
 
 

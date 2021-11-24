@@ -377,7 +377,7 @@ class EfficientNet(ModelInterface):
             glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
             logits = self.output(glob_features.view(x.shape[0], -1))
             if self.similarity_adjustment:
-                logits = self.sym_adjust(logits, self.similarity_adjustment)
+                logits = self.sym_adjust(logits, self.amb_t)
 
             if return_all:
                 return [(logits, y, glob_features)]
