@@ -55,7 +55,8 @@ def objective(cfg, args, trial):
     # cfg.loss.softmax.s = s
     # cfg.loss.asl.p_m = asl_pm
     # cfg.loss.am_binary.amb_t = t
-    cfg.train.lr = lr
+    cfg.loss.asl.gamma_pos = gamma_pos
+    cfg.loss.asl.gamma_neg = gamma_neg
 
     # geterate damanager
     num_aux_models = len(cfg.mutual_learning.aux_configs)
@@ -109,7 +110,7 @@ def objective(cfg, args, trial):
     obj = 0
     engine.start_epoch = 0
     engine.max_epoch = args.epochs
-    print(f"\nnext trial with [lr: {lr}]")
+    print(f"\nnext trial with [gamma_neg: {gamma_neg}; gamma_pos: {gamma_pos}]")
 
     for engine.epoch in range(args.epochs):
         np.random.seed(cfg.train.seed + engine.epoch)

@@ -54,7 +54,6 @@ class AsymmetricLoss(nn.Module):
             self.asymmetric_w = torch.pow(1 - self.xs_pos - self.xs_neg,
                                           self.gamma_pos * targets + self.gamma_neg * self.anti_targets)
             self.loss *= self.asymmetric_w
-
         # sum reduction over batch
         return - self.loss.sum() / inputs.size(0)
 

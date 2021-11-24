@@ -1,9 +1,9 @@
-import torchvision.models as models
 import torch
 import torch.nn as nn
 import pickle
 import numpy as np
 from .common import ModelInterface
+from torch.cuda.amp import autocast
 import math
 
 def gen_A(num_classes, t, adj_file):
@@ -62,36 +62,37 @@ class Image_GCNN(ModelInterface):
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
         self.pooling = nn.MaxPool2d(14, 14)
 
-        self.gc1 = GraphConvolution(in_channel, 1024)
-        self.gc2 = GraphConvolution(1024, 2048)
+        self.gc1 = GraphConvolution(in_channel, self.backbone.num_features // 2)
+        self.gc2 = GraphConvolution(self.backbone.num_features // 2, self.backbone.num_features)
         self.relu = nn.LeakyReLU(0.2)
         self.A = nn.Parameter(torch.from_numpy(adj_matrix).float())
 
     def forward(self, image):
-        feature = self.backbone(image, return_featuremaps=True)
-        feature = self.pooling(feature)
-        feature = feature.view(feature.size(0), -1)
+        with autocast(enabled=self.mix_precision):
+            feature = self.backbone(image, return_featuremaps=True)
+            feature = self.pooling(feature)
+            feature = feature.view(feature.size(0), -1)
 
-        adj = self.gen_adj(self.A).detach()
-        x = self.gc1(self.inp, adj)
-        x = self.relu(x)
-        x = self.gc2(x, adj)
+            adj = self.gen_adj(self.A).detach()
+            x = self.gc1(self.inp, adj)
+            x = self.relu(x)
+            x = self.gc2(x, adj)
 
-        x = x.transpose(0, 1)
-        logits = torch.matmul(feature, x)
+            x = x.transpose(0, 1)
+            logits = torch.matmul(feature, x)
 
-        if self.similarity_adjustment:
-            logits = self.sym_adjust(logits, self.similarity_adjustment)
+            if self.similarity_adjustment:
+                logits = self.sym_adjust(logits, self.similarity_adjustment)
 
-        if not self.training:
-            return [logits]
+            if not self.training:
+                return [logits]
 
-        elif self.loss in ['asl', 'bce', 'am_binary']:
-                out_data = [logits]
-        else:
-            raise KeyError("Unsupported loss: {}".format(self.loss))
+            elif self.loss in ['asl', 'bce', 'am_binary']:
+                    out_data = [logits]
+            else:
+                raise KeyError("Unsupported loss: {}".format(self.loss))
 
-        return tuple(out_data)
+            return tuple(out_data)
     
     @staticmethod
     def gen_adj(A):
@@ -100,12 +101,22 @@ class Image_GCNN(ModelInterface):
         adj = torch.matmul(torch.matmul(A, D).t(), D)
         return adj
     
-    def get_config_optim(self, lr, lrp):
-        return [
-                {'params': self.backbone.parameters(), 'lr': lr},
-                {'params': self.gc1.parameters(), 'lr': lrp},
-                {'params': self.gc2.parameters(), 'lr': lrp},
-                ]
+    def get_config_optim(self, lrs):
+        parameters = [
+            {'params': self.backbone.named_parameters()},
+            {'params': self.gc1.named_parameters()},
+            {'params': self.gc2.named_parameters()},
+        ]
+        if isinstance(lrs, list):
+            assert len(lrs) == len(parameters)
+            for lr, param_dict in zip(lrs, parameters):
+                param_dict['lr'] = lr
+        else:
+            assert isinstance(lrs, float)
+            for param_dict in parameters:
+                param_dict['lr'] = lrs
+
+        return parameters
 
 
 def build_image_gcn(backbone, word_matrix_path, adj_file, num_classes=80, word_emb_size=300, 

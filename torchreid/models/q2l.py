@@ -93,10 +93,24 @@ class Query2Label(ModelInterface):
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
         return tuple(out_data)
+    
+    def get_config_optim(self, lrs):
+        parameters = [
+            {'params': self.backbone.parameters()},
+            {'params': self.fc.named_parameters()},
+            {'params': self.input_proj.named_parameters(), 'weight_decay': 0.},
+            {'params': self.query_embed.named_parameters(), 'weight_decay': 0.}
+        ]
+        if isinstance(lrs, list):
+            assert len(lrs) == len(parameters)
+            for lr, param_dict in zip(lrs, parameters):
+                param_dict['lr'] = lr
+        else:
+            assert isinstance(lrs, float)
+            for param_dict in parameters:
+                param_dict['lr'] = lrs
 
-    def finetune_paras(self):
-        from itertools import chain
-        return chain(self.transformer.parameters(), self.fc.parameters(), self.input_proj.parameters(), self.query_embed.parameters())
+        return parameters
 
     def get_config_optim(self, lrs):
         parameters = [
