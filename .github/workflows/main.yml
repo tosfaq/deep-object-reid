@@ -40,3 +40,6 @@ jobs:
     - name: Install torchreid
       run: |
         python setup.py develop
+    - name: Linting with pylint
+      run: |
+        python tools/run_pylint.py
