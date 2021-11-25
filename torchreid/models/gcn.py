@@ -61,7 +61,7 @@ class Image_GCNN(ModelInterface):
         self.backbone = backbone
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
         self.pooling = nn.MaxPool2d(14, 14)
-
+        print(self.backbone.num_features // 2, self.backbone.num_features)
         self.gc1 = GraphConvolution(in_channel, self.backbone.num_features // 2)
         self.gc2 = GraphConvolution(self.backbone.num_features // 2, self.backbone.num_features)
         self.relu = nn.LeakyReLU(0.2)
