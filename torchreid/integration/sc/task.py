@@ -23,7 +23,7 @@ from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingPr
                                             InferenceProgressCallback, get_actmap, preprocess_features_for_actmap,
                                             active_score_from_probs, get_multiclass_predictions,
                                             get_multilabel_predictions, sigmoid_numpy, softmax_numpy,
-                                            get_empty_label)
+                                            get_empty_label, get_leaf_labels)
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
@@ -69,7 +69,13 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         else:
             self._labels = task_environment.get_labels(include_empty=False)
         self._empty_label = get_empty_label(task_environment)
-        self._multilabel = len(task_environment.label_schema.get_groups(False)) > 1
+        self._multilabel = len(task_environment.label_schema.get_groups(False)) > 1 and \
+                len(task_environment.label_schema.get_groups(False)) == len(task_environment.get_labels(include_empty=False))
+
+        self._hierarchical = False
+        if not self._multilabel and len(task_environment.label_schema.get_groups(False)) > 1:
+            self._labels = get_leaf_labels(task_environment.label_schema)
+            self._hierarchical = True
 
         template_file_path = task_environment.model_template.model_template_path
 
@@ -226,6 +232,11 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             else:
                 scores[i] = softmax_numpy(scores[i])
                 item_labels = get_multiclass_predictions(scores[i], self._labels, activate=False)
+                if self._hierarchical:
+                    original_scored_label = item_labels[0]
+                    ancestor_labels = self.task_environment.label_schema.get_ancestors(original_scored_label.get_label())
+                    for al in ancestor_labels:
+                        item_labels.append(ScoredLabel(al, original_scored_label.probability))
 
             dataset_item.append_labels(item_labels)
 

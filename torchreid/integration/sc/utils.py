@@ -159,6 +159,16 @@ def get_empty_label(task_environment) -> LabelEntity:
     return None
 
 
+def get_leaf_labels(label_schema: LabelSchemaEntity) -> List[LabelEntity]:
+    leaf_labels = []
+    all_labels = label_schema.get_labels(False)
+    for lbl in all_labels:
+        if not label_schema.get_children(lbl):
+            leaf_labels.append(lbl)
+
+    return leaf_labels
+
+
 def generate_label_schema(not_empty_labels, multilabel=False):
     assert len(not_empty_labels) > 1
 
@@ -320,7 +330,8 @@ def softmax_numpy(x: np.ndarray):
     return x
 
 
-def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity], activate: bool = True):
+def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity],
+                               activate: bool = True) -> List[ScoredLabel]:
     i = np.argmax(logits)
     if activate:
         logits = softmax_numpy(logits)
@@ -328,7 +339,7 @@ def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity], ac
 
 
 def get_multilabel_predictions(logits: np.ndarray, labels: List[LabelEntity],
-                               pos_thr: float = 0.5, activate: bool = True):
+                               pos_thr: float = 0.5, activate: bool = True) -> List[ScoredLabel]:
     if activate:
         logits = sigmoid_numpy(logits)
     item_labels = []
