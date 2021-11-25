@@ -16,7 +16,7 @@ class MultilabelEngine(Engine):
     r"""Multilabel classification engine. It supports ASL, BCE and Angular margin loss with binary classification."""
     def __init__(self, datamanager, models, optimizers, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stoping, lr_decay_factor, loss_name, label_smooth,
-                 lr_finder, m, s, sym_adjustment, auto_balance, amb_k, amb_t, clip_grad,
+                 lr_finder, m, s, amb_k, amb_t, clip_grad,
                  should_freeze_aux_models, nncf_metainfo, initial_lr,
                  target_metric, use_ema_decay, ema_decay, asl_gamma_pos, asl_gamma_neg, asl_p_m,
                  mix_precision, **kwargs):
@@ -66,8 +66,6 @@ class MultilabelEngine(Engine):
                     k=amb_k,
                     t=amb_t,
                     s=s,
-                    sym_adjustment=sym_adjustment,
-                    auto_balance=auto_balance,
                     gamma_neg=asl_gamma_neg,
                     gamma_pos=asl_gamma_pos,
                     label_smooth=label_smooth,

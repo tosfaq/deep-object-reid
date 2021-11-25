@@ -228,6 +228,9 @@ class MobileNetV3(ModelInterface):
                 with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
                     _, logits = self.infer_head(x, skip_pool=True)
 
+            if self.similarity_adjustment:
+                logits = self.sym_adjust(logits, self.amb_t)
+
             if return_all:
                 return [(logits, y, glob_features)]
 
