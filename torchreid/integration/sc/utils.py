@@ -195,8 +195,8 @@ class OTEClassificationDataset():
             if item_labels:
                 for ote_lbl in item_labels:
                     class_indices.append(self.label_names.index(ote_lbl.name))
-            else:
-                class_indices.append(0)
+            else: # this supposed to happen only on inference stage or if we have a negative in multilabel data
+                class_indices.append(-1)
 
             if self.multilabel:
                 self.annotation.append({'label': tuple(class_indices)})
