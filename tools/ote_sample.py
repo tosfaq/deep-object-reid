@@ -80,6 +80,9 @@ def main(args):
     task_cls = get_task_class(task_impl_path)
     task = task_cls(task_environment=environment)
 
+    print(dataset)
+    exit()
+
     logger.info('Train model')
     output_model = ModelEntity(
         dataset,
