@@ -58,6 +58,50 @@ learning_parameters:
     warning: null
   type: PARAMETER_GROUP
   visible_in_ui: true
+inference_parameters:
+  description: Parameters for inference
+  header: Parameters for inference
+  class_name:
+    affects_outcome_of: INFERENCE
+    default_value: classification
+    description: Model classes with defined pre- and postprocessing
+    editable: false
+    enum_name: Models
+    header: Model class for inference
+    options:
+      CLASSIFICATION: classification
+    type: SELECTABLE
+    ui_rules:
+      action: DISABLE_EDITING
+      operator: AND
+      rules: []
+      type: UI_RULES
+    value: ssd
+    visible_in_ui: True
+    warning: null
+  postprocessing:
+    description: Postprocessing
+    header: Postprocessing
+    topk:
+      affects_outcome_of: INFERENCE
+      default_value: 1
+      description: First top k elements will be displayed
+      editable: true
+      header: Top k elements
+      min_value: 1
+      type: INTEGER
+      ui_rules:
+        action: DISABLE_EDITING
+        operator: AND
+        rules: []
+        type: UI_RULES
+      value: 1
+      visible_in_ui: true
+      warning: null
+    type: PARAMETER_GROUP
+    visible_in_ui: true
+  type: PARAMETER_GROUP
+  visible_in_ui: true
 pot_parameters:
   description: POT Parameters
   header: POT Parameters

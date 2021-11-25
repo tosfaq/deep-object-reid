@@ -12,19 +12,8 @@
 # See the License for the specific language governing permissions
 # and limitations under the License.
 
-from ote_sdk.configuration import ConfigurableEnum
+from .classification import Classification
 
-
-class Models(ConfigurableEnum):
-    """
-    This Enum represents the types of models for inference
-    """
-    CLASSIFICATION = 'classification'
-
-
-class POTQuantizationPreset(ConfigurableEnum):
-    """
-    This Enum represents the quantization preset for post training optimization
-    """
-    PERFORMANCE = 'Performance'
-    MIXED = 'Mixed'
+__all__ = [
+    'Classification'
+]

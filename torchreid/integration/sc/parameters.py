@@ -12,7 +12,7 @@ from ote_sdk.configuration.elements import (ParameterGroup,
 from ote_sdk.configuration.configurable_parameters import ConfigurableParameters
 from ote_sdk.configuration.model_lifecycle import ModelLifecycle
 
-from .parameters_enums import POTQuantizationPreset
+from .parameters_enums import POTQuantizationPreset, Models
 
 @attrs
 class OTEClassificationParameters(ConfigurableParameters):
@@ -57,6 +57,32 @@ class OTEClassificationParameters(ConfigurableParameters):
         )
 
     @attrs
+    class __InferenceParameters(ParameterGroup):
+        header = string_attribute("Parameters for inference")
+        description = header
+
+        class_name = selectable(default_value=Models.CLASSIFICATION,
+                                header="Model class for inference",
+                                description="Model classes with defined pre- and postprocessing",
+                                editable=False,
+                                visible_in_ui=True)
+
+        @attrs
+        class __Postprocessing(ParameterGroup):
+            header = string_attribute("Postprocessing")
+            description = header
+
+            topk = configurable_integer(
+                header="Top k elements",
+                description="First top k elements will be displayed",
+                default_value=1,
+                min_value=1,
+                affects_outcome_of=ModelLifecycle.INFERENCE
+            )
+
+        postprocessing = add_parameter_group(__Postprocessing)
+
+    @attrs
     class __POTParameter(ParameterGroup):
         header = string_attribute("POT Parameters")
         description = header
@@ -74,4 +100,5 @@ class OTEClassificationParameters(ConfigurableParameters):
                             editable=False, visible_in_ui=False)
 
     learning_parameters = add_parameter_group(__LearningParameters)
+    inference_parameters = add_parameter_group(__InferenceParameters)
     pot_parameters = add_parameter_group(__POTParameter)
