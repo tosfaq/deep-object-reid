@@ -54,52 +54,58 @@ def main(args):
         log_name = 'ote_task.log' + time.strftime('-%Y-%m-%d-%H-%M-%S')
         sys.stdout = Logger(osp.join(args.debug_dump_folder, log_name))
     logger.info('Initialize dataset')
-    dataset = ClassificationDatasetAdapter(
-        train_data_root=osp.join(args.data_dir, 'train'),
-        train_ann_file=osp.join(args.data_dir, 'train.json'),
-        val_data_root=osp.join(args.data_dir, 'val'),
-        val_ann_file=osp.join(args.data_dir, 'val.json'),
-        test_data_root=osp.join(args.data_dir, 'val'),
-        test_ann_file=osp.join(args.data_dir, 'val.json'))
 
-    labels_schema = generate_label_schema(dataset.get_labels(), dataset.is_multilabel())
-    logger.info(f'Train dataset: {len(dataset.get_subset(Subset.TRAINING))} items')
-    logger.info(f'Validation dataset: {len(dataset.get_subset(Subset.VALIDATION))} items')
+    for subset in [60, 140, 280, 403, 890, 1200, 2000, 3000, 4000 ]:
+        data_root_ = args.data_dir + f'/{subset}'
+        dataset = ClassificationDatasetAdapter(
+            train_data_root=osp.join(data_root_, 'train'),
+            train_ann_file=osp.join(data_root_, 'train.json'),
+            val_data_root=osp.join(data_root_, 'val'),
+            val_ann_file=osp.join(data_root_, 'val.json'),
+            test_data_root=osp.join(data_root_, 'val'),
+            test_ann_file=osp.join(data_root_, 'val.json')
+            )
 
-    logger.info('Load model template')
-    model_template = parse_model_template(args.template_file_path)
+        labels_schema = generate_label_schema(dataset.get_labels(), dataset.is_multilabel())
+        logger.info(f'Train dataset: {len(dataset.get_subset(Subset.TRAINING))} items')
+        logger.info(f'Validation dataset: {len(dataset.get_subset(Subset.VALIDATION))} items')
 
-    logger.info('Set hyperparameters')
+        logger.info('Train model')
 
-    params = create(model_template.hyper_parameters.data)
-    logger.info('Setup environment')
-    environment = TaskEnvironment(model=None, hyper_parameters=params, label_schema=labels_schema, model_template=model_template)
+        if subset == 60: # first time, set up the model
+            logger.info('Load model template')
+            model_template = parse_model_template(args.template_file_path)
 
-    logger.info('Create base Task')
-    task_impl_path = model_template.entrypoints.base
-    task_cls = get_task_class(task_impl_path)
-    task = task_cls(task_environment=environment)
+            logger.info('Set hyperparameters')
 
-    logger.info('Train model')
-    output_model = ModelEntity(
-        dataset,
-        environment.get_model_configuration(),
-        model_status=ModelStatus.NOT_READY)
-    task.train(dataset, output_model)
+            params = create(model_template.hyper_parameters.data)
+            logger.info('Setup environment')
+            environment = TaskEnvironment(model=None, hyper_parameters=params, label_schema=labels_schema, model_template=model_template)
+            logger.info('Create base Task')
+            task_impl_path = model_template.entrypoints.base
+            task_cls = get_task_class(task_impl_path)
+            task = task_cls(task_environment=environment)
+            output_model = ModelEntity(
+                dataset,
+                environment.get_model_configuration(),
+                model_status=ModelStatus.NOT_READY)
 
-    logger.info('Get predictions on the validation set')
-    validation_dataset = dataset.get_subset(Subset.VALIDATION)
-    predicted_validation_dataset = task.infer(
-        validation_dataset.with_empty_annotations(),
-        InferenceParameters(is_evaluation=True))
-    resultset = ResultSetEntity(
-        model=output_model,
-        ground_truth_dataset=validation_dataset,
-        prediction_dataset=predicted_validation_dataset,
-    )
-    logger.info('Estimate quality on validation set')
-    task.evaluate(resultset)
-    logger.info(str(resultset.performance))
+        task.train(dataset, output_model)
+
+        # logger.info('Get predictions on the validation set')
+        # validation_dataset = dataset.get_subset(Subset.VALIDATION)
+        # predicted_validation_dataset = task.infer(
+        #     validation_dataset.with_empty_annotations(),
+        #     InferenceParameters(is_evaluation=True))
+        # resultset = ResultSetEntity(
+        #     model=output_model,
+        #     ground_truth_dataset=validation_dataset,
+        #     prediction_dataset=predicted_validation_dataset,
+        # )
+        # logger.info('Estimate quality on validation set')
+        # task.evaluate(resultset)
+        # print(resultset.performance)
+        # logger.info(str(resultset.performance))
 
     if args.export:
         logger.info('Export model')

@@ -100,7 +100,7 @@ class ClassificationDatasetAdapter(DatasetEntity):
         return out_data, class_to_idx
 
     @staticmethod
-    def _load_annotation(data_dir, filter_classes=None):
+    def _load_annotation(data_dir, size=None, filter_classes=None):
         ALLOWED_EXTS = ('.jpg', '.jpeg', '.png', '.gif')
         def is_valid(filename):
             return not filename.startswith('.') and filename.lower().endswith(ALLOWED_EXTS)
