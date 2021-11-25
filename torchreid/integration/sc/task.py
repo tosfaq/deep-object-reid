@@ -232,15 +232,15 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             active_score = active_score_from_probs(scores[i])
             active_score_media = FloatMetadata(name="active_score", value=active_score,
                                                float_type=FloatType.ACTIVE_SCORE)
-            dataset_item.append_metadata_item(active_score_media)
+            dataset_item.append_metadata_item(active_score_media, model=self._task_environment.model)
             feature_vec_media = TensorEntity(name="representation_vector", numpy=feature_vecs[i])
-            dataset_item.append_metadata_item(feature_vec_media)
+            dataset_item.append_metadata_item(feature_vec_media, model=self._task_environment.model)
 
             if dump_features:
                 actmap = get_actmap(features[i], (dataset_item.width, dataset_item.height))
                 saliency_media = ResultMediaEntity(name="saliency_map", type="Saliency map",
                                                    annotation_scene=dataset_item.annotation_scene, numpy=actmap)
-                dataset_item.append_metadata_item(saliency_media)
+                dataset_item.append_metadata_item(saliency_media, model=self._task_environment.model)
 
         return dataset
 
