@@ -42,7 +42,6 @@ from ote_sdk.entities.model import (
     ModelPrecision,
 )
 
-from ote_sdk.entities.label import LabelEntity
 from ote_sdk.entities.resultset import ResultSetEntity
 from ote_sdk.entities.annotation import AnnotationSceneEntity
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import (
