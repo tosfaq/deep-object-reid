@@ -234,7 +234,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                 item_labels = get_multiclass_predictions(scores[i], self._labels, activate=False)
                 if self._hierarchical:
                     original_scored_label = item_labels[0]
-                    ancestor_labels = self.task_environment.label_schema.get_ancestors(original_scored_label.get_label())
+                    ancestor_labels = self._task_environment.label_schema.get_ancestors(original_scored_label.get_label())
                     for al in ancestor_labels:
                         item_labels.append(ScoredLabel(al, original_scored_label.probability))
 
