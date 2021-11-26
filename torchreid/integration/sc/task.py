@@ -68,7 +68,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             self._labels = task_environment.get_labels(include_empty=True)
         else:
             self._labels = task_environment.get_labels(include_empty=False)
-        self._empty_label = get_empty_label(task_environment)
+        self._empty_label = get_empty_label(task_environment.label_schema)
         self._multilabel = len(task_environment.label_schema.get_groups(False)) > 1 and \
                 len(task_environment.label_schema.get_groups(False)) == len(task_environment.get_labels(include_empty=False))
 

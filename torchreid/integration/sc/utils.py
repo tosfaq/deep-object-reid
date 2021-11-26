@@ -151,9 +151,9 @@ class ClassificationDatasetAdapter(DatasetEntity):
         return self.multilabel
 
 
-def get_empty_label(task_environment) -> LabelEntity:
-    empty_candidates = list(set(task_environment.get_labels(include_empty=True)) -
-                            set(task_environment.get_labels(include_empty=False)))
+def get_empty_label(label_schema: LabelSchemaEntity) -> LabelEntity:
+    empty_candidates = list(set(label_schema.get_labels(include_empty=True)) -
+                            set(label_schema.get_labels(include_empty=False)))
     if empty_candidates:
         return empty_candidates[0]
     return None
