@@ -151,12 +151,27 @@ class ClassificationDatasetAdapter(DatasetEntity):
         return self.multilabel
 
 
-def get_empty_label(task_environment) -> LabelEntity:
-    empty_candidates = list(set(task_environment.get_labels(include_empty=True)) -
-                            set(task_environment.get_labels(include_empty=False)))
+def get_empty_label(label_schema: LabelSchemaEntity) -> LabelEntity:
+    empty_candidates = list(set(label_schema.get_labels(include_empty=True)) -
+                            set(label_schema.get_labels(include_empty=False)))
     if empty_candidates:
         return empty_candidates[0]
     return None
+
+
+def get_leaf_labels(label_schema: LabelSchemaEntity) -> List[LabelEntity]:
+    leaf_labels = []
+    all_labels = label_schema.get_labels(False)
+    for lbl in all_labels:
+        if not label_schema.get_children(lbl):
+            leaf_labels.append(lbl)
+
+    return leaf_labels
+
+
+def get_ancestors_by_prediction(label_schema: LabelSchemaEntity, prediction: ScoredLabel) -> List[ScoredLabel]:
+    ancestor_labels = label_schema.get_ancestors(prediction)
+    return [ScoredLabel(al, prediction.probability) for al in ancestor_labels]
 
 
 def generate_label_schema(not_empty_labels, multilabel=False):
@@ -320,7 +335,8 @@ def softmax_numpy(x: np.ndarray):
     return x
 
 
-def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity], activate: bool = True):
+def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity],
+                               activate: bool = True) -> List[ScoredLabel]:
     i = np.argmax(logits)
     if activate:
         logits = softmax_numpy(logits)
@@ -328,7 +344,7 @@ def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity], ac
 
 
 def get_multilabel_predictions(logits: np.ndarray, labels: List[LabelEntity],
-                               pos_thr: float = 0.5, activate: bool = True):
+                               pos_thr: float = 0.5, activate: bool = True) -> List[ScoredLabel]:
     if activate:
         logits = sigmoid_numpy(logits)
     item_labels = []
