@@ -23,7 +23,7 @@ from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingPr
                                             InferenceProgressCallback, get_actmap, preprocess_features_for_actmap,
                                             active_score_from_probs, get_multiclass_predictions,
                                             get_multilabel_predictions, sigmoid_numpy, softmax_numpy,
-                                            get_empty_label, get_leaf_labels)
+                                            get_empty_label, get_leaf_labels, get_ancestors_by_prediction)
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
@@ -233,10 +233,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                 scores[i] = softmax_numpy(scores[i])
                 item_labels = get_multiclass_predictions(scores[i], self._labels, activate=False)
                 if self._hierarchical:
-                    original_scored_label = item_labels[0]
-                    ancestor_labels = self._task_environment.label_schema.get_ancestors(original_scored_label.get_label())
-                    for al in ancestor_labels:
-                        item_labels.append(ScoredLabel(al, original_scored_label.probability))
+                    item_labels.extend(get_ancestors_by_prediction(self._task_environment.label_schema, item_labels[0]))
 
             dataset_item.append_labels(item_labels)
 

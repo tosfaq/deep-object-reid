@@ -169,6 +169,11 @@ def get_leaf_labels(label_schema: LabelSchemaEntity) -> List[LabelEntity]:
     return leaf_labels
 
 
+def get_ancestors_by_prediction(label_schema: LabelSchemaEntity, prediction: ScoredLabel) -> List[ScoredLabel]:
+    ancestor_labels = label_schema.get_ancestors(prediction)
+    return [ScoredLabel(al, prediction.probability) for al in ancestor_labels]
+
+
 def generate_label_schema(not_empty_labels, multilabel=False):
     assert len(not_empty_labels) > 1
 
