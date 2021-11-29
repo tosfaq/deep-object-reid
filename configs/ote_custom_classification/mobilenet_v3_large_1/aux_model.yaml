@@ -1,7 +1,8 @@
 model:
   name: 'mobilenetv3_large'
   type: 'classification'
-  pretrained: True
+  pretrained: False
+  load_weights: /tmp/ote-cls-scratch-uo0ki_yy/aux_model_1/aux_model_1-best.pth.tar
   feature_dim: 1280
   dropout_cls:
     p: 0.2

@@ -16,6 +16,7 @@ import argparse
 import logging
 import os.path as osp
 import sys
+from datetime import datetime
 import time
 
 from ote_sdk.entities.inference_parameters import InferenceParameters
@@ -49,22 +50,28 @@ def parse_args():
 
 
 def main(args):
+    sizes = [ 60, 140, 280, 403, 890, 1200, 2000, 3000, 4000 ]
     if args.debug_dump_folder:
         from torchreid.utils import Logger
         log_name = 'ote_task.log' + time.strftime('-%Y-%m-%d-%H-%M-%S')
         sys.stdout = Logger(osp.join(args.debug_dump_folder, log_name))
     logger.info('Initialize dataset')
+
+    data_root_ = args.data_dir + f'/{4000}'
     dataset = ClassificationDatasetAdapter(
-        train_data_root=osp.join(args.data_dir, 'train'),
-        train_ann_file=osp.join(args.data_dir, 'train.json'),
-        val_data_root=osp.join(args.data_dir, 'val'),
-        val_ann_file=osp.join(args.data_dir, 'val.json'),
-        test_data_root=osp.join(args.data_dir, 'val'),
-        test_ann_file=osp.join(args.data_dir, 'val.json'))
+        train_data_root=osp.join(data_root_, 'train'),
+        train_ann_file=osp.join(data_root_, 'train.json'),
+        val_data_root=osp.join(data_root_, 'val'),
+        val_ann_file=osp.join(data_root_, 'val.json'),
+        test_data_root=osp.join(data_root_, 'val'),
+        test_ann_file=osp.join(data_root_, 'val.json')
+        )
 
     labels_schema = generate_label_schema(dataset.get_labels(), dataset.is_multilabel())
     logger.info(f'Train dataset: {len(dataset.get_subset(Subset.TRAINING))} items')
     logger.info(f'Validation dataset: {len(dataset.get_subset(Subset.VALIDATION))} items')
+
+    logger.info('Train model')
 
     logger.info('Load model template')
     model_template = parse_model_template(args.template_file_path)
@@ -74,19 +81,19 @@ def main(args):
     params = create(model_template.hyper_parameters.data)
     logger.info('Setup environment')
     environment = TaskEnvironment(model=None, hyper_parameters=params, label_schema=labels_schema, model_template=model_template)
-
     logger.info('Create base Task')
     task_impl_path = model_template.entrypoints.base
     task_cls = get_task_class(task_impl_path)
     task = task_cls(task_environment=environment)
-
-    logger.info('Train model')
+    
+    start_time = datetime.now()
     output_model = ModelEntity(
         dataset,
         environment.get_model_configuration(),
         model_status=ModelStatus.NOT_READY)
-    task.train(dataset, output_model)
 
+    task.train(dataset, output_model)
+    print(datetime.now() - start_time)
     logger.info('Get predictions on the validation set')
     validation_dataset = dataset.get_subset(Subset.VALIDATION)
     predicted_validation_dataset = task.infer(
@@ -99,6 +106,7 @@ def main(args):
     )
     logger.info('Estimate quality on validation set')
     task.evaluate(resultset)
+    print(resultset.performance)
     logger.info(str(resultset.performance))
 
     if args.export:

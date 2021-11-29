@@ -13,8 +13,9 @@ lr_finder:
 model:
   name: 'mobilenetv3_large'
   type: 'classification'
-  pretrained: True
+  pretrained: False
   save_all_chkpts: False
+  load_weights: /tmp/ote-cls-scratch-uo0ki_yy/main_model/main_model-best.pth.tar
   feature_dim: 1280
 
 mutual_learning:
@@ -65,7 +66,7 @@ metric_losses:
 
 train:
   optim: 'sam'
-  lr: 0.013
+  lr: 0.005
   nbd: True
   max_epoch: 200
   weight_decay: 5e-4
@@ -84,7 +85,7 @@ train:
   ema:
     enable: True
     ema_decay: 0.999
-  mix_precision: False
+  mix_precision: True
 
 test:
   batch_size: 128
