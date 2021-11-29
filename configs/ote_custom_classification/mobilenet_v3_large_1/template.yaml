@@ -16,6 +16,11 @@ entrypoints:
   base: torchreid.integration.sc.task.OTEClassificationTask
   openvino: torchreid.integration.sc.openvino_task.OpenVINOClassificationTask
 
+# Capabilities.
+capabilities:
+  - compute_representations
+  - compute_uncertainty_score
+
 # Hyperparameters.
 hyper_parameters:
   base_path: "../../../torchreid/integration/sc/configuration.yaml"
