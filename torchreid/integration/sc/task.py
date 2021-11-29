@@ -23,7 +23,7 @@ from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingPr
                                             InferenceProgressCallback, get_actmap, preprocess_features_for_actmap,
                                             active_score_from_probs, get_multiclass_predictions,
                                             get_multilabel_predictions, sigmoid_numpy, softmax_numpy,
-                                            get_empty_label)
+                                            get_empty_label, get_leaf_labels, get_ancestors_by_prediction)
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
@@ -68,8 +68,14 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             self._labels = task_environment.get_labels(include_empty=True)
         else:
             self._labels = task_environment.get_labels(include_empty=False)
-        self._empty_label = get_empty_label(task_environment)
-        self._multilabel = len(task_environment.label_schema.get_groups(False)) > 1
+        self._empty_label = get_empty_label(task_environment.label_schema)
+        self._multilabel = len(task_environment.label_schema.get_groups(False)) > 1 and \
+                len(task_environment.label_schema.get_groups(False)) == len(task_environment.get_labels(include_empty=False))
+
+        self._hierarchical = False
+        if not self._multilabel and len(task_environment.label_schema.get_groups(False)) > 1:
+            self._labels = get_leaf_labels(task_environment.label_schema)
+            self._hierarchical = True
 
         template_file_path = task_environment.model_template.model_template_path
 
@@ -167,8 +173,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         buffer = io.BytesIO()
         hyperparams = self._task_environment.get_hyper_parameters(OTEClassificationParameters)
         hyperparams_str = ids_to_strings(cfg_helper.convert(hyperparams, dict, enum_to_str=True))
-        labels = {label.name: label.color.rgb_tuple for label in self._labels}
-        modelinfo = {'model': self._model.state_dict(), 'config': hyperparams_str, 'labels': labels, 'VERSION': 1}
+        modelinfo = {'model': self._model.state_dict(), 'config': hyperparams_str,
+                     'label_schema': self._task_environment.label_schema, 'VERSION': 1}
         torch.save(modelinfo, buffer)
         output_model.set_data("weights.pth", buffer.getvalue())
 
@@ -226,6 +232,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             else:
                 scores[i] = softmax_numpy(scores[i])
                 item_labels = get_multiclass_predictions(scores[i], self._labels, activate=False)
+                if self._hierarchical:
+                    item_labels.extend(get_ancestors_by_prediction(self._task_environment.label_schema, item_labels[0]))
 
             dataset_item.append_labels(item_labels)
 
