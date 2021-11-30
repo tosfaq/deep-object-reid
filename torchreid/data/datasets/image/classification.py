@@ -256,6 +256,7 @@ class MultiLabelClassification(ImageDataset):
         if img_wo_objects:
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
         if create_adj_matrix:
+            print('here', thau)
             matrix = prepare_adj_matrix(classes, out_data, thau)
             np.save("voc_adj_matrix", matrix)
         return out_data, class_to_idx
