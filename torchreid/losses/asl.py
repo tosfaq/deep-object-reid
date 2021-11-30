@@ -108,7 +108,8 @@ class AMBinaryLoss(nn.Module):
             one_sided_gamma = self.gamma_pos * targets + self.gamma_neg * (1 - targets)
             # P_pos ** gamm_neg * (...) + P_neg ** gamma_pos * (...)
             one_sided_w = torch.pow(pt, one_sided_gamma)
-            balance_koeff_pos, balance_koeff_neg = 1., 1.
+            balance_koeff_pos = self.k / self.s
+            balance_koeff_neg = (1 - self.k) / self.s
         else:
             assert not self.asymmetric_focus
             # SphereFace2 balancing coefficients
