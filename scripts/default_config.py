@@ -206,6 +206,9 @@ def get_default_config():
     cfg.test.test_before_train = False
 
     # Augmentations
+    cfg.data.gcn = CN()
+    cfg.data.gcn.thau = 0.5
+
     cfg.data.transforms = CN()
 
     cfg.data.transforms.random_flip = CN()
@@ -402,6 +405,7 @@ def imagedata_kwargs(cfg):
         'train_sampler': cfg.sampler.train_sampler,
         'custom_dataset_roots': cfg.custom_datasets.roots,
         'custom_dataset_types': cfg.custom_datasets.types,
+        'thau': cfg.data.gcn.thau
     }
 
 
