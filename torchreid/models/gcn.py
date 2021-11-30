@@ -7,16 +7,16 @@ from torch.cuda.amp import autocast
 import math
 
 def gen_A(num_classes, t, adj_file):
-    result = pickle.load(open(adj_file, 'rb'))
-    _adj = result['adj']
-    _nums = result['nums']
-    _nums = _nums[:, np.newaxis]
-    _adj = _adj / _nums
-    # _adj[_adj < t] = 0
-    # _adj[_adj >= t] = 1
-    _adj = _adj * 0.25 / (_adj.sum(0, keepdims=True) + 1e-6)
-    _adj = _adj + np.identity(num_classes, np.int)
-    return _adj
+    result = np.load(adj_file)
+    # _adj = result['adj']
+    # _nums = result['nums']
+    # _nums = _nums[:, np.newaxis]
+    # _adj = _adj / _nums
+    # # _adj[_adj < t] = 0
+    # # _adj[_adj >= t] = 1
+    # _adj = _adj * 0.25 / (_adj.sum(0, keepdims=True) + 1e-6)
+    # _adj = _adj + 0.25 * np.identity(num_classes, np.int)
+    return result
 
 
 class GraphConvolution(nn.Module):
@@ -59,12 +59,11 @@ class Image_GCNN(ModelInterface):
     def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None, **kwargs):
         super().__init__(**kwargs)
         self.backbone = backbone
-        self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
         self.pooling = nn.MaxPool2d(14, 14)
-        print(self.backbone.num_features // 2, self.backbone.num_features)
         self.gc1 = GraphConvolution(in_channel, self.backbone.num_features // 2)
         self.gc2 = GraphConvolution(self.backbone.num_features // 2, self.backbone.num_features)
         self.relu = nn.LeakyReLU(0.2)
+        self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
         self.A = nn.Parameter(torch.from_numpy(adj_matrix).float())
 
     def forward(self, image):
@@ -122,8 +121,7 @@ class Image_GCNN(ModelInterface):
 def build_image_gcn(backbone, word_matrix_path, adj_file, num_classes=80, word_emb_size=300, 
                     thau = 0.5, pretrain=False, **kwargs):
     adj_matrix = gen_A(num_classes, thau, adj_file)
-    with open(word_matrix_path, 'rb') as f:
-            word_matrix = pickle.load(f)
+    word_matrix = np.load(word_matrix_path)
     model = Image_GCNN(
         backbone=backbone,
         word_matrix=word_matrix,

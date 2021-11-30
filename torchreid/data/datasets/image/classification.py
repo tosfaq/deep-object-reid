@@ -207,15 +207,7 @@ class MultiLabelClassification(ImageDataset):
     """Multi label classification dataset.
     """
 
-<<<<<<< HEAD
     def __init__(self, root='', mode='train', **kwargs):
-=======
-    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False,
-                vectors_path=None, **kwargs):
-        if load_masks:
-            raise NotImplementedError
->>>>>>> changes for gcn experiments
-
         self.root = osp.abspath(osp.expanduser(root))
         self.data_dir = osp.dirname(self.root)
         self.annot = self.root
@@ -229,17 +221,9 @@ class MultiLabelClassification(ImageDataset):
                 self.annot,
                 self.data_dir,
             )
-<<<<<<< HEAD
             test = []
         elif mode == 'test':
             test, classes = self.load_annotation(
-=======
-            if vectors_path:
-                self.prepare_word_embedings()
-            query = []
-        elif mode == 'query':
-            query, classes = self.load_annotation(
->>>>>>> changes for gcn experiments
                 self.annot,
                 self.data_dir,
             )
@@ -253,11 +237,7 @@ class MultiLabelClassification(ImageDataset):
         self.classes = classes
 
     @staticmethod
-<<<<<<< HEAD
     def load_annotation(annot_path, data_dir):
-=======
-    def load_annotation(annot_path, data_dir, dataset_id=0, vectors_path=None):
->>>>>>> changes for gcn experiments
         out_data = []
         with open(annot_path) as f:
             annotation = json.load(f)
@@ -275,6 +255,9 @@ class MultiLabelClassification(ImageDataset):
                 out_data.append((full_image_path, tuple(labels_idx)))
         if img_wo_objects:
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
+        if create_adj_matrix:
+            matrix = prepare_adj_matrix(classes, out_data, thau)
+            np.save("voc_adj_matrix", matrix)
         return out_data, class_to_idx
 
     @staticmethod
@@ -286,7 +269,7 @@ class MultiLabelClassification(ImageDataset):
                 vectors[vals[0]] = [float(x) for x in vals[1:]]
         word_embedings = []
         for label in label_set:
-            if label not in label_set:
+            if label not in vectors:
                 print(f'label: {label} is out of dictionary!\n')
                 word_embedings.append(vectors['<unk>'])
             word_embedings.append(vectors[label])
