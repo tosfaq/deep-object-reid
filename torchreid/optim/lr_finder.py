@@ -119,7 +119,7 @@ class LrFinder:
         if self.epochs_warmup != 0:
             get_model_attr(self.model, 'to')(self.model_device)
             print("Warmup the model's weights for {} epochs".format(self.epochs_warmup))
-            self.engine.run(max_epoch=self.epochs_warmup, lr_finder=self.engine_cfg, stop_callback=self.stop_callback)
+            self.engine.run(max_epoch=self.epochs_warmup, lr_finder=self.engine_cfg, stop_callback=self.stop_callback,eval_freq=1)
             print("Finished warmuping the model. Continue to find learning rate:")
 
         # run lr finder
