@@ -86,7 +86,6 @@ def main(args):
         environment.get_model_configuration(),
         model_status=ModelStatus.NOT_READY)
     task.train(dataset, output_model)
-
     logger.info('Get predictions on the validation set')
     validation_dataset = dataset.get_subset(Subset.VALIDATION)
     predicted_validation_dataset = task.infer(

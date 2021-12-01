@@ -6,7 +6,7 @@ from torchreid.ops import Dropout
 from torch import nn
 from torch.cuda.amp import autocast
 
-__all__ = ["timm_wrapped_models"]
+__all__ = ["timm_wrapped_models", "TimmModelsWrapper"]
 AVAI_MODELS = {
                 'mobilenetv3_large_21k' : 'mobilenetv3_large_100_miil_in21k',
                 'mobilenetv3_large_1k' : 'mobilenetv3_large_100_miil',
@@ -27,6 +27,7 @@ class TimmModelsWrapper(ModelInterface):
                  **kwargs):
         super().__init__(**kwargs)
         assert self.is_classification(), f"{model_name} model is adapted for classification tasks only"
+        self.pretrained = pretrained
         self.is_mobilenet = True if model_name in ["mobilenetv3_large_100_miil_in21k", "mobilenetv3_large_100_miil"] else False
         self.model = timm.create_model(model_name,
                                        pretrained=pretrained,
