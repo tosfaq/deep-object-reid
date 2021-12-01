@@ -10,6 +10,7 @@ from typing import List
 import cv2 as cv
 import numpy as np
 
+from ote_sdk.entities.id import ID
 from ote_sdk.entities.image import Image
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.scored_label import ScoredLabel
@@ -61,7 +62,7 @@ class ClassificationDatasetAdapter(DatasetEntity):
         self.label_map = None
         self.labels = None
         self._set_labels_obtained_from_annotation()
-        self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False) for i, name in
+        self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False, id=ID(i)) for i, name in
                                enumerate(self.labels)]
 
         dataset_items = []

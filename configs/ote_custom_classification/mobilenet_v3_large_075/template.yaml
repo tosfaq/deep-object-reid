@@ -1,29 +1,27 @@
 # Description.
-name: MobileNet-V3-large-0.75x
 model_template_id: MobileNet-V3-large-0.75x
+name: MobileNet-V3-large-0.75x
 task_type: CLASSIFICATION
 task_family: VISION
 instantiation: "CLASS"
 summary: Custom Image Classification MobileNet-V3-large-0.75x
-
-# Algo backend.
-# Would be better to have something more precise and self-contained, e.g.:  docker image or path to Python venv activation script?
-framework: OTEClassification v1.2.3
-
-# Should be revisited?
 application:
   ~
 
-# # Optional? requirements to the dataset. Should be revisited?
-# dataset_requirements:
-#   ~
+# Algo backend.
+framework: OTEClassification v1.2.3
 
-# Task implementation.
+# Task implementations.
 entrypoints:
   base: torchreid.integration.sc.task.OTEClassificationTask
   openvino: torchreid.integration.sc.openvino_task.OpenVINOClassificationTask
 
-# Task and hyperparameters.
+# Capabilities.
+capabilities:
+  - compute_representations
+  - compute_uncertainty_score
+
+# Hyperparameters.
 hyper_parameters:
   base_path: "../../../torchreid/integration/sc/configuration.yaml"
   parameter_overrides:
