@@ -9,6 +9,30 @@ import shutil
 
 import torch
 
+from ote_sdk.configuration import cfg_helper
+from ote_sdk.configuration.helper.utils import ids_to_strings
+from ote_sdk.entities.datasets import DatasetEntity
+from ote_sdk.entities.inference_parameters import InferenceParameters
+from ote_sdk.entities.metadata import FloatMetadata, FloatType
+from ote_sdk.entities.metrics import (LineMetricsGroup, CurveMetric, LineChartInfo,
+                                      Performance, ScoreMetric, MetricsGroup)
+from ote_sdk.entities.model import ModelEntity, ModelPrecision, ModelStatus, ModelFormat, ModelOptimizationType
+from ote_sdk.entities.resultset import ResultSetEntity
+from ote_sdk.entities.result_media import ResultMediaEntity
+from ote_sdk.entities.scored_label import ScoredLabel
+from ote_sdk.entities.subset import Subset
+from ote_sdk.entities.task_environment import TaskEnvironment
+from ote_sdk.entities.tensor import TensorEntity
+from ote_sdk.entities.train_parameters import TrainParameters, default_progress_callback
+from ote_sdk.serialization.label_mapper import LabelSchemaMapper
+from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
+from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
+from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
+from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
+from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
+from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
+
+
 import torchreid
 from torchreid.ops import DataParallel
 from torchreid.apis.export import export_onnx, export_ir
@@ -26,29 +50,6 @@ from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingPr
                                             get_empty_label, get_leaf_labels, get_ancestors_by_prediction)
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
-
-from ote_sdk.entities.inference_parameters import InferenceParameters
-from ote_sdk.entities.metrics import (LineMetricsGroup, CurveMetric, LineChartInfo,
-                                      Performance, ScoreMetric, MetricsGroup)
-from ote_sdk.entities.task_environment import TaskEnvironment
-from ote_sdk.entities.train_parameters import TrainParameters, default_progress_callback
-from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
-from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
-from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
-from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
-from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
-from ote_sdk.configuration import cfg_helper
-from ote_sdk.configuration.helper.utils import ids_to_strings
-from ote_sdk.entities.model import ModelPrecision
-from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
-from ote_sdk.entities.model import ModelEntity, ModelStatus, ModelFormat, ModelOptimizationType
-from ote_sdk.entities.metadata import FloatMetadata, FloatType
-from ote_sdk.entities.resultset import ResultSetEntity
-from ote_sdk.entities.scored_label import ScoredLabel
-from ote_sdk.entities.tensor import TensorEntity
-from ote_sdk.entities.result_media import ResultMediaEntity
-from ote_sdk.entities.datasets import DatasetEntity
-from ote_sdk.entities.subset import Subset
 
 
 logger = logging.getLogger(__name__)
@@ -173,8 +174,9 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         buffer = io.BytesIO()
         hyperparams = self._task_environment.get_hyper_parameters(OTEClassificationParameters)
         hyperparams_str = ids_to_strings(cfg_helper.convert(hyperparams, dict, enum_to_str=True))
+        serialized_label_schema = LabelSchemaMapper.forward(self._task_environment.label_schema)
         modelinfo = {'model': self._model.state_dict(), 'config': hyperparams_str,
-                     'label_schema': self._task_environment.label_schema, 'VERSION': 1}
+                     'label_schema': serialized_label_schema, 'VERSION': 1}
         torch.save(modelinfo, buffer)
         output_model.set_data("weights.pth", buffer.getvalue())
 
