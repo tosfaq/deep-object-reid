@@ -29,11 +29,13 @@ class ModelInterface(nn.Module):
                 mix_precision=False,
                 similarity_adjustment=False,
                 amb_t = 1.,
+                scale = 1.,
                 **kwargs):
         super().__init__()
 
         assert type in _VALID_MODEL_TYPES
         self.type = type
+        self.scale = scale
         self.pretrained = pretrained
         self.classification_classes = {}
         self.is_ie_model = False

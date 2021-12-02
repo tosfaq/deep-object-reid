@@ -85,6 +85,7 @@ def main(args):
     )
     logger.info('Estimate quality on validation set')
     task.evaluate(resultset)
+    print(resultset)
     logger.info(str(resultset.performance))
 
     if args.export:

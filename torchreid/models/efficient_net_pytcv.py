@@ -369,7 +369,6 @@ class EfficientNet(ModelInterface):
         with autocast(enabled=self.mix_precision):
             if self.input_IN is not None:
                 x = self.input_IN(x)
-
             y = self.features(x)
             if return_featuremaps:
                 return y
@@ -381,10 +380,8 @@ class EfficientNet(ModelInterface):
 
             if return_all:
                 return [(logits, y, glob_features)]
-
             if not self.training and self.is_classification():
                 return [logits]
-
             if get_embeddings:
                 out_data = [logits, glob_features.view(x.shape[0], -1)]
             elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:

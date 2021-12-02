@@ -10,7 +10,9 @@ from torchreid.utils import get_model_attr
 
 __FEATURE_DUMP_MODES = ['none', 'all', 'vecs']
 
-def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0, perf_monitor=None, feature_dump_mode='none'):
+def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0, 
+                        perf_monitor=None, feature_dump_mode='none'):
+
     assert feature_dump_mode in __FEATURE_DUMP_MODES
     return_featuremaps = feature_dump_mode != __FEATURE_DUMP_MODES[0]
 
@@ -36,8 +38,7 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0, perf_m
                 all_feature_vecs.append(global_features)
             else:
                 logits = model.forward(batch_images)[head_id]
-
-            out_scores.append(logits)
+            out_scores.append(logits * get_model_attr(model, 'scale'))
             gt_labels.append(batch_labels)
 
         out_scores = torch.cat(out_scores, 0).data.cpu().numpy()

@@ -6,6 +6,7 @@ from typing import List, Optional
 from copy import deepcopy
 import tempfile
 import shutil
+import numpy
 
 import torch
 
@@ -197,6 +198,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             update_progress_callback = default_progress_callback
 
         self._cfg.test.batch_size = max(1, self._hyperparams.learning_parameters.batch_size // 2)
+        self._cfg.data.workers = max(min(self._cfg.data.workers, len(dataset) - 1), 0)
+
         time_monitor = InferenceProgressCallback(math.ceil(len(dataset) / self._cfg.test.batch_size),
                                                  update_progress_callback)
 
@@ -233,12 +236,12 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                     item_labels = [ScoredLabel(self._empty_label, probability=1.)]
             else:
                 scores[i] = softmax_numpy(scores[i])
+                print(numpy.max(scores[i]))
                 item_labels = get_multiclass_predictions(scores[i], self._labels, activate=False)
                 if self._hierarchical:
                     item_labels.extend(get_ancestors_by_prediction(self._task_environment.label_schema, item_labels[0]))
 
             dataset_item.append_labels(item_labels)
-
             active_score = active_score_from_probs(scores[i])
             active_score_media = FloatMetadata(name="active_score", value=active_score,
                                                float_type=FloatType.ACTIVE_SCORE)

@@ -209,7 +209,6 @@ class MobileNetV3(ModelInterface):
         with autocast(enabled=self.mix_precision):
             if self.input_IN is not None:
                 x = self.input_IN(x)
-
             y = self.extract_features(x)
             if return_featuremaps:
                 return y
@@ -224,19 +223,15 @@ class MobileNetV3(ModelInterface):
                     retain_p = 1.0 - self.self_challenging_cfg.drop_p,
                     retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
                 )
-
                 with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
                     _, logits = self.infer_head(x, skip_pool=True)
-
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.amb_t)
 
             if return_all:
                 return [(logits, y, glob_features)]
-
             if not self.training and self.is_classification():
                 return [logits]
-
             if get_embeddings:
                 out_data = [logits, glob_features]
             elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
