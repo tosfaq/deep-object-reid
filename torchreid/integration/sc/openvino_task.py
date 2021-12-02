@@ -254,7 +254,8 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
                 'params': {
                     'target_device': 'ANY',
                     'preset': preset,
-                    'stat_subset_size': min(stat_subset_size, len(data_loader))
+                    'stat_subset_size': min(stat_subset_size, len(data_loader)),
+                    'shuffle_data': True
                 }
             }
         ]
