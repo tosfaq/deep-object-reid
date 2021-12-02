@@ -50,21 +50,22 @@ def parse_args():
 
 
 def main(args):
-    sizes = [ 60, 140, 280, 403, 890, 1200, 2000, 3000, 4000 ]
+    # sizes = [ 60, 140, 280, 403, 890, 1200, 2000, 3000, 4000 ]
+    sizes = [122, 247, 527, 650, 890, 1200, 2000, 3000, 3916]
     if args.debug_dump_folder:
         from torchreid.utils import Logger
         log_name = 'ote_task.log' + time.strftime('-%Y-%m-%d-%H-%M-%S')
         sys.stdout = Logger(osp.join(args.debug_dump_folder, log_name))
     logger.info('Initialize dataset')
-
-    data_root_ = args.data_dir + f'/{4000}'
+    cur_size = sizes[2]
+    data_root_ = args.data_dir
     dataset = ClassificationDatasetAdapter(
         train_data_root=osp.join(data_root_, 'train'),
-        train_ann_file=osp.join(data_root_, 'train.json'),
+        train_ann_file=osp.join(data_root_, f'train_{cur_size}.json'),
         val_data_root=osp.join(data_root_, 'val'),
-        val_ann_file=osp.join(data_root_, 'val.json'),
+        val_ann_file=osp.join(data_root_, f'val_{cur_size}.json'),
         test_data_root=osp.join(data_root_, 'val'),
-        test_ann_file=osp.join(data_root_, 'val.json')
+        test_ann_file=osp.join(data_root_, f'val_{cur_size}.json')
         )
 
     labels_schema = generate_label_schema(dataset.get_labels(), dataset.is_multilabel())

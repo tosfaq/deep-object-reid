@@ -13,9 +13,8 @@ lr_finder:
 model:
   name: 'mobilenetv3_large'
   type: 'classification'
-  pretrained: False
+  pretrained: True
   save_all_chkpts: False
-  load_weights: /tmp/ote-cls-scratch-uo0ki_yy/main_model/main_model-best.pth.tar
   feature_dim: 1280
 
 mutual_learning:
