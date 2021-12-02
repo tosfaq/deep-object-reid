@@ -240,6 +240,7 @@ class MultilabelEngine(Engine):
         should_exit = False
         is_candidate_for_best = False
         current_metric = round(top1, 4)
+        print(self.prev_smooth_top1, smooth_top1)
         if smooth_top1 <= self.prev_smooth_top1:
             self.iter_to_wait += 1
             if self.iter_to_wait >= self.train_patience:
