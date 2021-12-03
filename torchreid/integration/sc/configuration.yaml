@@ -63,13 +63,14 @@ inference_parameters:
   header: Parameters for inference
   class_name:
     affects_outcome_of: INFERENCE
-    default_value: classification
+    default_value: new_classification
     description: Model classes with defined pre- and postprocessing
     editable: false
     enum_name: Models
     header: Model class for inference
     options:
       CLASSIFICATION: classification
+      NEW_CLASSIFICATION: new_classification
     type: SELECTABLE
     ui_rules:
       action: DISABLE_EDITING

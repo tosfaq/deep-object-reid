@@ -20,6 +20,7 @@ class Models(ConfigurableEnum):
     This Enum represents the types of models for inference
     """
     CLASSIFICATION = 'classification'
+    NEW_CLASSIFICATION = 'new_classification'
 
 
 class POTQuantizationPreset(ConfigurableEnum):

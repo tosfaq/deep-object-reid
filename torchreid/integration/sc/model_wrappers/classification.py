@@ -14,12 +14,12 @@
 
 import numpy as np
 
-from openvino.model_zoo.model_api.models.image_model import ImageModel
+from openvino.model_zoo.model_api.models.classification import Classification
 from openvino.model_zoo.model_api.models.types import NumericalValue, ListValue, StringValue, BooleanValue
 
 
-class Classification(ImageModel):
-    __model__ = 'classification'
+class NewClassification(Classification):
+    __model__ = 'new_classification'
 
     def __init__(self, model_adapter, configuration=None, preload=False):
         super().__init__(model_adapter, configuration, preload)
@@ -40,36 +40,6 @@ class Classification(ImageModel):
         })
 
         return parameters
-
-    @staticmethod
-    def _load_labels(labels_file):
-        with open(labels_file, 'r') as f:
-            labels = []
-            for s in f:
-                begin_idx = s.find(' ')
-                if (begin_idx == -1):
-                    raise RuntimeError('The labels file has incorrect format.')
-                end_idx = s.find(',')
-                labels.append(s[(begin_idx + 1):end_idx])
-        return labels
-
-    def _get_outputs(self):
-        layer_name = next(iter(self.outputs))
-        layer_shape = self.outputs[layer_name].shape
-
-        if len(layer_shape) != 2 and len(layer_shape) != 4:
-            raise RuntimeError('The Classification model wrapper supports topologies only with 2D or 4D output')
-        if len(layer_shape) == 4 and (layer_shape[2] != 1 or layer_shape[3] != 1):
-            raise RuntimeError('The Classification model wrapper supports topologies only with 4D '
-                               'output which has last two dimensions of size 1')
-        if self.labels:
-            if (layer_shape[1] == len(self.labels) + 1):
-                self.labels.insert(0, 'other')
-                self.logger.warning("\tInserted 'other' label as first.")
-            if layer_shape[1] != len(self.labels):
-                raise RuntimeError("Model's number of classes and parsed "
-                                'labels must match ({} != {})'.format(layer_shape[1], len(self.labels)))
-        return layer_name
 
     def postprocess(self, outputs, meta):
         outputs = outputs[self.output_blob_name].squeeze()

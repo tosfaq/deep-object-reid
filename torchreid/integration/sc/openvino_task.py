@@ -34,6 +34,7 @@ from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
 from ote_sdk.usecases.exportable_code.inference import BaseInferencer
 from ote_sdk.entities.task_environment import TaskEnvironment
+from ote_sdk.usecases.tasks.interfaces.deployment_interface import IDeploymentTask
 from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
 from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from ote_sdk.entities.model import (
@@ -65,6 +66,7 @@ from openvino.model_zoo.model_api.adapters import create_core, OpenvinoAdapter
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.integration.sc.utils import get_empty_label
 
+from zipfile import ZipFile
 from . import model_wrappers
 
 logger = logging.getLogger(__name__)
@@ -133,7 +135,7 @@ class OTEOpenVinoDataLoader(DataLoader):
         return len(self.dataset)
 
 
-class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationTask):
+class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTask, IOptimizationTask):
     def __init__(self, task_environment: TaskEnvironment):
         self.task_environment = task_environment
         self.hparams = self.task_environment.get_hyper_parameters(OTEClassificationParameters)
@@ -174,35 +176,39 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
         output_result_set.performance = MetricsHelper.compute_accuracy(output_result_set).get_performance()
 
     def deploy(self,
-               output_path: str):
+               output_model: ModelEntity) -> None:
         work_dir = os.path.dirname(demo.__file__)
         model_file = inspect.getfile(type(self.inferencer.model))
         parameters = {}
         parameters['name_of_model'] = self.model_name
         parameters['type_of_model'] = self.hparams.inference_parameters.class_name.value
-        parameters['model_parameters'] = self.inferencer.configuration
         parameters['converter_type'] = 'CLASSIFICATION'
+        parameters['model_parameters'] = self.inferencer.configuration
         name_of_package = parameters['name_of_model'].lower()
         with tempfile.TemporaryDirectory() as tempdir:
             copyfile(os.path.join(work_dir, "setup.py"), os.path.join(tempdir, "setup.py"))
             copyfile(os.path.join(work_dir, "requirements.txt"), os.path.join(tempdir, "requirements.txt"))
             copytree(os.path.join(work_dir, "demo_package"), os.path.join(tempdir, name_of_package))
-            xml_path = os.path.join(tempdir, name_of_package, "model.xml")
-            bin_path = os.path.join(tempdir, name_of_package, "model.bin")
             config_path = os.path.join(tempdir, name_of_package, "config.json")
-            with open(xml_path, "wb") as f:
-                f.write(self.model.get_data("openvino.xml"))
-            with open(bin_path, "wb") as f:
-                f.write(self.model.get_data("openvino.bin"))
             with open(config_path, "w") as f:
                 json.dump(parameters, f)
             # generate model.py
             if (inspect.getmodule(self.inferencer.model) in
-                [module[1] for module in inspect.getmembers(model_wrappers, inspect.ismodule)]):
+               [module[1] for module in inspect.getmembers(model_wrappers, inspect.ismodule)]):
                 copyfile(model_file, os.path.join(tempdir, name_of_package, "model.py"))
             # create wheel package
             subprocess.run([sys.executable, os.path.join(tempdir, "setup.py"), 'bdist_wheel',
-                            '--dist-dir', output_path, 'clean', '--all'])
+                            '--dist-dir', tempdir, 'clean', '--all'])
+            wheel_file_name = [f for f in os.listdir(tempdir) if f.endswith('.whl')][0]
+
+            with ZipFile(os.path.join(tempdir, "openvino.zip"), 'w') as zip:
+                zip.writestr(os.path.join("model", "model.xml"), self.model.get_data("openvino.xml"))
+                zip.writestr(os.path.join("model", "model.bin"), self.model.get_data("openvino.bin"))
+                zip.write(os.path.join(tempdir, "requirements.txt"), os.path.join("python", "requirements.txt"))
+                zip.write(os.path.join(tempdir, name_of_package, "sync.py"), os.path.join("python", "demo.py"))
+                zip.write(os.path.join(tempdir, wheel_file_name), os.path.join("python", wheel_file_name))
+            with open(os.path.join(tempdir, "openvino.zip"), "rb") as file:
+                output_model.set_data("demo_package", file.read())
 
     def optimize(self,
                  optimization_type: OptimizationType,

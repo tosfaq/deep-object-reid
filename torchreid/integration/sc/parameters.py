@@ -61,7 +61,7 @@ class OTEClassificationParameters(ConfigurableParameters):
         header = string_attribute("Parameters for inference")
         description = header
 
-        class_name = selectable(default_value=Models.CLASSIFICATION,
+        class_name = selectable(default_value=Models.NEW_CLASSIFICATION,
                                 header="Model class for inference",
                                 description="Model classes with defined pre- and postprocessing",
                                 editable=False,
