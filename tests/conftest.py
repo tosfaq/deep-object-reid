@@ -12,5 +12,3 @@ def pytest_addoption(parser):
                      help='Optional. If the parameter is set, it filters test_ote_training tests by usecase field.')
     parser.addoption('--expected-metrics-file', action='store', default=None,
                      help='Optional. If the parameter is set, it points the YAML file with expected test metrics.')
-    parser.addoption('--template-paths', action='store', default=None,
-                     help='Path to the template_paths.yml file for tests that require templates.')
