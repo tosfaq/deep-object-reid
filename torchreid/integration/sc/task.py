@@ -273,11 +273,14 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
 
         return output
 
-    def train(self, dataset: DatasetEntity, output_model: ModelEntity,
-              train_parameters: Optional[TrainParameters] = None):
+    def train(self, dataset: DatasetEntity, output_model: ModelEntity, 
+              train_parameters: Optional[TrainParameters] = None, weights=None):
         """ Trains a model on a dataset """
 
         train_model = deepcopy(self._model)
+
+        if weights:
+            load_pretrained_weights(train_model, weights)
 
         self._cfg.train.lr = self._hyperparams.learning_parameters.learning_rate
         self._cfg.train.batch_size = self._hyperparams.learning_parameters.batch_size
@@ -357,6 +360,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                                   dashboard_metrics=training_metrics)
         logger.info(f'FINAL MODEL PERFORMANCE {performance}')
         output_model.performance = performance
+        return best_snap_path
 
     def evaluate(
         self, output_resultset: ResultSetEntity, evaluation_metric: Optional[str] = None
