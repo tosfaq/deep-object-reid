@@ -131,7 +131,7 @@ def download_weights(url, chkpt_name='model_weights'):
     return cached_file
 
 
-def load_pretrained_weights(model, file_path='', pretrained_dict=None):
+def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pretrained_dict=None):
     r"""Loads pretrianed weights to model.
     Features::
         - Incompatible layers (unmatched in name or size) will be ignored.
@@ -162,7 +162,7 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None):
     if not is_file:
         # Then link is presented or something different 
         # that will be checked and processed in download function
-        file_path = download_weights(file_path, chkpt_name=model.__class__.__name__)
+        file_path = download_weights(file_path, chkpt_name=chkpt_name)
 
     checkpoint = (load_checkpoint(file_path)
                     if not pretrained_dict

@@ -116,7 +116,7 @@ class Query2Label(ModelInterface):
                 param_dict['lr'] = lrs
 
         return parameters
-        
+
 
 def build_q2l(backbone, transformer, hidden_dim=2048, pretrain=False, input_size=448, **kwargs):
     position_emb = build_position_encoding(hidden_dim=hidden_dim, img_size=input_size)
