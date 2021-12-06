@@ -51,7 +51,7 @@ class MultilabelEngine(Engine):
             if not get_model_attr(model, 'use_angle_simple_linear') and  scale != 1.:
                 print("WARNING:: Angle Linear is not used but the scale parameter in loss isn't 1.")
             self.scales[model_name] = scale
-        print(self.scales)
+            
         for _ in enumerate(self.num_classes):
             if loss_name == 'asl':
                 self.main_losses.append(AsymmetricLoss(

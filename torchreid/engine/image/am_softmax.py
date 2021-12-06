@@ -323,7 +323,7 @@ class ImageAMSoftmaxEngine(Engine):
                                                     lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
                 avg_acc += metrics.accuracy(trg_logits, trg_obj_ids)[0].item()
                 loss_summary['main_{}/{}'.format(trg_id, model_name)] = main_loss.item()
-                
+  
                 scaled_trg_logits = self.main_losses[trg_id].get_last_scale() * trg_logits
                 out_logits.append(scaled_trg_logits)
 

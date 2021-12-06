@@ -6,7 +6,6 @@ from typing import List, Optional
 from copy import deepcopy
 import tempfile
 import shutil
-import numpy
 
 import torch
 
@@ -236,7 +235,6 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
                     item_labels = [ScoredLabel(self._empty_label, probability=1.)]
             else:
                 scores[i] = softmax_numpy(scores[i])
-                print(numpy.max(scores[i]))
                 item_labels = get_multiclass_predictions(scores[i], self._labels, activate=False)
                 if self._hierarchical:
                     item_labels.extend(get_ancestors_by_prediction(self._task_environment.label_schema, item_labels[0]))
