@@ -36,7 +36,6 @@ from ote_sdk.entities.scored_label import ScoredLabel
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.entities.train_parameters import TrainParameters
 from ote_sdk.configuration.helper import convert, create
-from torchreid.data import datasets
 
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.integration.sc.task import OTEClassificationTask
