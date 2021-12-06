@@ -23,7 +23,7 @@ import cv2 as cv
 import numpy as np
 import PIL
 
-from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind 
+from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind
 from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.inference_parameters import InferenceParameters, default_progress_callback
 from ote_sdk.entities.label_schema import LabelSchemaEntity
@@ -274,7 +274,7 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
                 output_model.set_data("openvino.bin", f.read())
 
         output_model.set_data("label_schema.json", label_schema_to_bytes(self.task_environment.label_schema))
-        
+
         # set model attributes for quantized model
         output_model.model_status = ModelStatus.SUCCESS
         output_model.model_format = ModelFormat.OPENVINO

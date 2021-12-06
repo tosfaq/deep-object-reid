@@ -71,7 +71,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             self._labels = task_environment.get_labels(include_empty=False)
         self._empty_label = get_empty_label(task_environment.label_schema)
         self._multilabel = len(task_environment.label_schema.get_groups(False)) > 1 and \
-                len(task_environment.label_schema.get_groups(False)) == len(task_environment.get_labels(include_empty=False))
+                len(task_environment.label_schema.get_groups(False)) == \
+                len(task_environment.get_labels(include_empty=False))
 
         self._hierarchical = False
         if not self._multilabel and len(task_environment.label_schema.get_groups(False)) > 1:
@@ -394,7 +395,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             except Exception as ex:
                 output_model.model_status = ModelStatus.FAILED
                 raise RuntimeError('Optimization was unsuccessful.') from ex
-            
+
         output_model.set_data("label_schema.json", label_schema_to_bytes(self._task_environment.label_schema))
         logger.info('Exporting completed.')
 
