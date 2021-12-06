@@ -84,7 +84,7 @@ class MultilabelEngine(Engine):
                                                                                  for all models or none of them"
         self.scaler = GradScaler(enabled=mix_precision)
         self.mix_precision = mix_precision
-        self.prev_smooth_top1 = 0.
+        self.prev_smooth_accuracy = 0.
 
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx
@@ -226,7 +226,7 @@ class MultilabelEngine(Engine):
 
         return all_logits
 
-    def exit_on_plateau_and_choose_best(self, top1, smooth_top1):
+    def exit_on_plateau_and_choose_best(self, accuracy):
         '''
         The function returns a pair (should_exit, is_candidate_for_best).
 
@@ -239,19 +239,25 @@ class MultilabelEngine(Engine):
 
         should_exit = False
         is_candidate_for_best = False
-        current_metric = round(top1, 4)
-        print(self.prev_smooth_top1, smooth_top1)
-        if smooth_top1 <= self.prev_smooth_top1:
+        current_metric = round(accuracy, 4)
+        # if current metric less than an average
+        if current_metric <= self.prev_smooth_accuracy:
             self.iter_to_wait += 1
             if self.iter_to_wait >= self.train_patience:
-                print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
+                print("LOG:: The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
                 should_exit = True
         else:
+            self.ema_smooth(accuracy)
             self.iter_to_wait = 0
 
         if current_metric >= self.best_metric:
             self.best_metric = current_metric
             is_candidate_for_best = True
 
-        self.prev_smooth_top1 = smooth_top1
         return should_exit, is_candidate_for_best
+
+    def ema_smooth(self, cur_metric, alpha=0.8):
+        """Exponential smoothing with factor `alpha`.
+        """
+        assert 0 < alpha <= 1
+        self.prev_smooth_accuracy = alpha * cur_metric + (1. - alpha) * self.prev_smooth_accuracy

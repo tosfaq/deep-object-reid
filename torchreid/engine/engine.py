@@ -252,7 +252,7 @@ class Engine:
                 else:
                     self.scheds[name].step()
 
-    def exit_on_plateau_and_choose_best(self, top1, smooth_top1):
+    def exit_on_plateau_and_choose_best(self, top1):
         '''
         The function returns a pair (should_exit, is_candidate_for_best).
 
@@ -334,7 +334,7 @@ class Engine:
             assert eval_freq == 1, "early stopping works only with evaluation on each epoch"
         self.fixbase_epoch = fixbase_epoch
         test_acc = AverageMeter()
-        top1, smooth_top1, should_save_ema_model = 0, 0, False
+        top1, should_save_ema_model = 0, False
         print('=> Start training')
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_begin()
@@ -380,11 +380,11 @@ class Engine:
                     ranks=ranks,
                     lr_finder=lr_finder,
                 )
-            if top1:
-                test_acc.update(top1)
-                smooth_top1 = test_acc.avg
-            target_metric = smooth_top1 if self.target_metric == 'test_acc' else avg_loss
 
+            if top1 >= test_acc.avg:
+                test_acc.update(top1)
+
+            target_metric = test_acc.avg if self.target_metric == 'test_acc' else avg_loss
             if perf_monitor and not lr_finder: perf_monitor.on_epoch_end(self.epoch, top1)
 
             if not lr_finder and not self.per_batch_annealing:
@@ -401,7 +401,7 @@ class Engine:
 
             if not lr_finder:
                 # use smooth (average) top1 metric for early stopping if the target metric is top1
-                should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1, smooth_top1)
+                should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1)
                 should_exit = self.early_stoping and should_exit
 
                 if self.save_all_chkpts:

@@ -508,7 +508,7 @@ class ImageAMSoftmaxEngine(Engine):
 
         return bbx1, bby1, bbx2, bby2
 
-    def exit_on_plateau_and_choose_best(self, top1, smooth_top1):
+    def exit_on_plateau_and_choose_best(self, accuracy):
         '''
         The function returns a pair (should_exit, is_candidate_for_best).
 
@@ -527,13 +527,13 @@ class ImageAMSoftmaxEngine(Engine):
         # before LR drop would be used as the first epoch with the new LR.
         should_exit = False
         is_candidate_for_best = False
-        current_metric = np.round(top1, 4)
+        current_metric = np.round(accuracy, 4)
         if self.best_metric >= current_metric:
             # one drop has been done -> start early stopping
             if round(self.current_lr, 8) < round(self.initial_lr, 8):
                 self.iter_to_wait += 1
                 if self.iter_to_wait >= self.train_patience:
-                    print("The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
+                    print("LOG:: The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
                     should_exit = True
         else:
             self.best_metric = current_metric
