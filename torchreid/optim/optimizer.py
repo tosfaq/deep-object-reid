@@ -81,7 +81,8 @@ def _build_optim(model,
                  lr_finder=False,
                  sam_rho = 0.05,
                  sam_adaptive=False):
-
+    
+    param_groups = []
     if optim not in AVAI_OPTIMS:
         raise ValueError(
             'Unsupported optimizer: {}. Must be one of {}'.format(
@@ -131,36 +132,59 @@ def _build_optim(model,
     # we switch off nbd when lr_finder enabled
     # because optimizer builded once and lr in biases isn't changed
     elif nbd and not lr_finder:
-        decay, bias_no_decay, weight_no_decay = [], [], []
         compression_params = set()
         CompressionParameter = get_compression_parameter()
         if CompressionParameter:
-            for param in model.parameters():
-                if param.requires_grad and isinstance(param, CompressionParameter):
-                    compression_params.add(param)
+            for param_group in model.get_config_optim(lr):
+                layer_params = param_group['params']
+                for name, param in layer_params:
+                    if param.requires_grad and isinstance(param, CompressionParameter):
+                        compression_params.add(param)
 
-        for name, param in model.named_parameters():
-            if param in compression_params:
-                continue  # Param is already registered
-            elif not param.requires_grad:
-                continue  # frozen weights
-            elif name.endswith("bias"):
-                bias_no_decay.append(param)
-            elif len(param.shape) == 1:
-                weight_no_decay.append(param)
-            elif (name.endswith("weight") and ("norm" in name or "query_embed" in name)):
-                weight_no_decay.append(param)
-            else:
-                decay.append(param)
+        for param_group in model.get_config_optim(lr):
+            if 'weight_decay' in param_group:
+                # weight_decay is already set for these parameters
+                param_groups.append(param_group)
+                continue
+            
+            decay, bias_no_decay, weight_no_decay = [], [], []
+            layer_lr = param_group['lr']
+            layer_params = param_group['params']
+            for name, param in layer_params:
+                if param in compression_params:
+                    continue  # Param is already registered
+                elif not param.requires_grad:
+                    continue  # frozen weights
+                elif name.endswith("bias"):
+                    bias_no_decay.append(param)
+                elif len(param.shape) == 1:
+                    weight_no_decay.append(param)
+                elif (name.endswith("weight") and ("norm" in name or "query_embed" in name)):
+                    weight_no_decay.append(param)
+                else:
+                    decay.append(param)
 
-        param_groups = [{'params': decay, 'lr': lr, 'weight_decay': weight_decay},
-                        {'params': bias_no_decay, 'lr': 2 * lr, 'weight_decay': 0.0},
-                        {'params': weight_no_decay, 'lr': lr, 'weight_decay': 0.0}]
+            cur_params = [{'params': decay, 'lr': layer_lr, 'weight_decay': weight_decay},
+                          {'params': bias_no_decay, 'lr': 2 * layer_lr, 'weight_decay': 0.0},
+                          {'params': weight_no_decay, 'lr': layer_lr, 'weight_decay': 0.0}]
+            param_groups.extend(cur_params)
+
         if compression_params:
             param_groups.append({'params': list(compression_params), 'lr': lr, 'weight_decay': 0.0})
     else:
-        param_groups = [{'params': model.parameters(), 'lr': lr, 'weight_decay': weight_decay}]
+        params_set = set()
+        for param_group in model.get_config_optim(lr):
+            param_group['weight_decay'] = weight_decay
+            layer_lr = param_group['lr']
+            layer_params = param_group['params']
+            for name, param in layer_params:
+                if param in params_set:
+                    raise RuntimeError(f"the parameter {name} duplicated")
+                else:
+                    params_set.add(param)
 
+        param_groups.append({'params': list(params_set), 'lr': layer_lr, 'weight_decay': weight_decay})
+        
     if optim == 'adam':
         optimizer = torch.optim.AdamW(
             param_groups,

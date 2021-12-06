@@ -76,6 +76,20 @@ class TimmModelsWrapper(ModelInterface):
         self.dropout(x)
         return self.classifier(x.view(x.shape[0], -1))
 
+    def get_config_optim(self, lrs):
+        parameters = [
+            {'params': self.model.named_parameters()},
+        ]
+        if isinstance(lrs, list):
+            assert len(lrs) == len(parameters)
+            for lr, param_dict in zip(lrs, parameters):
+                param_dict['lr'] = lr
+        else:
+            assert isinstance(lrs, float)
+            for param_dict in parameters:
+                param_dict['lr'] = lrs
+
+        return parameters
 
 class ModelFactory:
     def __init__(self, model_name) -> None:

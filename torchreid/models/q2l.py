@@ -99,6 +99,24 @@ class Query2Label(ModelInterface):
         from itertools import chain
         return chain(self.transformer.parameters(), self.fc.parameters(), self.input_proj.parameters(), self.query_embed.parameters())
 
+    def get_config_optim(self, lrs):
+        parameters = [
+            {'params': self.backbone.parameters()},
+            {'params': self.fc.named_parameters()},
+            {'params': self.input_proj.named_parameters(), 'weight_decay': 0.},
+            {'params': self.query_embed.named_parameters(), 'weight_decay': 0.}
+        ]
+        if isinstance(lrs, list):
+            assert len(lrs) == len(parameters)
+            for lr, param_dict in zip(lrs, parameters):
+                param_dict['lr'] = lr
+        else:
+            assert isinstance(lrs, float)
+            for param_dict in parameters:
+                param_dict['lr'] = lrs
+
+        return parameters
+        
 
 def build_q2l(backbone, transformer, hidden_dim=2048, pretrain=False, input_size=448, **kwargs):
     position_emb = build_position_encoding(hidden_dim=hidden_dim, img_size=input_size)
