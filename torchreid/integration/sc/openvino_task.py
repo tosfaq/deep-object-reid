@@ -17,23 +17,16 @@ import os
 import tempfile
 
 from addict import Dict as ADDict
-from typing import Any, Dict, Tuple, List, Optional, Union
+from typing import Any, Dict, Tuple, Optional, Union
 
 import cv2 as cv
 import numpy as np
 import PIL
 
-from ote_sdk.entities.annotation import Annotation, AnnotationSceneKind
+from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind 
+from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.inference_parameters import InferenceParameters, default_progress_callback
-from ote_sdk.entities.optimization_parameters import OptimizationParameters
-from ote_sdk.entities.shapes.rectangle import Rectangle
-from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
 from ote_sdk.entities.label_schema import LabelSchemaEntity
-from ote_sdk.usecases.exportable_code.inference import BaseOpenVINOInferencer
-from ote_sdk.entities.scored_label import ScoredLabel
-from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
-from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
-from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.entities.model import (
     ModelStatus,
     ModelEntity,
@@ -41,14 +34,20 @@ from ote_sdk.entities.model import (
     OptimizationMethod,
     ModelPrecision,
 )
-
+from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.resultset import ResultSetEntity
-from ote_sdk.entities.annotation import AnnotationSceneEntity
+from ote_sdk.entities.scored_label import ScoredLabel
+from ote_sdk.entities.shapes.rectangle import Rectangle
+from ote_sdk.entities.task_environment import TaskEnvironment
+from ote_sdk.serialization.label_mapper import label_schema_to_bytes
+from ote_sdk.usecases.exportable_code.inference import BaseOpenVINOInferencer
+from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
+from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
+from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import (
     IOptimizationTask,
     OptimizationType,
 )
-from ote_sdk.entities.datasets import DatasetEntity
 
 from compression.api import DataLoader
 from compression.engines.ie_engine import IEEngine
@@ -196,8 +195,7 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
         dataset_size = len(dataset)
         for i, dataset_item in enumerate(dataset, 1):
             predicted_scene = self.inferencer.predict(dataset_item.numpy)
-            dataset_item.append_annotations(predicted_scene.annotations)
-            dataset_item.append_labels(dataset_item.annotation_scene.annotations[0].get_labels())
+            dataset_item.append_labels(predicted_scene.annotations[0].get_labels())
             update_progress_callback(int(i / dataset_size * 100))
         return dataset
 
@@ -254,7 +252,8 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
                 'params': {
                     'target_device': 'ANY',
                     'preset': preset,
-                    'stat_subset_size': min(stat_subset_size, len(data_loader))
+                    'stat_subset_size': min(stat_subset_size, len(data_loader)),
+                    'shuffle_data': True
                 }
             }
         ]
@@ -274,6 +273,8 @@ class OpenVINOClassificationTask(IInferenceTask, IEvaluationTask, IOptimizationT
             with open(os.path.join(tempdir, "model.bin"), "rb") as f:
                 output_model.set_data("openvino.bin", f.read())
 
+        output_model.set_data("label_schema.json", label_schema_to_bytes(self.task_environment.label_schema))
+        
         # set model attributes for quantized model
         output_model.model_status = ModelStatus.SUCCESS
         output_model.model_format = ModelFormat.OPENVINO

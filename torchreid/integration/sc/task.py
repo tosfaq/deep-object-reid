@@ -24,7 +24,7 @@ from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.entities.tensor import TensorEntity
 from ote_sdk.entities.train_parameters import TrainParameters, default_progress_callback
-from ote_sdk.serialization.label_mapper import LabelSchemaMapper
+from ote_sdk.serialization.label_mapper import label_schema_to_bytes
 from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
 from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
@@ -174,11 +174,11 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         buffer = io.BytesIO()
         hyperparams = self._task_environment.get_hyper_parameters(OTEClassificationParameters)
         hyperparams_str = ids_to_strings(cfg_helper.convert(hyperparams, dict, enum_to_str=True))
-        serialized_label_schema = LabelSchemaMapper.forward(self._task_environment.label_schema)
         modelinfo = {'model': self._model.state_dict(), 'config': hyperparams_str,
-                     'label_schema': serialized_label_schema, 'VERSION': 1}
+                     'VERSION': 1}
         torch.save(modelinfo, buffer)
         output_model.set_data("weights.pth", buffer.getvalue())
+        output_model.set_data("label_schema.json", label_schema_to_bytes(self._task_environment.label_schema))
 
     def infer(self, dataset: DatasetEntity,
               inference_parameters: Optional[InferenceParameters] = None) -> DatasetEntity:
@@ -394,7 +394,9 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             except Exception as ex:
                 output_model.model_status = ModelStatus.FAILED
                 raise RuntimeError('Optimization was unsuccessful.') from ex
-            logger.info('Exporting completed.')
+            
+        output_model.set_data("label_schema.json", label_schema_to_bytes(self._task_environment.label_schema))
+        logger.info('Exporting completed.')
 
     @staticmethod
     def _is_docker():
