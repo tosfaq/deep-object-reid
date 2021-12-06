@@ -53,7 +53,7 @@ loss:
   name: 'am_softmax'
   softmax:
     s: 7.
-    compute_s: False
+    compute_s: True
 
 sampler:
   train_sampler: 'RandomSampler'

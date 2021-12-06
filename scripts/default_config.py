@@ -593,6 +593,7 @@ def model_kwargs(cfg, num_classes):
         'name': cfg.model.name,
         'num_classes': num_classes,
         'loss': cfg.loss.name,
+        'compute_scale': cfg.loss.softmax.compute_s,
         'scale': cfg.loss.softmax.s,
         'pretrained': cfg.model.pretrained,
         'lr_finder': cfg.lr_finder,

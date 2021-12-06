@@ -38,7 +38,6 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0,
                 all_feature_vecs.append(global_features)
             else:
                 logits = model.forward(batch_images)[head_id]
-            print(get_model_attr(model, 'scale'))
             out_scores.append(logits * get_model_attr(model, 'scale'))
             gt_labels.append(batch_labels)
 

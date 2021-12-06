@@ -347,12 +347,12 @@ class EfficientNet(ModelInterface):
         if self.loss in ['softmax', 'asl']:
             self.output.add_module("fc", nn.Linear(
                 in_features=final_block_channels,
-                out_features=num_classes))
+                out_features=self.num_classes))
         else:
             assert self.loss in ['am_softmax', 'am_binary']
             self.output.add_module("asl", AngleSimpleLinear(
                 in_features=final_block_channels,
-                out_features=num_classes))
+                out_features=self.num_classes))
 
         self._init_params()
 

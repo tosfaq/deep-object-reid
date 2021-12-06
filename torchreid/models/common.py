@@ -41,7 +41,7 @@ class ModelInterface(nn.Module):
         self.num_classes = num_classes
         if compute_scale:
             self.scale = self.compute_s(num_classes)
-            print(f"computed margin scale for the dataset: {scale}")
+            print(f"LOG:: Computed margin scale for the dataset: {self.scale}\n")
         else:
             self.scale = scale
         self.pretrained = pretrained
@@ -70,7 +70,7 @@ class ModelInterface(nn.Module):
     
     @staticmethod
     def compute_s(num_class: int):
-        return float(max(np.sqrt(2) * np.log(num_class - 1), 3))
+        return float(min(max(np.sqrt(5) * np.log(num_class - 1), 7), 30.))
 
     @staticmethod
     def _glob_feature_vector(x, mode, reduce_dims=True):
