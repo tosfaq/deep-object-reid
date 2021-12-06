@@ -31,7 +31,7 @@ hyper_parameters:
       max_num_epochs:
         default_value: 200
       learning_rate:
-        default_value: 0.001
+        default_value: 0.007
 
 # Training resources.
 max_nodes: 1

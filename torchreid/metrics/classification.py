@@ -38,6 +38,7 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0,
                 all_feature_vecs.append(global_features)
             else:
                 logits = model.forward(batch_images)[head_id]
+            print(get_model_attr(model, 'scale'))
             out_scores.append(logits * get_model_attr(model, 'scale'))
             gt_labels.append(batch_labels)
 
@@ -64,14 +65,18 @@ def score_extraction_from_ir(data_loader, model, labelmap=[]):
         if labelmap:
             label = labelmap[label]
         scores = model.forward([image])[0]
-        out_scores.append(scores)
+        out_scores.append(scores *  model.scale)
         gt_labels.append(label)
 
     out_scores = np.concatenate(out_scores, 0)
-    gt_labels = np.array(gt_labels) if len(gt_labels) == 1 else np.concatenate(gt_labels, 0)
+    if model.type == 'multilabel':
+        gt_labels = np.concatenate(gt_labels, 0)
+    else:
+        gt_labels = np.array(gt_labels)
     gt_labels = gt_labels.reshape(out_scores.shape[0], -1)
 
     return out_scores, gt_labels
+
 
 def mean_top_k_accuracy(scores, labels, k=1):
     idx = np.argsort(-scores, axis=-1)[:, :k]

@@ -97,25 +97,16 @@ class ImageAMSoftmaxEngine(Engine):
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
         self.num_classes = num_classes
-        scales = dict()
-        if compute_s:
-            scale = self.compute_s(num_classes[0])
-            s = scale
-            print(f"computed margin scale for dataset: {scale}")
-        else:
-            scale = s
-
+        self.scales = dict()
         for model_name, model in self.models.items():
-            if get_model_attr(model, 'use_angle_simple_linear'):
-                scales[model_name] = scale
-            else:
-                scales[model_name] = 1.
-        self.scales = scales
-        self.num_targets = len(self.num_classes)
+            scale = get_model_attr(model, 'scale')
+            if not get_model_attr(model, 'use_angle_simple_linear') and  scale != 1.:
+                print("WARNING:: Angle Linear is not used but the scale parameter in loss isn't 1.")
+            self.scales[model_name] = scale
 
+        self.num_targets = len(self.num_classes)
         self.main_losses = nn.ModuleList()
         self.ml_losses = list()
-
         for trg_id, trg_num_classes in enumerate(self.num_classes):
             if base_num_classes <= 1:
                 scale_factor = 1.0
@@ -194,10 +185,6 @@ class ImageAMSoftmaxEngine(Engine):
     @staticmethod
     def _valid(value):
         return value is not None and value > 0
-
-    @staticmethod
-    def compute_s(num_class: int):
-        return float(max(np.sqrt(2) * np.log(num_class - 1), 3))
 
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx

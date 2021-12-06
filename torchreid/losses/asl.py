@@ -23,7 +23,7 @@ class AsymmetricLoss(nn.Module):
     def get_last_scale(self):
         return 1.
 
-    def forward(self, inputs, targets):
+    def forward(self, inputs, targets, scale=1.):
         """"
         Parameters
         ----------
@@ -37,7 +37,7 @@ class AsymmetricLoss(nn.Module):
         self.anti_targets = 1 - targets
 
         # Calculating Probabilities
-        self.xs_pos = torch.sigmoid(inputs)
+        self.xs_pos = torch.sigmoid(scale * inputs)
         self.xs_neg = 1.0 - self.xs_pos
 
         # Asymmetric Clipping
@@ -82,13 +82,14 @@ class AMBinaryLoss(nn.Module):
     def get_last_scale(self):
         return self.s
 
-    def forward(self, cos_theta, targets):
+    def forward(self, cos_theta, targets, scale=None):
         """"
         Parameters
         ----------
         cos_theta: dot product between normalized features and proxies
         targets: targets (multi-label binarized vector)
         """
+        self.s = scale if scale else self.s
         if self.label_smooth > 0:
             targets = targets * (1 - self.label_smooth)
             targets[targets == 0] = self.label_smooth

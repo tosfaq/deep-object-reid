@@ -280,7 +280,6 @@ class EfficientNet(ModelInterface):
                  bn_eps=1e-5,
                  in_channels=3,
                  in_size=(224, 224),
-                 num_classes=1000,
                  dropout_cls = None,
                  pooling_type='avg',
                  bn_eval=False,
@@ -291,7 +290,6 @@ class EfficientNet(ModelInterface):
 
         super().__init__(**kwargs)
         self.in_size = in_size
-        self.num_classes = num_classes
         self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen

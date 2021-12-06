@@ -42,11 +42,11 @@ def main(args):
     logger.info('Initialize dataset')
     dataset = ClassificationDatasetAdapter(
         train_data_root=osp.join(args.data_dir, 'train'),
-        train_ann_file=osp.join(args.data_dir, 'train.json'),
+        train_ann_file=osp.join(args.data_dir, 'train_122.json'),
         val_data_root=osp.join(args.data_dir, 'val'),
-        val_ann_file=osp.join(args.data_dir, 'val.json'),
+        val_ann_file=osp.join(args.data_dir, 'val_122.json'),
         test_data_root=osp.join(args.data_dir, 'val'),
-        test_ann_file=osp.join(args.data_dir, 'val.json'))
+        test_ann_file=osp.join(args.data_dir, 'val_122.json'))
 
     labels_schema = generate_label_schema(dataset.get_labels(), dataset.is_multilabel())
     logger.info(f'Train dataset: {len(dataset.get_subset(Subset.TRAINING))} items')
@@ -85,7 +85,6 @@ def main(args):
     )
     logger.info('Estimate quality on validation set')
     task.evaluate(resultset)
-    print(resultset)
     logger.info(str(resultset.performance))
 
     if args.export:

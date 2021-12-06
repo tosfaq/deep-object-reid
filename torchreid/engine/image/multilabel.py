@@ -10,7 +10,8 @@ from torchreid import metrics
 from torchreid.losses import AsymmetricLoss, AMBinaryLoss
 from torchreid.metrics.accuracy import accuracy
 from torchreid.optim import SAM
-from ..engine import Engine
+from torchreid.utils import get_model_attr
+from torchreid.engine import Engine
 
 class MultilabelEngine(Engine):
     r"""Multilabel classification engine. It supports ASL, BCE and Angular margin loss with binary classification."""
@@ -44,7 +45,13 @@ class MultilabelEngine(Engine):
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
         self.num_classes = num_classes
-        self.scale = s
+        self.scales = dict()
+        for model_name, model in self.models.items():
+            scale = get_model_attr(model, 'scale')
+            if not get_model_attr(model, 'use_angle_simple_linear') and  scale != 1.:
+                print("WARNING:: Angle Linear is not used but the scale parameter in loss isn't 1.")
+            self.scales[model_name] = scale
+        print(self.scales)
         for _ in enumerate(self.num_classes):
             if loss_name == 'asl':
                 self.main_losses.append(AsymmetricLoss(
@@ -106,7 +113,9 @@ class MultilabelEngine(Engine):
             for model_name in model_names:
                 self.optims[model_name].zero_grad()
                 model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
-                    self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name)
+                    model=self.models[model_name], train_records=train_records, 
+                    imgs=imgs, obj_ids=obj_ids, n_iter=n_iter, model_name=model_name)
+
                 avg_acc += model_avg_acc / float(num_models)
                 total_loss += model_loss / float(num_models)
                 loss_summary.update(model_loss_summary)
@@ -191,7 +200,7 @@ class MultilabelEngine(Engine):
                     continue
 
                 trg_logits = all_logits[trg_id][trg_mask]
-                main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids)
+                main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, scale=self.scales[model_name])
                 avg_acc += metrics.accuracy_multilabel(trg_logits, trg_obj_ids).item()
                 loss_summary['main_{}/{}'.format(trg_id, model_name)] = main_loss.item()
 

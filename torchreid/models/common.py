@@ -15,6 +15,7 @@ from inspect import isfunction
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 from torchreid.ops import Dropout
 
@@ -22,20 +23,27 @@ _VALID_MODEL_TYPES = ['classification', 'contrastive', 'reid', 'multilabel']
 
 class ModelInterface(nn.Module):
     def __init__(self,
-                type,
-                feature_dim,
-                pretrained=False,
-                loss='softmax',
-                mix_precision=False,
-                similarity_adjustment=False,
-                amb_t = 1.,
-                scale = 1.,
-                **kwargs):
+                 type,
+                 feature_dim,
+                 num_classes=1000,
+                 pretrained=False,
+                 loss='softmax',
+                 mix_precision=False,
+                 similarity_adjustment=False,
+                 amb_t = 1.,
+                 scale = 1.,
+                 compute_scale=False,
+                 **kwargs):
         super().__init__()
 
         assert type in _VALID_MODEL_TYPES
         self.type = type
-        self.scale = scale
+        self.num_classes = num_classes
+        if compute_scale:
+            self.scale = self.compute_s(num_classes)
+            print(f"computed margin scale for the dataset: {scale}")
+        else:
+            self.scale = scale
         self.pretrained = pretrained
         self.classification_classes = {}
         self.is_ie_model = False
@@ -59,6 +67,10 @@ class ModelInterface(nn.Module):
     @staticmethod
     def sym_adjust(z, t):
         return 2 * torch.pow((z + 1)/2, t) - 1
+    
+    @staticmethod
+    def compute_s(num_class: int):
+        return float(max(np.sqrt(2) * np.log(num_class - 1), 3))
 
     @staticmethod
     def _glob_feature_vector(x, mode, reduce_dims=True):
