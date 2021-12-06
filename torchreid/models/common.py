@@ -43,6 +43,7 @@ class ModelInterface(nn.Module):
             self.scale = self.compute_s(num_classes)
             print(f"LOG:: Computed margin scale for the dataset: {self.scale}\n")
         else:
+            assert scale > 0.
             self.scale = scale
         self.pretrained = pretrained
         self.classification_classes = {}
@@ -67,7 +68,7 @@ class ModelInterface(nn.Module):
     @staticmethod
     def sym_adjust(z, t):
         return 2 * torch.pow((z + 1)/2, t) - 1
-    
+
     @staticmethod
     def compute_s(num_class: int):
         return float(min(max(np.sqrt(5) * np.log(num_class - 1), 7), 30.))

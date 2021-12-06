@@ -66,7 +66,6 @@ class ImageAMSoftmaxEngine(Engine):
 
         assert loss_name in ['softmax', 'am_softmax']
         self.loss_name = loss_name
-        assert s > 0.0
         if loss_name == 'am_softmax':
             assert m >= 0.0
 
@@ -125,7 +124,7 @@ class ImageAMSoftmaxEngine(Engine):
                     aug_type=aug_type,
                     conf_penalty=conf_penalty,
                     m=m,
-                    s=self.am_scale,
+                    s=scale,
                     end_s=scale_factor * end_s if self._valid(end_s) else None,
                     duration_s=duration_s * self.num_batches if self._valid(duration_s) else None,
                     skip_steps_s=skip_steps_s * self.num_batches if self._valid(skip_steps_s) else None,
