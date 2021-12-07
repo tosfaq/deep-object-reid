@@ -173,18 +173,10 @@ def _build_optim(model,
         if compression_params:
             param_groups.append({'params': list(compression_params), 'lr': lr, 'weight_decay': 0.0})
     else:
-        params_set = set()
         for param_group in get_model_attr(model, 'get_config_optim')(lr):
-            param_group['weight_decay'] = weight_decay
-            group_lr = param_group['lr']
-            layer_params = param_group['params']
-            for name, param in layer_params:
-                if param in params_set:
-                    raise RuntimeError(f"the parameter {name} duplicated")
-                else:
-                    params_set.add(param)
-
-            param_groups.append({'params': list(params_set), 'lr': group_lr, 'weight_decay': weight_decay})
+            param_groups.append({'params': [param for _, param in param_group['params']],
+                                 'lr': param_group['lr'],
+                                 'weight_decay': param_group['weight_decay']})
 
     if optim == 'adam':
         optimizer = torch.optim.AdamW(
