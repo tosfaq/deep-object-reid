@@ -4,7 +4,6 @@ import torch.nn as nn
 from torch.cuda.amp import autocast
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.utils import load_pretrained_weights
 from torchreid.ops import Dropout, EvalModeSetter, rsc
 from .common import HSigmoid, HSwish, ModelInterface, make_divisible
 
@@ -244,6 +243,8 @@ class MobileNetV3(ModelInterface):
 def init_pretrained_weights(model, key='mobilenetv3', **kwargs):
     """Initializes model with pretrained weights.
     """
+    from torchreid.utils import load_pretrained_weights
+
     link_to_weights = pretrained_urls[key]
     load_pretrained_weights(model, link_to_weights, key, **kwargs)
 

@@ -131,87 +131,6 @@ def download_weights(url, chkpt_name='model_weights'):
     return cached_file
 
 
-def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pretrained_dict=None):
-    r"""Loads pretrianed weights to model.
-    Features::
-        - Incompatible layers (unmatched in name or size) will be ignored.
-        - Can automatically deal with keys containing "module." and other prefixes.
-        - Can download weights from link
-        - Can use pretrained dict directly instead of file path/link if given
-    Args:
-        model (nn.Module): network model.
-        file_path (str): path or link to pretrained weights.
-        pretrained_dict (str): path or link to pretrained weights.
-    Examples::
-        >>> from torchreid.utils import load_pretrained_weights
-        >>> file_path = 'log/my_model/model-best.pth.tar'
-        >>> load_pretrained_weights(model, file_path)
-    """
-    def _add_prefix(key, prefix):
-        key = prefix + "." + key
-        return key
-
-    def _remove_prefix(key, prefix):
-        prefix = prefix + '.'
-        if key.startswith(prefix):
-            key = key[len(prefix):]
-        return key
-
-    is_file = check_isfile(file_path)
-    pretraining_timm_model = model.pretrained and isinstance(model, TimmModelsWrapper)
-    if not is_file:
-        # Then link is presented or something different 
-        # that will be checked and processed in download function
-        file_path = download_weights(file_path, chkpt_name=chkpt_name)
-
-    checkpoint = (load_checkpoint(file_path)
-                    if not pretrained_dict
-                    else pretrained_dict)
-
-    if 'classes_map' in checkpoint:
-        model.classification_classes = checkpoint['classes_map']
-    if 'state_dict' in checkpoint:
-        state_dict = checkpoint['state_dict']
-    else:
-        state_dict = checkpoint
-
-    model_dict = model.state_dict()
-    new_state_dict = OrderedDict()
-    matched_layers, discarded_layers = [], []
-
-    for k, v in state_dict.items():
-        # discard known prefixes: 'nncf_module.' from NNCF, 'module.' from DataParallel
-        k = _remove_prefix(k, 'nncf_module')
-        k = _remove_prefix(k, 'module')
-        if pretraining_timm_model:
-            k = _add_prefix(k, 'model')
-
-        if k in model_dict and model_dict[k].size() == v.size():
-            new_state_dict[k] = v
-            matched_layers.append(k)
-        else:
-            discarded_layers.append(k)
-
-    model_dict.update(new_state_dict)
-    model.load_state_dict(model_dict)
-
-    message = file_path if file_path else "pretrained dict"
-    unmatched_layers = sorted(set(model_dict.keys()) - set(new_state_dict))
-    if len(matched_layers) == 0:
-        print(
-            'The pretrained weights "{}" cannot be loaded, '
-            'please check the key names manually'.format(message)
-        )
-        _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
-
-        raise RuntimeError(f'The pretrained weights {message} cannot be loaded')
-    else:
-        print(
-            'Successfully loaded pretrained weights from "{}"'.
-            format(message)
-        )
-        _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
-
 def load_checkpoint(fpath):
     r"""Loads checkpoint.
 
@@ -435,6 +354,88 @@ def _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers):
             '** The following layers were not loaded from checkpoint: {}'.
             format(pformat(unmatched_layers))
         )
+
+
+def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pretrained_dict=None):
+    r"""Loads pretrianed weights to model.
+    Features::
+        - Incompatible layers (unmatched in name or size) will be ignored.
+        - Can automatically deal with keys containing "module." and other prefixes.
+        - Can download weights from link
+        - Can use pretrained dict directly instead of file path/link if given
+    Args:
+        model (nn.Module): network model.
+        file_path (str): path or link to pretrained weights.
+        pretrained_dict (str): path or link to pretrained weights.
+    Examples::
+        >>> from torchreid.utils import load_pretrained_weights
+        >>> file_path = 'log/my_model/model-best.pth.tar'
+        >>> load_pretrained_weights(model, file_path)
+    """
+    def _add_prefix(key, prefix):
+        key = prefix + "." + key
+        return key
+
+    def _remove_prefix(key, prefix):
+        prefix = prefix + '.'
+        if key.startswith(prefix):
+            key = key[len(prefix):]
+        return key
+
+    is_file = check_isfile(file_path)
+    pretraining_timm_model = model.pretrained and isinstance(model, TimmModelsWrapper)
+    if not is_file:
+        # Then link is presented or something different
+        # that will be checked and processed in download function
+        file_path = download_weights(file_path, chkpt_name=chkpt_name)
+
+    checkpoint = (load_checkpoint(file_path)
+                    if not pretrained_dict
+                    else pretrained_dict)
+
+    if 'classes_map' in checkpoint:
+        model.classification_classes = checkpoint['classes_map']
+    if 'state_dict' in checkpoint:
+        state_dict = checkpoint['state_dict']
+    else:
+        state_dict = checkpoint
+
+    model_dict = model.state_dict()
+    new_state_dict = OrderedDict()
+    matched_layers, discarded_layers = [], []
+
+    for k, v in state_dict.items():
+        # discard known prefixes: 'nncf_module.' from NNCF, 'module.' from DataParallel
+        k = _remove_prefix(k, 'nncf_module')
+        k = _remove_prefix(k, 'module')
+        if pretraining_timm_model:
+            k = _add_prefix(k, 'model')
+
+        if k in model_dict and model_dict[k].size() == v.size():
+            new_state_dict[k] = v
+            matched_layers.append(k)
+        else:
+            discarded_layers.append(k)
+
+    model_dict.update(new_state_dict)
+    model.load_state_dict(model_dict)
+
+    message = file_path if file_path else "pretrained dict"
+    unmatched_layers = sorted(set(model_dict.keys()) - set(new_state_dict))
+    if len(matched_layers) == 0:
+        print(
+            'The pretrained weights "{}" cannot be loaded, '
+            'please check the key names manually'.format(message)
+        )
+        _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
+
+        raise RuntimeError(f'The pretrained weights {message} cannot be loaded')
+    else:
+        print(
+            'Successfully loaded pretrained weights from "{}"'.
+            format(message)
+        )
+        _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
 
 
 class ModelEmaV2(nn.Module):
