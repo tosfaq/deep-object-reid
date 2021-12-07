@@ -10,13 +10,14 @@ from torchreid import metrics
 from torchreid.losses import AsymmetricLoss, AMBinaryLoss
 from torchreid.metrics.accuracy import accuracy
 from torchreid.optim import SAM
-from ..engine import Engine
+from torchreid.utils import get_model_attr
+from torchreid.engine import Engine
 
 class MultilabelEngine(Engine):
     r"""Multilabel classification engine. It supports ASL, BCE and Angular margin loss with binary classification."""
     def __init__(self, datamanager, models, optimizers, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stoping, lr_decay_factor, loss_name, label_smooth,
-                 lr_finder, m, s, amb_k, amb_t, clip_grad,
+                 lr_finder, m, amb_k, amb_t, clip_grad,
                  should_freeze_aux_models, nncf_metainfo, initial_lr,
                  target_metric, use_ema_decay, ema_decay, asl_gamma_pos, asl_gamma_neg, asl_p_m,
                  mix_precision, **kwargs):
@@ -44,7 +45,7 @@ class MultilabelEngine(Engine):
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
         self.num_classes = num_classes
-        self.scale = s
+
         for _ in enumerate(self.num_classes):
             if loss_name == 'asl':
                 self.main_losses.append(AsymmetricLoss(
@@ -65,7 +66,7 @@ class MultilabelEngine(Engine):
                     m=m,
                     k=amb_k,
                     t=amb_t,
-                    s=s,
+                    s=self.am_scale,
                     gamma_neg=asl_gamma_neg,
                     gamma_pos=asl_gamma_pos,
                     label_smooth=label_smooth,
@@ -106,7 +107,9 @@ class MultilabelEngine(Engine):
             for model_name in model_names:
                 self.optims[model_name].zero_grad()
                 model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
-                    self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name)
+                    model=self.models[model_name], train_records=train_records,
+                    imgs=imgs, obj_ids=obj_ids, n_iter=n_iter, model_name=model_name)
+
                 avg_acc += model_avg_acc / float(num_models)
                 total_loss += model_loss / float(num_models)
                 loss_summary.update(model_loss_summary)
@@ -191,7 +194,7 @@ class MultilabelEngine(Engine):
                     continue
 
                 trg_logits = all_logits[trg_id][trg_mask]
-                main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids)
+                main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, scale=self.scales[model_name])
                 avg_acc += metrics.accuracy_multilabel(trg_logits, trg_obj_ids).item()
                 loss_summary['main_{}/{}'.format(trg_id, model_name)] = main_loss.item()
 

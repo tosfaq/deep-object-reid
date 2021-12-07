@@ -41,7 +41,7 @@ class ImageAMSoftmaxEngine(Engine):
     def __init__(self, datamanager, models, optimizers, reg_cfg, metric_cfg, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stoping, lr_decay_factor, loss_name, label_smooth,
                  margin_type, aug_type, decay_power, alpha, size, lr_finder, max_soft,
-                 reformulate, aug_prob, conf_penalty, pr_product, m, s, compute_s, end_s, clip_grad,
+                 reformulate, aug_prob, conf_penalty, pr_product, m, end_s, clip_grad,
                  duration_s, skip_steps_s, enable_masks, adaptive_margins, class_weighting,
                  attr_cfg, base_num_classes, symmetric_ce, mix_weight, enable_rsc,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
@@ -66,7 +66,6 @@ class ImageAMSoftmaxEngine(Engine):
 
         assert loss_name in ['softmax', 'am_softmax']
         self.loss_name = loss_name
-        assert s > 0.0
         if loss_name == 'am_softmax':
             assert m >= 0.0
 
@@ -97,38 +96,22 @@ class ImageAMSoftmaxEngine(Engine):
         if not isinstance(num_classes, (list, tuple)):
             num_classes = [num_classes]
         self.num_classes = num_classes
-        scales = dict()
-        if compute_s:
-            scale = self.compute_s(num_classes[0])
-            s = scale
-            print(f"computed margin scale for dataset: {scale}")
-        else:
-            scale = s
-
-        for model_name, model in self.models.items():
-            if get_model_attr(model, 'use_angle_simple_linear'):
-                scales[model_name] = scale
-            else:
-                scales[model_name] = 1.
-        self.scales = scales
         self.num_targets = len(self.num_classes)
-
         self.main_losses = nn.ModuleList()
         self.ml_losses = list()
-
         for trg_id, trg_num_classes in enumerate(self.num_classes):
             if base_num_classes <= 1:
                 scale_factor = 1.0
             else:
                 scale_factor = np.log(trg_num_classes - 1) / np.log(base_num_classes - 1)
-            self.scale = scale_factor * s
+            scale = scale_factor * self.am_scale
             if loss_name == 'softmax':
                 self.main_losses.append(CrossEntropyLoss(
                     use_gpu=self.use_gpu,
                     label_smooth=label_smooth,
                     augmentations=self.aug_type,
                     conf_penalty=conf_penalty,
-                    scale=self.scale
+                    scale=scale
                 ))
             elif loss_name == 'am_softmax':
                 trg_class_counts = datamanager.data_counts[trg_id]
@@ -141,7 +124,7 @@ class ImageAMSoftmaxEngine(Engine):
                     aug_type=aug_type,
                     conf_penalty=conf_penalty,
                     m=m,
-                    s=self.scale,
+                    s=scale,
                     end_s=scale_factor * end_s if self._valid(end_s) else None,
                     duration_s=duration_s * self.num_batches if self._valid(duration_s) else None,
                     skip_steps_s=skip_steps_s * self.num_batches if self._valid(skip_steps_s) else None,
@@ -194,10 +177,6 @@ class ImageAMSoftmaxEngine(Engine):
     @staticmethod
     def _valid(value):
         return value is not None and value > 0
-
-    @staticmethod
-    def compute_s(num_class: int):
-        return float(max(np.sqrt(2) * np.log(num_class - 1), 3))
 
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx

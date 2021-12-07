@@ -84,7 +84,6 @@ class Engine:
         self.best_metric = 0.0
         self.max_epoch = None
         self.num_batches = None
-        self.scale = 1.
         assert target_metric in ['train_loss', 'test_acc']
         self.target_metric = target_metric
         self.epoch = None
@@ -131,6 +130,13 @@ class Engine:
             if use_ema_decay:
                 self.ema_model = ModelEmaV2(models, decay=ema_decay)
         self.main_model_name = self.get_model_names()[0]
+        self.scales = dict()
+        for model_name, model in self.models.items():
+            scale = get_model_attr(model, 'scale')
+            if not get_model_attr(model, 'use_angle_simple_linear') and  scale != 1.:
+                print(f"WARNING:: Angle Linear is not used but the scale parameter in the loss {scale} != 1.")
+            self.scales[model_name] = scale
+        self.am_scale = self.scales[self.main_model_name] # for loss initialization
         assert initial_lr is not None
         self.lb_lr = initial_lr / lr_decay_factor
         self.per_batch_annealing = isinstance(self.scheds[self.main_model_name], (CosineAnnealingCycleRestart, OneCycleLR))

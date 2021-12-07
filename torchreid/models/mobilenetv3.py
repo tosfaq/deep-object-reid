@@ -114,7 +114,6 @@ class MobileNetV3(ModelInterface):
                  cfgs,
                  mode,
                  IN_conv1=False,
-                 num_classes=1000,
                  width_mult=1.,
                  in_channels=3,
                  input_size=(224, 224),
@@ -126,7 +125,6 @@ class MobileNetV3(ModelInterface):
 
         super().__init__(**kwargs)
         self.in_size = input_size
-        self.num_classes = num_classes
         self.input_IN = nn.InstanceNorm2d(in_channels, affine=True) if IN_first else None
         self.pooling_type = pooling_type
         self.self_challenging_cfg = self_challenging_cfg
@@ -209,7 +207,6 @@ class MobileNetV3(ModelInterface):
         with autocast(enabled=self.mix_precision):
             if self.input_IN is not None:
                 x = self.input_IN(x)
-
             y = self.extract_features(x)
             if return_featuremaps:
                 return y
@@ -224,19 +221,15 @@ class MobileNetV3(ModelInterface):
                     retain_p = 1.0 - self.self_challenging_cfg.drop_p,
                     retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
                 )
-
                 with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
                     _, logits = self.infer_head(x, skip_pool=True)
-
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.amb_t)
 
             if return_all:
                 return [(logits, y, glob_features)]
-
             if not self.training and self.is_classification():
                 return [logits]
-
             if get_embeddings:
                 out_data = [logits, glob_features]
             elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:

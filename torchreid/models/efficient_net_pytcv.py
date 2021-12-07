@@ -280,7 +280,6 @@ class EfficientNet(ModelInterface):
                  bn_eps=1e-5,
                  in_channels=3,
                  in_size=(224, 224),
-                 num_classes=1000,
                  dropout_cls = None,
                  pooling_type='avg',
                  bn_eval=False,
@@ -291,7 +290,6 @@ class EfficientNet(ModelInterface):
 
         super().__init__(**kwargs)
         self.in_size = in_size
-        self.num_classes = num_classes
         self.input_IN = nn.InstanceNorm2d(3, affine=True) if IN_first else None
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
@@ -349,12 +347,12 @@ class EfficientNet(ModelInterface):
         if self.loss in ['softmax', 'asl']:
             self.output.add_module("fc", nn.Linear(
                 in_features=final_block_channels,
-                out_features=num_classes))
+                out_features=self.num_classes))
         else:
             assert self.loss in ['am_softmax', 'am_binary']
             self.output.add_module("asl", AngleSimpleLinear(
                 in_features=final_block_channels,
-                out_features=num_classes))
+                out_features=self.num_classes))
 
         self._init_params()
 
@@ -369,7 +367,6 @@ class EfficientNet(ModelInterface):
         with autocast(enabled=self.mix_precision):
             if self.input_IN is not None:
                 x = self.input_IN(x)
-
             y = self.features(x)
             if return_featuremaps:
                 return y
@@ -381,10 +378,8 @@ class EfficientNet(ModelInterface):
 
             if return_all:
                 return [(logits, y, glob_features)]
-
             if not self.training and self.is_classification():
                 return [logits]
-
             if get_embeddings:
                 out_data = [logits, glob_features.view(x.shape[0], -1)]
             elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:

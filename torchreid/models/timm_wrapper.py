@@ -24,14 +24,13 @@ class TimmModelsWrapper(ModelInterface):
                  pretrained=False,
                  dropout_cls = None,
                  pooling_type='avg',
-                 num_classes=1000,
                  **kwargs):
         super().__init__(**kwargs)
         assert self.is_classification(), f"{model_name} model is adapted for classification tasks only"
         self.is_mobilenet = True if model_name in ["mobilenetv3_large_100_miil_in21k", "mobilenetv3_large_100_miil"] else False
         self.model = timm.create_model(model_name,
                                        pretrained=pretrained,
-                                       num_classes=num_classes)
+                                       num_classes=self.num_classes)
         self.num_head_features = self.model.num_features
         self.num_features = (self.model.conv_head.in_channels if self.is_mobilenet
                              else self.model.num_features)
@@ -39,7 +38,7 @@ class TimmModelsWrapper(ModelInterface):
         self.pooling_type = pooling_type
         if self.loss in ["am_softmax", "am_binary"]:
             self.model.act2 = nn.PReLU()
-            self.classifier = AngleSimpleLinear(self.num_head_features, num_classes)
+            self.classifier = AngleSimpleLinear(self.num_head_features, self.num_classes)
         else:
             assert self.loss in ["softmax", "asl", "bce"]
             self.classifier = self.model.get_classifier()
@@ -49,15 +48,14 @@ class TimmModelsWrapper(ModelInterface):
             y = self.extract_features(x)
             if return_featuremaps:
                 return y
+
             glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
             logits = self.infer_head(glob_features)
-            
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.amb_t)
 
             if return_all:
                 return [(logits, y, glob_features)]
-
             if not self.training:
                 return [logits]
             return tuple([logits])
