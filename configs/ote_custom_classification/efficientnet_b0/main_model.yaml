@@ -31,7 +31,7 @@ data:
   norm_mean: [0.485, 0.456, 0.406]
   norm_std: [0.229, 0.224, 0.225]
   save_dir: 'output/efficient_b0/log'
-  workers: 6
+  workers: 0
   transforms:
     random_flip:
       enable: True
@@ -40,9 +40,8 @@ data:
       enable: True
       p: 0.35
       angle: (-10,10)
-    augmix:
+    randaugment:
       enable: True
-      cfg_str: "augmix-m5-w3"
     cutout:
       enable: True
       cutout_factor: 0.35

@@ -546,7 +546,7 @@ class Engine:
                 for name, meter in losses.meters.items():
                     self.writer.add_scalar('Loss/' + name, meter.avg, n_iter)
 
-            end = time.time()
+
             self.current_lr = self.get_current_lr()
             if stop_callback and stop_callback.check_stop():
                 break
@@ -554,6 +554,7 @@ class Engine:
                 self.ema_model.update(self.models[self.main_model_name])
             if self.per_batch_annealing:
                 self.update_lr()
+            end = time.time()
 
         return losses.meters['loss'].avg
 

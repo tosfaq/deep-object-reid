@@ -14,10 +14,11 @@ from torchvision.transforms import (ColorJitter, Compose, Normalize,
 from torchvision.transforms import RandomCrop as TorchRandomCrop
 from torchvision.transforms import functional as F
 from randaugment import RandAugment
+from torchreid.utils.avgmeter import AverageMeter
 
 from torchreid.utils.tools import read_image
 from ..data.datasets.image.lfw import FivePointsAligner
-
+import time
 
 class RandomHorizontalFlip(object):
     def __init__(self, p=0.5):
@@ -28,7 +29,6 @@ class RandomHorizontalFlip(object):
             return input_tuple
 
         img, mask = input_tuple
-
         img = F.hflip(img)
         mask = F.hflip(mask) if mask != '' else mask
 
@@ -311,15 +311,19 @@ class RandomPatch(object):
 class RandomAugment(RandAugment):
     def __init__(self, p=1., **kwargs):
         self.p = p
+        self.avg = AverageMeter()
         super().__init__()
 
     def __call__(self, input_tuple):
+        start = time.time()
         if random.uniform(0, 1) > self.p:
             return input_tuple
 
         img, mask = input_tuple
         img = super().__call__(img)
-
+        end = time.time()
+        self.avg.update(end-start)
+        print('average_randaug: ', self.avg.avg)
         return img, mask
 
 class RandomColorJitter(ColorJitter):
@@ -437,16 +441,17 @@ class RandomRotate(object):
     def __init__(self, p=0.5, angle=(-5, 5), values=None, **kwargs):
         self.p = p
         self.angle = angle
+        self.avg = AverageMeter()
 
         self.discrete = values is not None and len([v for v in values if v != 0]) > 0
         self.values = values
 
     def __call__(self, input_tuple, *args, **kwargs):
+        start = time.time()
         if random.uniform(0, 1) > self.p:
             return input_tuple
 
         img, mask = input_tuple
-
         if self.discrete:
             rnd_angle = float(self.values[random.randint(0, len(self.values) - 1)])
         else:
@@ -457,6 +462,9 @@ class RandomRotate(object):
             rgb_mask = mask.convert('RGB')
             rgb_mask = F.rotate(rgb_mask, rnd_angle, expand=False, center=None)
             mask = rgb_mask.convert('L')
+        end = time.time()
+        self.avg.update(end-start)
+        # print('average_rotate: ', self.avg.avg)
 
         return img, mask
 
@@ -541,7 +549,7 @@ class CoarseDropout(object):
 
         return Image.fromarray(image)
 
-class Cutout(object):
+class  Cutout(object):
     """Randomly mask out one or more patches from an image.
     Args:
         n_holes (int): Number of patches to cut out of each image.
@@ -552,8 +560,10 @@ class Cutout(object):
         self.p = p
         self.cutout_factor = cutout_factor
         self.fill_color = fill_color
+        self.avg = AverageMeter()
 
     def __call__(self, input_tuple):
+        start = time.time()
         if random.uniform(0, 1) > self.p:
             return input_tuple
 
@@ -576,6 +586,9 @@ class Cutout(object):
             fill_color = self.fill_color
         img_draw.rectangle([x1, y1, x2, y2], fill=fill_color)
 
+        end = time.time()
+        self.avg.update(end-start)
+        # print(self.avg.avg)
         return img, img_mask
 
 class RandomGrid(object):
@@ -963,13 +976,15 @@ class PairResize(object):
         assert isinstance(size, int) or len(size) == 2
         self.size = size
         self.interpolation = interpolation
+        self.avg = AverageMeter()
 
     def __call__(self, input_tuple):
         image, mask = input_tuple
-
+        start = time.time()
         image = ocv_resize_2_pil(image, self.size, self.interpolation)
         mask = ocv_resize_2_pil(mask, self.size, self.interpolation) if mask != '' else mask
-
+        end = time.time()
+        self.avg.update(end-start)
         return image, mask
 
 
@@ -1216,6 +1231,7 @@ class AugMixAugment:
         self.alpha = alpha
         self.width = width
         self.depth = depth
+        self.avg = AverageMeter()
 
     def _apply_basic(self, img, mixing_weights, m):
         # This is a literal adaptation of the paper/official implementation without normalizations and
@@ -1235,11 +1251,15 @@ class AugMixAugment:
         return Image.blend(img, mixed, m)
 
     def __call__(self, input_tuple):
+        start = time.time()
         img, mask = input_tuple
         mixing_weights = np.float32(np.random.dirichlet([self.alpha] * self.width))
         m = np.float32(np.random.beta(self.alpha, self.alpha))
         mixed = self._apply_basic(img, mixing_weights, m)
         mask = self._apply_basic(mask, mixing_weights, m) if mask else ''
+        end = time.time()
+        self.avg.update(end-start)
+        # print('average_mixup: ', self.avg.avg)
         return mixed, mask
 
 def augment_and_mix_transform(config_str, image_mean, translate_const=250, grey=False):

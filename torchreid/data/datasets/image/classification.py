@@ -5,9 +5,10 @@ import json
 
 from PIL import Image
 import torch
+import time
 
 from ..dataset import ImageDataset
-
+from torchreid.utils import AverageMeter
 
 class Classification(ImageDataset):
     """Classification dataset.
@@ -84,6 +85,7 @@ class ExternalDatasetWrapper(ImageDataset):
             raise NotImplementedError
         self.data_provider = data_provider
         self.dataset_id = dataset_id
+        self.time_avg = AverageMeter()
 
         if mode == 'train':
             train, classes = self.load_annotation(
@@ -117,6 +119,7 @@ class ExternalDatasetWrapper(ImageDataset):
         return img
 
     def __getitem__(self, idx: int):
+        start = time.time()
         input_image = self.get_input(idx)
         label = self.data_provider[idx]['label']
         if isinstance(label, (tuple, list)): # when multi-label classification is available
@@ -128,6 +131,9 @@ class ExternalDatasetWrapper(ImageDataset):
             label = targets
         else:
             label = int(label)
+        end = time.time()
+        self.time_avg.update(end-start)
+        # print(self.time_avg.avg)
         return input_image, label, 0, 0
 
     @staticmethod
