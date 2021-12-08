@@ -5,7 +5,7 @@ from pprint import pformat
 
 import torch
 
-from torchreid.utils.tools import random_image
+from torchreid.utils.tools import check_isfile, random_image
 
 # pylint: disable=line-too-long
 
@@ -34,7 +34,10 @@ def get_no_nncf_trace_context_manager():
 def _get_nncf_metainfo_from_checkpoint(filename):
     if not filename:
         return None
-    checkpoint = torch.load(filename, map_location='cpu')
+    if check_isfile(filename):
+        checkpoint = torch.load(filename, map_location='cpu')
+    else:
+        return None
     if not isinstance(checkpoint, dict):
         return None
     return checkpoint.get('nncf_metainfo', None)

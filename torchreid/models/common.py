@@ -103,6 +103,20 @@ class ModelInterface(nn.Module):
         ])
 
         return nn.Sequential(*layers)
+    
+    def get_config_optim(self, lrs):
+        parameters = [
+            {'params': self.named_parameters()},
+        ]
+        if isinstance(lrs, list):
+            assert len(lrs) == len(parameters)
+            parameters[0]['lr'] = lrs[0]
+        else:
+            assert isinstance(lrs, float)
+            parameters[0]['lr'] = lrs
+
+        return parameters
+
 
 def make_divisible(v, divisor, min_value=None):
     """

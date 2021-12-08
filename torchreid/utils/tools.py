@@ -41,8 +41,6 @@ def check_isfile(fpath):
        bool
     """
     isfile = osp.isfile(fpath)
-    if not isfile:
-        warnings.warn('No file found at "{}"'.format(fpath))
     return isfile
 
 def read_json(fpath):

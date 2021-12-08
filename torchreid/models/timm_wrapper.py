@@ -6,7 +6,7 @@ from torchreid.ops import Dropout
 from torch import nn
 from torch.cuda.amp import autocast
 
-__all__ = ["timm_wrapped_models"]
+__all__ = ["timm_wrapped_models", "TimmModelsWrapper"]
 AVAI_MODELS = {
                 'mobilenetv3_large_21k' : 'mobilenetv3_large_100_miil_in21k',
                 'mobilenetv3_large_1k' : 'mobilenetv3_large_100_miil',
@@ -27,6 +27,7 @@ class TimmModelsWrapper(ModelInterface):
                  **kwargs):
         super().__init__(**kwargs)
         assert self.is_classification(), f"{model_name} model is adapted for classification tasks only"
+        self.pretrained = pretrained
         self.is_mobilenet = True if model_name in ["mobilenetv3_large_100_miil_in21k", "mobilenetv3_large_100_miil"] else False
         self.model = timm.create_model(model_name,
                                        pretrained=pretrained,
@@ -75,6 +76,20 @@ class TimmModelsWrapper(ModelInterface):
         self.dropout(x)
         return self.classifier(x.view(x.shape[0], -1))
 
+    def get_config_optim(self, lrs):
+        parameters = [
+            {'params': self.model.named_parameters()},
+        ]
+        if isinstance(lrs, list):
+            assert len(lrs) == len(parameters)
+            for lr, param_dict in zip(lrs, parameters):
+                param_dict['lr'] = lr
+        else:
+            assert isinstance(lrs, float)
+            for param_dict in parameters:
+                param_dict['lr'] = lrs
+
+        return parameters
 
 class ModelFactory:
     def __init__(self, model_name) -> None:
