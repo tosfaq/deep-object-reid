@@ -384,7 +384,7 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
 
     is_file = check_isfile(file_path)
     pretraining_timm_model = model.pretrained and isinstance(model, TimmModelsWrapper)
-    if not is_file:
+    if not is_file and not pretrained_dict:
         # Then link is presented or something different
         # that will be checked and processed in download function
         file_path = download_weights(file_path, chkpt_name=chkpt_name)
