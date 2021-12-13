@@ -9,6 +9,30 @@ import shutil
 
 import torch
 
+from ote_sdk.configuration import cfg_helper
+from ote_sdk.configuration.helper.utils import ids_to_strings
+from ote_sdk.entities.datasets import DatasetEntity
+from ote_sdk.entities.inference_parameters import InferenceParameters
+from ote_sdk.entities.metadata import FloatMetadata, FloatType
+from ote_sdk.entities.metrics import (LineMetricsGroup, CurveMetric, LineChartInfo,
+                                      Performance, ScoreMetric, MetricsGroup)
+from ote_sdk.entities.model import ModelEntity, ModelPrecision, ModelStatus, ModelFormat, ModelOptimizationType
+from ote_sdk.entities.resultset import ResultSetEntity
+from ote_sdk.entities.result_media import ResultMediaEntity
+from ote_sdk.entities.scored_label import ScoredLabel
+from ote_sdk.entities.subset import Subset
+from ote_sdk.entities.task_environment import TaskEnvironment
+from ote_sdk.entities.tensor import TensorEntity
+from ote_sdk.entities.train_parameters import TrainParameters, default_progress_callback
+from ote_sdk.serialization.label_mapper import label_schema_to_bytes
+from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
+from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
+from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
+from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
+from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
+from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
+
+
 import torchreid
 from torchreid.ops import DataParallel
 from torchreid.apis.export import export_onnx, export_ir
@@ -23,32 +47,9 @@ from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingPr
                                             InferenceProgressCallback, get_actmap, preprocess_features_for_actmap,
                                             active_score_from_probs, get_multiclass_predictions,
                                             get_multilabel_predictions, sigmoid_numpy, softmax_numpy,
-                                            get_empty_label)
+                                            get_empty_label, get_leaf_labels, get_ancestors_by_prediction)
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
-
-from ote_sdk.entities.inference_parameters import InferenceParameters
-from ote_sdk.entities.metrics import (LineMetricsGroup, CurveMetric, LineChartInfo,
-                                      Performance, ScoreMetric, MetricsGroup)
-from ote_sdk.entities.task_environment import TaskEnvironment
-from ote_sdk.entities.train_parameters import TrainParameters, default_progress_callback
-from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
-from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
-from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
-from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
-from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
-from ote_sdk.configuration import cfg_helper
-from ote_sdk.configuration.helper.utils import ids_to_strings
-from ote_sdk.entities.model import ModelPrecision
-from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
-from ote_sdk.entities.model import ModelEntity, ModelStatus, ModelFormat, ModelOptimizationType
-from ote_sdk.entities.metadata import FloatMetadata, FloatType
-from ote_sdk.entities.resultset import ResultSetEntity
-from ote_sdk.entities.scored_label import ScoredLabel
-from ote_sdk.entities.tensor import TensorEntity
-from ote_sdk.entities.result_media import ResultMediaEntity
-from ote_sdk.entities.datasets import DatasetEntity
-from ote_sdk.entities.subset import Subset
 
 
 logger = logging.getLogger(__name__)
@@ -68,8 +69,15 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             self._labels = task_environment.get_labels(include_empty=True)
         else:
             self._labels = task_environment.get_labels(include_empty=False)
-        self._empty_label = get_empty_label(task_environment)
-        self._multilabel = len(task_environment.label_schema.get_groups(False)) > 1
+        self._empty_label = get_empty_label(task_environment.label_schema)
+        self._multilabel = len(task_environment.label_schema.get_groups(False)) > 1 and \
+                len(task_environment.label_schema.get_groups(False)) == \
+                len(task_environment.get_labels(include_empty=False))
+
+        self._hierarchical = False
+        if not self._multilabel and len(task_environment.label_schema.get_groups(False)) > 1:
+            self._labels = get_leaf_labels(task_environment.label_schema)
+            self._hierarchical = True
 
         template_file_path = task_environment.model_template.model_template_path
 
@@ -125,7 +133,7 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         """
         num_train_classes = len(self._labels)
         model = torchreid.models.build_model(**model_kwargs(config, num_train_classes))
-        if self._cfg.model.load_weights:
+        if self._cfg.model.load_weights and not from_scratch:
             load_pretrained_weights(model, self._cfg.model.load_weights)
         return model
 
@@ -167,10 +175,11 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
         buffer = io.BytesIO()
         hyperparams = self._task_environment.get_hyper_parameters(OTEClassificationParameters)
         hyperparams_str = ids_to_strings(cfg_helper.convert(hyperparams, dict, enum_to_str=True))
-        labels = {label.name: label.color.rgb_tuple for label in self._labels}
-        modelinfo = {'model': self._model.state_dict(), 'config': hyperparams_str, 'labels': labels, 'VERSION': 1}
+        modelinfo = {'model': self._model.state_dict(), 'config': hyperparams_str,
+                     'VERSION': 1}
         torch.save(modelinfo, buffer)
         output_model.set_data("weights.pth", buffer.getvalue())
+        output_model.set_data("label_schema.json", label_schema_to_bytes(self._task_environment.label_schema))
 
     def infer(self, dataset: DatasetEntity,
               inference_parameters: Optional[InferenceParameters] = None) -> DatasetEntity:
@@ -189,6 +198,8 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             update_progress_callback = default_progress_callback
 
         self._cfg.test.batch_size = max(1, self._hyperparams.learning_parameters.batch_size // 2)
+        self._cfg.data.workers = max(min(self._cfg.data.workers, len(dataset) - 1), 0)
+
         time_monitor = InferenceProgressCallback(math.ceil(len(dataset) / self._cfg.test.batch_size),
                                                  update_progress_callback)
 
@@ -226,9 +237,10 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             else:
                 scores[i] = softmax_numpy(scores[i])
                 item_labels = get_multiclass_predictions(scores[i], self._labels, activate=False)
+                if self._hierarchical:
+                    item_labels.extend(get_ancestors_by_prediction(self._task_environment.label_schema, item_labels[0]))
 
             dataset_item.append_labels(item_labels)
-
             active_score = active_score_from_probs(scores[i])
             active_score_media = FloatMetadata(name="active_score", value=active_score,
                                                float_type=FloatType.ACTIVE_SCORE)
@@ -384,7 +396,9 @@ class OTEClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExp
             except Exception as ex:
                 output_model.model_status = ModelStatus.FAILED
                 raise RuntimeError('Optimization was unsuccessful.') from ex
-            logger.info('Exporting completed.')
+
+        output_model.set_data("label_schema.json", label_schema_to_bytes(self._task_environment.label_schema))
+        logger.info('Exporting completed.')
 
     @staticmethod
     def _is_docker():

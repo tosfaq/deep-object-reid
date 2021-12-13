@@ -45,12 +45,15 @@ def finish_process(study):
 
 def objective(cfg, args, trial):
     # Generate the trials.
+    # g_ = trial.suggest_int("g_", 1, 7)
+    # asl_pm = trial.suggest_float("asl_pm", 0, 0.5)
     # m = trial.suggest_float("m", 0.01, 0.7)
     # s = trial.suggest_int("s", 5, 60)
-    lr = trial.suggest_float("lr", 0.0001, 0.05)
+    lr = trial.suggest_float("lr", 0.001, 0.5)
     # t = trial.suggest_int("t", 1, 7)
     # cfg.loss.softmax.m = m
     # cfg.loss.softmax.s = s
+    # cfg.loss.asl.p_m = asl_pm
     # cfg.loss.am_binary.amb_t = t
     cfg.train.lr = lr
 

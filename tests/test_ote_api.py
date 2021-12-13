@@ -79,9 +79,6 @@ def init_environment(params, model_template, number_of_images=10):
     labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False) for i, name in
                 enumerate(cls_names)]
 
-    labels_schema = generate_label_schema(labels, multilabel=False)
-    environment = TaskEnvironment(model=None, hyper_parameters=params, label_schema=labels_schema,
-                                  model_template=model_template)
     items = []
 
     for _ in range(0, number_of_images):
@@ -112,6 +109,9 @@ def init_environment(params, model_template, number_of_images=10):
         items[i].subset = subset
 
     dataset = DatasetEntity(items)
+    labels_schema = generate_label_schema(dataset.get_labels(), multilabel=False)
+    environment = TaskEnvironment(model=None, hyper_parameters=params, label_schema=labels_schema,
+                                  model_template=model_template)
     return environment, dataset
 
 

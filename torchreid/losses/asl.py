@@ -23,7 +23,7 @@ class AsymmetricLoss(nn.Module):
     def get_last_scale(self):
         return 1.
 
-    def forward(self, inputs, targets):
+    def forward(self, inputs, targets, scale=1.):
         """"
         Parameters
         ----------
@@ -37,7 +37,7 @@ class AsymmetricLoss(nn.Module):
         self.anti_targets = 1 - targets
 
         # Calculating Probabilities
-        self.xs_pos = torch.sigmoid(inputs)
+        self.xs_pos = torch.sigmoid(scale * inputs)
         self.xs_neg = 1.0 - self.xs_pos
 
         # Asymmetric Clipping
@@ -82,13 +82,14 @@ class AMBinaryLoss(nn.Module):
     def get_last_scale(self):
         return self.s
 
-    def forward(self, cos_theta, targets):
+    def forward(self, cos_theta, targets, scale=None):
         """"
         Parameters
         ----------
         cos_theta: dot product between normalized features and proxies
         targets: targets (multi-label binarized vector)
         """
+        self.s = scale if scale else self.s
         if self.label_smooth > 0:
             targets = targets * (1 - self.label_smooth)
             targets[targets == 0] = self.label_smooth
@@ -107,7 +108,8 @@ class AMBinaryLoss(nn.Module):
             one_sided_gamma = self.gamma_pos * targets + self.gamma_neg * (1 - targets)
             # P_pos ** gamm_neg * (...) + P_neg ** gamma_pos * (...)
             one_sided_w = torch.pow(pt, one_sided_gamma)
-            balance_koeff_pos, balance_koeff_neg = 1., 1.
+            balance_koeff_pos = self.k / self.s
+            balance_koeff_neg = (1 - self.k) / self.s
         else:
             assert not self.asymmetric_focus
             # SphereFace2 balancing coefficients

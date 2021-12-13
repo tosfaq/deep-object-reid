@@ -1,8 +1,9 @@
 from __future__ import absolute_import, division, print_function
 import os
 import os.path as osp
+import gdown
+
 import pickle
-import shutil
 import warnings
 from collections import OrderedDict
 from functools import partial
@@ -14,6 +15,7 @@ import torch.nn as nn
 from torch.nn.modules import module
 
 from .tools import mkdir_if_missing, check_isfile
+from torchreid.models import TimmModelsWrapper
 
 __all__ = [
     'save_checkpoint', 'load_checkpoint', 'resume_from_checkpoint',
@@ -89,6 +91,46 @@ def save_checkpoint(
     return fpath
 
 
+def download_weights(url, chkpt_name='model_weights'):
+    """ Download model weights from given url """
+    def _get_torch_home():
+        ENV_TORCH_HOME = 'TORCH_HOME'
+        ENV_XDG_CACHE_HOME = 'XDG_CACHE_HOME'
+        DEFAULT_CACHE_DIR = '~/.cache'
+        torch_home = os.path.expanduser(
+            os.getenv(
+                ENV_TORCH_HOME,
+                os.path.join(
+                    os.getenv(ENV_XDG_CACHE_HOME, DEFAULT_CACHE_DIR), 'torch'
+                )
+            )
+        )
+        return torch_home
+
+    torch_home = _get_torch_home()
+    model_dir = os.path.join(torch_home, 'checkpoints')
+    os.makedirs(model_dir, exist_ok=True)
+
+    filename = chkpt_name + '.pth'
+    cached_file = os.path.join(model_dir, filename)
+    if not os.path.exists(cached_file):
+        try:
+            gdown.download(url, cached_file)
+        except Exception as e:
+            print(f"ERROR:: error occurred while \
+                    downloading file")
+            raise e
+    try:
+        torch.load(cached_file)
+    except Exception as e:
+        print(f"ERROR:: error occurred while opening \
+                file with model weights")
+        raise e
+    else:
+        print("SUCCESS:: Model`s weights download completed successfully\n")
+    return cached_file
+
+
 def load_checkpoint(fpath):
     r"""Loads checkpoint.
 
@@ -147,6 +189,13 @@ def resume_from_checkpoint(fpath, model, optimizer=None, scheduler=None, device=
         >>>     fpath, model, optimizer, scheduler
         >>> )
     """
+    is_file = check_isfile(fpath)
+    if not is_file:
+        # Then link is presented or something different
+        # that will be checked and processed in download function
+        chkpt_name = model.__class__.__name__ + "_resume"
+        fpath = download_weights(fpath, chkpt_name=chkpt_name)
+
     print('Loading checkpoint from "{}"'.format(fpath))
     checkpoint = load_checkpoint(fpath)
     if 'state_dict' in checkpoint:
@@ -307,30 +356,42 @@ def _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers):
         )
 
 
-def load_pretrained_weights(model, file_path='', pretrained_dict=None):
+def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pretrained_dict=None):
     r"""Loads pretrianed weights to model.
     Features::
         - Incompatible layers (unmatched in name or size) will be ignored.
-        - Can automatically deal with keys containing "module.".
+        - Can automatically deal with keys containing "module." and other prefixes.
+        - Can download weights from link
+        - Can use pretrained dict directly instead of file path/link if given
     Args:
         model (nn.Module): network model.
-        file_path (str): path to pretrained weights.
+        file_path (str): path or link to pretrained weights.
+        pretrained_dict (str): path or link to pretrained weights.
     Examples::
         >>> from torchreid.utils import load_pretrained_weights
         >>> file_path = 'log/my_model/model-best.pth.tar'
         >>> load_pretrained_weights(model, file_path)
     """
+    def _add_prefix(key, prefix):
+        key = prefix + "." + key
+        return key
+
     def _remove_prefix(key, prefix):
         prefix = prefix + '.'
         if key.startswith(prefix):
             key = key[len(prefix):]
         return key
 
-    if file_path:
-        check_isfile(file_path)
+    is_file = check_isfile(file_path)
+    pretraining_timm_model = model.pretrained and isinstance(model, TimmModelsWrapper)
+    if not is_file and not pretrained_dict:
+        # Then link is presented or something different
+        # that will be checked and processed in download function
+        file_path = download_weights(file_path, chkpt_name=chkpt_name)
+
     checkpoint = (load_checkpoint(file_path)
-                       if not pretrained_dict
-                       else pretrained_dict)
+                    if not pretrained_dict
+                    else pretrained_dict)
 
     if 'classes_map' in checkpoint:
         model.classification_classes = checkpoint['classes_map']
@@ -347,6 +408,8 @@ def load_pretrained_weights(model, file_path='', pretrained_dict=None):
         # discard known prefixes: 'nncf_module.' from NNCF, 'module.' from DataParallel
         k = _remove_prefix(k, 'nncf_module')
         k = _remove_prefix(k, 'module')
+        if pretraining_timm_model:
+            k = _add_prefix(k, 'model')
 
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v

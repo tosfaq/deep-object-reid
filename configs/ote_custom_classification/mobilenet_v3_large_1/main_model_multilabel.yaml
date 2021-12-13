@@ -45,13 +45,17 @@ data:
       p: 0.35
 
 loss:
-  name: 'asl'
+  name: 'am_binary'
   softmax:
-    s: 1.0
+    s: 30.0
+    m: 0.15
     compute_s: False
   asl:
     gamma_pos: 0.
-    gamma_neg: 4.
+    gamma_neg: 0.
+  am_binary:
+    amb_t: 2.0
+    amb_k: 0.7
 
 sampler:
   train_sampler: 'RandomSampler'
@@ -61,7 +65,7 @@ metric_losses:
 
 train:
   optim: 'sam'
-  lr: 0.0002
+  lr: 0.016
   nbd: True
   max_epoch: 80
   weight_decay: 5e-4
@@ -78,7 +82,7 @@ train:
     rho: 0.05
   ema:
     enable: True
-    ema_decay: 0.9997
+    ema_decay: 0.9995
   mix_precision: True
 
 test:

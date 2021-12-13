@@ -9,8 +9,8 @@ import numpy as np
 import torch
 import re
 from PIL import Image, ImageOps, ImageEnhance, ImageDraw
-from torchvision.transforms import (ColorJitter, Compose, Normalize, Resize,
-                                    ToTensor, InterpolationMode)
+from torchvision.transforms import (ColorJitter, Compose, Normalize,
+                                    ToTensor)
 from torchvision.transforms import RandomCrop as TorchRandomCrop
 from torchvision.transforms import functional as F
 from randaugment import RandAugment
@@ -44,13 +44,13 @@ class CenterCrop(object):
             return input_tuple
 
         img, mask = input_tuple
-        img_width, img_height = img.size
+        img_height, img_width, _ = img.shape
         if img_width - 2 * self.margin < 2 or img_height - 2 * self.margin < 2:
             return input_tuple
 
-        box = (self.margin, self.margin, img_width - self.margin, img_height - self.margin)
-        img = img.crop(box)
-        mask = mask.crop(box) if mask != '' else mask
+        img = img[self.margin : img_height - self.margin, self.margin : img_width - self.margin]
+        mask = mask[self.margin : img_height - self.margin,
+                    self.margin : img_width - self.margin] if mask != '' else mask
 
         return img, mask
 
@@ -75,7 +75,7 @@ class RandomCrop(object):
             return input_tuple
 
         img, mask = input_tuple
-        img_width, img_height = img.size
+        img_height, img_width, _ = img.shape
 
         if self.align_ar:
             source_ar = float(img_height) / float(img_width)
@@ -126,8 +126,8 @@ class RandomCrop(object):
         x1 = int(round(random.uniform(*x_shift_range)))
         y1 = int(round(random.uniform(*y_shift_range)))
 
-        img = img.crop((x1, y1, x1 + crop_width, y1 + crop_height))
-        mask = mask.crop((x1, y1, x1 + crop_width, y1 + crop_height)) if mask != '' else mask
+        img = img[y1 : y1 + crop_height, x1 : x1 + crop_width]
+        mask = mask[y1 : y1 + crop_height, x1 : x1 + crop_width] if mask != '' else mask
         return img, mask
 
 
@@ -407,29 +407,6 @@ class ForceGrayscale(object):
         return img, mask
 
 
-class RandomPadding(object):
-    """Random padding
-    """
-
-    def __init__(self, p=0.5, padding=(0, 10), **kwargs):
-        self.p = p
-        self.padding_limits = padding
-
-    def __call__(self, input_tuple, *args, **kwargs):
-        if random.uniform(0, 1) > self.p:
-            return input_tuple
-
-        img, mask = input_tuple
-
-        rnd_padding = [random.randint(self.padding_limits[0], self.padding_limits[1]) for _ in range(4)]
-        rnd_fill = random.randint(0, 255)
-
-        img = F.pad(img, tuple(rnd_padding), fill=rnd_fill, padding_mode='constant')
-        mask = F.pad(mask, tuple(rnd_padding), fill=0, padding_mode='constant') if mask != '' else mask
-
-        return img, mask
-
-
 class RandomRotate(object):
     """Random rotate
     """
@@ -607,8 +584,7 @@ class RandomGrid(object):
         return self.draw_grid(img, grid_size, color, thickness, angle), mask
 
     @staticmethod
-    def draw_grid(image, grid_size, color, thickness, angle):
-        img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+    def draw_grid(img, grid_size, color, thickness, angle):
         h, w = img.shape[:2]
         mask = np.zeros((h * 8, w * 8, 3), dtype='uint8')
         mask_h, mask_w = mask.shape[:2]
@@ -633,8 +609,7 @@ class RandomGrid(object):
         mask = cv2.resize(mask, (w, h))
         assert img.shape == mask.shape
         img = np.where(mask == 0, img, color).astype('uint8')
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        return Image.fromarray(img)
+        return img
 
 
 class RandomFigures(object):
@@ -670,7 +645,7 @@ class RandomFigures(object):
         if random.uniform(0, 1) > self.p:
             return input_tuple
 
-        image, mask = input_tuple
+        cv_image, mask = input_tuple
 
         if self.always_single_figure:
             figure = [self.figures[random.randint(0, len(self.figures) - 1)]]
@@ -680,7 +655,6 @@ class RandomFigures(object):
                 if random.uniform(0, 1) > self.figure_prob:
                     figure.append(self.figures[i])
 
-        cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         h, w = cv_image.shape[:2]
         for f in figure:
             p1 = (random.randint(0, w), random.randint(0, h))
@@ -693,9 +667,7 @@ class RandomFigures(object):
                 r = random.randint(*self.circle_radiuses)
                 cv_image = f(cv_image, p1, r, color, thickness)
 
-        img = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-
-        return Image.fromarray(img), mask
+        return cv_image, mask
 
 
 class CutOutWithPrior(object):
@@ -934,9 +906,9 @@ class DisableBackground(object):
         if mask == '':
             return input_tuple
 
-        bg_mask = ~np.array(mask).astype(np.bool)
+        bg_mask = ~mask.astype(np.bool)
 
-        img = np.array(img)
+        img = img
         img[bg_mask] = 0
 
         return Image.fromarray(img), mask
@@ -952,18 +924,46 @@ class RandomCropPad(TorchRandomCrop):
 
         return image, mask
 
-class PairResize(object):
-    def __init__(self, size, interpolation=InterpolationMode.BILINEAR):
+
+def ocv_resize_2_pil(img, size, interp=cv2.INTER_LINEAR, to_pill=True):
+    resized = cv2.resize(img, dsize=size, interpolation=interp)
+    if to_pill:
+        return Image.fromarray(resized)
+    return resized
+
+
+class PairResize:
+    def __init__(self, size, interpolation=cv2.INTER_LINEAR, to_pill=True):
         assert isinstance(size, int) or len(size) == 2
         self.size = size
         self.interpolation = interpolation
+        self.to_pill = to_pill
 
     def __call__(self, input_tuple):
         image, mask = input_tuple
 
-        image = F.resize(image, self.size, self.interpolation)
-        mask = F.resize(mask, self.size, self.interpolation) if mask != '' else mask
+        image = ocv_resize_2_pil(image, self.size, self.interpolation, self.to_pill)
+        mask = ocv_resize_2_pil(mask, self.size, self.interpolation, self.to_pill) if mask != '' else mask
 
+        return image, mask
+
+
+class SingleResize:
+    def __init__(self, size, interpolation=cv2.INTER_LINEAR):
+        assert isinstance(size, int) or len(size) == 2
+        self.size = size
+        self.interpolation = interpolation
+
+    def __call__(self, image):
+        image = ocv_resize_2_pil(image, self.size, self.interpolation)
+        return image
+
+
+class ToPILL:
+    def __call__(self, input_tuple):
+        image, mask = input_tuple
+        mask = Image.fromarray(mask) if mask != '' else mask
+        image = Image.fromarray(image)
         return image, mask
 
 
@@ -1302,18 +1302,15 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
 
     print('Building train transforms ...')
     transform_tr = []
-    if transforms.random_grid.enable and transforms.random_grid.before_resize:
+    if transforms.random_grid.enable:
         print('+ random_grid')
         transform_tr += [RandomGrid(**transforms.random_grid)]
-    if transforms.random_figures.enable and transforms.random_figures.before_resize:
+    if transforms.random_figures.enable:
         print('+ random_figures')
         transform_tr += [RandomFigures(**transforms.random_figures)]
     if transforms.center_crop.enable and not transforms.center_crop.test_only:
         print('+ center_crop')
         transform_tr += [CenterCrop(margin=transforms.center_crop.margin)]
-    if transforms.random_padding.enable:
-        print('+ random_padding')
-        transform_tr += [RandomPadding(**transforms.random_padding)]
     if transforms.random_crop.enable:
         print('+ random crop')
         transform_tr += [RandomCrop(p=transforms.random_crop.p,
@@ -1338,12 +1335,6 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
         if aug_module.enable:
             print('+ random_background_substitution')
             transform_tr += [aug_module]
-    if transforms.random_grid.enable and not transforms.random_grid.before_resize:
-        print('+ random_grid')
-        transform_tr += [RandomGrid(**transforms.random_grid)]
-    if transforms.random_figures.enable and not transforms.random_figures.before_resize:
-        print('+ random_figures')
-        transform_tr += [RandomFigures(**transforms.random_figures)]
     if transforms.random_flip.enable:
         print('+ random flip')
         transform_tr += [RandomHorizontalFlip(p=transforms.random_flip.p)]
@@ -1413,14 +1404,14 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
 
 def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_std=(0.229, 0.224, 0.225),
                          apply_masks_to_test=False, transforms=None, **kwargs):
-    def get_resize(h, w, scale):
+    def get_resize(h, w, scale, to_pill=True):
         t_h, t_w = int(h * scale), int(w * scale)
         print('+ resize to {}x{}'.format(t_h, t_w))
-        return PairResize((t_h, t_w))
+        return PairResize((t_h, t_w), to_pill=to_pill)
     print('Building test transforms ...')
     transform_te = []
     if transforms.test.resize_first:
-        transform_te.append(get_resize(height, width, transforms.test.resize_scale))
+        transform_te.append(get_resize(height, width, transforms.test.resize_scale, to_pill=False))
     if transforms.center_crop.enable:
         print('+ center_crop')
         transform_te.append(CenterCrop(margin=transforms.center_crop.margin))
@@ -1429,6 +1420,8 @@ def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_st
         transform_te.append(DisableBackground())
     if not transforms.test.resize_first:
         transform_te.append(get_resize(height, width, transforms.test.resize_scale))
+    else:
+        transform_te.append(ToPILL())
     if transforms is not None and transforms.force_gray_scale.enable:
         print('+ force_gray_scale')
         transform_te.append(ForceGrayscale())
@@ -1448,7 +1441,7 @@ def build_inference_transform(height, width, norm_mean=(0.485, 0.456, 0.406),
     print('+ to torch tensor of range [0, 1]')
     print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
     transform_te = Compose([
-        Resize((height, width)),
+        SingleResize((height, width)),
         ToTensor(),
         Normalize(mean=norm_mean, std=norm_std),
     ])

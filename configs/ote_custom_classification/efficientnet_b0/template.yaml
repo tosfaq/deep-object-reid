@@ -1,39 +1,37 @@
 # Description.
-name: EfficientNet-B0
 model_template_id: Custom_Image_Classification_EfficinetNet-B0
+name: EfficientNet-B0
 task_type: CLASSIFICATION
 task_family: VISION
 instantiation: "CLASS"
 summary: Custom Image Classification EfficientNet-B0
-
-# Algo backend.
-# Would be better to have something more precise and self-contained, e.g.:  docker image or path to Python venv activation script?
-framework: OTEClassification v1.2.3
-
-# Should be revisited?
 application:
   ~
 
-# # Optional? requirements to the dataset. Should be revisited?
-# dataset_requirements:
-#   ~
+# Algo backend.
+framework: OTEClassification v1.2.3
 
-# Task implementation.
+# Task implementations.
 entrypoints:
   base: torchreid.integration.sc.task.OTEClassificationTask
   openvino: torchreid.integration.sc.openvino_task.OpenVINOClassificationTask
 
-# Task and hyperparameters.
+# Capabilities.
+capabilities:
+  - compute_representations
+  - compute_uncertainty_score
+
+# Hyperparameters.
 hyper_parameters:
   base_path: "../../../torchreid/integration/sc/configuration.yaml"
   parameter_overrides:
     learning_parameters:
       batch_size:
-        default_value: 30
+        default_value: 32
       max_num_epochs:
         default_value: 200
       learning_rate:
-        default_value: 0.001
+        default_value: 0.007
 
 # Training resources.
 max_nodes: 1

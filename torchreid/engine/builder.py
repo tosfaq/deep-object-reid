@@ -1,4 +1,3 @@
-from torchreid.optim import lr_finder
 from torchreid.engine import (ImageAMSoftmaxEngine, ImageContrastiveEngine,
                               ImageTripletEngine, MultilabelEngine)
 

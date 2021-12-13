@@ -1,13 +1,11 @@
 import math
 
-import torch
 import torch.nn as nn
 from torch.cuda.amp import autocast
 
 from torchreid.losses import AngleSimpleLinear
 from torchreid.ops import Dropout, EvalModeSetter, rsc
 from .common import HSigmoid, HSwish, ModelInterface, make_divisible
-import timm
 
 from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
 
@@ -114,7 +112,6 @@ class MobileNetV3(ModelInterface):
                  cfgs,
                  mode,
                  IN_conv1=False,
-                 num_classes=1000,
                  width_mult=1.,
                  in_channels=3,
                  input_size=(224, 224),
@@ -126,7 +123,6 @@ class MobileNetV3(ModelInterface):
 
         super().__init__(**kwargs)
         self.in_size = input_size
-        self.num_classes = num_classes
         self.input_IN = nn.InstanceNorm2d(in_channels, affine=True) if IN_first else None
         self.pooling_type = pooling_type
         self.self_challenging_cfg = self_challenging_cfg
@@ -209,7 +205,6 @@ class MobileNetV3(ModelInterface):
         with autocast(enabled=self.mix_precision):
             if self.input_IN is not None:
                 x = self.input_IN(x)
-
             y = self.extract_features(x)
             if return_featuremaps:
                 return y
@@ -224,19 +219,15 @@ class MobileNetV3(ModelInterface):
                     retain_p = 1.0 - self.self_challenging_cfg.drop_p,
                     retain_batch = 1.0 - self.self_challenging_cfg.drop_batch_p
                 )
-
                 with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
                     _, logits = self.infer_head(x, skip_pool=True)
-
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.amb_t)
 
             if return_all:
                 return [(logits, y, glob_features)]
-
             if not self.training and self.is_classification():
                 return [logits]
-
             if get_embeddings:
                 out_data = [logits, glob_features]
             elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
@@ -249,44 +240,13 @@ class MobileNetV3(ModelInterface):
             return tuple(out_data)
 
 
-def init_pretrained_weights(model, key='', **kwargs):
+def init_pretrained_weights(model, key='mobilenetv3', **kwargs):
     """Initializes model with pretrained weights.
-    Layers that don't match with pretrained layers in name or size are kept unchanged.
     """
-    import os
-    import errno
-    import gdown
-
     from torchreid.utils import load_pretrained_weights
 
-    def _get_torch_home():
-        ENV_TORCH_HOME = 'TORCH_HOME'
-        ENV_XDG_CACHE_HOME = 'XDG_CACHE_HOME'
-        DEFAULT_CACHE_DIR = '~/.cache'
-        torch_home = os.path.expanduser(
-            os.getenv(
-                ENV_TORCH_HOME,
-                os.path.join(
-                    os.getenv(ENV_XDG_CACHE_HOME, DEFAULT_CACHE_DIR), 'torch'
-                )
-            )
-        )
-        return torch_home
-
-    torch_home = _get_torch_home()
-    model_dir = os.path.join(torch_home, 'checkpoints')
-    try:
-        os.makedirs(model_dir)
-    except OSError as e:
-        if e.errno == errno.EEXIST:
-            pass
-        else:
-            raise
-    filename = key + '_imagenet.pth'
-    cached_file = os.path.join(model_dir, filename)
-    if not os.path.exists(cached_file):
-        gdown.download(pretrained_urls[key], cached_file)
-    model = load_pretrained_weights(model, cached_file, **kwargs)
+    link_to_weights = pretrained_urls[key]
+    load_pretrained_weights(model, link_to_weights, key, **kwargs)
 
 
 def mobilenetv3_large_075(pretrained=False, **kwargs):

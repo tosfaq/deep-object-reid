@@ -84,7 +84,6 @@ class Engine:
         self.best_metric = 0.0
         self.max_epoch = None
         self.num_batches = None
-        self.scale = 1.
         assert target_metric in ['train_loss', 'test_acc']
         self.target_metric = target_metric
         self.epoch = None
@@ -131,6 +130,13 @@ class Engine:
             if use_ema_decay:
                 self.ema_model = ModelEmaV2(models, decay=ema_decay)
         self.main_model_name = self.get_model_names()[0]
+        self.scales = dict()
+        for model_name, model in self.models.items():
+            scale = get_model_attr(model, 'scale')
+            if not get_model_attr(model, 'use_angle_simple_linear') and  scale != 1.:
+                print(f"WARNING:: Angle Linear is not used but the scale parameter in the loss {scale} != 1.")
+            self.scales[model_name] = scale
+        self.am_scale = self.scales[self.main_model_name] # for loss initialization
         assert initial_lr is not None
         self.lb_lr = initial_lr / lr_decay_factor
         self.per_batch_annealing = isinstance(self.scheds[self.main_model_name], (CosineAnnealingCycleRestart, OneCycleLR))
@@ -246,7 +252,7 @@ class Engine:
                 else:
                     self.scheds[name].step()
 
-    def exit_on_plateau_and_choose_best(self, top1, smooth_top1):
+    def exit_on_plateau_and_choose_best(self, accuracy):
         '''
         The function returns a pair (should_exit, is_candidate_for_best).
 
@@ -255,7 +261,7 @@ class Engine:
         '''
 
         is_candidate_for_best = False
-        current_metric = np.round(top1, 4)
+        current_metric = np.round(accuracy, 4)
         if current_metric >= self.best_metric:
             self.best_metric = current_metric
             is_candidate_for_best = True
@@ -328,7 +334,7 @@ class Engine:
             assert eval_freq == 1, "early stopping works only with evaluation on each epoch"
         self.fixbase_epoch = fixbase_epoch
         test_acc = AverageMeter()
-        top1, smooth_top1, should_save_ema_model = 0, 0, False
+        accuracy, should_save_ema_model = 0, False
         print('=> Start training')
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_begin()
@@ -363,7 +369,7 @@ class Engine:
                and (self.epoch + 1) != self.max_epoch)
                or self.epoch == (self.max_epoch - 1)):
 
-                top1, should_save_ema_model = self.test(
+                accuracy, should_save_ema_model = self.test(
                     self.epoch,
                     dist_metric=dist_metric,
                     normalize_feature=normalize_feature,
@@ -374,28 +380,28 @@ class Engine:
                     ranks=ranks,
                     lr_finder=lr_finder,
                 )
-            if top1:
-                test_acc.update(top1)
-                smooth_top1 = test_acc.avg
-            target_metric = smooth_top1 if self.target_metric == 'test_acc' else avg_loss
+            # update test_acc AverageMeter only if the accuracy is better than the average
+            if accuracy >= test_acc.avg:
+                test_acc.update(accuracy)
 
-            if perf_monitor and not lr_finder: perf_monitor.on_epoch_end(self.epoch, top1)
+            target_metric = test_acc.avg if self.target_metric == 'test_acc' else avg_loss
+            if perf_monitor and not lr_finder: perf_monitor.on_epoch_end(self.epoch, accuracy)
 
             if not lr_finder and not self.per_batch_annealing:
                 self.update_lr(output_avg_metric = target_metric)
 
             if lr_finder:
-                print(f"epoch: {self.epoch}\t top1: {top1}\t lr: {self.get_current_lr()}")
+                print(f"epoch: {self.epoch}\t accuracy: {accuracy}\t lr: {self.get_current_lr()}")
                 if trial:
-                    trial.report(top1, self.epoch)
+                    trial.report(accuracy, self.epoch)
                     if trial.should_prune():
                         # restore model before pruning
                         self.restore_model()
                         raise optuna.exceptions.TrialPruned()
 
             if not lr_finder:
-                # use smooth (average) top1 metric for early stopping if the target metric is top1
-                should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(top1, smooth_top1)
+                # use smooth (average) accuracy metric for early stopping if the target metric is accuracy
+                should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(accuracy)
                 should_exit = self.early_stoping and should_exit
 
                 if self.save_all_chkpts:
@@ -420,7 +426,7 @@ class Engine:
         if self.writer is not None:
             self.writer.close()
 
-        return top1, self.best_metric
+        return accuracy, self.best_metric
 
     def _freeze_aux_models(self):
         for model_name in self.model_names_to_freeze:

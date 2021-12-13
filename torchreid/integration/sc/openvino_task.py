@@ -23,20 +23,16 @@ from shutil import copyfile, copytree
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from addict import Dict as ADDict
+from typing import Any, Dict, Tuple, Optional, Union
 
 import attr
 
 import numpy as np
 
-import ote_sdk.usecases.exportable_code.demo as demo
+from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind
+from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.inference_parameters import InferenceParameters, default_progress_callback
-from ote_sdk.entities.optimization_parameters import OptimizationParameters
-from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
-from ote_sdk.usecases.exportable_code.inference import BaseInferencer
-from ote_sdk.entities.task_environment import TaskEnvironment
-from ote_sdk.usecases.tasks.interfaces.deployment_interface import IDeploymentTask
-from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
-from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
+from ote_sdk.entities.label_schema import LabelSchemaEntity
 from ote_sdk.entities.model import (
     ModelStatus,
     ModelEntity,
@@ -44,16 +40,21 @@ from ote_sdk.entities.model import (
     OptimizationMethod,
     ModelPrecision,
 )
-
-from ote_sdk.entities.label import LabelEntity
+from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.resultset import ResultSetEntity
+from ote_sdk.entities.scored_label import ScoredLabel
+from ote_sdk.entities.shapes.rectangle import Rectangle
+from ote_sdk.entities.task_environment import TaskEnvironment
+from ote_sdk.serialization.label_mapper import LabelSchemaMapper, label_schema_to_bytes
+from ote_sdk.usecases.exportable_code.inference import BaseInferencer
 from ote_sdk.usecases.exportable_code.prediction_to_annotation_converter import ClassificationToAnnotationConverter
-from ote_sdk.entities.annotation import AnnotationSceneEntity
+from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
+from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
+from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import (
     IOptimizationTask,
     OptimizationType,
 )
-from ote_sdk.entities.datasets import DatasetEntity
 
 from compression.api import DataLoader
 from compression.engines.ie_engine import IEEngine
@@ -64,7 +65,7 @@ from compression.pipeline.initializer import create_pipeline
 from openvino.model_zoo.model_api.models import Model
 from openvino.model_zoo.model_api.adapters import create_core, OpenvinoAdapter
 from torchreid.integration.sc.parameters import OTEClassificationParameters
-from torchreid.integration.sc.utils import get_empty_label
+from torchreid.integration.sc.utils import get_multiclass_predictions, get_multilabel_predictions
 
 from zipfile import ZipFile
 from . import model_wrappers
@@ -76,9 +77,7 @@ class OpenVINOClassificationInferencer(BaseInferencer):
     def __init__(
         self,
         hparams: OTEClassificationParameters,
-        labels: List[LabelEntity],
-        empty_label: LabelEntity,
-        multilabel: bool,
+        label_schema: LabelSchemaEntity,
         model_file: Union[str, bytes],
         weight_file: Union[str, bytes, None] = None,
         device: str = "CPU",
@@ -92,26 +91,23 @@ class OpenVINOClassificationInferencer(BaseInferencer):
             Good value is the number of available cores. Defaults to 1.
         :param device: Device to run inference on, such as CPU, GPU or MYRIAD. Defaults to "CPU".
         """
-        self.labels = labels
-        self.empty_label = empty_label
-        try:
-            model_adapter = OpenvinoAdapter(create_core(), model_file, weight_file, device=device, max_num_requests=num_requests)
-            label_names = [label.name for label in self.labels]
-            self.configuration = {**attr.asdict(hparams.inference_parameters.postprocessing,
-                                  filter=lambda attr, value: attr.name not in ['header', 'description', 'type', 'visible_in_ui']),
-                                  'multilabel': multilabel, 'empty_label': empty_label, 'labels': label_names}
-            self.model = Model.create_model(hparams.inference_parameters.class_name.value, model_adapter, self.configuration)
-            self.model.load()
-        except ValueError as e:
-            print(e)
-        self.converter = ClassificationToAnnotationConverter(self.labels)
+
+        self.label_schema = label_schema
+
+        model_adapter = OpenvinoAdapter(create_core(), model_file, weight_file, device=device, max_num_requests=num_requests)
+        self.configuration = {**attr.asdict(hparams.inference_parameters.postprocessing,
+                              filter=lambda attr, value: attr.name not in ['header', 'description', 'type', 'visible_in_ui']),
+                              'multilabel': multilabel, 'labels': LabelSchemaMapper.forward(self.label_schema)}
+        self.model = Model.create_model(hparams.inference_parameters.class_name.value, model_adapter, self.configuration, preload=True)
+
+        self.converter = ClassificationToAnnotationConverter(self.label_schema)
 
     def pre_process(self, image: np.ndarray) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
         return self.model.preprocess(image)
 
     def post_process(self, prediction: Dict[str, np.ndarray], metadata: Dict[str, Any]) -> AnnotationSceneEntity:
         prediction = self.model.postprocess(prediction, metadata)
-        metadata['empty_label'] = self.empty_label
+
         return self.converter.convert_to_annotation(prediction, metadata)
 
     def forward(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
@@ -140,17 +136,16 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
         self.task_environment = task_environment
         self.hparams = self.task_environment.get_hyper_parameters(OTEClassificationParameters)
         self.model = self.task_environment.model
+<<<<<<< HEAD
         self.model_name = task_environment.model_template.name.replace(" ", "_").replace('-', '_')
         self.empty_label = get_empty_label(task_environment)
+=======
+>>>>>>> ote
         self.inferencer = self.load_inferencer()
 
     def load_inferencer(self) -> OpenVINOClassificationInferencer:
-        labels = self.task_environment.label_schema.get_labels(include_empty=False)
-        is_multilabel = len(self.task_environment.label_schema.get_groups(False)) > 1
         return OpenVINOClassificationInferencer(self.hparams,
-                                                labels,
-                                                self.empty_label,
-                                                is_multilabel,
+                                                self.task_environment.label_schema,
                                                 self.model.get_data("openvino.xml"),
                                                 self.model.get_data("openvino.bin"))
 
@@ -162,8 +157,7 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
         dataset_size = len(dataset)
         for i, dataset_item in enumerate(dataset, 1):
             predicted_scene = self.inferencer.predict(dataset_item.numpy)
-            dataset_item.append_annotations(predicted_scene.annotations)
-            dataset_item.append_labels(dataset_item.annotation_scene.annotations[0].get_labels())
+            dataset_item.append_labels(predicted_scene.annotations[0].get_labels())
             update_progress_callback(int(i / dataset_size * 100))
         return dataset
 
@@ -255,7 +249,8 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
                 'params': {
                     'target_device': 'ANY',
                     'preset': preset,
-                    'stat_subset_size': min(stat_subset_size, len(data_loader))
+                    'stat_subset_size': min(stat_subset_size, len(data_loader)),
+                    'shuffle_data': True
                 }
             }
         ]
@@ -274,6 +269,8 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
                 output_model.set_data("openvino.xml", f.read())
             with open(os.path.join(tempdir, "model.bin"), "rb") as f:
                 output_model.set_data("openvino.bin", f.read())
+
+        output_model.set_data("label_schema.json", label_schema_to_bytes(self.task_environment.label_schema))
 
         # set model attributes for quantized model
         output_model.model_status = ModelStatus.SUCCESS

@@ -111,7 +111,7 @@ def main():
         cfg.train.start_epoch = resume_from_checkpoint(
             cfg.model.resume, model, optimizer=optimizer, scheduler=scheduler, device=device_
             )
-    elif cfg.model.load_weights and check_isfile(cfg.model.load_weights) and not is_nncf_used:
+    elif cfg.model.load_weights and not is_nncf_used:
         load_pretrained_weights(model, cfg.model.load_weights)
 
     if cfg.model.type == 'classification':

@@ -10,6 +10,7 @@ from typing import List
 import cv2 as cv
 import numpy as np
 
+from ote_sdk.entities.id import ID
 from ote_sdk.entities.image import Image
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.scored_label import ScoredLabel
@@ -61,7 +62,7 @@ class ClassificationDatasetAdapter(DatasetEntity):
         self.label_map = None
         self.labels = None
         self._set_labels_obtained_from_annotation()
-        self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False) for i, name in
+        self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False, id=ID(i)) for i, name in
                                enumerate(self.labels)]
 
         dataset_items = []
@@ -151,12 +152,27 @@ class ClassificationDatasetAdapter(DatasetEntity):
         return self.multilabel
 
 
-def get_empty_label(task_environment) -> LabelEntity:
-    empty_candidates = list(set(task_environment.get_labels(include_empty=True)) -
-                            set(task_environment.get_labels(include_empty=False)))
+def get_empty_label(label_schema: LabelSchemaEntity) -> LabelEntity:
+    empty_candidates = list(set(label_schema.get_labels(include_empty=True)) -
+                            set(label_schema.get_labels(include_empty=False)))
     if empty_candidates:
         return empty_candidates[0]
     return None
+
+
+def get_leaf_labels(label_schema: LabelSchemaEntity) -> List[LabelEntity]:
+    leaf_labels = []
+    all_labels = label_schema.get_labels(False)
+    for lbl in all_labels:
+        if not label_schema.get_children(lbl):
+            leaf_labels.append(lbl)
+
+    return leaf_labels
+
+
+def get_ancestors_by_prediction(label_schema: LabelSchemaEntity, prediction: ScoredLabel) -> List[ScoredLabel]:
+    ancestor_labels = label_schema.get_ancestors(prediction)
+    return [ScoredLabel(al, prediction.probability) for al in ancestor_labels]
 
 
 def generate_label_schema(not_empty_labels, multilabel=False):
@@ -320,7 +336,8 @@ def softmax_numpy(x: np.ndarray):
     return x
 
 
-def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity], activate: bool = True):
+def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity],
+                               activate: bool = True) -> List[ScoredLabel]:
     i = np.argmax(logits)
     if activate:
         logits = softmax_numpy(logits)
@@ -328,7 +345,7 @@ def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity], ac
 
 
 def get_multilabel_predictions(logits: np.ndarray, labels: List[LabelEntity],
-                               pos_thr: float = 0.5, activate: bool = True):
+                               pos_thr: float = 0.5, activate: bool = True) -> List[ScoredLabel]:
     if activate:
         logits = sigmoid_numpy(logits)
     item_labels = []
