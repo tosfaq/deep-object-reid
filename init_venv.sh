@@ -74,10 +74,10 @@ else
   # Remove dots from CUDA version string, if any.
   CUDA_VERSION_CODE=$(echo ${CUDA_VERSION} | sed -e "s/\.//" -e "s/\(...\).*/\1/")
   echo "Using CUDA_VERSION ${CUDA_VERSION}"
-  if [[ "${CUDA_VERSION_CODE}" != "111" ]] && [[ "${CUDA_VERSION_CODE}" != "102" ]] ; then
-    echo "CUDA version must be either 11.1 or 10.2"
-    exit 1
-  fi
+  # if [[ "${CUDA_VERSION_CODE}" != "111" ]] && [[ "${CUDA_VERSION_CODE}" != "102" ]] ; then
+  #   echo "CUDA version must be either 11.1 or 10.2"
+  #   exit 1
+  # fi
   echo "export CUDA_HOME=${CUDA_HOME}" >> ${venv_dir}/bin/activate
 fi
 
@@ -87,11 +87,15 @@ export PIP_CONSTRAINT=${CONSTRAINTS_FILE}
 pip install --upgrade pip || exit 1
 
 if [[ -z $CUDA_VERSION_CODE ]]; then
-  export TORCH_VERSION=${TORCH_VERSION}+cpu
-  export TORCHVISION_VERSION=${TORCHVISION_VERSION}+cpu
+  pip3 install torch==1.10.0+cu113 torchvision==0.11.1+cu113 torchaudio===0.10.0+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html  \
+          -c ${CONSTRAINTS_FILE} || exit 1
+  echo torch==${TORCH_VERSION}+cpu >> ${CONSTRAINTS_FILE}
+  echo torchvision==${TORCHVISION_VERSION}+cpu >> ${CONSTRAINTS_FILE}
 else
-  export TORCH_VERSION=${TORCH_VERSION}+cu${CUDA_VERSION_CODE}
-  export TORCHVISION_VERSION=${TORCHVISION_VERSION}+cu${CUDA_VERSION_CODE}
+  pip install torch==1.10.0+cu113 torchvision==0.11.1+cu113 torchaudio===0.10.0+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html  \
+          -c ${CONSTRAINTS_FILE} || exit 1
+  echo torch==${TORCH_VERSION}+cu${CUDA_VERSION_CODE} >> ${CONSTRAINTS_FILE}
+  echo torchvision==${TORCHVISION_VERSION}+cu${CUDA_VERSION_CODE} >> ${CONSTRAINTS_FILE}
 fi
 
 pip install torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} -f https://download.pytorch.org/whl/lts/1.8/torch_lts.html || exit 1
