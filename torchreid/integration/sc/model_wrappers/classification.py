@@ -42,8 +42,8 @@ class OteClassification(Classification):
 
         if self.multilabel:
             return get_multilabel_predictions(outputs, activate=self.activate)
-        else:
-            return get_multiclass_predictions(outputs, topk=self.topk, activate=self.activate)
+
+        return get_multiclass_predictions(outputs, activate=self.activate)
 
 
 def sigmoid_numpy(x: np.ndarray):
@@ -56,7 +56,7 @@ def softmax_numpy(x: np.ndarray):
     return x
 
 
-def get_multiclass_predictions(logits: np.ndarray, topk: int, activate: bool = True):
+def get_multiclass_predictions(logits: np.ndarray, activate: bool = True):
 
     index = np.argmax(logits)
     if activate:

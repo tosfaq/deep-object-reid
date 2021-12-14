@@ -20,10 +20,9 @@ import subprocess
 import sys
 import tempfile
 from shutil import copyfile, copytree
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 from addict import Dict as ADDict
-from typing import Any, Dict, Tuple, Optional, Union
 
 import numpy as np
 
@@ -41,8 +40,6 @@ from ote_sdk.entities.model import (
 )
 from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.resultset import ResultSetEntity
-from ote_sdk.entities.scored_label import ScoredLabel
-from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.serialization.label_mapper import LabelSchemaMapper, label_schema_to_bytes
 from ote_sdk.usecases.exportable_code.inference import BaseInferencer
@@ -65,7 +62,6 @@ from compression.pipeline.initializer import create_pipeline
 from openvino.model_zoo.model_api.models import Model
 from openvino.model_zoo.model_api.adapters import create_core, OpenvinoAdapter
 from torchreid.integration.sc.parameters import OTEClassificationParameters
-from torchreid.integration.sc.utils import get_multiclass_predictions, get_multilabel_predictions
 
 from zipfile import ZipFile
 from . import model_wrappers
@@ -93,7 +89,7 @@ class OpenVINOClassificationInferencer(BaseInferencer):
         """
 
         multilabel = len(label_schema.get_groups(False)) > 1 and \
-                len(label_schema.get_groups(False)) == len(label_schema.get_labels(include_empty=False))
+            len(label_schema.get_groups(False)) == len(label_schema.get_labels(include_empty=False))
 
         self.label_schema = label_schema
 
@@ -190,7 +186,7 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
                 copyfile(model_file, os.path.join(tempdir, name_of_package, "model.py"))
             # create wheel package
             subprocess.run([sys.executable, os.path.join(tempdir, "setup.py"), 'bdist_wheel',
-                            '--dist-dir', tempdir, 'clean', '--all'])
+                            '--dist-dir', tempdir, 'clean', '--all'], check=True)
             wheel_file_name = [f for f in os.listdir(tempdir) if f.endswith('.whl')][0]
 
             with ZipFile(os.path.join(tempdir, "openvino.zip"), 'w') as zip:
