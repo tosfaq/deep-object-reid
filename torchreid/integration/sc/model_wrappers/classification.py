@@ -13,36 +13,29 @@
 # and limitations under the License.
 
 import numpy as np
+from typing import Any, Dict
 
 from openvino.model_zoo.model_api.models.classification import Classification
-from openvino.model_zoo.model_api.models.types import NumericalValue, ListValue, StringValue, BooleanValue
+from openvino.model_zoo.model_api.models.types import BooleanValue
 
 
-class NewClassification(Classification):
-    __model__ = 'new_classification'
+class OteClassification(Classification):
+    __model__ = 'ote_classification'
 
     def __init__(self, model_adapter, configuration=None, preload=False):
         super().__init__(model_adapter, configuration, preload)
-        self._check_io_number(1, 1)
-        if self.path_to_labels:
-            self.labels = self._load_labels(self.path_to_labels)
-
-        self.output_blob_name = self._get_outputs()
 
     @classmethod
     def parameters(cls):
         parameters = super().parameters()
         parameters.update({
-            'multilabel': BooleanValue(default_value=False),
-            'topk': NumericalValue(value_type=int, default_value=1),
-            'labels': ListValue(description="List of class labels"),
-            'path_to_labels': StringValue(description="Path to file with labels. Overrides the labels, if they sets via 'labels' parameter")
+            'multilabel': BooleanValue(default_value=False)
         })
 
         return parameters
 
-    def postprocess(self, outputs, meta):
-        outputs = outputs[self.output_blob_name].squeeze()
+    def postprocess(self, outputs: Dict[str, np.ndarray], metadata: Dict[str, Any]):
+        outputs = outputs[self.out_layer_name].squeeze()
         self.activate = False
         if not np.isclose(np.sum(outputs), 1.0, atol=0.01):
             self.activate = True
@@ -65,14 +58,10 @@ def softmax_numpy(x: np.ndarray):
 
 def get_multiclass_predictions(logits: np.ndarray, topk: int, activate: bool = True):
 
+    index = np.argmax(logits)
     if activate:
         logits = softmax_numpy(logits)
-    indices = np.argpartition(logits, -topk)[-topk:]
-    scores = logits[indices]
-    desc_order = scores.argsort()[::-1]
-    scores = scores[desc_order]
-    indices = indices[desc_order]
-    return list(zip(indices, scores))
+    return [(index, logits[index])]
 
 
 def get_multilabel_predictions(logits: np.ndarray, pos_thr: float = 0.5, activate: bool = True):

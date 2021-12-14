@@ -15,14 +15,6 @@
 from ote_sdk.configuration import ConfigurableEnum
 
 
-class Models(ConfigurableEnum):
-    """
-    This Enum represents the types of models for inference
-    """
-    CLASSIFICATION = 'classification'
-    NEW_CLASSIFICATION = 'new_classification'
-
-
 class POTQuantizationPreset(ConfigurableEnum):
     """
     This Enum represents the quantization preset for post training optimization

@@ -31,7 +31,7 @@ from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
 from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
 from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
-
+from ote_sdk.utils.labels_utils import get_empty_label, get_leaf_labels, get_ancestors_by_prediction
 
 import torchreid
 from torchreid.ops import DataParallel
@@ -46,8 +46,7 @@ from torchreid.integration.sc.monitors import StopCallback, DefaultMetricsMonito
 from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingProgressCallback,
                                             InferenceProgressCallback, get_actmap, preprocess_features_for_actmap,
                                             active_score_from_probs, get_multiclass_predictions,
-                                            get_multilabel_predictions, sigmoid_numpy, softmax_numpy,
-                                            get_empty_label, get_leaf_labels, get_ancestors_by_prediction)
+                                            get_multilabel_predictions, sigmoid_numpy, softmax_numpy)
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 from torchreid.metrics.classification import score_extraction
 
