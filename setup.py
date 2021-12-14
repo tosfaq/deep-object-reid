@@ -48,7 +48,9 @@ def get_requirements(filename='requirements.txt'):
                 requires.append(line)
     return requires, links
 
+
 packages, links = get_requirements()
+packages.extend(get_requirements('modelapi-requirements.txt'))
 
 setup(
     name='torchreid',
