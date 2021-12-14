@@ -1,7 +1,5 @@
 numpy
 Cython
-h5py
-pyyaml
 Pillow
 six
 scipy
@@ -11,14 +9,9 @@ tb-nightly
 future
 yacs
 gdown
-flake8
-yapf
-isort
-terminaltables
 scikit-learn
-lxml
-pytorchcv
 terminaltables
+pytorchcv
 torch-lr-finder==0.2.1
 onnx
 torchvision==0.9.*
