@@ -16,12 +16,11 @@ yapf
 isort
 terminaltables
 scikit-learn
-lxml
 pytorchcv
 terminaltables
 torch-lr-finder==0.2.1
 onnx
-torchvision==0.10.*
+torchvision==0.11.*
 torch==1.10.*
 optuna
 timm
