@@ -59,8 +59,12 @@ from compression.graph import load_model, save_model
 from compression.graph.model_utils import compress_model_weights, get_nodes_by_type
 from compression.pipeline.initializer import create_pipeline
 
-from openvino.model_zoo.model_api.models import Model
-from openvino.model_zoo.model_api.adapters import create_core, OpenvinoAdapter
+try:
+    from openvino.model_zoo.model_api.models import Model
+    from openvino.model_zoo.model_api.adapters import create_core, OpenvinoAdapter
+except ImportError:
+    import warnings
+    warnings.warn("ModelAPI was not found.")
 from torchreid.integration.sc.parameters import OTEClassificationParameters
 
 from zipfile import ZipFile

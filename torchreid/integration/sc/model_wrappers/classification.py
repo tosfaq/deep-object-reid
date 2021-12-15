@@ -15,15 +15,16 @@
 import numpy as np
 from typing import Any, Dict
 
-from openvino.model_zoo.model_api.models.classification import Classification
-from openvino.model_zoo.model_api.models.types import BooleanValue
+try:
+    from openvino.model_zoo.model_api.models.classification import Classification
+    from openvino.model_zoo.model_api.models.types import BooleanValue
+except ImportError as e:
+    import warnings
+    warnings.warn("ModelAPI was not found.")
 
 
 class OteClassification(Classification):
     __model__ = 'ote_classification'
-
-    def __init__(self, model_adapter, configuration=None, preload=False):
-        super().__init__(model_adapter, configuration, preload)
 
     @classmethod
     def parameters(cls):
