@@ -1,29 +1,43 @@
-import time
-import os
-import json
-from os import path as osp
+# Copyright (C) 2021 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+
 import importlib
+import json
+import os
+import shutil
 import tempfile
-import subprocess
+import time
+from os import path as osp
 from typing import List
 
 import cv2 as cv
 import numpy as np
 
+from ote_sdk.entities.annotation import (Annotation, AnnotationSceneEntity,
+                                         AnnotationSceneKind)
+from ote_sdk.entities.dataset_item import DatasetItemEntity
+from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.id import ID
 from ote_sdk.entities.image import Image
-from ote_sdk.entities.shapes.rectangle import Rectangle
-from ote_sdk.entities.scored_label import ScoredLabel
-from ote_sdk.entities.label import LabelEntity, Domain
-from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind
-from ote_sdk.entities.datasets import DatasetEntity
-from ote_sdk.entities.dataset_item import DatasetItemEntity
+from ote_sdk.entities.label import Domain, LabelEntity
 from ote_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
                                            LabelSchemaEntity)
+from ote_sdk.entities.scored_label import ScoredLabel
+from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.train_parameters import UpdateProgressCallback
-from ote_sdk.usecases.reporting.time_monitor_callback import \
-    TimeMonitorCallback
+from ote_sdk.usecases.reporting.time_monitor_callback import TimeMonitorCallback
 
 
 class ClassificationDatasetAdapter(DatasetEntity):
@@ -230,8 +244,8 @@ def reload_hyper_parameters(model_template):
     conf_yaml = [dep.source for dep in model_template.dependencies \
                      if dep.destination == model_template.hyper_parameters.base_path][0]
     conf_yaml = osp.join(template_dir, conf_yaml)
-    subprocess.run(f'cp {conf_yaml} {temp_folder}', check=True, shell=True)
-    subprocess.run(f'cp {template_file} {temp_folder}', check=True, shell=True)
+    shutil.copy(conf_yaml, temp_folder)
+    shutil.copy(template_file, temp_folder)
     model_template.hyper_parameters.load_parameters(osp.join(temp_folder, 'template.yaml'))
     assert model_template.hyper_parameters.data
 

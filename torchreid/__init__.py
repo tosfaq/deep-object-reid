@@ -1,5 +1,11 @@
 from __future__ import absolute_import, print_function
 
+try:
+    import nncf
+except ImportError:
+    import warnings
+    warnings.warn("NNCF was not found. Model optimization options will not be available.")
+
 from torchreid import data, engine, losses, metrics, models, ops, optim, utils
 from .version import __version__
 
