@@ -171,7 +171,7 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
         parameters['type_of_model'] = 'ote_classification'
         parameters['converter_type'] = 'CLASSIFICATION'
         parameters['model_parameters'] = self.inferencer.configuration
-        parameters['model_parameters']['labels'] = LabelSchemaMapper.forward(self.inferencer.label_schema)
+        parameters['model_parameters']['labels'] = LabelSchemaMapper.forward(self.task_environment.label_schema)
         name_of_package = "demo_package"
         with tempfile.TemporaryDirectory() as tempdir:
             copyfile(os.path.join(work_dir, "setup.py"), os.path.join(tempdir, "setup.py"))
