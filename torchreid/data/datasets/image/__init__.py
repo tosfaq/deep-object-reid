@@ -1,6 +1,5 @@
 from __future__ import absolute_import, print_function
 
-from .cityflow import CityFlow
 from .classification import Classification, ClassificationImageFolder, ExternalDatasetWrapper, MultiLabelClassification
 from .compcars import CompCars
 from .cuhk01 import CUHK01
@@ -21,7 +20,6 @@ from .prid import PRID
 from .sensereid import SenseReID
 from .universe_models import UniverseModels
 from .vehicle1m import Vehicle1M
-from .veri import VeRi
 from .veriwild import VeRiWild
 from .vgg_face2 import VGGFace2
 from .viper import VIPeR
