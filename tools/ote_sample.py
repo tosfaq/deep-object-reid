@@ -45,6 +45,7 @@ def parse_args():
     parser.add_argument('template_file_path', help='path to template file')
     parser.add_argument('--data-dir', default='data')
     parser.add_argument('--export', action='store_true')
+    parser.add_argument('--raw', nargs='+')
     parser.add_argument('--steps', nargs='+')
     parser.add_argument('--debug-dump-folder', default='')
     args = parser.parse_args()
@@ -94,8 +95,10 @@ def main(args):
             dataset,
             environment.get_model_configuration(),
             model_status=ModelStatus.NOT_READY)
-
-        weights = task.train(dataset, output_model, weights=weights)
+        if args.raw:
+            task.train(dataset, output_model, weights=None)
+        else:
+            weights = task.train(dataset, output_model, weights=weights)
         training_time = datetime.now() - start_time
         print("Training time: ", training_time)
         logger.info('Get predictions on the validation set')
