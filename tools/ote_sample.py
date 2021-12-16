@@ -45,7 +45,7 @@ def parse_args():
     parser.add_argument('template_file_path', help='path to template file')
     parser.add_argument('--data-dir', default='data')
     parser.add_argument('--export', action='store_true')
-    parser.add_argument('--raw', nargs='+')
+    parser.add_argument('--raw', action='store_true', default=False)
     parser.add_argument('--steps', nargs='+')
     parser.add_argument('--debug-dump-folder', default='')
     args = parser.parse_args()
