@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions
 # and limitations under the License.
 
+import cv2
 import numpy as np
 from typing import Any, Dict
 
 try:
     from openvino.model_zoo.model_api.models.classification import Classification
     from openvino.model_zoo.model_api.models.types import BooleanValue
+    from openvino.model_zoo.model_api.models.utils import pad_image
 except ImportError as e:
     import warnings
     warnings.warn("ModelAPI was not found.")
@@ -29,11 +31,24 @@ class OteClassification(Classification):
     @classmethod
     def parameters(cls):
         parameters = super().parameters()
+        parameters['resize_type'].update_default_value('standard')
         parameters.update({
             'multilabel': BooleanValue(default_value=False)
         })
 
         return parameters
+
+    def preprocess(self, image: np.ndarray):
+        meta = {'original_shape': image.shape}
+        resized_image = self.resize(image, (self.w, self.h))
+        resized_image = cv2.cvtColor(resized_image, cv2.COLOR_RGB2BGR)
+        meta.update({'resized_shape': resized_image.shape})
+        if self.resize_type == 'fit_to_window':
+            resized_image = pad_image(resized_image, (self.w, self.h))
+        resized_image = self.input_transform(resized_image)
+        resized_image = self._change_layout(resized_image)
+        dict_inputs = {self.image_blob_name: resized_image}
+        return dict_inputs, meta
 
     def postprocess(self, outputs: Dict[str, np.ndarray], metadata: Dict[str, Any]):
         outputs = outputs[self.out_layer_name].squeeze()
