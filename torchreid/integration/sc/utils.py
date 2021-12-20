@@ -166,29 +166,6 @@ class ClassificationDatasetAdapter(DatasetEntity):
         return self.multilabel
 
 
-def get_empty_label(label_schema: LabelSchemaEntity) -> LabelEntity:
-    empty_candidates = list(set(label_schema.get_labels(include_empty=True)) -
-                            set(label_schema.get_labels(include_empty=False)))
-    if empty_candidates:
-        return empty_candidates[0]
-    return None
-
-
-def get_leaf_labels(label_schema: LabelSchemaEntity) -> List[LabelEntity]:
-    leaf_labels = []
-    all_labels = label_schema.get_labels(False)
-    for lbl in all_labels:
-        if not label_schema.get_children(lbl):
-            leaf_labels.append(lbl)
-
-    return leaf_labels
-
-
-def get_ancestors_by_prediction(label_schema: LabelSchemaEntity, prediction: ScoredLabel) -> List[ScoredLabel]:
-    ancestor_labels = label_schema.get_ancestors(prediction)
-    return [ScoredLabel(al, prediction.probability) for al in ancestor_labels]
-
-
 def generate_label_schema(not_empty_labels, multilabel=False):
     assert len(not_empty_labels) > 1
 

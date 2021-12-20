@@ -42,14 +42,13 @@ from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
 from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
+from ote_sdk.utils.labels_utils import get_empty_label, get_leaf_labels, get_ancestors_by_prediction
 from scripts.default_config import (get_default_config, imagedata_kwargs,
                                     merge_from_files_with_base, model_kwargs)
 from torchreid.apis.export import export_ir, export_onnx
 from torchreid.integration.sc.monitors import DefaultMetricsMonitor, StopCallback
 from torchreid.integration.sc.parameters import OTEClassificationParameters
-from torchreid.integration.sc.utils import (active_score_from_probs, get_actmap,
-                                            get_ancestors_by_prediction, get_empty_label,
-                                            get_leaf_labels, get_multiclass_predictions,
+from torchreid.integration.sc.utils import (active_score_from_probs, get_actmap, get_multiclass_predictions,
                                             get_multilabel_predictions, InferenceProgressCallback,
                                             OTEClassificationDataset, preprocess_features_for_actmap,
                                             sigmoid_numpy, softmax_numpy)
