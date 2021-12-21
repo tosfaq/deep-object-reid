@@ -58,8 +58,6 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
 
         # Set hyperparameters
         self._nncf_preset = None
-        self._optimization_methods = None
-        self._precision = None
         self._max_acc_drop = None
         self._set_attributes_by_hyperparams()
 
