@@ -1,0 +1,23 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+This project is based on deep-person-reid project by KaiyangZhou
+With respect to it we made the following changes.
+
+## \[Unreleased\]
+### Added
+* ImageAMSoftmaxEngine, MultilabelEngine with new features: mutual learning, am-softmax loss support, metric losses, EMA, SAM support.
+* Classification models, datasets, adapted engines for classification pipelines
+* Onnx and OpenVINO export
+* Multilabel classification support
+* Validation script
+* Multilabel classification metrics
+* Augmentations, optimizers, losses, learning rate schedulers
+* NNCF support
+
+### Removed
+* Reid backbones and datasets
+
+### Depricated
+* Video data support
