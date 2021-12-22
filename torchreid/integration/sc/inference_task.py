@@ -102,6 +102,11 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
         self.stop_callback = StopCallback()
         self.metrics_monitor = DefaultMetricsMonitor()
 
+        # Set default model attributes.
+        self._optimization_methods = []
+        self._precision = [ModelPrecision.FP32]
+        self._optimization_type = ModelOptimizationType.MO
+
     @property
     def _hyperparams(self):
         return self._task_environment.get_hyper_parameters(OTEClassificationParameters)
@@ -257,9 +262,8 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
 
     def export(self, export_type: ExportType, output_model: ModelEntity):
         assert export_type == ExportType.OPENVINO
-        optimized_model_precision = ModelPrecision.FP32
         output_model.model_format = ModelFormat.OPENVINO
-        output_model.optimization_type = ModelOptimizationType.MO
+        output_model.optimization_type = self._optimization_type
 
         with tempfile.TemporaryDirectory() as tempdir:
             optimized_model_dir = os.path.join(tempdir, "dor")
@@ -272,7 +276,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
                 export_onnx(self._model.eval(), self._cfg, onnx_model_path)
                 self._model.mix_precision = mix_precision_status
                 export_ir(onnx_model_path, self._cfg.data.norm_mean, self._cfg.data.norm_std,
-                          optimized_model_dir=optimized_model_dir, data_type=optimized_model_precision.name)
+                          optimized_model_dir=optimized_model_dir)
 
                 bin_file = [f for f in os.listdir(optimized_model_dir) if f.endswith('.bin')][0]
                 xml_file = [f for f in os.listdir(optimized_model_dir) if f.endswith('.xml')][0]
@@ -280,8 +284,8 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
                     output_model.set_data("openvino.bin", f.read())
                 with open(os.path.join(optimized_model_dir, xml_file), "rb") as f:
                     output_model.set_data("openvino.xml", f.read())
-                output_model.precision = [optimized_model_precision]
-                output_model.optimization_methods = []
+                output_model.precision = self._precision
+                output_model.optimization_methods = self._optimization_methods
                 output_model.model_status = ModelStatus.SUCCESS
             except Exception as ex:
                 output_model.model_status = ModelStatus.FAILED
