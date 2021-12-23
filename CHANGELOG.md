@@ -19,5 +19,5 @@ With respect to it we made the following changes.
 ### Removed
 * Reid backbones and datasets
 
-### Depricated
+### Deprecated
 * Video data support
