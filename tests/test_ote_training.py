@@ -45,7 +45,6 @@ from ote_sdk.test_suite.training_tests_helper import (OTETestHelper,
                                                       OTETrainingTestInterface)
 from ote_sdk.test_suite.training_tests_actions import (OTETestTrainingAction,
                                                        BaseOTETestAction,
-                                                       ClassificationTestTrainingAction,
                                                        OTETestTrainingEvaluationAction,
                                                        OTETestExportAction,
                                                        OTETestExportEvaluationAction,
@@ -252,7 +251,7 @@ class ClassificationTestTrainingAction(OTETestTrainingAction):
         data_collector.log_final_metric("metric_name", self.name + "/" + score_name)
         data_collector.log_final_metric("metric_value", score_value)
 
-
+# TODO(pfinashx): re-check POT quality for mobilenet_large_v1
 class TestOTEReallifeClassification(OTETrainingTestInterface):
     """
     The main class of running test in this file.
