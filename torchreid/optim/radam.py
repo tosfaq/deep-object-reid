@@ -1,4 +1,10 @@
 """
+Copyright (c) 2019 Liyuan Liu
+SPDX-License-Identifier: Apache-2.0
+
+Copyright (C) 2020-2021 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+
 Imported from: https://github.com/LiyuanLucasLiu/RAdam
 
 Paper: https://arxiv.org/abs/1908.03265

@@ -1,3 +1,7 @@
+# Copyright (C) 2020-2021 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
 """
     InceptionV4 for ImageNet-1K, implemented in PyTorch.
     Original paper: 'Inception-v4, Inception-ResNet and the Impact of Residual Connections on Learning,'

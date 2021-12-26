@@ -1,3 +1,7 @@
+# Copyright (C) 2020-2021 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
 """
     EfficientNet for ImageNet-1K, implemented in PyTorch.
     Original papers:

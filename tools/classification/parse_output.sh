@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Copyright (C) 2020-2021 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
 exp_folder=$1
 test_file_path=${exp_folder}/combine_all.txt
 for dir in ${exp_folder}/*     # list directories in the form "/tmp/dirname/"
