@@ -1,6 +1,9 @@
 # Copyright (c) 2018-2021 Kaiyang Zhou
 # SPDX-License-Identifier: MIT
 #
+# Copyright (c) 2019 Ross Wightman
+# SPDX-License-Identifier: Apache-2.0
+#
 # Copyright (C) 2020-2021 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -448,6 +451,8 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
         _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
 
 
+# Is based on
+# https://github.com/rwightman/pytorch-image-models/blob/master/timm/utils/model_ema.py
 class ModelEmaV2(nn.Module):
     """ Model Exponential Moving Average V2
     Keep a moving average of everything in the model state_dict (parameters and buffers).
