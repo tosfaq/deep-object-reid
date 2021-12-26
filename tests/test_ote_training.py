@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions
 # and limitations under the License.
 
-import glob
 import logging
 import os
 import os.path as osp
@@ -20,17 +19,21 @@ from collections import (namedtuple,
                         OrderedDict)
 from copy import deepcopy
 from pprint import pformat
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Type
 
 import pytest
 import yaml
-from ote_sdk.entities.datasets import DatasetEntity
-from ote_sdk.entities.label_schema import LabelSchemaEntity
 from ote_sdk.entities.subset import Subset
+from ote_sdk.entities.model_template import parse_model_template
+from ote_sdk.entities.model import (ModelEntity,
+                                    ModelStatus)
+from ote_sdk.configuration.helper import create as ote_sdk_configuration_helper_create
 
 from torchreid.integration.sc.utils import (ClassificationDatasetAdapter,
                                             generate_label_schema)
 
+from ote_sdk.test_suite.training_test_case import (OTETestCaseInterface,
+                                                   generate_ote_integration_test_case_class)
 from ote_sdk.test_suite.e2e_test_system import DataCollector, e2e_pytest_performance
 from ote_sdk.test_suite.training_tests_common import (make_path_be_abs,
                                                       make_paths_be_abs,
@@ -40,6 +43,17 @@ from ote_sdk.test_suite.training_tests_common import (make_path_be_abs,
 from ote_sdk.test_suite.training_tests_helper import (OTETestHelper,
                                                       DefaultOTETestCreationParametersInterface,
                                                       OTETrainingTestInterface)
+from ote_sdk.test_suite.training_tests_actions import (OTETestTrainingAction,
+                                                       BaseOTETestAction,
+                                                       OTETestTrainingEvaluationAction,
+                                                       OTETestExportAction,
+                                                       OTETestExportEvaluationAction,
+                                                       OTETestPotAction,
+                                                       OTETestPotEvaluationAction,
+                                                       OTETestNNCFAction,
+                                                       OTETestNNCFEvaluationAction,
+                                                       OTETestNNCFExportAction,
+                                                       OTETestNNCFExportEvaluationAction)
 
 
 logger = logging.getLogger(__name__)
@@ -86,7 +100,26 @@ def _create_classification_dataset_and_labels_schema(dataset_params):
     labels_schema = generate_label_schema(dataset.get_labels(), dataset.is_multilabel())
     return dataset, labels_schema
 
+def get_default_test_action_classes() -> List[Type[BaseOTETestAction]]:
+    return [
+        ClassificationTestTrainingAction,
+        OTETestTrainingEvaluationAction,
+        OTETestExportAction,
+        OTETestExportEvaluationAction,
+        OTETestPotAction,
+        OTETestPotEvaluationAction,
+        OTETestNNCFAction,
+        OTETestNNCFEvaluationAction,
+        OTETestNNCFExportAction,
+        OTETestNNCFExportEvaluationAction,
+    ]
+
 class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInterface):
+    def test_case_class(self) -> Type[OTETestCaseInterface]:
+        return generate_ote_integration_test_case_class(
+            get_default_test_action_classes()
+        )
+
     def test_bunches(self) -> List[Dict[str, Any]]:
         test_bunches = [
                 dict(
@@ -101,12 +134,119 @@ class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInter
                        'Custom_Image_Classification_EfficinetNet-B0',
                     ],
                     dataset_name=['lg_chem','cifar100'],
-                    num_training_iters=KEEP_CONFIG_FIELD_VALUE,
+                    max_num_epochs=KEEP_CONFIG_FIELD_VALUE,
                     batch_size=KEEP_CONFIG_FIELD_VALUE,
                     usecase=REALLIFE_USECASE_CONSTANT,
                 ),
         ]
         return deepcopy(test_bunches)
+
+    def short_test_parameters_names_for_generating_id(self) -> OrderedDict:
+        DEFAULT_SHORT_TEST_PARAMETERS_NAMES_FOR_GENERATING_ID = OrderedDict(
+            [
+                ("test_stage", "ACTION"),
+                ("model_name", "model"),
+                ("dataset_name", "dataset"),
+                ("max_num_epochs", "num_epochs"),
+                ("batch_size", "batch"),
+                ("usecase", "usecase"),
+            ]
+        )
+        return deepcopy(DEFAULT_SHORT_TEST_PARAMETERS_NAMES_FOR_GENERATING_ID)
+
+    def test_parameters_defining_test_case_behavior(self) -> List[str]:
+        DEFAULT_TEST_PARAMETERS_DEFINING_IMPL_BEHAVIOR = [
+            "model_name",
+            "dataset_name",
+            "max_num_epochs",
+            "batch_size",
+        ]
+        return deepcopy(DEFAULT_TEST_PARAMETERS_DEFINING_IMPL_BEHAVIOR)
+    
+    def default_test_parameters(self) -> Dict[str, Any]:
+        DEFAULT_TEST_PARAMETERS = {
+            "max_num_epochs": 1,
+            "batch_size": 2,
+        }
+        return deepcopy(DEFAULT_TEST_PARAMETERS)
+
+
+class ClassificationTestTrainingAction(OTETestTrainingAction):
+    _name = "training"
+
+    def __init__(
+        self, dataset, labels_schema, template_path, max_num_epochs, batch_size
+    ):
+        self.dataset = dataset
+        self.labels_schema = labels_schema
+        self.template_path = template_path
+        self.num_training_iters = max_num_epochs
+        self.batch_size = batch_size
+
+    def _run_ote_training(self, data_collector):
+        logger.debug(f"self.template_path = {self.template_path}")
+
+        print(f"train dataset: {len(self.dataset.get_subset(Subset.TRAINING))} items")
+        print(
+            f"validation dataset: "
+            f"{len(self.dataset.get_subset(Subset.VALIDATION))} items"
+        )
+
+        logger.debug("Load model template")
+        self.model_template = parse_model_template(self.template_path)
+
+        logger.debug("Set hyperparameters")
+        params = ote_sdk_configuration_helper_create(
+            self.model_template.hyper_parameters.data
+        )
+        if self.num_training_iters != KEEP_CONFIG_FIELD_VALUE:
+            params.learning_parameters.max_num_epochs = int(self.num_training_iters)
+            logger.debug(
+                f"Set params.learning_parameters.max_num_epochs="
+                f"{params.learning_parameters.max_num_epochs}"
+            )
+        else:
+            logger.debug(
+                f"Keep params.learning_parameters.max_num_epochs="
+                f"{params.learning_parameters.max_num_epochs}"
+            )
+
+        if self.batch_size != KEEP_CONFIG_FIELD_VALUE:
+            params.learning_parameters.batch_size = int(self.batch_size)
+            logger.debug(
+                f"Set params.learning_parameters.batch_size="
+                f"{params.learning_parameters.batch_size}"
+            )
+        else:
+            logger.debug(
+                f"Keep params.learning_parameters.batch_size="
+                f"{params.learning_parameters.batch_size}"
+            )
+
+        logger.debug("Setup environment")
+        self.environment, self.task = self._create_environment_and_task(
+            params, self.labels_schema, self.model_template
+        )
+
+        logger.debug("Train model")
+        self.output_model = ModelEntity(
+            self.dataset,
+            self.environment.get_model_configuration(),
+            model_status=ModelStatus.NOT_READY,
+        )
+
+        self.copy_hyperparams = deepcopy(self.task._hyperparams)
+
+        self.task.train(self.dataset, self.output_model)
+        assert (
+            self.output_model.model_status == ModelStatus.SUCCESS
+        ), "Training was failed"
+
+        score_name, score_value = self._get_training_performance_as_score_name_value()
+        logger.info(f"performance={self.output_model.performance}")
+        data_collector.log_final_metric("metric_name", self.name + "/" + score_name)
+        data_collector.log_final_metric("metric_value", score_value)
+
 
 class TestOTEReallifeClassification(OTETrainingTestInterface):
     """
@@ -137,7 +277,7 @@ class TestOTEReallifeClassification(OTETrainingTestInterface):
 
             model_name = test_parameters['model_name']
             dataset_name = test_parameters['dataset_name']
-            num_training_iters = test_parameters['num_training_iters']
+            max_num_epochs = test_parameters['max_num_epochs']
             batch_size = test_parameters['batch_size']
 
             dataset_params = _get_dataset_params_from_dataset_definitions(dataset_definitions, dataset_name)
@@ -155,7 +295,7 @@ class TestOTEReallifeClassification(OTETrainingTestInterface):
                 'dataset': dataset,
                 'labels_schema': labels_schema,
                 'template_path': template_path,
-                'num_training_iters': num_training_iters,
+                'max_num_epochs': max_num_epochs,
                 'batch_size': batch_size,
             }
 

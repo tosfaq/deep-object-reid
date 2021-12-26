@@ -51,7 +51,7 @@ class OTEClassificationParameters(ConfigurableParameters):
             affects_outcome_of=ModelLifecycle.TRAINING
         )
 
-        num_iters = configurable_integer(
+        max_num_epochs = configurable_integer(
             default_value=200,
             min_value=1,
             max_value=1000,

@@ -64,10 +64,10 @@ def test_configuration_yaml():
     assert configuration_yaml_converted == configuration_yaml_loaded
 
 
-def setup_configurable_parameters(template_dir, num_iters=10):
+def setup_configurable_parameters(template_dir, max_num_epochs=10):
     model_template = parse_model_template(osp.join(template_dir, 'template.yaml'))
     hyper_parameters = create(model_template.hyper_parameters.data)
-    hyper_parameters.learning_parameters.num_iters = num_iters
+    hyper_parameters.learning_parameters.max_num_epochs = max_num_epochs
     return hyper_parameters, model_template
 
 
@@ -117,7 +117,7 @@ def init_environment(params, model_template, number_of_images=10):
 
 @pytest.fixture()
 def default_task_setup():
-    hyper_parameters, model_template = setup_configurable_parameters(DEFAULT_TEMPLATE_DIR, num_iters=5)
+    hyper_parameters, model_template = setup_configurable_parameters(DEFAULT_TEMPLATE_DIR, max_num_epochs=5)
     task_environment, dataset = init_environment(hyper_parameters, model_template, 20)
     task = OTEClassificationTrainTask(task_environment=task_environment)
 

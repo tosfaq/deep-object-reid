@@ -71,7 +71,6 @@ class ClassificationDatasetAdapter(DatasetEntity):
                     self.annotations[k] = self._load_annotation_multilabel(self.ann_files[k], self.data_roots[k])
                 else:
                     self.annotations[k] = self._load_annotation(self.data_roots[k])
-
                     assert not self.multilabel
 
         self.label_map = None

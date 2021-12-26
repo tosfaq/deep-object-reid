@@ -29,7 +29,7 @@ hyper_parameters:
     learning_parameters:
       batch_size:
         default_value: 32
-      num_iters:
+      max_num_epochs:
         default_value: 200
       learning_rate:
         default_value: 0.007
