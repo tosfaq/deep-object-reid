@@ -11,15 +11,16 @@ from setuptools import setup, Extension, find_packages
 import numpy as np
 from Cython.Build import cythonize
 
+repo_root = osp.dirname(osp.realpath(__file__))
 
 def readme():
-    with open('README.rst') as f:
+    with open(osp.join(repo_root, 'README.rst')) as f:
         content = f.read()
     return content
 
 
 def find_version():
-    version_file = 'torchreid/version.py'
+    version_file = osp.join(repo_root, 'torchreid/version.py')
     with open(version_file, 'r') as f:
         exec(compile(f.read(), version_file, 'exec'))
     return locals()['__version__']
@@ -36,17 +37,16 @@ def numpy_include():
 ext_modules = [
     Extension(
         'torchreid.metrics.rank_cylib.rank_cy',
-        ['torchreid/metrics/rank_cylib/rank_cy.pyx'],
+        [osp.join(repo_root, 'torchreid/metrics/rank_cylib/rank_cy.pyx')],
         include_dirs=[numpy_include()],
     )
 ]
 
 
-def get_requirements(filename='requirements.txt'):
-    here = osp.dirname(osp.realpath(__file__))
+def get_requirements(filename):
     requires = []
     links = []
-    with open(osp.join(here, filename), 'r') as f:
+    with open(osp.join(repo_root, filename), 'r') as f:
         for line in f.readlines():
             line = line.replace('\n', '')
             if '-f http' in line:
@@ -55,19 +55,19 @@ def get_requirements(filename='requirements.txt'):
                 requires.append(line)
     return requires, links
 
-packages, links = get_requirements()
+packages, links = get_requirements('requirements.txt')
 
 setup(
     name='torchreid',
     version=find_version(),
-    description='A library for deep learning person re-ID in PyTorch',
-    author='Kaiyang Zhou',
-    license='MIT',
+    description='A library for deep learning object re-ID and classification in PyTorch',
+    author='Kaiyang Zhou, Intel Corporation',
+    license='Apache-2.0',
     long_description=readme(),
-    url='https://github.com/KaiyangZhou/deep-person-reid',
+    url='https://github.com/openvinotoolkit/deep-object-reid',
     dependency_links=links,
     packages=find_packages(),
     install_requires=packages,
-    keywords=['Person Re-Identification', 'Deep Learning', 'Computer Vision'],
+    keywords=['Object Re-Identification', 'Image Classification', 'Deep Learning', 'Computer Vision'],
     ext_modules=cythonize(ext_modules)
 )
