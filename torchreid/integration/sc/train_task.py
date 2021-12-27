@@ -78,9 +78,6 @@ class OTEClassificationTrainingTask(OTEClassificationInferenceTask, ITrainingTas
 
         return output
 
-    def set_lr_finder_enable_flag(self, enable_flag: bool):
-        self._cfg.lr_finder.enable = enable_flag
-
     def train(self, dataset: DatasetEntity, output_model: ModelEntity,
               train_parameters: Optional[TrainParameters] = None):
         """ Trains a model on a dataset """
