@@ -1,3 +1,16 @@
+# Copyright (c) 2018-2021 Kaiyang Zhou
+# SPDX-License-Identifier: MIT
+#
+# Copyright (c) 2017 Buslaev Alexander, Alexander Parinov, Vladimir Iglovikov
+# SPDX-License-Identifier: MIT
+#
+# Copyright (c) 2019 Ross Wightman
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2020-2021 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
 from __future__ import absolute_import, division, print_function
 import math
 import random

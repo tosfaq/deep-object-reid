@@ -1,3 +1,10 @@
+# Copyright (c) 2018-2021 Oleg Sémery
+# SPDX-License-Identifier: MIT
+#
+# Copyright (C) 2020-2021 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
 """
     Model store which provides pretrained models. The code imported from: https://github.com/osmr/imgclsmob
 """

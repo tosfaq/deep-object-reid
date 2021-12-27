@@ -1,3 +1,7 @@
+# Copyright (C) 2020-2021 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
 import torch
 from torch import nn
 import torch.nn.functional as F

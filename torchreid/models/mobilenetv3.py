@@ -1,3 +1,13 @@
+# Copyright (c) 2019 Duo LI
+# SPDX-License-Identifier: MIT
+#
+# Copyright (C) 2020-2021 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
+#  MobileNetV3 implementation from:
+#   https://github.com/d-li14/mobilenetv3.pytorch
+
 import math
 
 import torch.nn as nn
