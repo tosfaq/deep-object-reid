@@ -2,7 +2,7 @@ import logging
 import os
 import re
 
-from subprocess import run, CalledProcessError
+from subprocess import run, CalledProcessError  # nosec
 
 if __name__ == '__main__':
     ignored_patterns = [

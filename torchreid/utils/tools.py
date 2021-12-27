@@ -112,7 +112,7 @@ def download_url(url, dst):
         )
         sys.stdout.flush()
 
-    urllib.request.urlretrieve(url, dst, _reporthook)
+    urllib.request.urlretrieve(url, dst, _reporthook)  # nosec
     sys.stdout.write('\n')
 
 
