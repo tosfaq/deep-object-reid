@@ -270,12 +270,7 @@ class TrainingProgressCallback(TimeMonitorCallback):
     def on_epoch_end(self, epoch, logs=None):
         self.past_epoch_duration.append(time.time() - self.start_epoch_time)
         self._calculate_average_epoch()
-        score = None
-        if isinstance(logs, numpy.float64):
-            score = logs.item()
-        elif isinstance(logs, int):
-            score = float(logs)
-        self.update_progress_callback(self.get_progress(), score=score)
+        self.update_progress_callback(self.get_progress(), score=float(logs))
 
 
 class InferenceProgressCallback(TimeMonitorCallback):
