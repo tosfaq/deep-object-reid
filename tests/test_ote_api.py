@@ -26,6 +26,7 @@ from e2e_test_system import e2e_pytest_api
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind
 from ote_sdk.entities.datasets import Subset, DatasetEntity
 from ote_sdk.entities.dataset_item import DatasetItemEntity
+from ote_sdk.entities.id import ID
 from ote_sdk.entities.image import Image
 from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.entities.label import LabelEntity, Domain
@@ -76,7 +77,7 @@ def init_environment(params, model_template, number_of_images=10):
     colors = [(0,255,0), (0,0,255)]
     cls_names = ['b', 'g']
     texts = ['Blue', 'Green']
-    labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False) for i, name in
+    labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False, id=ID(i)) for i, name in
                 enumerate(cls_names)]
 
     items = []
