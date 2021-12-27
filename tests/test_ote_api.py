@@ -38,7 +38,7 @@ from ote_sdk.entities.train_parameters import TrainParameters
 from ote_sdk.configuration.helper import convert, create
 
 from torchreid.integration.sc.parameters import OTEClassificationParameters
-from torchreid.integration.sc.train_task import OTEClassificationTrainTask
+from torchreid.integration.sc.train_task import OTEClassificationTrainingTask
 from torchreid.integration.sc.utils import generate_label_schema
 
 
@@ -51,8 +51,8 @@ def test_reading_efficientnet_b0():
 
 
 @e2e_pytest_api
-def test_reading_mobilenet_v3_large_1():
-    parse_model_template(osp.join('configs', 'ote_custom_classification', 'mobilenet_v3_large_1', 'template.yaml'))
+def test_reading_mobilenet_v3_large_075():
+    parse_model_template(osp.join('configs', 'ote_custom_classification', 'mobilenet_v3_large_075', 'template.yaml'))
 
 
 @e2e_pytest_api
@@ -119,7 +119,7 @@ def init_environment(params, model_template, number_of_images=10):
 def default_task_setup():
     hyper_parameters, model_template = setup_configurable_parameters(DEFAULT_TEMPLATE_DIR, max_num_epochs=5)
     task_environment, dataset = init_environment(hyper_parameters, model_template, 20)
-    task = OTEClassificationTrainTask(task_environment=task_environment)
+    task = OTEClassificationTrainingTask(task_environment=task_environment)
 
     yield (task, task_environment, dataset)
 
