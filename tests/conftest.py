@@ -14,20 +14,6 @@ except ImportError:
 
 import config
 
-def pytest_addoption(parser):
-    if _e2e_pytest_addoption:
-        _e2e_pytest_addoption(parser)
-    parser.addoption('--dataset-definitions', action='store', default=None,
-                     help='Path to the dataset_definitions.yml file for tests that require datasets.')
-    parser.addoption('--test-usecase', action='store', default=None,
-                     help='Optional. If the parameter is set, it filters test_ote_training tests by usecase field.')
-    parser.addoption('--expected-metrics-file', action='store', default=None,
-                     help='Optional. If the parameter is set, it points the YAML file with expected test metrics.')
-
-    # TODO: remove this after updating CI scripts -- this parameter is not required any more
-    parser.addoption('--template-paths', action='store', default=None,
-                     help='Path to the template_paths.yml file for tests that require templates.')
-
 
 pytest_plugins = get_pytest_plugins_from_ote()
 

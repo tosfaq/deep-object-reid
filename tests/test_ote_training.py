@@ -100,7 +100,7 @@ def _create_classification_dataset_and_labels_schema(dataset_params):
     labels_schema = generate_label_schema(dataset.get_labels(), dataset.is_multilabel())
     return dataset, labels_schema
 
-def get_default_test_action_classes() -> List[Type[BaseOTETestAction]]:
+def get_image_classification_test_action_classes() -> List[Type[BaseOTETestAction]]:
     return [
         ClassificationTestTrainingAction,
         OTETestTrainingEvaluationAction,
@@ -117,7 +117,7 @@ def get_default_test_action_classes() -> List[Type[BaseOTETestAction]]:
 class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInterface):
     def test_case_class(self) -> Type[OTETestCaseInterface]:
         return generate_ote_integration_test_case_class(
-            get_default_test_action_classes()
+            get_image_classification_test_action_classes()
         )
 
     def test_bunches(self) -> List[Dict[str, Any]]:
@@ -170,7 +170,9 @@ class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInter
         }
         return deepcopy(DEFAULT_TEST_PARAMETERS)
 
-
+# TODO: This function copies with minor change OTETestTrainingAction
+#             from ote_sdk.test_suite.
+#             Try to avoid copying of code.
 class ClassificationTestTrainingAction(OTETestTrainingAction):
     _name = "training"
 
