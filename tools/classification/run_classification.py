@@ -7,7 +7,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from subprocess import run
+from subprocess import run # nosec
 import json
 
 import numpy as np
