@@ -13,7 +13,7 @@ import os
 import os.path as osp
 import gdown
 
-import pickle
+import pickle  # nosec
 import warnings
 from collections import OrderedDict
 from functools import partial

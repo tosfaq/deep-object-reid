@@ -193,7 +193,7 @@ def _check_sha1(file_name, sha1_hash):
     bool
         Whether the file content matches the expected hash.
     """
-    sha1 = hashlib.sha1()
+    sha1 = hashlib.sha1()  # nosec
     with open(file_name, "rb") as f:
         while True:
             data = f.read(1048576)

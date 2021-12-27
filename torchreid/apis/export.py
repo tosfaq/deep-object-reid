@@ -14,7 +14,7 @@
  limitations under the License.
 """
 
-from subprocess import run, DEVNULL, CalledProcessError
+from subprocess import run, DEVNULL, CalledProcessError  # nosec
 
 import onnx
 import torch
