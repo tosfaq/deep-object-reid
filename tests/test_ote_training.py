@@ -125,6 +125,7 @@ class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInter
                 dict(
                     model_name=[
                        'Custom_Image_Classification_EfficinetNet-B0',
+                       'Custom_Image_Classification_MobileNet-V3-large-1x',
                     ],
                     dataset_name='lg_chem_short',
                     usecase='precommit',
@@ -132,6 +133,7 @@ class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInter
                 dict(
                     model_name=[
                        'Custom_Image_Classification_EfficinetNet-B0',
+                       'Custom_Image_Classification_MobileNet-V3-large-1x',
                     ],
                     dataset_name=['lg_chem','cifar100'],
                     max_num_epochs=KEEP_CONFIG_FIELD_VALUE,
