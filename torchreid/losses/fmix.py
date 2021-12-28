@@ -126,7 +126,7 @@ def binarise_mask(mask, lam, in_shape, max_soft=0.0):
     """
     idx = mask.reshape(-1).argsort()[::-1]
     mask = mask.reshape(-1)
-    num = math.ceil(lam * mask.size) if random.random() > 0.5 else math.floor(lam * mask.size)
+    num = math.ceil(lam * mask.size) if random.random() > 0.5 else math.floor(lam * mask.size)  # nosec  # noqa
 
     eff_soft = max_soft
     if max_soft > lam or max_soft > (1-lam):
