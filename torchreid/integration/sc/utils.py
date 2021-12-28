@@ -76,8 +76,8 @@ class ClassificationDatasetAdapter(DatasetEntity):
         self.label_map = None
         self.labels = None
         self._set_labels_obtained_from_annotation()
-        self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False, id=ID(i)) for i, name in
-                               enumerate(self.labels)]
+        self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION,
+                                           is_empty=False, id=ID(i)) for i, name in enumerate(self.labels)]
 
         dataset_items = []
         for subset, subset_data in self.annotations.items():

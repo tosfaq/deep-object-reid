@@ -22,7 +22,6 @@ from pprint import pformat
 from typing import Any, Callable, Dict, List, Optional, Type
 
 import pytest
-import yaml
 from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.model_template import parse_model_template
 from ote_sdk.entities.model import (ModelEntity,
@@ -164,7 +163,7 @@ class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInter
             "batch_size",
         ]
         return deepcopy(DEFAULT_TEST_PARAMETERS_DEFINING_IMPL_BEHAVIOR)
-    
+
     def default_test_parameters(self) -> Dict[str, Any]:
         DEFAULT_TEST_PARAMETERS = {
             "max_num_epochs": 1,
