@@ -87,7 +87,7 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
         setattr(self, '__initial_lr', value)
 
     def _set_attributes_by_hyperparams(self):
-        logger.info(f'Hyperparameters: ')
+        logger.info('Hyperparameters: ')
         logger.info(f'maximal_accuracy_degradation = '
                     f'{self._hyperparams.nncf_optimization.maximal_accuracy_degradation}')
         logger.info(f'enable_quantization = {self._hyperparams.nncf_optimization.enable_quantization}')
@@ -114,7 +114,7 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
 
     def _load_model(self, model: ModelEntity, device: torch.device, pretrained_dict: Optional[Dict] = None):
         if model is None:
-            raise ValueError(f'No trained model in the project. NNCF require pretrained weights to compress the model')
+            raise ValueError('No trained model in the project. NNCF require pretrained weights to compress the model')
 
         if model.optimization_type == ModelOptimizationType.NNCF:
             logger.info('Skip loading the original model')
@@ -122,7 +122,7 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
 
         model_data = pretrained_dict if pretrained_dict else self._load_model_data(model, 'weights.pth')
         if is_nncf_state(model_data):
-            raise ValueError(f'Model optimization type is not consistent with the model checkpoint.')
+            raise ValueError('Model optimization type is not consistent with the model checkpoint.')
 
         self._initial_lr = model_data.get('initial_lr')
 
@@ -130,11 +130,11 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
 
     def _load_nncf_model(self, model: ModelEntity):
         if model is None:
-            raise ValueError(f'No NNCF trained model in project.')
+            raise ValueError('No NNCF trained model in project.')
 
         model_data = self._load_model_data(model, 'weights.pth')
         if not is_nncf_state(model_data):
-            raise ValueError(f'Model optimization type is not consistent with the NNCF model checkpoint.')
+            raise ValueError('Model optimization type is not consistent with the NNCF model checkpoint.')
         model = self._create_model(self._cfg, from_scratch=True)
 
         compression_ctrl, model, nncf_metainfo = wrap_nncf_model(model, self._cfg, checkpoint_dict=model_data)

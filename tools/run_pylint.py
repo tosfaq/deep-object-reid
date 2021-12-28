@@ -17,6 +17,8 @@ if __name__ == '__main__':
         'torchreid/metrics',
         'torchreid/optim',
         'torchreid/utils',
+        'tests/conftest.py',
+        'tests/config.py'
     ]
 
     to_pylint = []
@@ -29,7 +31,4 @@ if __name__ == '__main__':
                 if all(not re.match(pattern, rel_path) for pattern in ignored_patterns):
                     to_pylint.append(rel_path)
 
-    try:
-        run(['pylint'] + to_pylint, check=True)
-    except CalledProcessError:
-        logging.error('pylint check failed.')
+    run(['pylint'] + to_pylint, check=True)

@@ -32,7 +32,6 @@ def run_acc_aware_training_loop(engine, nncf_config, configure_optimizers_fn):
         def inner(*args, **kwargs):
             engine.epoch = kwargs['epoch']
             func()
-            return
 
         return inner
 

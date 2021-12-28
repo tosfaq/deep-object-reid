@@ -193,7 +193,8 @@ def wrap_nncf_model(model, cfg,
         nncf_metainfo = _get_nncf_metainfo_from_state(resuming_checkpoint)
         nncf_config_data = nncf_metainfo['nncf_config']
         datamanager_for_init = None
-        logger.info(f'Read NNCF metainfo with NNCF config from the checkpoint: nncf_metainfo=\n{pformat(nncf_metainfo)}')
+        logger.info(f'Read NNCF metainfo with NNCF config from the checkpoint:'
+                    f'nncf_metainfo=\n{pformat(nncf_metainfo)}')
     else:
         resuming_checkpoint = None
         nncf_config_data = cfg.get('nncf_config')
@@ -249,10 +250,10 @@ def wrap_nncf_model(model, cfg,
 
         model_type = get_model_attr(model, 'type')
         targets = list(test_loader.keys())
-        use_gpu = True if 'cuda' == cur_device.type else False
+        use_gpu = cur_device.type == 'cuda'
         for dataset_name in targets:
             domain = 'source' if dataset_name in datamanager_for_init.sources else 'target'
-            print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
+            print(f'##### Evaluating {dataset_name} ({domain}) #####')
             if model_type == 'classification':
                 cmc, _, _ = evaluate_classification(
                     test_loader[dataset_name]['query'],

@@ -26,7 +26,7 @@ from addict import Dict as ADDict
 
 import numpy as np
 
-import ote_sdk.usecases.exportable_code.demo as demo
+from ote_sdk.usecases.exportable_code import demo
 from ote_sdk.entities.annotation import AnnotationSceneEntity
 from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.inference_parameters import InferenceParameters, default_progress_callback
@@ -98,7 +98,8 @@ class OpenVINOClassificationInferencer(BaseInferencer):
 
         self.label_schema = label_schema
 
-        model_adapter = OpenvinoAdapter(create_core(), model_file, weight_file, device=device, max_num_requests=num_requests)
+        model_adapter = OpenvinoAdapter(create_core(), model_file, weight_file,
+                                        device=device, max_num_requests=num_requests)
         self.configuration = {'multilabel': multilabel}
         self.model = Model.create_model("ote_classification", model_adapter, self.configuration, preload=True)
 
@@ -194,13 +195,13 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
                             '--dist-dir', tempdir, 'clean', '--all'], check=True)
             wheel_file_name = [f for f in os.listdir(tempdir) if f.endswith('.whl')][0]
 
-            with ZipFile(os.path.join(tempdir, "openvino.zip"), 'w') as zip:
-                zip.writestr(os.path.join("model", "model.xml"), self.model.get_data("openvino.xml"))
-                zip.writestr(os.path.join("model", "model.bin"), self.model.get_data("openvino.bin"))
-                zip.write(os.path.join(tempdir, "requirements.txt"), os.path.join("python", "requirements.txt"))
-                zip.write(os.path.join(work_dir, "README.md"), os.path.join("python", "README.md"))
-                zip.write(os.path.join(work_dir, "demo.py"), os.path.join("python", "demo.py"))
-                zip.write(os.path.join(tempdir, wheel_file_name), os.path.join("python", wheel_file_name))
+            with ZipFile(os.path.join(tempdir, "openvino.zip"), 'w') as zip_f:
+                zip_f.writestr(os.path.join("model", "model.xml"), self.model.get_data("openvino.xml"))
+                zip_f.writestr(os.path.join("model", "model.bin"), self.model.get_data("openvino.bin"))
+                zip_f.write(os.path.join(tempdir, "requirements.txt"), os.path.join("python", "requirements.txt"))
+                zip_f.write(os.path.join(work_dir, "README.md"), os.path.join("python", "README.md"))
+                zip_f.write(os.path.join(work_dir, "demo.py"), os.path.join("python", "demo.py"))
+                zip_f.write(os.path.join(tempdir, wheel_file_name), os.path.join("python", wheel_file_name))
             with open(os.path.join(tempdir, "openvino.zip"), "rb") as file:
                 output_model.exportable_code = file.read()
         logger.info('Deploying completed')
