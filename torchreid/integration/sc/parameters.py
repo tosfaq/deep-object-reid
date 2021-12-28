@@ -70,6 +70,13 @@ class OTEClassificationParameters(ConfigurableParameters):
             affects_outcome_of=ModelLifecycle.TRAINING
         )
 
+        enable_lr_finder = configurable_boolean(
+            default_value=False,
+            header="Enable automatic learing rate estimation",
+            description="Learning rate parameter value will be ignored if enabled.",
+            affects_outcome_of=ModelLifecycle.TRAINING
+        )
+
     @attrs
     class __NNCFOptimization(ParameterGroup):
         header = string_attribute("Optimization by NNCF")
