@@ -18,7 +18,9 @@ if __name__ == '__main__':
         'torchreid/optim',
         'torchreid/utils',
         'tests/conftest.py',
-        'tests/config.py'
+        'tests/config.py',
+        'torchreid/integration/sc/model_wrappers/classification.py',
+        'tests/test_ote_training.py'
     ]
 
     to_pylint = []
