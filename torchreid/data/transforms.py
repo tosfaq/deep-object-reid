@@ -37,7 +37,7 @@ class RandomHorizontalFlip(object):
         self.p = p
 
     def __call__(self, input_tuple):
-        if random.random() > self.p:
+        if random.random() > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
@@ -84,7 +84,7 @@ class RandomCrop(object):
             assert self.target_ar is not None and self.target_ar > 0
 
     def __call__(self, input_tuple, *args, **kwargs):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
@@ -92,7 +92,7 @@ class RandomCrop(object):
 
         if self.align_ar:
             source_ar = float(img_height) / float(img_width)
-            target_ar = random.uniform(min(source_ar, self.target_ar), max(source_ar, self.target_ar))
+            target_ar = random.uniform(min(source_ar, self.target_ar), max(source_ar, self.target_ar))  # nosec  # noqa
 
             if target_ar < source_ar:
                 max_crop_width = img_width
@@ -117,7 +117,7 @@ class RandomCrop(object):
         if self.static:
             scale = min_scale
         else:
-            scale = random.uniform(min_scale, 1.0)
+            scale = random.uniform(min_scale, 1.0)  # nosec
         crop_width = int(round(scale * max_crop_width))
         crop_height = int(round(scale * max_crop_height))
 
@@ -136,8 +136,8 @@ class RandomCrop(object):
             x_shift_range = 0, img_width - crop_width
             y_shift_range = 0, img_height - crop_height
 
-        x1 = int(round(random.uniform(*x_shift_range)))
-        y1 = int(round(random.uniform(*y_shift_range)))
+        x1 = int(round(random.uniform(*x_shift_range)))  # nosec
+        y1 = int(round(random.uniform(*y_shift_range)))  # nosec
 
         img = img[y1 : y1 + crop_height, x1 : x1 + crop_width]
         mask = mask[y1 : y1 + crop_height, x1 : x1 + crop_width] if mask != '' else mask
@@ -175,7 +175,7 @@ class RandomErasing(object):
             self.fill_color = None
 
     def __call__(self, input_tuple, *args, **kwargs):
-        if random.uniform(0, 1) > self.probability:
+        if random.uniform(0, 1) > self.probability:  # nosec
             return input_tuple
 
         img, mask = input_tuple
@@ -183,17 +183,17 @@ class RandomErasing(object):
 
         for attempt in range(100):
             source_area = img_size[0] * img_size[1]
-            target_area = random.uniform(self.sl, self.sh) * source_area
-            aspect_ratio = random.uniform(self.rl, self.rh)
+            target_area = random.uniform(self.sl, self.sh) * source_area  # nosec
+            aspect_ratio = random.uniform(self.rl, self.rh)  # nosec
 
             h = int(round(math.sqrt(target_area * aspect_ratio)))
             w = int(round(math.sqrt(target_area / aspect_ratio)))
 
             if w < img_size[1] and h < img_size[0]:
-                x1 = random.randint(0, img_size[0] - h)
-                y1 = random.randint(0, img_size[1] - w)
+                x1 = random.randint(0, img_size[0] - h)  # nosec
+                y1 = random.randint(0, img_size[1] - w)  # nosec
 
-                fill_color = self.fill_color if self.fill_color is not None else [random.randint(0, 255)] * 3
+                fill_color = self.fill_color if self.fill_color is not None else [random.randint(0, 255)] * 3  # nosec  # noqa
                 if self.norm_image:
                     fill_color = np.array(fill_color) / 255.0
 
@@ -229,7 +229,7 @@ class ColorAugmentation(object):
         self.eig_val = torch.Tensor([[0.2175, 0.0188, 0.0045]])
 
     def __call__(self, input_tuple, *args, **kwargs):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         tensor, mask = input_tuple
@@ -275,8 +275,8 @@ class RandomPatch(object):
     def generate_wh(self, W, H):
         area = W * H
         for attempt in range(100):
-            target_area = random.uniform(self.patch_min_area, self.patch_max_area) * area
-            aspect_ratio = random.uniform(self.patch_min_ratio, 1.0 / self.patch_min_ratio)
+            target_area = random.uniform(self.patch_min_area, self.patch_max_area) * area  # nosec  # noqa
+            aspect_ratio = random.uniform(self.patch_min_ratio, 1.0 / self.patch_min_ratio)  # nosec  # noqa
             h = int(round(math.sqrt(target_area * aspect_ratio)))
             w = int(round(math.sqrt(target_area / aspect_ratio)))
             if w < W and h < H:
@@ -285,10 +285,10 @@ class RandomPatch(object):
         return None, None
 
     def transform_patch(self, patch):
-        if random.uniform(0, 1) > self.prob_flip_leftright:
+        if random.uniform(0, 1) > self.prob_flip_leftright:  # nosec
             patch = patch.transpose(Image.FLIP_LEFT_RIGHT)
-        if random.uniform(0, 1) > self.prob_rotate:
-            patch = patch.rotate(random.randint(-10, 10))
+        if random.uniform(0, 1) > self.prob_rotate:  # nosec
+            patch = patch.rotate(random.randint(-10, 10))  # nosec
         return patch
 
     def __call__(self, input_tuple):
@@ -299,22 +299,22 @@ class RandomPatch(object):
         # collect new patch
         w, h = self.generate_wh(W, H)
         if w is not None and h is not None:
-            x1 = random.randint(0, W - w)
-            y1 = random.randint(0, H - h)
+            x1 = random.randint(0, W - w)  # nosec
+            y1 = random.randint(0, H - h)  # nosec
             new_patch = img.crop((x1, y1, x1 + w, y1 + h))
             self.patchpool.append(new_patch)
 
         if len(self.patchpool) < self.min_sample_size:
             return img, mask
 
-        if random.uniform(0, 1) > self.prob_happen:
+        if random.uniform(0, 1) > self.prob_happen:  # nosec
             return img, mask
 
         # paste a randomly selected patch on a random position
         patch = random.sample(self.patchpool, 1)[0]
         patchW, patchH = patch.size
-        x1 = random.randint(0, W - patchW)
-        y1 = random.randint(0, H - patchH)
+        x1 = random.randint(0, W - patchW)  # nosec
+        y1 = random.randint(0, H - patchH)  # nosec
         patch = self.transform_patch(patch)
         img.paste(patch, (x1, y1))
 
@@ -327,7 +327,7 @@ class RandomAugment(RandAugment):
         super().__init__()
 
     def __call__(self, input_tuple):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
@@ -341,7 +341,7 @@ class RandomColorJitter(ColorJitter):
         super().__init__(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)
 
     def __call__(self, input_tuple):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
@@ -355,7 +355,7 @@ class RandomGrayscale(object):
         self.p = p
 
     def __call__(self, input_tuple):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
@@ -370,7 +370,7 @@ class Equalize(object):
         self.p = p
 
     def __call__(self, input_tuple):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
@@ -384,9 +384,9 @@ class Posterize(object):
         self.bits = bits
 
     def __call__(self, input_tuple):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
-        bit = random.randint(self.bits, 6)
+        bit = random.randint(self.bits, 6)  # nosec
 
         img, mask = input_tuple
         img = ImageOps.posterize(img, bit)
@@ -398,7 +398,7 @@ class RandomNegative(object):
         self.p = p
 
     def __call__(self, input_tuple):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
@@ -432,15 +432,15 @@ class RandomRotate(object):
         self.values = values
 
     def __call__(self, input_tuple, *args, **kwargs):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
 
         if self.discrete:
-            rnd_angle = float(self.values[random.randint(0, len(self.values) - 1)])
+            rnd_angle = float(self.values[random.randint(0, len(self.values) - 1)])  # nosec
         else:
-            rnd_angle = random.randint(self.angle[0], self.angle[1])
+            rnd_angle = random.randint(self.angle[0], self.angle[1])  # nosec
 
         img = F.rotate(img, rnd_angle, expand=False, center=None)
         if mask != '':
@@ -502,19 +502,19 @@ class CoarseDropout(object):
 
     def __call__(self, input_tuple):
 
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
         height, width = img.size
 
         holes = []
-        for _n in range(random.randint(self.min_holes, self.max_holes)):
-            hole_height = random.randint(self.min_height, self.max_height)
-            hole_width = random.randint(self.min_width, self.max_width)
+        for _n in range(random.randint(self.min_holes, self.max_holes)):  # nosec
+            hole_height = random.randint(self.min_height, self.max_height)  # nosec
+            hole_width = random.randint(self.min_width, self.max_width)  # nosec
 
-            y1 = random.randint(0, height - hole_height)
-            x1 = random.randint(0, width - hole_width)
+            y1 = random.randint(0, height - hole_height)  # nosec
+            x1 = random.randint(0, width - hole_width)  # nosec
             y2 = y1 + hole_height
             x2 = x1 + hole_width
             holes.append((x1, y1, x2, y2))
@@ -544,7 +544,7 @@ class Cutout(object):
         self.fill_color = fill_color
 
     def __call__(self, input_tuple):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, img_mask = input_tuple
@@ -560,7 +560,7 @@ class Cutout(object):
         x1 = np.clip(x_c - w_cutout // 2, 0, w)
         x2 = np.clip(x_c + w_cutout // 2, 0, w)
         if self.fill_color == 'random':
-            fill_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+            fill_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))  # nosec
         else:
             assert isinstance(self.fill_color, (tuple, list))
             fill_color = self.fill_color
@@ -580,19 +580,19 @@ class RandomGrid(object):
         self.angle = angle
 
     def __call__(self, input_tuple, *args, **kwargs):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
 
         if self.color == (-1, -1, -1):  # Random color
-            color = tuple([random.randint(0, 256) for _ in range(3)])
+            color = tuple([random.randint(0, 256) for _ in range(3)])  # nosec
         else:
             color = self.color
 
-        grid_size = random.randint(*self.grid_size)
-        thickness = random.randint(*self.thickness)
-        angle = random.randint(*self.angle)
+        grid_size = random.randint(*self.grid_size)  # nosec
+        thickness = random.randint(*self.thickness)  # nosec
+        angle = random.randint(*self.angle)  # nosec
 
         return self.draw_grid(img, grid_size, color, thickness, angle), mask
 
@@ -616,7 +616,7 @@ class RandomGrid(object):
             rot_mat = cv2.getRotationMatrix2D(center, angle, 1.0)
             mask = cv2.warpAffine(mask, rot_mat, (mask_w, mask_h), flags=cv2.INTER_LINEAR)
 
-        offset = (random.randint(-16, 16), random.randint(16, 16))
+        offset = (random.randint(-16, 16), random.randint(16, 16))  # nosec
         center = (center[0] + offset[0], center[1] + offset[1])
         mask = mask[center[1] - h // 2: center[1] + h // 2, center[0] - w // 2: center[0] + w // 2, :]
         mask = cv2.resize(mask, (w, h))
@@ -655,29 +655,29 @@ class RandomFigures(object):
                     raise ValueError('Unknown figure: {}'.format(figure))
 
     def __call__(self, input_tuple):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         cv_image, mask = input_tuple
 
         if self.always_single_figure:
-            figure = [self.figures[random.randint(0, len(self.figures) - 1)]]
+            figure = [self.figures[random.randint(0, len(self.figures) - 1)]]  # nosec  # noqa
         else:
             figure = []
             for i in range(len(self.figures)):
-                if random.uniform(0, 1) > self.figure_prob:
+                if random.uniform(0, 1) > self.figure_prob:  # nosec
                     figure.append(self.figures[i])
 
         h, w = cv_image.shape[:2]
         for f in figure:
-            p1 = (random.randint(0, w), random.randint(0, h))
-            p2 = (random.randint(0, w), random.randint(0, h))
-            color = tuple([random.randint(0, 256) for _ in range(3)]) if self.random_color else (0, 0, 0)
-            thickness = random.randint(*self.thicknesses)
+            p1 = (random.randint(0, w), random.randint(0, h))  # nosec
+            p2 = (random.randint(0, w), random.randint(0, h))  # nosec
+            color = tuple([random.randint(0, 256) for _ in range(3)]) if self.random_color else (0, 0, 0)  # nosec  # noqa
+            thickness = random.randint(*self.thicknesses)  # nosec
             if f != cv2.circle:
                 cv_image = f(cv_image, p1, p2, color, thickness)
             else:
-                r = random.randint(*self.circle_radiuses)
+                r = random.randint(*self.circle_radiuses)  # nosec
                 cv_image = f(cv_image, p1, r, color, thickness)
 
         return cv_image, mask
@@ -735,7 +735,7 @@ class GaussianBlur(object):
         self.k = k
 
     def __call__(self, input_tuple, *args, **kwargs):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
@@ -757,7 +757,7 @@ class GaussianNoise(object):
         self.grayscale = grayscale
 
     def __call__(self, input_tuple, *args, **kwargs):
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
@@ -817,18 +817,18 @@ class MixUp(object):
 
         x_max_range = new_width - trg_image_width
         y_max_range = new_height - trg_image_height
-        x1 = int(round(random.uniform(0, x_max_range)))
-        y1 = int(round(random.uniform(0, y_max_range)))
+        x1 = int(round(random.uniform(0, x_max_range)))  # nosec
+        y1 = int(round(random.uniform(0, y_max_range)))  # nosec
 
         image = image.crop((x1, y1, x1 + trg_image_width, y1 + trg_image_height))
 
-        if random.uniform(0, 1) > 0.5:
+        if random.uniform(0, 1) > 0.5:  # nosec
             image = image.transpose(Image.FLIP_LEFT_RIGHT)
 
         return image
 
     def __call__(self, input_tuple, *args, **kwargs):
-        if not self.enable or random.uniform(0, 1) > self.p:
+        if not self.enable or random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
@@ -836,7 +836,7 @@ class MixUp(object):
         alpha = np.random.beta(self.alpha, self.alpha)
         alpha = alpha if alpha < 0.5 else 1.0 - alpha
 
-        surrogate_image_idx = random.randint(0, len(self.surrogate_image_paths) - 1)
+        surrogate_image_idx = random.randint(0, len(self.surrogate_image_paths) - 1)  # nosec  # noqa
         surrogate_image = self._load_surrogate_image(surrogate_image_idx, img.size)
 
         float_img = np.array(img).astype(np.float32)
@@ -883,25 +883,25 @@ class RandomBackgroundSubstitution(object):
 
         x_max_range = new_width - trg_image_width
         y_max_range = new_height - trg_image_height
-        x1 = int(round(random.uniform(0, x_max_range)))
-        y1 = int(round(random.uniform(0, y_max_range)))
+        x1 = int(round(random.uniform(0, x_max_range)))  # nosec
+        y1 = int(round(random.uniform(0, y_max_range)))  # nosec
 
         image = image.crop((x1, y1, x1 + trg_image_width, y1 + trg_image_height))
 
-        if random.uniform(0, 1) > 0.5:
+        if random.uniform(0, 1) > 0.5:  # nosec
             image = image.transpose(Image.FLIP_LEFT_RIGHT)
 
         return image
 
     def __call__(self, input_tuple, *args, **kwargs):
-        if not self.enable or random.uniform(0, 1) > self.p:
+        if not self.enable or random.uniform(0, 1) > self.p:  # nosec
             return input_tuple
 
         img, mask = input_tuple
         if mask == '':
             return input_tuple
 
-        surrogate_image_idx = random.randint(0, len(self.surrogate_image_paths) - 1)
+        surrogate_image_idx = random.randint(0, len(self.surrogate_image_paths) - 1)  # nosec  # noqa
         surrogate_image = self._load_bg_image(surrogate_image_idx, img.size)
 
         src_img = np.array(img)
@@ -1075,7 +1075,7 @@ class OpsFabric:
         def _interpolation(kwargs):
             interpolation = kwargs.pop('resample', Image.BILINEAR)
             if isinstance(interpolation, (list, tuple)):
-                return random.choice(interpolation)
+                return random.choice(interpolation)  # nosec
             else:
                 return interpolation
 
@@ -1118,7 +1118,7 @@ class OpsFabric:
     @staticmethod
     def randomly_negate(v):
         """With 50% prob, negate the value"""
-        return -v if random.random() > 0.5 else v
+        return -v if random.random() > 0.5 else v  # nosec
 
     def shear_x(self, img, factor, **kwargs):
         self.check_args_tf(kwargs)
@@ -1188,12 +1188,12 @@ class OpsFabric:
         return 256 - self._solarize_level_to_arg(level, _hparams)[0],
 
     def __call__(self, img):
-        if self.prob < 1.0 and random.random() > self.prob:
+        if self.prob < 1.0 and random.random() > self.prob:  # nosec
             return img
         magnitude = self.magnitude
         if self.magnitude_std:
             if self.magnitude_std == float('inf'):
-                magnitude = random.uniform(0, magnitude)
+                magnitude = random.uniform(0, magnitude)  # nosec
             elif self.magnitude_std > 0:
                 magnitude = random.gauss(magnitude, self.magnitude_std)
         magnitude = min(self.max_level, max(0, magnitude))  # clip to valid range
