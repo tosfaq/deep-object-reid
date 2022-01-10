@@ -57,7 +57,7 @@ class AsymmetricLoss(nn.Module):
             self.loss *= self.asymmetric_w
 
         # sum reduction over batch
-        return - self.loss.sum() / inputs.size(0)
+        return - self.loss.sum()
 
 
 class AMBinaryLoss(nn.Module):
