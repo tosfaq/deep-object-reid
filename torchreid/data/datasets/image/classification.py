@@ -3,11 +3,11 @@
 #
 
 from __future__ import absolute_import, division, print_function
+from collections import defaultdict
 import os
 import os.path as osp
 import json
 
-from PIL import Image
 import torch
 
 from ..dataset import ImageDataset
@@ -107,6 +107,13 @@ class ExternalDatasetWrapper(ImageDataset):
 
         super().__init__(train, query, gallery, mode=mode, **kwargs)
 
+
+        # restore missing classes in train
+        if mode == 'train':
+            for i, _ in enumerate(data_provider.get_classes()):
+                if i not in self.data_counts[0]:
+                    self.data_counts[dataset_id][i] = 0
+        self.num_train_pids = {dataset_id : len(data_provider.get_classes())}
         self.classes = classes
 
     def __len__(self):
