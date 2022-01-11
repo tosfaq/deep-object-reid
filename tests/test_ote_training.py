@@ -24,8 +24,7 @@ from typing import Any, Callable, Dict, List, Optional, Type
 import pytest
 from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.model_template import parse_model_template
-from ote_sdk.entities.model import (ModelEntity,
-                                    ModelStatus)
+from ote_sdk.entities.model import ModelEntity
 from ote_sdk.configuration.helper import create as ote_sdk_configuration_helper_create
 
 from torchreid.integration.sc.utils import (ClassificationDatasetAdapter,
@@ -234,16 +233,12 @@ class ClassificationTestTrainingAction(OTETestTrainingAction):
         logger.debug("Train model")
         self.output_model = ModelEntity(
             self.dataset,
-            self.environment.get_model_configuration(),
-            model_status=ModelStatus.NOT_READY,
+            self.environment.get_model_configuration()
         )
 
         self.copy_hyperparams = deepcopy(self.task._hyperparams)
 
         self.task.train(self.dataset, self.output_model)
-        assert (
-            self.output_model.model_status == ModelStatus.SUCCESS
-        ), "Training was failed"
 
         score_name, score_value = self._get_training_performance_as_score_name_value()
         logger.info(f"performance={self.output_model.performance}")

@@ -30,7 +30,7 @@ from ote_sdk.entities.id import ID
 from ote_sdk.entities.image import Image
 from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.entities.label import LabelEntity, Domain
-from ote_sdk.entities.model import ModelEntity, ModelStatus
+from ote_sdk.entities.model import ModelEntity
 from ote_sdk.entities.model_template import parse_model_template
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.scored_label import ScoredLabel
@@ -77,13 +77,13 @@ def init_environment(params, model_template, number_of_images=10):
     colors = [(0,255,0), (0,0,255)]
     cls_names = ['b', 'g']
     texts = ['Blue', 'Green']
-    labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False, id=ID(i)) for i, name in
-                enumerate(cls_names)]
+    env_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION, is_empty=False, id=ID(i)) for i, name in
+                  enumerate(cls_names)]
 
     items = []
 
     for _ in range(0, number_of_images):
-        for j, lbl in enumerate(labels):
+        for j, lbl in enumerate(env_labels):
             class_img = np.zeros((*resolution, 3), dtype=np.uint8)
             class_img[:] = colors[j]
             class_img = cv.putText(class_img, texts[j], (50, 50), cv.FONT_HERSHEY_SIMPLEX,
@@ -141,7 +141,6 @@ def test_training_progress_tracking(default_task_setup):
     output_model = ModelEntity(
         dataset,
         task_environment.get_model_configuration(),
-        model_status=ModelStatus.NOT_READY
     )
     task.train(dataset, output_model, train_parameters)
 
