@@ -23,7 +23,7 @@ import torchreid
 from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.metrics import (CurveMetric, LineChartInfo, LineMetricsGroup,
                                       MetricsGroup, Performance, ScoreMetric)
-from ote_sdk.entities.model import ModelEntity, ModelStatus
+from ote_sdk.entities.model import ModelEntity
 from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.entities.train_parameters import default_progress_callback, TrainParameters
