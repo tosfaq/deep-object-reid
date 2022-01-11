@@ -154,7 +154,6 @@ class OTEClassificationTrainingTask(OTEClassificationInferenceTask, ITrainingTas
                 self._aux_model_snap_paths[aux_model_name] = best_aux_snap_path
 
         self.save_model(output_model)
-        output_model.model_status = ModelStatus.SUCCESS
         performance = Performance(score=ScoreMetric(value=final_acc, name="accuracy"),
                                   dashboard_metrics=training_metrics)
         logger.info(f'FINAL MODEL PERFORMANCE {performance}')
