@@ -188,6 +188,9 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
             For example, when results are generated for evaluation purposes, Saliency maps can be turned off.
         :return: Dataset that also includes the classification results
         """
+        if len(dataset) == 0:
+            logger.warning("Empty dataset has been passed for the inference.")
+            return dataset
 
         if inference_parameters is not None:
             update_progress_callback = inference_parameters.update_progress
