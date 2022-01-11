@@ -24,7 +24,7 @@ import torch
 import torchreid
 from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.model import (ModelEntity, ModelFormat, ModelOptimizationType, ModelPrecision,
-                                    ModelStatus, OptimizationMethod)
+                                    OptimizationMethod)
 from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.task_environment import TaskEnvironment
@@ -235,7 +235,6 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
 
         self.save_model(output_model)
 
-        output_model.model_status = ModelStatus.SUCCESS
         output_model.model_format = ModelFormat.BASE_FRAMEWORK
         output_model.optimization_type = self._optimization_type
         output_model.optimization_methods = self._optimization_methods
