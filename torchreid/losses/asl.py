@@ -3,61 +3,51 @@ from torch import nn
 import torch.nn.functional as F
 
 class AsymmetricLoss(nn.Module):
-    ''' Notice - optimized version, minimizes memory allocation and gpu uploading,
-    favors inplace operations'''
-
-    def __init__(self, gamma_neg=4, gamma_pos=0,
-                    probability_margin=0.05, eps=1e-8,
-                    label_smooth=0.):
-        super().__init__()
+    def __init__(self, gamma_neg=4, gamma_pos=1, clip=0.05, eps=1e-8, disable_torch_grad_focal_loss=True):
+        super(AsymmetricLoss, self).__init__()
 
         self.gamma_neg = gamma_neg
         self.gamma_pos = gamma_pos
-        self.label_smooth = label_smooth
-        self.clip = probability_margin
+        self.clip = clip
+        self.disable_torch_grad_focal_loss = disable_torch_grad_focal_loss
         self.eps = eps
 
-        # prevent memory allocation and gpu uploading every iteration, and encourages inplace operations
-        self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
-
-    def get_last_scale(self):
-        return 1.
-
-    def forward(self, inputs, targets, scale=1.):
+    def forward(self, x, y):
         """"
         Parameters
         ----------
-        inputs: input logits
-        targets: targets (multi-label binarized vector)
+        x: input logits
+        y: targets (multi-label binarized vector)
         """
-        if self.label_smooth > 0:
-            targets = targets * (1-self.label_smooth)
-            targets[targets == 0] = self.label_smooth
-
-        self.anti_targets = 1 - targets
 
         # Calculating Probabilities
-        self.xs_pos = torch.sigmoid(scale * inputs)
-        self.xs_neg = 1.0 - self.xs_pos
+        x_sigmoid = torch.sigmoid(x)
+        xs_pos = x_sigmoid
+        xs_neg = 1 - x_sigmoid
 
         # Asymmetric Clipping
         if self.clip is not None and self.clip > 0:
-            self.xs_neg.add_(self.clip).clamp_(max=1)
+            xs_neg = (xs_neg + self.clip).clamp(max=1)
 
-        # Basic BCE calculation
-        self.loss = targets * torch.log(self.xs_pos.clamp(min=self.eps))
-        self.loss.add_(self.anti_targets * torch.log(self.xs_neg.clamp(min=self.eps)))
+        # Basic CE calculation
+        los_pos = y * torch.log(xs_pos.clamp(min=self.eps))
+        los_neg = (1 - y) * torch.log(xs_neg.clamp(min=self.eps))
+        loss = los_pos + los_neg
 
         # Asymmetric Focusing
         if self.gamma_neg > 0 or self.gamma_pos > 0:
-            self.xs_pos = self.xs_pos * targets
-            self.xs_neg = self.xs_neg * self.anti_targets
-            self.asymmetric_w = torch.pow(1 - self.xs_pos - self.xs_neg,
-                                          self.gamma_pos * targets + self.gamma_neg * self.anti_targets)
-            self.loss *= self.asymmetric_w
+            if self.disable_torch_grad_focal_loss:
+                torch.set_grad_enabled(False)
+            pt0 = xs_pos * y
+            pt1 = xs_neg * (1 - y)  # pt = p if t > 0 else 1-p
+            pt = pt0 + pt1
+            one_sided_gamma = self.gamma_pos * y + self.gamma_neg * (1 - y)
+            one_sided_w = torch.pow(1 - pt, one_sided_gamma)
+            if self.disable_torch_grad_focal_loss:
+                torch.set_grad_enabled(True)
+            loss *= one_sided_w
 
-        # sum reduction over batch
-        return - self.loss.sum()
+        return -loss.sum()
 
 
 class AMBinaryLoss(nn.Module):
@@ -122,4 +112,4 @@ class AMBinaryLoss(nn.Module):
         if self.asymmetric_focus:
             self.loss *= one_sided_w
 
-        return - self.loss.sum() / cos_theta.size(0)
+        return - self.loss.sum()
