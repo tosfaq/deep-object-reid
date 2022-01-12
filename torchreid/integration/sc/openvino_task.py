@@ -232,9 +232,8 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
 
             model = load_model(model_config)
 
-            if get_nodes_by_type(model, ['FakeQuantize']):
-                logger.warning("Model is already optimized by POT")
-                return
+            if get_nodes_by_type(model, ["FakeQuantize"]):
+                raise RuntimeError("Model is already optimized by POT")
 
         engine_config = ADDict({
             'device': 'CPU'
