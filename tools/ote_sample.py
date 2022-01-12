@@ -20,7 +20,7 @@ import time
 from ote_sdk.configuration.helper import create
 from ote_sdk.entities.datasets import Subset
 from ote_sdk.entities.inference_parameters import InferenceParameters
-from ote_sdk.entities.model import ModelEntity, ModelPrecision, ModelStatus
+from ote_sdk.entities.model import ModelEntity, ModelPrecision
 from ote_sdk.entities.model_template import parse_model_template
 from ote_sdk.entities.optimization_parameters import OptimizationParameters
 from ote_sdk.entities.resultset import ResultSetEntity
@@ -107,7 +107,7 @@ def main(args):
         trained_model = ModelEntity(
             train_dataset=dataset,
             configuration=environment.get_model_configuration(),
-            model_status=ModelStatus.NOT_READY)
+        )
 
         print(f'Create base Task')
         task_impl_path = model_template.entrypoints.base
@@ -132,7 +132,7 @@ def main(args):
             configuration=environment.get_model_configuration(),
             model_adapters=model_adapters,
             precision = [ModelPrecision.FP32],
-            model_status = ModelStatus.SUCCESS)
+        )
         environment.model = trained_model
 
         task_name = task_impl_path.split('.')[-1]
@@ -156,7 +156,7 @@ def main(args):
         output_model = ModelEntity(
             dataset,
             environment.get_model_configuration(),
-            model_status=ModelStatus.NOT_READY)
+        )
         task.optimize(OptimizationType.NNCF, dataset, output_model, None)
 
         validate(task, validation_dataset, output_model)
@@ -166,7 +166,7 @@ def main(args):
         exported_model = ModelEntity(
             dataset,
             environment.get_model_configuration(),
-            model_status=ModelStatus.NOT_READY)
+        )
         task.export(ExportType.OPENVINO, exported_model)
 
         print('Create OpenVINO Task')
@@ -182,7 +182,7 @@ def main(args):
             optimized_model = ModelEntity(
                 dataset,
                 environment.get_model_configuration(),
-                model_status=ModelStatus.NOT_READY)
+            )
             openvino_task.optimize(
                 OptimizationType.POT,
                 dataset.get_subset(Subset.TRAINING),
