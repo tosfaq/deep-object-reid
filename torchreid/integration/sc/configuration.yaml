@@ -56,6 +56,20 @@ learning_parameters:
       type: UI_RULES
     visible_in_ui: true
     warning: null
+  enable_early_stopping:
+    affects_outcome_of: TRAINING
+    default_value: true
+    description: Adaptive early exit from training when accuracy isn't changed or decreased for several epochs.
+    editable: true
+    header: Enable adaptive early stopping of the training
+    type: BOOLEAN
+    ui_rules:
+      action: DISABLE_EDITING
+      operator: AND
+      rules: []
+      type: UI_RULES
+    visible_in_ui: false
+    warning: null
   enable_lr_finder:
     affects_outcome_of: TRAINING
     default_value: false

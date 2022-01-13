@@ -58,7 +58,7 @@ class Engine:
                  train_patience = 10,
                  lr_decay_factor = 1000,
                  lr_finder = None,
-                 early_stoping=False,
+                 early_stopping=False,
                  should_freeze_aux_models=False,
                  nncf_metainfo=None,
                  compression_ctrl=None,
@@ -88,7 +88,7 @@ class Engine:
         self.target_metric = target_metric
         self.epoch = None
         self.train_patience = train_patience
-        self.early_stoping = early_stoping
+        self.early_stopping = early_stopping
         self.state_cacher = StateCacher(in_memory=True, cache_dir=None)
         self.param_history = set()
         self.seed = seed
@@ -341,7 +341,7 @@ class Engine:
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch
         assert start_epoch != max_epoch, "the last epoch number cannot be equal the start one"
-        if self.early_stoping or self.target_metric == 'test_acc':
+        if self.early_stopping or self.target_metric == 'test_acc':
             assert eval_freq == 1, "early stopping works only with evaluation on each epoch"
         self.fixbase_epoch = fixbase_epoch
         test_acc = AverageMeter()
@@ -413,7 +413,7 @@ class Engine:
             if not lr_finder:
                 # use smooth (average) accuracy metric for early stopping if the target metric is accuracy
                 should_exit, is_candidate_for_best = self.exit_on_plateau_and_choose_best(accuracy)
-                should_exit = self.early_stoping and should_exit
+                should_exit = self.early_stopping and should_exit
 
                 if self.save_all_chkpts:
                     self.save_model(self.epoch, save_dir, is_best=is_candidate_for_best,

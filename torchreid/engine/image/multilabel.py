@@ -16,7 +16,7 @@ from torchreid.engine import Engine
 class MultilabelEngine(Engine):
     r"""Multilabel classification engine. It supports ASL, BCE and Angular margin loss with binary classification."""
     def __init__(self, datamanager, models, optimizers, schedulers, use_gpu, save_all_chkpts,
-                 train_patience, early_stoping, lr_decay_factor, loss_name, label_smooth,
+                 train_patience, early_stopping, lr_decay_factor, loss_name, label_smooth,
                  lr_finder, m, amb_k, amb_t, clip_grad,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
                  target_metric, use_ema_decay, ema_decay, asl_gamma_pos, asl_gamma_neg, asl_p_m,
@@ -30,7 +30,7 @@ class MultilabelEngine(Engine):
                         save_all_chkpts=save_all_chkpts,
                         train_patience=train_patience,
                         lr_decay_factor=lr_decay_factor,
-                        early_stoping=early_stoping,
+                        early_stopping=early_stopping,
                         should_freeze_aux_models=should_freeze_aux_models,
                         nncf_metainfo=nncf_metainfo,
                         compression_ctrl=compression_ctrl,

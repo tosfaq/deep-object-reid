@@ -26,7 +26,7 @@ class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
     def __init__(self, datamanager, models, optimizers, reg_cfg, metric_cfg, schedulers, use_gpu, save_all_chkpts,
-                 train_patience, early_stoping, lr_decay_factor, loss_name, label_smooth,
+                 train_patience, early_stopping, lr_decay_factor, loss_name, label_smooth,
                  margin_type, aug_type, decay_power, alpha, size, lr_finder, max_soft,
                  reformulate, aug_prob, conf_penalty, pr_product, m, end_s, clip_grad,
                  duration_s, skip_steps_s, enable_masks, adaptive_margins, class_weighting,
@@ -41,7 +41,7 @@ class ImageAMSoftmaxEngine(Engine):
                                                    save_all_chkpts=save_all_chkpts,
                                                    train_patience=train_patience,
                                                    lr_decay_factor=lr_decay_factor,
-                                                   early_stoping=early_stoping,
+                                                   early_stopping=early_stopping,
                                                    should_freeze_aux_models=should_freeze_aux_models,
                                                    nncf_metainfo=nncf_metainfo,
                                                    compression_ctrl=compression_ctrl,
