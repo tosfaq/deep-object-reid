@@ -154,6 +154,8 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
             config_file_path = os.path.join(base_dir, 'main_model_multilabel.yaml')
         else:
             config_file_path = os.path.join(base_dir, 'main_model.yaml')
+        print(self._cfg.train.keys())
+
         merge_from_files_with_base(self._cfg, config_file_path)
         self._cfg.use_gpu = torch.cuda.device_count() > 0
         self.num_devices = 1 if self._cfg.use_gpu else 0
@@ -177,7 +179,8 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
         self._cfg.test.batch_size = max(1, self._hyperparams.learning_parameters.batch_size // 2)
         self._cfg.train.max_epoch = self._hyperparams.learning_parameters.max_num_epochs
         self._cfg.lr_finder.enable = self._hyperparams.learning_parameters.enable_lr_finder
-        self._cfg.early_stopping = self._hyperparams.learning_parameters.enable_early_stopping
+        self._cfg.train.early_stopping = self._hyperparams.learning_parameters.enable_early_stopping
+        self._cfg.train.train_patience = self._hyperparams.learning_parameters.train_patience
 
     def infer(self, dataset: DatasetEntity,
               inference_parameters: Optional[InferenceParameters] = None) -> DatasetEntity:

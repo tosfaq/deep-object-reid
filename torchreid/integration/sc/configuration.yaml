@@ -84,6 +84,22 @@ learning_parameters:
       type: UI_RULES
     visible_in_ui: true
     warning: null
+  train_patience:
+    affects_outcome_of: TRAINING
+    default_value: 5
+    description: Amount of the epochs to wait before exit on early stopping.
+    editable: true
+    header: Early stopping patience
+    max_value: 1000
+    min_value: 1
+    type: INTEGER
+    ui_rules:
+      action: DISABLE_EDITING
+      operator: AND
+      rules: []
+      type: UI_RULES
+    visible_in_ui: false
+    warning: null
   type: PARAMETER_GROUP
   visible_in_ui: true
 pot_parameters:

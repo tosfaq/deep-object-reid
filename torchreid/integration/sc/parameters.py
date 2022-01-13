@@ -86,6 +86,16 @@ class OTEClassificationParameters(ConfigurableParameters):
             affects_outcome_of=ModelLifecycle.TRAINING
         )
 
+        train_patience = configurable_integer(
+            default_value=5,
+            min_value=1,
+            max_value=1000,
+            header="Early stopping patience",
+            description="Amount of the epochs to wait before exit on early stopping",
+            affects_outcome_of=ModelLifecycle.TRAINING
+        )
+
+
     @attrs
     class __NNCFOptimization(ParameterGroup):
         header = string_attribute("Optimization by NNCF")
