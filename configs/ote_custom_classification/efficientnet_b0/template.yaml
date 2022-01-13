@@ -33,6 +33,8 @@ hyper_parameters:
         default_value: 200
       learning_rate:
         default_value: 0.007
+      enable_early_stopping:
+        default_value: true
     nncf_optimization:
       enable_quantization:
         default_value: true

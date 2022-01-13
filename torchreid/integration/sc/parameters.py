@@ -77,6 +77,13 @@ class OTEClassificationParameters(ConfigurableParameters):
             affects_outcome_of=ModelLifecycle.TRAINING
         )
 
+        enable_early_stopping = configurable_boolean(
+            default_value=True,
+            header="Enable adaptive early stopping of the training",
+            description="Smart exit from training when accuracy isn't changed or decreased for several epochs.",
+            affects_outcome_of=ModelLifecycle.TRAINING
+        )
+
     @attrs
     class __NNCFOptimization(ParameterGroup):
         header = string_attribute("Optimization by NNCF")

@@ -139,7 +139,7 @@ def get_default_config():
     cfg.train.start_epoch = 0
     cfg.train.batch_size = 32
     cfg.train.correct_batch_size = False
-    cfg.train.early_stoping = False # switch on exit on metric plataeu method
+    cfg.train.early_stopping = False # switch on exit on metric plataeu method
     cfg.train.train_patience = 10 # define how much epochs to wait after scheduler process
     cfg.train.open_layers = ['classifier']  # layers for training while keeping others frozen
     cfg.train.staged_lr = False  # set different lr to different layers
