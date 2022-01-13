@@ -258,12 +258,11 @@ class MultiLabelClassification(ImageDataset):
         if create_adj_matrix:
             print('here', thau)
             matrix = prepare_adj_matrix(classes, out_data, thau)
-            np.save("glove/voc_adj_matrix_M_all", matrix)
-            exit()
+            np.save("./glove/voc_adj_matrix_M_all", matrix)
         return out_data, class_to_idx
 
     @staticmethod
-    def prepare_word_embedings(label_set, vectors_path):
+    def prepare_word_embedings(label_set, vectors_path='glove/glove.6B.300d.txt'):
         with open(vectors_path, 'r') as f:
             vectors = {}
             for line in f:
@@ -276,7 +275,7 @@ class MultiLabelClassification(ImageDataset):
                 word_embedings.append(vectors['<unk>'])
             word_embedings.append(vectors[label])
 
-        return word_embedings
+        np.save("./glove/voc_word_matrix", word_embedings)
 
     @staticmethod
     def prepare_adj_matrix(label_set, out_data):
