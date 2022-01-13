@@ -63,7 +63,7 @@ def build_model(name, **kwargs):
         if backbone_name not in avai_models:
             raise KeyError('Unknown backbone for Q2L model: {}. Must be one of {}'.format(backbone_name, avai_models))
         backbone = __model_factory[backbone_name](**kwargs)
-        model = build_image_gcn(backbone, word_matrix_path='./word_emb_voc.npy', adj_file='./voc_adj_matrix.npy', **kwargs)
+        model = build_image_gcn(backbone, word_matrix_path='glove/word_emb_voc.npy', adj_file='./glove/voc_adj_matrix_M_all.npy', **kwargs)
     elif name not in avai_models:
         raise KeyError('Unknown model: {}. Must be one of {}'.format(name, avai_models))
     else:

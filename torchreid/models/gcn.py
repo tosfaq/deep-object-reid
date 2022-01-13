@@ -7,16 +7,16 @@ from torch.cuda.amp import autocast
 import math
 
 def gen_A(num_classes, t, adj_file):
-    result = np.load(adj_file)
+    _adj = np.load(adj_file)
     # _adj = result['adj']
     # _nums = result['nums']
     # _nums = _nums[:, np.newaxis]
     # _adj = _adj / _nums
-    # # _adj[_adj < t] = 0
-    # # _adj[_adj >= t] = 1
-    # _adj = _adj * 0.25 / (_adj.sum(0, keepdims=True) + 1e-6)
-    # _adj = _adj + 0.25 * np.identity(num_classes, np.int)
-    return result
+    _adj[_adj < t] = 0
+    _adj[_adj >= t] = 1
+    _adj = _adj * 0.25 / (_adj.sum(0, keepdims=True) + 1e-6)
+    _adj = _adj + np.identity(num_classes, np.int)
+    return _adj
 
 
 class GraphConvolution(nn.Module):
@@ -92,14 +92,14 @@ class Image_GCNN(ModelInterface):
                 raise KeyError("Unsupported loss: {}".format(self.loss))
 
             return tuple(out_data)
-    
+
     @staticmethod
     def gen_adj(A):
         D = torch.pow(A.sum(1).float(), -0.5)
         D = torch.diag(D)
         adj = torch.matmul(torch.matmul(A, D).t(), D)
         return adj
-    
+
     def get_config_optim(self, lrs):
         parameters = [
             {'params': self.backbone.named_parameters()},
@@ -112,14 +112,17 @@ class Image_GCNN(ModelInterface):
                 param_dict['lr'] = lr
         else:
             assert isinstance(lrs, float)
-            for param_dict in parameters:
-                param_dict['lr'] = lrs
+            for i, param_dict in enumerate(parameters):
+                if i >= 1:
+                    param_dict['lr'] = lrs * 10
+                else:
+                    param_dict['lr'] = lrs
 
         return parameters
 
 
-def build_image_gcn(backbone, word_matrix_path, adj_file, num_classes=80, word_emb_size=300, 
-                    thau = 0.5, pretrain=False, **kwargs):
+def build_image_gcn(backbone, word_matrix_path, adj_file, num_classes=80, word_emb_size=300,
+                    thau = 0.4, pretrain=False, **kwargs):
     adj_matrix = gen_A(num_classes, thau, adj_file)
     word_matrix = np.load(word_matrix_path)
     model = Image_GCNN(
