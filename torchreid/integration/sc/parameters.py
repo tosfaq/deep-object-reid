@@ -66,7 +66,8 @@ class OTEClassificationParameters(ConfigurableParameters):
             min_value=1e-07,
             max_value=1e-01,
             header="Learning rate",
-            description="Increasing this value will speed up training convergence but might make it unstable.",
+            description="Increasing this value will speed up training \
+                         convergence but might make it unstable.",
             affects_outcome_of=ModelLifecycle.TRAINING
         )
 
@@ -80,7 +81,8 @@ class OTEClassificationParameters(ConfigurableParameters):
         enable_early_stopping = configurable_boolean(
             default_value=True,
             header="Enable adaptive early stopping of the training",
-            description="Adaptive early exit from training when accuracy isn't changed or decreased for several epochs.",
+            description="Adaptive early exit from training when accuracy isn't \
+                         changed or decreased for several epochs.",
             affects_outcome_of=ModelLifecycle.TRAINING
         )
 
