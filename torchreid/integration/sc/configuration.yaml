@@ -59,7 +59,7 @@ learning_parameters:
   enable_early_stopping:
     affects_outcome_of: TRAINING
     default_value: true
-    description: Smart exit from training when accuracy isn't changed or decreased for several epochs.
+    description: Adaptive early exit from training when accuracy isn't changed or decreased for several epochs.
     editable: true
     header: Enable adaptive early stopping of the training
     type: BOOLEAN
