@@ -41,7 +41,6 @@ class DataManager(object):
         norm_mean=None,
         norm_std=None,
         use_gpu=False,
-        apply_masks_to_test=False
     ):
         self.source_groups = sources
         if self.source_groups is None:
@@ -66,36 +65,29 @@ class DataManager(object):
             transforms=transforms,
             norm_mean=norm_mean,
             norm_std=norm_std,
-            apply_masks_to_test=apply_masks_to_test,
         )
 
         self.use_gpu = (torch.cuda.is_available() and use_gpu)
 
     @property
-    def num_train_pids(self):
-        """Returns the number of training person identities."""
-        return self._num_train_pids
-
-    @property
-    def num_train_cams(self):
-        """Returns the number of training cameras."""
-        return self._num_train_cams
+    def num_train_ids(self):
+        """Returns the number of training categories."""
+        return self._num_train_ids
 
     @property
     def data_counts(self):
         """Returns the number of samples for each ID."""
         return self._data_counts
 
-    def return_query_and_gallery_by_name(self, name):
-        """Returns query and gallery of a test dataset, each containing
-        tuples of (img_path(s), pid, camid).
+    def return_query_by_name(self, name):
+        """Returns query of a test dataset, each containing
+        tuples of (img_path(s), id).
 
         Args:
             name (str): dataset name.
         """
         query_loader = self.test_dataset[name]['query']
-        gallery_loader = self.test_dataset[name]['gallery']
-        return query_loader, gallery_loader
+        return query_loader
 
     def preprocess_pil_img(self, img):
         """Transforms a PIL image to torch tensor for testing."""
@@ -133,37 +125,12 @@ class ImageDataManager(DataManager):
         norm_mean (list or None, optional): data mean. Default is None (use imagenet mean).
         norm_std (list or None, optional): data std. Default is None (use imagenet std).
         use_gpu (bool, optional): use gpu. Default is True.
-        combineall (bool, optional): combine train, query and gallery in a dataset for
+        combineall (bool, optional): combine train, query in a dataset for
             training. Default is False.
         batch_size_train (int, optional): number of images in a training batch. Default is 32.
         batch_size_test (int, optional): number of images in a test batch. Default is 32.
         workers (int, optional): number of workers. Default is 4.
-        batch_num_instances (int, optional): number of instances per identity in a batch.
-            Default is 4.
         train_sampler (str, optional): sampler. Default is RandomSampler.
-        cuhk03_labeled (bool, optional): use cuhk03 labeled images.
-            Default is False (defaul is to use detected images).
-        cuhk03_classic_split (bool, optional): use the classic split in cuhk03.
-            Default is False.
-        market1501_500k (bool, optional): add 500K distractors to the gallery
-            set in market1501. Default is False.
-
-    Examples::
-
-        datamanager = torchreid.data.ImageDataManager(
-            root='path/to/reid-data',
-            sources='market1501',
-            height=256,
-            width=128,
-            batch_size_train=32,
-            batch_size_test=100
-        )
-
-        # return train loader of source data
-        train_loader = datamanager.train_loader
-
-        # return test loader of target data
-        test_loader = datamanager.test_loader
     """
 
     def __init__(
@@ -185,16 +152,12 @@ class ImageDataManager(DataManager):
         correct_batch_size = False,
         workers=4,
         train_sampler='RandomSampler',
-        batch_num_instances=4,
-        epoch_num_instances=-1,
-        fill_instances=False,
         cuhk03_labeled=False,
         cuhk03_classic_split=False,
         market1501_500k=False,
         custom_dataset_names=[''],
         custom_dataset_roots=[''],
         custom_dataset_types=[''],
-        apply_masks_to_test=False,
         min_samples_per_id=0,
         num_sampled_packages=1,
         filter_classes=None,
@@ -209,7 +172,6 @@ class ImageDataManager(DataManager):
             norm_mean=norm_mean,
             norm_std=norm_std,
             use_gpu=use_gpu,
-            apply_masks_to_test=apply_masks_to_test
         )
 
         print('=> Loading train (source) dataset')
@@ -239,11 +201,8 @@ class ImageDataManager(DataManager):
         train_dataset = sum(train_dataset)
 
         self._data_counts = self.to_ordered_list(train_dataset.data_counts)
-        self._num_train_pids = self.to_ordered_list(train_dataset.num_train_pids)
-        self._num_train_cams = self.to_ordered_list(train_dataset.num_train_cams)
-        assert isinstance(self._num_train_pids, list)
-        assert isinstance(self._num_train_cams, list)
-        assert len(self._num_train_pids) == len(self._num_train_cams)
+        self._num_train_ids = self.to_ordered_list(train_dataset._num_train_ids)
+        assert isinstance(self._num_train_ids, list)
         if correct_batch_size:
             batch_size_train = self.calculate_batch(batch_size_train, len(train_dataset))
         batch_size_train = max(1, min(batch_size_train, len(train_dataset)))
@@ -252,10 +211,6 @@ class ImageDataManager(DataManager):
             sampler=build_train_sampler(
                 train_dataset.train,
                 train_sampler,
-                batch_size=batch_size_train,
-                batch_num_instances=batch_num_instances,
-                epoch_num_instances=epoch_num_instances,
-                fill_instances=fill_instances,
             ),
             batch_size=batch_size_train,
             shuffle=False,
@@ -266,89 +221,41 @@ class ImageDataManager(DataManager):
         )
         self.num_iter = len(self.train_loader)
         print('=> Loading test (target) dataset')
-        self.test_loader = {name: {'query': None, 'gallery': None} for name in self.targets}
-        self.test_dataset = {name: {'query': None, 'gallery': None} for name in self.targets}
+        self.test_loader = {name: {'query': None} for name in self.targets}
+        self.test_dataset = {name: {'query': None} for name in self.targets}
 
         for name in self.targets:
-            if name == 'lfw':
-                lfw_data = init_image_dataset(
-                    name,
-                    transform=self.transform_te,
-                    root=root,
-                )
-                self.test_loader[name]['pairs'] = torch.utils.data.DataLoader(
-                    lfw_data,
-                    batch_size=max(min(batch_size_test, len(lfw_data)), 1),
-                    shuffle=False,
-                    num_workers=workers,
-                    pin_memory=self.use_gpu,
-                    worker_init_fn=worker_init_fn,
-                    drop_last=False
-                )
-            else:
-                # build query loader
-                query_dataset = init_image_dataset(
-                    name,
-                    transform=self.transform_te,
-                    mode='query',
-                    combineall=combineall,
-                    root=root,
-                    split_id=split_id,
-                    cuhk03_labeled=cuhk03_labeled,
-                    cuhk03_classic_split=cuhk03_classic_split,
-                    market1501_500k=market1501_500k,
-                    custom_dataset_names=custom_dataset_names,
-                    custom_dataset_roots=custom_dataset_roots,
-                    custom_dataset_types=custom_dataset_types,
-                    filter_classes=filter_classes
-                )
-                self.test_loader[name]['query'] = torch.utils.data.DataLoader(
-                    query_dataset,
-                    batch_size=max(min(batch_size_test, len(query_dataset)), 1),
-                    shuffle=False,
-                    num_workers=workers,
-                    worker_init_fn=worker_init_fn,
-                    pin_memory=self.use_gpu,
-                    drop_last=False
-                )
+            # build query loader
+            query_dataset = init_image_dataset(
+                name,
+                transform=self.transform_te,
+                mode='query',
+                combineall=combineall,
+                root=root,
+                split_id=split_id,
+                custom_dataset_names=custom_dataset_names,
+                custom_dataset_roots=custom_dataset_roots,
+                custom_dataset_types=custom_dataset_types,
+                filter_classes=filter_classes
+            )
+            self.test_loader[name]['query'] = torch.utils.data.DataLoader(
+                query_dataset,
+                batch_size=max(min(batch_size_test, len(query_dataset)), 1),
+                shuffle=False,
+                num_workers=workers,
+                worker_init_fn=worker_init_fn,
+                pin_memory=self.use_gpu,
+                drop_last=False
+            )
 
-                # build gallery loader
-                gallery_dataset = init_image_dataset(
-                    name,
-                    transform=self.transform_te,
-                    mode='gallery',
-                    combineall=combineall,
-                    verbose=False,
-                    root=root,
-                    split_id=split_id,
-                    cuhk03_labeled=cuhk03_labeled,
-                    cuhk03_classic_split=cuhk03_classic_split,
-                    market1501_500k=market1501_500k,
-                    custom_dataset_names=custom_dataset_names,
-                    custom_dataset_roots=custom_dataset_roots,
-                    custom_dataset_types=custom_dataset_types,
-                    filter_classes=filter_classes
-                )
-                self.test_loader[name]['gallery'] = torch.utils.data.DataLoader(
-                    gallery_dataset,
-                    batch_size=max(min(batch_size_test, len(gallery_dataset)), 1),
-                    worker_init_fn=worker_init_fn,
-                    shuffle=False,
-                    num_workers=workers,
-                    pin_memory=self.use_gpu,
-                    drop_last=False
-                )
-
-                self.test_dataset[name]['query'] = query_dataset.query
-                self.test_dataset[name]['gallery'] = gallery_dataset.gallery
+            self.test_dataset[name]['query'] = query_dataset.query
 
         print('\n')
         print('  **************** Summary ****************')
         print('  source            : {}'.format(self.sources))
         print('  # source datasets : {}'.format(len(self.sources)))
-        print('  # source ids      : {}'.format(sum(self.num_train_pids)))
+        print('  # source ids      : {}'.format(sum(self._num_train_ids)))
         print('  # source images   : {}'.format(len(train_dataset)))
-        print('  # source cameras  : {}'.format(sum(self.num_train_cams)))
         print('  target            : {}'.format(self.targets))
         print('  *****************************************')
         print('\n')
