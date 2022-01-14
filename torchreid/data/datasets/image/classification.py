@@ -16,9 +16,7 @@ class Classification(ImageDataset):
     """Classification dataset.
     """
 
-    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, **kwargs):
-        if load_masks:
-            raise NotImplementedError
+    def __init__(self, root='', mode='train', dataset_id=0, **kwargs):
 
         self.root = osp.abspath(osp.expanduser(root))
         self.data_dir = osp.dirname(self.root)
@@ -75,16 +73,15 @@ class Classification(ImageDataset):
 
             label = int(label_str)
             classes_from_data.add(label)
-            out_data.append((full_image_path, label, 0, dataset_id, '', -1, -1))
+            out_data.append((full_image_path, label, dataset_id))
         classes = predefined_classes if predefined_classes else classes_from_data
         class_to_idx = {cls: indx for indx, cls in enumerate(classes)}
         return out_data, class_to_idx
 
 
 class ExternalDatasetWrapper(ImageDataset):
-    def __init__(self, data_provider, mode='train', dataset_id=0, load_masks=False, filter_classes=None, **kwargs):
-        if load_masks:
-            raise NotImplementedError
+    def __init__(self, data_provider, mode='train', dataset_id=0, filter_classes=None, **kwargs):
+
         self.data_provider = data_provider
         self.dataset_id = dataset_id
 
@@ -147,7 +144,7 @@ class ExternalDatasetWrapper(ImageDataset):
         all_annotation = data_provider.get_annotation()
         out_data = []
         for item in all_annotation:
-            out_data.append(('', item['label'], 0, dataset_id, '', -1, -1))\
+            out_data.append(('', item['label'], dataset_id))\
 
         return out_data, class_to_idx
 
@@ -156,9 +153,8 @@ class ClassificationImageFolder(ImageDataset):
     """Classification dataset representing raw folders without annotation files.
     """
 
-    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, filter_classes=None, **kwargs):
-        if load_masks:
-            raise NotImplementedError
+    def __init__(self, root='', mode='train', dataset_id=0, filter_classes=None, **kwargs):
+
         self.root = osp.abspath(osp.expanduser(root))
         required_files = [
             self.root
@@ -213,7 +209,7 @@ class ClassificationImageFolder(ImageDataset):
                 for fname in sorted(fnames):
                     path = osp.join(root, fname)
                     if is_valid(path):
-                        out_data.append((path, class_index, 0, dataset_id, '', -1, -1))\
+                        out_data.append((path, class_index, dataset_id))
 
         if not len(out_data):
             print('Failed to locate images in folder ' + data_dir + f' with extensions {ALLOWED_EXTS}')
@@ -225,9 +221,7 @@ class MultiLabelClassification(ImageDataset):
     """Multi label classification dataset.
     """
 
-    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, **kwargs):
-        if load_masks:
-            raise NotImplementedError
+    def __init__(self, root='', mode='train', dataset_id=0, **kwargs):
 
         self.root = osp.abspath(osp.expanduser(root))
         self.data_dir = osp.dirname(self.root)
@@ -275,7 +269,7 @@ class MultiLabelClassification(ImageDataset):
                 assert full_image_path
                 if not labels_idx:
                     img_wo_objects += 1
-                out_data.append((full_image_path, tuple(labels_idx), 0, dataset_id, '', -1, -1))
+                out_data.append((full_image_path, tuple(labels_idx), dataset_id))
         if img_wo_objects:
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
         return out_data, class_to_idx
