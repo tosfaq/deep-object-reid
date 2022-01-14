@@ -24,8 +24,8 @@ custom_datasets:
 
 data:
   root: './'
-  sources: ['CIFAR100_train']
-  targets: ['CIFAR100_val']
+  sources: ['aut_train']
+  targets: ['aut_val']
   height: 224
   width: 224
   norm_mean: [0.485, 0.456, 0.406]
@@ -47,7 +47,7 @@ data:
       enable: True
       cutout_factor: 0.35
       p: 0.35
-    
+
 
 loss:
   name: 'am_softmax'
