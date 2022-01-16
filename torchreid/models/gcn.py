@@ -12,8 +12,11 @@ def gen_A(num_classes, t, adj_file):
     # _nums = result['nums']
     # _nums = _nums[:, np.newaxis]
     # _adj = _adj / _nums
+    print(t)
     _adj[_adj < t] = 0
     _adj[_adj >= t] = 1
+    print(_adj)
+    exit()
     _adj = _adj * 0.25 / (_adj.sum(0, keepdims=True) + 1e-6)
     _adj = _adj + np.identity(num_classes, np.int)
     return _adj
@@ -113,9 +116,6 @@ class Image_GCNN(ModelInterface):
         else:
             assert isinstance(lrs, float)
             for i, param_dict in enumerate(parameters):
-                if i >= 1:
-                    param_dict['lr'] = lrs * 10
-                else:
                     param_dict['lr'] = lrs
 
         return parameters
