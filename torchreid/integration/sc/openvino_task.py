@@ -199,6 +199,7 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
                 zip_f.writestr(os.path.join("model", "model.bin"), self.model.get_data("openvino.bin"))
                 zip_f.write(os.path.join(tempdir, "requirements.txt"), os.path.join("python", "requirements.txt"))
                 zip_f.write(os.path.join(work_dir, "README.md"), os.path.join("python", "README.md"))
+                zip_f.write(os.path.join(work_dir, "LICENSE"), os.path.join("python", "LICENSE"))
                 zip_f.write(os.path.join(work_dir, "demo.py"), os.path.join("python", "demo.py"))
                 zip_f.write(os.path.join(tempdir, wheel_file_name), os.path.join("python", wheel_file_name))
             with open(os.path.join(tempdir, "openvino.zip"), "rb") as file:
