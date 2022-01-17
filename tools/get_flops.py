@@ -10,7 +10,7 @@ from scripts.default_config import (get_default_config, imagedata_kwargs,
                                     model_kwargs, merge_from_files_with_base)
 
 import torchreid
-from torchreid.utils import collect_env_info, set_random_seed
+from torchreid.utils import set_random_seed
 from ptflops import get_model_complexity_info
 
 
@@ -56,8 +56,6 @@ def main():
     set_random_seed(cfg.train.seed)
 
     print('Show configuration\n{}\n'.format(cfg))
-    print('Collecting env info ...')
-    print('** System info **\n{}\n'.format(collect_env_info()))
 
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True

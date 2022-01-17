@@ -11,7 +11,7 @@ import random
 from collections import defaultdict
 
 import numpy as np
-from torch.utils.data.sampler import RandomSampler, Sampler, SequentialSampler
+from torch.utils.data.sampler import RandomSampler, SequentialSampler
 
 AVAI_SAMPLERS = ['SequentialSampler', 'RandomSampler']
 
