@@ -79,15 +79,15 @@ class DataManager(object):
         """Returns the number of samples for each ID."""
         return self._data_counts
 
-    def return_query_by_name(self, name):
-        """Returns query of a test dataset, each containing
+    def return_test_by_name(self, name):
+        """Returns test of a test dataset, each containing
         tuples of (img_path(s), id).
 
         Args:
             name (str): dataset name.
         """
-        query_loader = self.test_dataset[name]['query']
-        return query_loader
+        test_loader = self.test_dataset[name]['test']
+        return test_loader
 
     def preprocess_pil_img(self, img):
         """Transforms a PIL image to torch tensor for testing."""
@@ -125,7 +125,7 @@ class ImageDataManager(DataManager):
         norm_mean (list or None, optional): data mean. Default is None (use imagenet mean).
         norm_std (list or None, optional): data std. Default is None (use imagenet std).
         use_gpu (bool, optional): use gpu. Default is True.
-        combineall (bool, optional): combine train, query in a dataset for
+        combineall (bool, optional): combine train, test in a dataset for
             training. Default is False.
         batch_size_train (int, optional): number of images in a training batch. Default is 32.
         batch_size_test (int, optional): number of images in a test batch. Default is 32.
@@ -140,7 +140,6 @@ class ImageDataManager(DataManager):
         targets=None,
         height=256,
         width=128,
-        enable_masks=False,
         transforms='random_flip',
         norm_mean=None,
         norm_std=None,
@@ -152,9 +151,6 @@ class ImageDataManager(DataManager):
         correct_batch_size = False,
         workers=4,
         train_sampler='RandomSampler',
-        cuhk03_labeled=False,
-        cuhk03_classic_split=False,
-        market1501_500k=False,
         custom_dataset_names=[''],
         custom_dataset_roots=[''],
         custom_dataset_types=[''],
@@ -186,11 +182,7 @@ class ImageDataManager(DataManager):
                 combineall=combineall,
                 root=root,
                 split_id=split_id,
-                load_masks=enable_masks,
                 dataset_id=train_dataset_ids_map[name],
-                cuhk03_labeled=cuhk03_labeled,
-                cuhk03_classic_split=cuhk03_classic_split,
-                market1501_500k=market1501_500k,
                 custom_dataset_names=custom_dataset_names,
                 custom_dataset_roots=custom_dataset_roots,
                 custom_dataset_types=custom_dataset_types,
@@ -221,15 +213,15 @@ class ImageDataManager(DataManager):
         )
         self.num_iter = len(self.train_loader)
         print('=> Loading test (target) dataset')
-        self.test_loader = {name: {'query': None} for name in self.targets}
-        self.test_dataset = {name: {'query': None} for name in self.targets}
+        self.test_loader = {name: {'test': None} for name in self.targets}
+        self.test_dataset = {name: {'test': None} for name in self.targets}
 
         for name in self.targets:
-            # build query loader
-            query_dataset = init_image_dataset(
+            # build test loader
+            test_dataset = init_image_dataset(
                 name,
                 transform=self.transform_te,
-                mode='query',
+                mode='test',
                 combineall=combineall,
                 root=root,
                 split_id=split_id,
@@ -238,9 +230,9 @@ class ImageDataManager(DataManager):
                 custom_dataset_types=custom_dataset_types,
                 filter_classes=filter_classes
             )
-            self.test_loader[name]['query'] = torch.utils.data.DataLoader(
-                query_dataset,
-                batch_size=max(min(batch_size_test, len(query_dataset)), 1),
+            self.test_loader[name]['test'] = torch.utils.data.DataLoader(
+                test_dataset,
+                batch_size=max(min(batch_size_test, len(test_dataset)), 1),
                 shuffle=False,
                 num_workers=workers,
                 worker_init_fn=worker_init_fn,
@@ -248,7 +240,7 @@ class ImageDataManager(DataManager):
                 drop_last=False
             )
 
-            self.test_dataset[name]['query'] = query_dataset.query
+            self.test_dataset[name]['test'] = test_dataset.test
 
         print('\n')
         print('  **************** Summary ****************')
