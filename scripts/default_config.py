@@ -77,6 +77,8 @@ def get_default_config():
     cfg.model.transformer.pre_norm = False
     cfg.model.transformer.rm_self_attn_dec = True
     cfg.model.transformer.rm_first_self_attn = True
+    cfg.model.gcn = CN()
+    cfg.model.gcn.rho = 0.25
 
     # mutual learning, auxiliary model
     cfg.mutual_learning = CN()
@@ -487,6 +489,8 @@ def model_kwargs(cfg, num_classes):
         'pre_norm': cfg.model.transformer.pre_norm,
         'rm_self_attn_dec': cfg.model.transformer.rm_self_attn_dec,
         'rm_first_self_attn': cfg.model.transformer.rm_first_self_attn,
+        'thau': cfg.data.gcn.thau,
+        'rho_gcn': cfg.model.gcn.rho
     }
 
 

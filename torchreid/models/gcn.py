@@ -6,18 +6,15 @@ from .common import ModelInterface
 from torch.cuda.amp import autocast
 import math
 
-def gen_A(num_classes, t, adj_file):
+def gen_A(num_classes, t, rho, adj_file):
     _adj = np.load(adj_file)
     # _adj = result['adj']
     # _nums = result['nums']
     # _nums = _nums[:, np.newaxis]
     # _adj = _adj / _nums
-    print(t)
     _adj[_adj < t] = 0
     _adj[_adj >= t] = 1
-    print(_adj)
-    exit()
-    _adj = _adj * 0.25 / (_adj.sum(0, keepdims=True) + 1e-6)
+    _adj = _adj * rho / (_adj.sum(0, keepdims=True) + 1e-6)
     _adj = _adj + np.identity(num_classes, np.int)
     return _adj
 
@@ -122,8 +119,9 @@ class Image_GCNN(ModelInterface):
 
 
 def build_image_gcn(backbone, word_matrix_path, adj_file, num_classes=80, word_emb_size=300,
-                    thau = 0.4, pretrain=False, **kwargs):
-    adj_matrix = gen_A(num_classes, thau, adj_file)
+                    thau = 0.4, rho_gcn=0.25, pretrain=False, **kwargs):
+    print(thau)
+    adj_matrix = gen_A(num_classes, thau, rho_gcn, adj_file)
     word_matrix = np.load(word_matrix_path)
     model = Image_GCNN(
         backbone=backbone,
