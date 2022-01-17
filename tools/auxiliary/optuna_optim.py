@@ -47,12 +47,13 @@ def objective(cfg, args, trial):
     # Generate the trials.
     # g_ = trial.suggest_int("g_", 1, 7)
     # asl_pm = trial.suggest_float("asl_pm", 0, 0.5)
-    m = trial.suggest_float("m", 0.01, 0.7)
-    s = trial.suggest_int("s", 5, 60)
+    # m = trial.suggest_float("m", 0.01, 0.7)
+    thau = trial.suggest_float("thau", 0.1, 0.9, step=0.1)
+    rho_gcn = trial.suggest_float("rho", 0., 1., step=0.1)
     # lr = trial.suggest_float("lr", 0.0001, 0.1)
     # t = trial.suggest_int("t", 1, 7)
-    cfg.loss.softmax.m = m
-    cfg.loss.softmax.s = s
+    cfg.data.gcn.thau = thau
+    cfg.model.gcn.rho = rho_gcn
     # cfg.loss.asl.p_m = asl_pm
     # cfg.loss.am_binary.amb_t = t
     # cfg.loss.asl.gamma_pos = gamma_pos
@@ -111,7 +112,7 @@ def objective(cfg, args, trial):
     obj = 0
     engine.start_epoch = 0
     engine.max_epoch = args.epochs
-    print(f"\nnext trial with [m: {m}, s: {s}]")
+    print(f"\nnext trial with [rho_gcn: {rho_gcn}, thau: {thau}]")
 
     for engine.epoch in range(args.epochs):
         np.random.seed(cfg.train.seed + engine.epoch)
