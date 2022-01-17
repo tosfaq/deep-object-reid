@@ -16,9 +16,8 @@ from torch.cuda.amp import GradScaler, autocast
 
 from torchreid import metrics
 from torchreid.engine import Engine
-from torchreid.utils import get_model_attr
-from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss, MetricLosses,
-                              get_regularizer, sample_mask)
+from torchreid.utils import get_model_attr, sample_mask
+from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss, MetricLosses)
 from torchreid.optim import SAM
 
 

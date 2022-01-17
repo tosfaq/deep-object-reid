@@ -322,38 +322,6 @@ def open_specified_layers(model, open_layers, strict=True):
                 p.requires_grad = False
 
 
-def count_num_param(model):
-    r"""Counts number of parameters in a model while ignoring ``self.classifier``.
-
-    Args:
-        model (nn.Module): network model.
-
-    Examples::
-        >>> from torchreid.utils import count_num_param
-        >>> model_size = count_num_param(model)
-
-    .. warning::
-
-        This method is deprecated in favor of
-        ``torchreid.utils.compute_model_complexity``.
-    """
-    warnings.warn(
-        'This method is deprecated and will be removed in the future.'
-    )
-
-    num_param = sum(p.numel() for p in model.parameters())
-
-    if isinstance(model, nn.DataParallel):
-        model = model.module
-
-    if hasattr(model,
-               'classifier') and isinstance(model.classifier, nn.Module):
-        # we ignore the classifier because it is unused at test time
-        num_param -= sum(p.numel() for p in model.classifier.parameters())
-
-    return num_param
-
-
 def _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers):
     if discarded_layers:
         print(

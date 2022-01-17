@@ -7,3 +7,4 @@ from .avgmeter import *
 from .reidtools import *
 from .torchtools import *
 from .feature_extractor import FeatureExtractor
+from .fmix import sample_mask

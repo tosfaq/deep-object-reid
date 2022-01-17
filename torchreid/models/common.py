@@ -14,7 +14,7 @@ import numpy as np
 
 from torchreid.ops import Dropout
 
-_VALID_MODEL_TYPES = ['classification', 'contrastive', 'reid', 'multilabel']
+_VALID_MODEL_TYPES = ['classification', 'multilabel']
 
 class ModelInterface(nn.Module):
     def __init__(self,
@@ -50,9 +50,6 @@ class ModelInterface(nn.Module):
         self.num_features = feature_dim
         self.mix_precision = mix_precision
         self.use_angle_simple_linear = True if loss in ['am_softmax', 'am_binary'] else False
-
-    def is_classification(self):
-        return self.type == 'classification' or self.type == 'multilabel'
 
     def get_num_features(self):
         return self.num_features
@@ -98,7 +95,7 @@ class ModelInterface(nn.Module):
         ])
 
         return nn.Sequential(*layers)
-    
+
     def get_config_optim(self, lrs):
         parameters = [
             {'params': self.named_parameters()},
