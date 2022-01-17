@@ -6,15 +6,10 @@
 #
 
 from __future__ import absolute_import
-from torchreid.models.transformer import Transformer
 
 from .efficient_net_pytcv import *
 from .inceptionv4_pytcv import *
-from .mobile_face_net_se import *
 from .mobilenetv3 import *
-from .osnet import *
-from .osnet_ain import *
-from .osnet_fpn import *
 from .ptcv_wrapper import *
 from .timm_wrapper import *
 from .q2l import *
@@ -36,24 +31,6 @@ __model_factory = {
     'efficientnet_b5': efficientnet_b5b,
     'efficientnet_b6': efficientnet_b6b,
     'efficientnet_b7': efficientnet_b7b,
-
-    # reid-specific models
-    'osnet_x1_0': osnet_x1_0,
-    'osnet_x0_75': osnet_x0_75,
-    'osnet_x0_5': osnet_x0_5,
-    'osnet_x0_25': osnet_x0_25,
-    'osnet_ibn_x1_0': osnet_ibn_x1_0,
-    'osnet_ain_x1_0': osnet_ain_x1_0,
-    'osnet_ain2_x1_0': osnet_ain2_x1_0,
-    'fpn_osnet_x1_0': fpn_osnet_x1_0,
-    'fpn_osnet_x0_75': fpn_osnet_x0_75,
-    'fpn_osnet_x0_5': fpn_osnet_x0_5,
-    'fpn_osnet_x0_25': fpn_osnet_x0_25,
-    'fpn_osnet_ibn_x1_0': fpn_osnet_ibn_x1_0,
-
-    # face reid models
-    'mobile_face_net_se_1x': mobile_face_net_se_1x,
-    'mobile_face_net_se_2x': mobile_face_net_se_2x,
 }
 
 __model_factory = {**__model_factory, **pytcv_wrapped_models, **timm_wrapped_models}
