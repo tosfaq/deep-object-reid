@@ -25,14 +25,13 @@ from torchreid.optim import SAM
 class ImageAMSoftmaxEngine(Engine):
     r"""AM-Softmax-loss engine for image-reid.
     """
-    def __init__(self, datamanager, models, optimizers, reg_cfg, metric_cfg, schedulers, use_gpu, save_all_chkpts,
+    def __init__(self, datamanager, models, optimizers, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stopping, lr_decay_factor, loss_name, label_smooth,
-                 margin_type, aug_type, decay_power, alpha, size, lr_finder, max_soft,
-                 reformulate, aug_prob, conf_penalty, pr_product, m, end_s, clip_grad,
-                 duration_s, skip_steps_s, enable_masks, adaptive_margins, class_weighting,
-                 attr_cfg, base_num_classes, symmetric_ce, mix_weight, enable_rsc,
-                 should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
-                 target_metric, use_ema_decay, ema_decay, mix_precision, **kwargs):
+                 margin_type, aug_type, decay_power, alpha, size, lr_finder, aug_prob,
+                 conf_penalty, pr_product, m, end_s, clip_grad, duration_s, skip_steps_s,
+                 enable_masks, adaptive_margins, class_weighting, attr_cfg, base_num_classes,
+                 symmetric_ce, mix_weight, enable_rsc, should_freeze_aux_models, nncf_metainfo,
+                 compression_ctrl, initial_lr, target_metric, use_ema_decay, ema_decay, mix_precision, **kwargs):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager,
                                                    models=models,
                                                    optimizers=optimizers,
@@ -73,54 +72,40 @@ class ImageAMSoftmaxEngine(Engine):
         self.alpha = alpha
         self.decay_power = decay_power
         self.size =  size
-        self.max_soft = max_soft
-        self.reformulate = reformulate
         self.prev_smooth_metric = 0.
         self.mix_precision = mix_precision
         self.scaler = GradScaler(enabled=mix_precision)
 
-        num_classes = self.datamanager.num_train_pids
-        if not isinstance(num_classes, (list, tuple)):
-            num_classes = [num_classes]
-        self.num_classes = num_classes
+        self.num_classes = self.datamanager.num_train_pids
         self.num_targets = len(self.num_classes)
         self.main_losses = nn.ModuleList()
         self.ml_losses = list()
-        for trg_id, trg_num_classes in enumerate(self.num_classes):
-            if base_num_classes <= 1:
-                scale_factor = 1.0
-            else:
-                scale_factor = np.log(trg_num_classes - 1) / np.log(base_num_classes - 1)
-            scale = scale_factor * self.am_scale
-            if loss_name == 'softmax':
-                self.main_losses.append(CrossEntropyLoss(
-                    use_gpu=self.use_gpu,
-                    label_smooth=label_smooth,
-                    augmentations=self.aug_type,
-                    conf_penalty=conf_penalty,
-                    scale=scale
-                ))
-            elif loss_name == 'am_softmax':
-                trg_class_counts = datamanager.data_counts[trg_id]
-                assert len(trg_class_counts) == trg_num_classes
-
-                self.main_losses.append(AMSoftmaxLoss(
-                    use_gpu=self.use_gpu,
-                    label_smooth=label_smooth,
-                    margin_type=margin_type,
-                    aug_type=aug_type,
-                    conf_penalty=conf_penalty,
-                    m=m,
-                    s=scale,
-                    end_s=scale_factor * end_s if self._valid(end_s) else None,
-                    duration_s=duration_s * self.num_batches if self._valid(duration_s) else None,
-                    skip_steps_s=skip_steps_s * self.num_batches if self._valid(skip_steps_s) else None,
-                    pr_product=pr_product,
-                    symmetric_ce=symmetric_ce,
-                    class_counts=trg_class_counts,
-                    adaptive_margins=adaptive_margins,
-                    class_weighting=class_weighting
-                ))
+        if loss_name == 'softmax':
+            self.main_losses.append(CrossEntropyLoss(
+                use_gpu=self.use_gpu,
+                label_smooth=label_smooth,
+                augmentations=self.aug_type,
+                conf_penalty=conf_penalty,
+                scale=self.am_scale
+            ))
+        elif loss_name == 'am_softmax':
+            self.main_losses.append(AMSoftmaxLoss(
+                use_gpu=self.use_gpu,
+                label_smooth=label_smooth,
+                margin_type=margin_type,
+                aug_type=aug_type,
+                conf_penalty=conf_penalty,
+                m=m,
+                s=self.am_scale,
+                end_s=self.am_scale * end_s if self._valid(end_s) else None,
+                duration_s=duration_s * self.num_batches if self._valid(duration_s) else None,
+                skip_steps_s=skip_steps_s * self.num_batches if self._valid(skip_steps_s) else None,
+                pr_product=pr_product,
+                symmetric_ce=symmetric_ce,
+                class_counts=trg_class_counts,
+                adaptive_margins=adaptive_margins,
+                class_weighting=class_weighting
+            ))
 
             if self.enable_metric_losses:
                 trg_ml_losses = dict()
@@ -132,34 +117,10 @@ class ImageAMSoftmaxEngine(Engine):
                     ml_cfg = copy.deepcopy(metric_cfg)
                     ml_cfg.pop('enable')
                     ml_cfg['name'] = 'ml_{}/{}'.format(trg_id, model_name)
-                    trg_ml_losses[model_name] = MetricLosses(trg_num_classes, feature_dim, **ml_cfg)
+                    trg_ml_losses[model_name] = MetricLosses(self.num_classes, feature_dim, **ml_cfg)
 
                 self.ml_losses.append(trg_ml_losses)
 
-        self.enable_attr = attr_cfg is not None
-        self.attr_losses = {}
-        if self.enable_attr:
-            self.attr_losses = nn.ModuleDict()
-            for attr_name, attr_size in zip(attr_cfg.names, attr_cfg.num_classes):
-                if attr_size is None or attr_size <= 0:
-                    continue
-
-                self.attr_losses[attr_name] = AMSoftmaxLoss(
-                    use_gpu=self.use_gpu,
-                    label_smooth=attr_cfg.label_smooth,
-                    conf_penalty=attr_cfg.conf_penalty,
-                    m=attr_cfg.m,
-                    s=attr_cfg.s,
-                    end_s=attr_cfg.end_s if self._valid(attr_cfg.end_s) else None,
-                    duration_s=attr_cfg.duration_s * self.num_batches if self._valid(attr_cfg.duration_s) else None,
-                    skip_steps_s=attr_cfg.skip_steps_s * self.num_batches if self._valid(attr_cfg.skip_steps_s) else None,
-                    pr_product=attr_cfg.pr_product
-                )
-
-            if len(self.attr_losses) == 0:
-                self.enable_attr = False
-            else:
-                self.attr_name_map = {attr_name: attr_id for attr_id, attr_name in enumerate(attr_cfg.names)}
 
     @staticmethod
     def _valid(value):
@@ -279,7 +240,7 @@ class ImageAMSoftmaxEngine(Engine):
         with autocast(enabled=self.mix_precision):
             run_kwargs = self._prepare_run_kwargs(obj_ids)
             model_output = model(imgs, **run_kwargs)
-            all_logits, all_embeddings, extra_data = self._parse_model_output(model_output)
+            all_logits, all_embeddings = self._parse_model_output(model_output)
 
             total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
             out_logits = []
@@ -335,66 +296,6 @@ class ImageAMSoftmaxEngine(Engine):
             total_loss /= float(num_trg_losses)
             avg_acc /= float(num_trg_losses)
 
-            if self.enable_attr and train_records['attr'] is not None:
-                attributes = train_records['attr']
-                all_attr_logits = extra_data['attr_logits']
-
-                num_attr_losses = 0
-                total_attr_loss = 0
-                for attr_name, attr_loss_module in self.attr_losses.items():
-                    attr_labels = attributes[self.attr_name_map[attr_name]]
-                    valid_attr_mask = attr_labels >= 0
-
-                    attr_labels = attr_labels[valid_attr_mask]
-                    if attr_labels.numel() == 0:
-                        continue
-
-                    attr_logits = all_attr_logits[attr_name][valid_attr_mask]
-
-                    attr_loss = attr_loss_module(attr_logits, attr_labels, iteration=n_iter)
-                    loss_summary['{}/{}'.format(attr_name, model_name)] = attr_loss.item()
-
-                    total_attr_loss += attr_loss
-                    num_attr_losses += 1
-
-                total_loss += total_attr_loss / float(max(1, num_attr_losses))
-
-            if self.enable_masks and train_records['mask'] is not None:
-                att_loss_val = 0.0
-                for att_map in extra_data['att_maps']:
-                    if att_map is not None:
-                        with torch.no_grad():
-                            att_map_size = att_map.size()[2:]
-                            pos_float_mask = F.interpolate(train_records['mask'], size=att_map_size, mode='nearest')
-                            pos_mask = pos_float_mask > 0.0
-                            neg_mask = ~pos_mask
-
-                            trg_mask_values = torch.where(pos_mask,
-                                                        torch.ones_like(pos_float_mask),
-                                                        torch.zeros_like(pos_float_mask))
-                            num_positives = trg_mask_values.sum(dim=(1, 2, 3), keepdim=True)
-                            num_negatives = float(att_map_size[0] * att_map_size[1]) - num_positives
-
-                            batch_factor = 1.0 / float(att_map.size(0))
-                            pos_weights = batch_factor / num_positives.clamp_min(1.0)
-                            neg_weights = batch_factor / num_negatives.clamp_min(1.0)
-
-                        att_errors = torch.abs(att_map - trg_mask_values)
-                        att_pos_errors = (pos_weights * att_errors)[pos_mask].sum()
-                        att_neg_errors = (neg_weights * att_errors)[neg_mask].sum()
-
-                        att_loss_val += 0.5 * (att_pos_errors + att_neg_errors)
-
-                if att_loss_val > 0.0:
-                    loss_summary['att/{}'.format(model_name)] = att_loss_val.item()
-                    total_loss += att_loss_val
-
-            if self.regularizer is not None and (self.epoch + 1) > self.fixbase_epoch:
-                reg_loss = self.regularizer(model)
-
-                loss_summary['reg/{}'.format(model_name)] = reg_loss.item()
-                total_loss += reg_loss
-
             return total_loss, loss_summary, avg_acc, out_logits
 
     def _prepare_run_kwargs(self, gt_labels):
@@ -417,21 +318,14 @@ class ImageAMSoftmaxEngine(Engine):
             all_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
             all_embeddings = None
 
-        all_logits = all_logits if isinstance(all_logits, (tuple, list)) else [all_logits]
-
-        if self.enable_attr or self.enable_masks:
-            extra_data = model_output[-1]
-        else:
-            extra_data = None
-
-        return all_logits, all_embeddings, extra_data
+        # all_logits = all_logits if isinstance(all_logits, (tuple, list)) else [all_logits]
+        return all_logits, all_embeddings
 
     def _apply_batch_augmentation(self, imgs, obj_ids):
         if self.aug_type == 'fmix':
             r = np.random.rand(1)
             if self.alpha > 0 and r[0] <= self.aug_prob:
-                lam, fmask = sample_mask(self.alpha, self.decay_power, self.size,
-                                        self.max_soft, self.reformulate)
+                lam, fmask = sample_mask(self.alpha, self.decay_power, self.size)
                 index = torch.randperm(imgs.size(0), device=imgs.device)
                 fmask = torch.from_numpy(fmask).float().to(imgs.device)
                 # Mix the images
