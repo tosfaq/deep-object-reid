@@ -83,46 +83,6 @@ class Dataset:
     def __len__(self):
         return len(self.data)
 
-    def __add__(self, other):
-        """Adds two datasets together (only the train set)."""
-        updated_train = copy.deepcopy(self.train)
-
-        for record in other.train:
-            dataset_id = record[2]
-
-            num_train_ids = 0
-            if dataset_id in self.num_train_ids:
-                num_train_ids = self.num_train_ids[dataset_id]
-            old_obj_id = record[1]
-            new_obj_id = old_obj_id + num_train_ids
-
-            updated_record = record[0] + new_obj_id + record[2]
-            updated_train.append(updated_record)
-
-        ###################################
-        # Things to do beforehand:
-        # 1. set verbose=False to avoid unnecessary print
-        # 2. set combineall=False because combineall would have been applied
-        #    if it was True for a specific dataset, setting it to True will
-        #    create new IDs that should have been included
-        ###################################
-
-        return ImageDataset(
-            updated_train,
-            self.test,
-            transform=self.transform,
-            mode=self.mode,
-            combineall=False,
-            verbose=False
-        )
-
-    def __radd__(self, other):
-        """Supports sum([dataset1, dataset2, dataset3])."""
-        if other == 0:
-            return self
-        else:
-            return self.__add__(other)
-
     @staticmethod
     def parse_data(data):
         """Parses data list and returns the number of categories.
@@ -180,23 +140,6 @@ class Dataset:
 
         return obj_ids
 
-    @staticmethod
-    def _relabel(data, junk_obj_ids, id2label_map, num_train_ids):
-        out_data = []
-        for record in data:
-            obj_id = record[1]
-            if obj_id in junk_obj_ids:
-                continue
-
-            dataset_id = record[2]
-            ids_shift = num_train_ids[dataset_id] if dataset_id in num_train_ids else 0
-            updated_obj_id = id2label_map[dataset_id][obj_id] + ids_shift
-
-            updated_record = record[0] + (updated_obj_id,) + record[2]
-            out_data.append(updated_record)
-
-        return out_data
-
     def _cut_train_ids(self, min_imgs):
         if min_imgs < 2:
             return
@@ -224,21 +167,6 @@ class Dataset:
 
         self.train = filtered_train
 
-        self.num_train_ids = self.get_num_ids(self.train)
-
-    def combine_all(self):
-        """Combines train, test in a dataset for training."""
-        combined = copy.deepcopy(self.train)
-
-        new_obj_ids = self._get_obj_ids(self.test, self._junk_ids)
-
-        id2label_map = dict()
-        for dataset_id, dataset_ids in new_obj_ids.items():
-            id2label_map[dataset_id] = {obj_id: i for i, obj_id in enumerate(set(dataset_ids))}
-
-        combined += self._relabel(self.test, self._junk_ids, id2label_map, self.num_train_ids)
-
-        self.train = combined
         self.num_train_ids = self.get_num_ids(self.train)
 
     def download_dataset(self, dataset_dir, dataset_url):

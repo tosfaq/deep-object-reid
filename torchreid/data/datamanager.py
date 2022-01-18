@@ -42,23 +42,11 @@ class DataManager(object):
         norm_std=None,
         use_gpu=False,
     ):
-        self.source_groups = sources
-        if self.source_groups is None:
-            raise ValueError('sources must not be None')
-        if isinstance(self.source_groups, str):
-            self.source_groups = [[self.source_groups]]
-        elif isinstance(self.source_groups, (list, tuple)):
-            self.source_groups = [[v] if isinstance(v, str) else v for v in self.source_groups]
-        self.sources = [s for group in self.source_groups for s in group]
-
+        self.sources = sources
         self.targets = targets
-        if self.targets is None:
-            self.targets = self.sources
-        if isinstance(self.targets, str):
-            self.targets = [self.targets]
-
         self.height = height
         self.width = width
+
         self.transform_tr, self.transform_te = build_transforms(
             self.height,
             self.width,
@@ -78,20 +66,6 @@ class DataManager(object):
     def data_counts(self):
         """Returns the number of samples for each ID."""
         return self._data_counts
-
-    def return_test_by_name(self, name):
-        """Returns test of a test dataset, each containing
-        tuples of (img_path(s), id).
-
-        Args:
-            name (str): dataset name.
-        """
-        test_loader = self.test_dataset[name]['test']
-        return test_loader
-
-    def preprocess_pil_img(self, img):
-        """Transforms a PIL image to torch tensor for testing."""
-        return self.transform_te(img)
 
     @staticmethod
     def build_dataset_map(groups):
@@ -136,8 +110,8 @@ class ImageDataManager(DataManager):
     def __init__(
         self,
         root='',
-        sources=None,
-        targets=None,
+        train_name=None,
+        test_name=None,
         height=256,
         width=128,
         transforms='random_flip',
@@ -160,8 +134,8 @@ class ImageDataManager(DataManager):
     ):
 
         super(ImageDataManager, self).__init__(
-            sources=sources,
-            targets=targets,
+            sources=train_name,
+            targets=test_name,
             height=height,
             width=width,
             transforms=transforms,
@@ -170,26 +144,22 @@ class ImageDataManager(DataManager):
             use_gpu=use_gpu,
         )
 
-        print('=> Loading train (source) dataset')
-        train_dataset_ids_map = self.build_dataset_map(self.source_groups)
-
+        print('=> Loading train dataset')
         train_dataset = []
-        for name in self.sources:
-            train_dataset.append(init_image_dataset(
-                name,
-                transform=self.transform_tr,
-                mode='train',
-                combineall=combineall,
-                root=root,
-                split_id=split_id,
-                dataset_id=train_dataset_ids_map[name],
-                custom_dataset_names=custom_dataset_names,
-                custom_dataset_roots=custom_dataset_roots,
-                custom_dataset_types=custom_dataset_types,
-                min_id_samples=min_samples_per_id,
-                num_sampled_packages=num_sampled_packages,
-                filter_classes=filter_classes,
-            ))
+        train_dataset = init_image_dataset(
+            train_name,
+            transform=self.transform_tr,
+            mode='train',
+            combineall=combineall,
+            root=root,
+            split_id=split_id,
+            custom_dataset_names=custom_dataset_names,
+            custom_dataset_roots=custom_dataset_roots,
+            custom_dataset_types=custom_dataset_types,
+            min_id_samples=min_samples_per_id,
+            num_sampled_packages=num_sampled_packages,
+            filter_classes=filter_classes,
+        )
         train_dataset = sum(train_dataset)
 
         self._data_counts = self.to_ordered_list(train_dataset.data_counts)
@@ -216,31 +186,28 @@ class ImageDataManager(DataManager):
         self.test_loader = {name: {'test': None} for name in self.targets}
         self.test_dataset = {name: {'test': None} for name in self.targets}
 
-        for name in self.targets:
-            # build test loader
-            test_dataset = init_image_dataset(
-                name,
-                transform=self.transform_te,
-                mode='test',
-                combineall=combineall,
-                root=root,
-                split_id=split_id,
-                custom_dataset_names=custom_dataset_names,
-                custom_dataset_roots=custom_dataset_roots,
-                custom_dataset_types=custom_dataset_types,
-                filter_classes=filter_classes
-            )
-            self.test_loader[name]['test'] = torch.utils.data.DataLoader(
-                test_dataset,
-                batch_size=max(min(batch_size_test, len(test_dataset)), 1),
-                shuffle=False,
-                num_workers=workers,
-                worker_init_fn=worker_init_fn,
-                pin_memory=self.use_gpu,
-                drop_last=False
-            )
-
-            self.test_dataset[name]['test'] = test_dataset.test
+        # build test loader
+        test_dataset = init_image_dataset(
+            test_name,
+            transform=self.transform_te,
+            mode='test',
+            combineall=combineall,
+            root=root,
+            split_id=split_id,
+            custom_dataset_names=custom_dataset_names,
+            custom_dataset_roots=custom_dataset_roots,
+            custom_dataset_types=custom_dataset_types,
+            filter_classes=filter_classes
+        )
+        self.test_loader[test_name]['test'] = torch.utils.data.DataLoader(
+            test_dataset,
+            batch_size=max(min(batch_size_test, len(test_dataset)), 1),
+            shuffle=False,
+            num_workers=workers,
+            worker_init_fn=worker_init_fn,
+            pin_memory=self.use_gpu,
+            drop_last=False
+        )
 
         print('\n')
         print('  **************** Summary ****************')
