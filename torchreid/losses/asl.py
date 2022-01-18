@@ -23,7 +23,7 @@ class AsymmetricLoss(nn.Module):
     def get_last_scale(self):
         return 1.
 
-    def forward(self, inputs, targets, scale=1.):
+    def forward(self, inputs, targets, scale=1., aug_index=None, lam=None):
         """"
         Parameters
         ----------
@@ -82,7 +82,7 @@ class AMBinaryLoss(nn.Module):
     def get_last_scale(self):
         return self.s
 
-    def forward(self, cos_theta, targets, scale=None):
+    def forward(self, cos_theta, targets, scale=None, aug_index=None, lam=None):
         """"
         Parameters
         ----------

@@ -54,9 +54,6 @@ class ImageAMSoftmaxEngine(Engine):
         if loss_name == 'am_softmax':
             assert m >= 0.0
 
-        self.enable_metric_losses = metric_cfg.enable
-        self.enable_masks = enable_masks
-        self.mix_weight = mix_weight
         self.clip_grad = clip_grad
         self.enable_rsc = enable_rsc
         self.enable_sam = isinstance(self.optims[self.main_model_name], SAM)
@@ -105,17 +102,6 @@ class ImageAMSoftmaxEngine(Engine):
                 class_weighting=class_weighting
             ))
 
-            if self.enable_metric_losses:
-                trg_ml_losses = dict()
-                for model_name, model in self.models.items():
-                    feature_dim = get_model_attr(model, 'get_num_head_features')()
-                    ml_cfg = copy.deepcopy(metric_cfg)
-                    ml_cfg.pop('enable')
-                    ml_cfg['name'] = 'ml_{}'.format(model_name)
-                    trg_ml_losses[model_name] = MetricLosses(self.num_classes, feature_dim, **ml_cfg)
-
-                self.ml_losses.append(trg_ml_losses)
-
 
     @staticmethod
     def _valid(value):
@@ -123,183 +109,106 @@ class ImageAMSoftmaxEngine(Engine):
 
     def forward_backward(self, data):
         n_iter = self.epoch * self.num_batches + self.batch_idx
-
-        train_records = self.parse_data_for_train(data, True, self.enable_masks, self.use_gpu)
-        imgs = train_records['img']
-        targets = train_records['obj_id']
-        num_packages = 1
-        if len(imgs.size()) != 4:
-            assert len(imgs.size()) == 5
-
-            b, num_packages, c, h, w = imgs.size()
-            imgs = imgs.view(b * num_packages, c, h, w)
-            targets = targets.view(-1, 1).repeat(1, num_packages).view(-1)
-            train_records['dataset_id'] = train_records['dataset_id'].view(-1, 1).repeat(1, num_packages).view(-1)
+        imgs, targets = self.parse_data_for_train(data, self.use_gpu)
 
         imgs, targets = self._apply_batch_augmentation(imgs, targets)
-        run_kwargs = self._prepare_run_kwargs(targets)
-
         model_names = self.get_model_names()
         num_models = len(model_names)
+
         steps = [1, 2] if self.enable_sam and not self.lr_finder else [1]
         for step in steps:
             # if sam is enabled then statistics will be written each step, but will be saved only the second time
-            # this is made just for convinience
-            avg_acc = 0.0
-            out_logits = [[] for _ in range(self.num_classes)]
-            total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
+            # this is made just for convenience
             loss_summary = dict()
-            models_logits = [[] for i in range(len(model_names))]
-            models_embeddings = [[] for i in range(len(model_names))]
+            models_logits = [[] for i in range(num_models)]
 
             for i, model in enumerate(self.models):
-                logits, embeddings = self._forward(model, imgs, run_kwargs)
-                models_logits[i] = logits
-                models_embeddings[i] = embeddings
+                loss, model_loss_summary, acc, scaled_logits = self._single_model_losses(
+                    model, imgs, n_iter, model_name
+                    )
+                models_logits[i] = scaled_logits
+                loss_summary.update(model_loss_summary)
+                if i == 0: # main model
+                    main_acc = acc
 
             for i, model_name in enumerate(model_names):
                 self.optims[model_name].zero_grad()
-
-                model_loss, model_loss_summary, model_acc, model_scaled_logits = self._single_model_losses(
-                    models_logits[i], models_embeddings[i], n_iter, model_name, num_packages
-                )
-
-                avg_acc += model_acc / float(num_models)
-                total_loss += model_loss / float(num_models)
-                loss_summary.update(model_loss_summary)
-                models_logits[i] = model_scaled_logits
-
-                if len(model_names) > 1: # mutual learning
+                if num_models > 1: # mutual learning
                     mutual_loss = 0
-                    for j in range(len(model_names)):
+                    for j in range(num_models):
                         if i != j:
                             mutual_loss += self.loss_kl(F.log_softmax(models_logits[i], dim = 1),
                                                     F.softmax(models_logits[j], dim=1))
-                        mutual_loss / (len(model_names) - 1)
+                    loss_summary[f'mutual_{model_names[i]}'] = mutual_loss.item()
 
-                num_mutual_losses = 0
-                mutual_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-                with torch.no_grad():
-                    trg_probs = torch.softmax(torch.stack(out_logits[trg_id]), dim=2).mean(dim=0)
+                    should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
+                    coeff_mutual_learning = int(not should_turn_off_mutual_learning)
 
-                for model_id, logits in enumerate(out_logits):
-                    log_probs = torch.log_softmax(logits, dim=1)
-                    m_loss = (trg_probs * log_probs).sum(dim=1).mean().neg()
+                    loss += coeff_mutual_learning * mutual_loss / (num_models - 1)
 
-                    mutual_loss += m_loss
-                    loss_summary['mutual_{}/{}'.format(trg_id, model_names[model_id])] = m_loss.item()
-                    num_mutual_losses += 1
+                    if self.compression_ctrl:
+                        compression_loss = self.compression_ctrl.loss()
+                        loss_summary['compression_loss'] = compression_loss
+                        loss += compression_loss
 
-                should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
-                coeff_mutual_learning = int(not should_turn_off_mutual_learning)
+                    # backward pass
+                    self.scaler.scale(loss).backward(retain_graph=self.enable_metric_losses)
+                    if not self.models[model_name].training:
+                        continue
 
-                total_loss += coeff_mutual_learning * mutual_loss / float(num_mutual_losses)
-                if self.compression_ctrl:
-                    compression_loss = self.compression_ctrl.loss()
-                    loss_summary['compression_loss'] = compression_loss
-                    total_loss += compression_loss
-
-            # backward pass
-            self.scaler.scale(total_loss).backward(retain_graph=self.enable_metric_losses)
-
-            for model_name in model_names:
-                if not self.models[model_name].training:
-                    continue
-                if self.clip_grad != 0 and step == 1:
-                    self.scaler.unscale_(self.optims[model_name])
-                    torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
-                for trg_id in range(self.num_classes):
-                    if self.enable_metric_losses:
-                        ml_loss_module = self.ml_losses[trg_id][model_name]
-                        ml_loss_module.end_iteration(do_backward=False)
-                if not self.enable_sam and step == 1:
-                    self.scaler.step(self.optims[model_name])
-                    self.scaler.update()
-                elif step == 1:
-                    assert self.enable_sam
-                    if self.clip_grad == 0:
-                        # if self.clip_grad == 0  this means that unscale_ wasn't applied,
-                        # so we manually unscale the parameters to perform SAM manipulations
+                    if self.clip_grad != 0 and step == 1:
                         self.scaler.unscale_(self.optims[model_name])
-                    overflow = self.optims[model_name].first_step()
-                    self.scaler.update() # update scaler after first step
-                    if overflow:
-                        print("Overflow occurred. Skipping step ...")
-                        loss_summary['loss'] = total_loss.item()
-                        # skip second step  if overflow occurred
-                        return loss_summary, avg_acc
-                else:
-                    assert self.enable_sam and step==2
-                    # unscale the parameters to perform SAM manipulations
-                    self.scaler.unscale_(self.optims[model_name])
-                    self.optims[model_name].second_step()
-                    self.scaler.update()
+                        torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
+                    if not self.enable_sam and step == 1:
+                        self.scaler.step(self.optims[model_name])
+                        self.scaler.update()
+                    elif step == 1:
+                        assert self.enable_sam
+                        if self.clip_grad == 0:
+                            # if self.clip_grad == 0  this means that unscale_ wasn't applied,
+                            # so we manually unscale the parameters to perform SAM manipulations
+                            self.scaler.unscale_(self.optims[model_name])
+                        overflow = self.optims[model_name].first_step()
+                        self.scaler.update() # update scaler after first step
+                        if overflow:
+                            print("Overflow occurred. Skipping step ...")
+                            loss_summary['loss'] = loss.item()
+                            # skip second step  if overflow occurred
+                            return loss_summary, main_acc
+                    else:
+                        assert self.enable_sam and step==2
+                        # unscale the parameters to perform SAM manipulations
+                        self.scaler.unscale_(self.optims[model_name])
+                        self.optims[model_name].second_step()
+                        self.scaler.update()
 
-            loss_summary['loss'] = total_loss.item()
+            loss_summary['loss'] = loss.item()
 
-        return loss_summary, avg_acc
+        return loss_summary, main_acc
 
-    def _forward(self, model, imgs, run_kwargs):
+    def _single_model_losses(self, model, imgs, targets, n_iter, model_name):
+        run_kwargs = dict()
+        if self.enable_rsc:
+            run_kwargs['gt_labels'] = targets
+
         with autocast(enabled=self.mix_precision):
             model_output = model(imgs, **run_kwargs)
-            all_logits, all_embeddings = self._parse_model_output(model_output)
-
-        return all_logits, all_embeddings
-
-    def _single_model_losses(self, all_logits, all_embeddings, targets, n_iter, model_name, num_packages):
-        loss_summary = dict()
-        acc = 0
-        trg_num_samples = targets.numel()
-        if trg_num_samples == 0:
-            raise RuntimeError("There is no samples in a batch!")
-
-        loss = self.main_losses(all_logits, targets, aug_index=self.aug_index,
-                                            lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
-        acc += metrics.accuracy(all_logits, targets)[0].item() # WHY [0]?
-        loss_summary[f'main_{model_name}'] = loss.item()
-
-        scaled_logits = self.main_losses.get_last_scale() * all_logits
-
-        if self.enable_metric_losses:
-            ml_loss_module = self.ml_losses[model_name]
-            ml_loss_module.init_iteration()
-            ml_loss, ml_loss_summary = ml_loss_module(all_embeddings, scaled_logits, targets, n_iter)
-
-            loss_summary[f'ml_{model_name}'] = ml_loss.item()
-            loss_summary.update(ml_loss_summary)
-            loss += ml_loss
-
-        if num_packages > 1 and self.mix_weight > 0.0:
-            mix_all_logits = scaled_logits.view(-1, num_packages, scaled_logits.size(1))
-            mix_log_probs = torch.log_softmax(mix_all_logits, dim=2)
-
-            with torch.no_grad():
-                trg_mix_probs = torch.softmax(mix_all_logits, dim=2).mean(dim=1, keepdim=True)
-
-            mixing_loss = (trg_mix_probs * mix_log_probs).sum(dim=2).neg().mean()
-
-            loss_summary[f'mix_{model_name}'] = mixing_loss.item()
-            loss += self.mix_weight * mixing_loss
-
-        return loss, loss_summary, acc, scaled_logits
-
-    def _prepare_run_kwargs(self, gt_labels):
-        run_kwargs = dict()
-        if self.enable_metric_losses:
-            run_kwargs['get_embeddings'] = True
-        if self.enable_rsc:
-            run_kwargs['gt_labels'] = gt_labels
-
-        return run_kwargs
-
-    def _parse_model_output(self, model_output):
-        if self.enable_metric_losses:
-            all_logits, all_embeddings = model_output[:2]
-        else:
             all_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
-            all_embeddings = None
+            loss_summary = dict()
+            acc = 0
+            trg_num_samples = targets.numel()
+            if trg_num_samples == 0:
+                raise RuntimeError("There is no samples in a batch!")
 
-        return all_logits, all_embeddings
+            loss = self.main_losses(all_logits, targets, aug_index=self.aug_index,
+                                                lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
+            acc += metrics.accuracy(all_logits, targets)[0].item()
+            loss_summary[f'main_{model_name}'] = loss.item()
+
+            scaled_logits = self.main_losses.get_last_scale() * all_logits
+
+            return loss, loss_summary, acc, scaled_logits
+
 
     def _apply_batch_augmentation(self, imgs):
         def rand_bbox(size, lam):

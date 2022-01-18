@@ -42,42 +42,36 @@ class MultilabelEngine(Engine):
 
         self.main_losses = nn.ModuleList()
         self.clip_grad = clip_grad
-        num_classes = self.datamanager.num_train_pids
-        if not isinstance(num_classes, (list, tuple)):
-            num_classes = [num_classes]
-        self.num_classes = num_classes
+        self.num_classes = self.datamanager.num_train_pids
+        self.aug_index = None
+        self.lam = None
 
-        for _ in enumerate(self.num_classes):
-            if loss_name == 'asl':
-                self.main_losses.append(AsymmetricLoss(
-                    gamma_neg=asl_gamma_neg,
-                    gamma_pos=asl_gamma_pos,
-                    probability_margin=asl_p_m,
-                    label_smooth=label_smooth,
-                ))
-            elif loss_name == 'bce':
-                self.main_losses.append(AsymmetricLoss(
-                    gamma_neg=0,
-                    gamma_pos=0,
-                    probability_margin=0,
-                    label_smooth=label_smooth,
-                ))
-            elif loss_name == 'am_binary':
-                self.main_losses.append(AMBinaryLoss(
-                    m=m,
-                    k=amb_k,
-                    t=amb_t,
-                    s=self.am_scale,
-                    gamma_neg=asl_gamma_neg,
-                    gamma_pos=asl_gamma_pos,
-                    label_smooth=label_smooth,
-                ))
+        if loss_name == 'asl':
+            self.main_losses = AsymmetricLoss(
+                gamma_neg=asl_gamma_neg,
+                gamma_pos=asl_gamma_pos,
+                probability_margin=asl_p_m,
+                label_smooth=label_smooth,
+            )
+        elif loss_name == 'bce':
+            self.main_losses = AsymmetricLoss(
+                gamma_neg=0,
+                gamma_pos=0,
+                probability_margin=0,
+                label_smooth=label_smooth,
+            )
+        elif loss_name == 'am_binary':
+            self.main_losses = AMBinaryLoss(
+                m=m,
+                k=amb_k,
+                t=amb_t,
+                s=self.am_scale,
+                gamma_neg=asl_gamma_neg,
+                gamma_pos=asl_gamma_pos,
+                label_smooth=label_smooth,
+            )
 
-        num_classes = self.datamanager.num_train_pids
-        if not isinstance(num_classes, (list, tuple)):
-            num_classes = [num_classes]
-        self.num_classes = num_classes
-        self.num_targets = len(self.num_classes)
+
         self.enable_sam = isinstance(self.optims[self.main_model_name], SAM)
 
         for model_name in self.get_model_names():
@@ -88,10 +82,7 @@ class MultilabelEngine(Engine):
         self.prev_smooth_accuracy = 0.
 
     def forward_backward(self, data):
-        n_iter = self.epoch * self.num_batches + self.batch_idx
-
-        train_records = self.parse_data_for_train(data, output_dict=True, use_gpu=self.use_gpu)
-        imgs, obj_ids = train_records['img'], train_records['obj_id']
+        imgs, targets = self.parse_data_for_train(data, output_dict=True, use_gpu=self.use_gpu)
 
         model_names = self.get_model_names()
         num_models = len(model_names)
@@ -99,54 +90,44 @@ class MultilabelEngine(Engine):
         # forward pass
         for step in steps:
             # if sam is enabled then statistics will be written each step, but will be saved only the second time
-            # this is made just for convinience
-            avg_acc = 0.0
-            out_logits = [[] for _ in range(self.num_targets)]
-            total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
+            # this is made just for convenience
             loss_summary = dict()
+            models_logits = [[] for i in range(num_models)]
+            num_models = len(self.models)
 
-            for model_name in model_names:
-                self.optims[model_name].zero_grad()
-                model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
-                    model=self.models[model_name], train_records=train_records,
-                    imgs=imgs, obj_ids=obj_ids, n_iter=n_iter, model_name=model_name)
-
-                avg_acc += model_avg_acc / float(num_models)
-                total_loss += model_loss / float(num_models)
+            for i, model in enumerate(self.models):
+                loss, model_loss_summary, acc, scaled_logits = self._single_model_losses(
+                    model, imgs, targets, model_name
+                    )
+                models_logits[i] = scaled_logits
                 loss_summary.update(model_loss_summary)
+                if i == 0: # main model
+                    main_acc = acc
 
-                for trg_id in range(self.num_targets):
-                    if model_logits[trg_id] is not None:
-                        out_logits[trg_id].append(model_logits[trg_id])
-            model_num = len(model_names)
-            # compute mutual loss
-            if len(model_names) > 1:
-                mutual_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-                for trg_id in range(self.num_targets):
-                    if len(out_logits[trg_id]) <= 1:
-                        continue
-                    for model_i, logits_i in enumerate(out_logits[trg_id]):
-                        probabilities_i = torch.sigmoid(logits_i)
-                        kl_loss = 0
-                        for model_j, logits_j in enumerate(out_logits[trg_id]):
-                            if model_i != model_j:
-                                probabilities_j = torch.sigmoid(logits_j)
-                                kl_loss += self.kl_div_binary(probabilities_i, probabilities_j)
-                        mutual_loss += kl_loss / (model_num - 1)
-                        loss_summary['mutual_{}/{}'.format(trg_id, model_names[model_i])] = mutual_loss.item()
+            for i, model_name in enumerate(model_names):
+                self.optims[model_name].zero_grad()
+                # compute mutual loss
+                if len(model_names) > 1:
+                    mutual_loss = 0
+                    probabilities_i = torch.sigmoid(models_logits[i])
+                    for j, model_name in enumerate(model_names):
+                        if i != j:
+                            probabilities_j = torch.sigmoid(models_logits[j])
+                            mutual_loss += self.kl_div_binary(probabilities_i, probabilities_j)
+                    loss_summary[f'mutual_{model_names[i]}'] = mutual_loss.item()
 
-                should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
-                coeff_mutual_learning = int(not should_turn_off_mutual_learning)
+                    should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
+                    coeff_mutual_learning = int(not should_turn_off_mutual_learning)
 
-                total_loss += coeff_mutual_learning * mutual_loss
-                if self.compression_ctrl:
-                    compression_loss = self.compression_ctrl.loss()
-                    loss_summary['compression_loss'] = compression_loss
-                    total_loss += compression_loss
+                    loss += coeff_mutual_learning * mutual_loss / (num_models - 1)
 
-            # backward pass
-            self.scaler.scale(total_loss).backward(retain_graph=False)
-            for model_name in model_names:
+                    if self.compression_ctrl:
+                        compression_loss = self.compression_ctrl.loss()
+                        loss_summary['compression_loss'] = compression_loss
+                        loss += compression_loss
+
+                # backward pass
+                self.scaler.scale(loss).backward(retain_graph=False)
                 if self.clip_grad != 0 and step == 1:
                     self.scaler.unscale_(self.optims[model_name])
                     torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
@@ -163,9 +144,9 @@ class MultilabelEngine(Engine):
                     self.scaler.update() # update scaler after first step
                     if overflow:
                         print("Overflow occurred. Skipping step ...")
-                        loss_summary['loss'] = total_loss.item()
+                        loss_summary['loss'] = loss.item()
                         # skip second step  if overflow occurred
-                        return loss_summary, avg_acc
+                        return loss_summary, main_acc
                 else:
                     assert self.enable_sam and step==2
                     if self.clip_grad == 0:
@@ -173,46 +154,28 @@ class MultilabelEngine(Engine):
                     self.optims[model_name].second_step()
                     self.scaler.update()
 
-            loss_summary['loss'] = total_loss.item()
+            loss_summary['loss'] = loss.item()
 
-        return loss_summary, avg_acc
+        return loss_summary, main_acc
 
-    def _single_model_losses(self, model, train_records, imgs, obj_ids, n_iter, model_name):
+    def _single_model_losses(self, model, imgs, targets, model_name):
         with autocast(enabled=self.mix_precision):
             model_output = model(imgs)
-            all_logits = self._parse_model_output(model_output)
-
-            total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-            out_logits = []
+            all_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
             loss_summary = dict()
+            acc = 0
+            trg_num_samples = targets.numel()
+            if trg_num_samples == 0:
+                raise RuntimeError("There is no samples in a batch!")
 
-            num_trg_losses = 0
-            avg_acc = 0
+            loss = self.main_losses(all_logits, targets, aug_index=self.aug_index,
+                                    lam=self.lam, scale=self.scales[model_name])
+            acc += metrics.accuracy(all_logits, targets)[0].item()
+            loss_summary[f'main_{model_name}'] = loss.item()
 
-            for trg_id in range(self.num_targets):
-                trg_mask = train_records['dataset_id'] == trg_id
+            scaled_logits = self.main_losses.get_last_scale() * all_logits
 
-                trg_obj_ids = obj_ids[trg_mask]
-                trg_num_samples = trg_obj_ids.numel()
-                if trg_num_samples == 0:
-                    out_logits.append(None)
-                    continue
-
-                trg_logits = all_logits[trg_id][trg_mask]
-                main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, scale=self.scales[model_name])
-                avg_acc += metrics.accuracy_multilabel(trg_logits, trg_obj_ids).item()
-                loss_summary['main_{}/{}'.format(trg_id, model_name)] = main_loss.item()
-
-                scaled_trg_logits = self.main_losses[trg_id].get_last_scale() * trg_logits
-                out_logits.append(scaled_trg_logits)
-
-                total_loss += main_loss
-                num_trg_losses += 1
-
-            total_loss /= float(num_trg_losses)
-            avg_acc /= float(num_trg_losses)
-
-        return total_loss, loss_summary, avg_acc, out_logits
+        return loss, loss_summary, acc, scaled_logits
 
     def kl_div_binary(self, x, y):
         ''' compute KL divergence between two tensors represented
@@ -224,12 +187,6 @@ class MultilabelEngine(Engine):
         p_log = torch.log(p.add_(1e-8))
         # compute true KLDiv for each sample, than do the batchmean reduction
         return F.kl_div(p_log, q, reduction='none').sum(2).div_(x.size(1)).sum().div_(x.size(0))
-
-    def _parse_model_output(self, model_output):
-        all_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
-        all_logits = all_logits if isinstance(all_logits, (tuple, list)) else [all_logits]
-
-        return all_logits
 
     def exit_on_plateau_and_choose_best(self, accuracy):
         '''
