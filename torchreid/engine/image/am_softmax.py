@@ -28,7 +28,7 @@ class ImageAMSoftmaxEngine(Engine):
                  train_patience, early_stopping, lr_decay_factor, loss_name, label_smooth,
                  margin_type, aug_type, decay_power, alpha, size, lr_finder, aug_prob,
                  conf_penalty, pr_product, m, end_s, clip_grad, duration_s, skip_steps_s,
-                 enable_masks, adaptive_margins, class_weighting, attr_cfg, base_num_classes,
+                 enable_masks, adaptive_margins, class_weighting, metric_cfg,
                  symmetric_ce, mix_weight, enable_rsc, should_freeze_aux_models, nncf_metainfo,
                  compression_ctrl, initial_lr, target_metric, use_ema_decay, ema_decay, mix_precision, **kwargs):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager,
@@ -54,7 +54,6 @@ class ImageAMSoftmaxEngine(Engine):
         if loss_name == 'am_softmax':
             assert m >= 0.0
 
-        self.regularizer = get_regularizer(reg_cfg)
         self.enable_metric_losses = metric_cfg.enable
         self.enable_masks = enable_masks
         self.mix_weight = mix_weight
@@ -76,9 +75,9 @@ class ImageAMSoftmaxEngine(Engine):
         self.scaler = GradScaler(enabled=mix_precision)
 
         self.num_classes = self.datamanager.num_train_pids
-        self.num_targets = len(self.num_classes)
         self.main_losses = nn.ModuleList()
         self.ml_losses = list()
+        self.loss_kl = nn.KLDivLoss(reduction='batchmean')
         if loss_name == 'softmax':
             self.main_losses.append(CrossEntropyLoss(
                 use_gpu=self.use_gpu,
@@ -101,7 +100,7 @@ class ImageAMSoftmaxEngine(Engine):
                 skip_steps_s=skip_steps_s * self.num_batches if self._valid(skip_steps_s) else None,
                 pr_product=pr_product,
                 symmetric_ce=symmetric_ce,
-                class_counts=trg_class_counts,
+                class_counts=self.num_classes,
                 adaptive_margins=adaptive_margins,
                 class_weighting=class_weighting
             ))
@@ -109,13 +108,10 @@ class ImageAMSoftmaxEngine(Engine):
             if self.enable_metric_losses:
                 trg_ml_losses = dict()
                 for model_name, model in self.models.items():
-                    feature_dim = model.module.feature_dim
-                    if hasattr(model.module, 'out_feature_dims'):
-                        feature_dim = model.module.out_feature_dims[trg_id]
-
+                    feature_dim = get_model_attr(model, 'get_num_head_features')()
                     ml_cfg = copy.deepcopy(metric_cfg)
                     ml_cfg.pop('enable')
-                    ml_cfg['name'] = 'ml_{}/{}'.format(trg_id, model_name)
+                    ml_cfg['name'] = 'ml_{}'.format(model_name)
                     trg_ml_losses[model_name] = MetricLosses(self.num_classes, feature_dim, **ml_cfg)
 
                 self.ml_losses.append(trg_ml_losses)
@@ -130,17 +126,18 @@ class ImageAMSoftmaxEngine(Engine):
 
         train_records = self.parse_data_for_train(data, True, self.enable_masks, self.use_gpu)
         imgs = train_records['img']
-        obj_ids = train_records['obj_id']
+        targets = train_records['obj_id']
         num_packages = 1
         if len(imgs.size()) != 4:
             assert len(imgs.size()) == 5
 
             b, num_packages, c, h, w = imgs.size()
             imgs = imgs.view(b * num_packages, c, h, w)
-            obj_ids = obj_ids.view(-1, 1).repeat(1, num_packages).view(-1)
+            targets = targets.view(-1, 1).repeat(1, num_packages).view(-1)
             train_records['dataset_id'] = train_records['dataset_id'].view(-1, 1).repeat(1, num_packages).view(-1)
 
-        imgs, obj_ids = self._apply_batch_augmentation(imgs, obj_ids)
+        imgs, targets = self._apply_batch_augmentation(imgs, targets)
+        run_kwargs = self._prepare_run_kwargs(targets)
 
         model_names = self.get_model_names()
         num_models = len(model_names)
@@ -149,42 +146,49 @@ class ImageAMSoftmaxEngine(Engine):
             # if sam is enabled then statistics will be written each step, but will be saved only the second time
             # this is made just for convinience
             avg_acc = 0.0
-            out_logits = [[] for _ in range(self.num_targets)]
+            out_logits = [[] for _ in range(self.num_classes)]
             total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
             loss_summary = dict()
+            models_logits = [[] for i in range(len(model_names))]
+            models_embeddings = [[] for i in range(len(model_names))]
 
-            for model_name in model_names:
+            for i, model in enumerate(self.models):
+                logits, embeddings = self._forward(model, imgs, run_kwargs)
+                models_logits[i] = logits
+                models_embeddings[i] = embeddings
+
+            for i, model_name in enumerate(model_names):
                 self.optims[model_name].zero_grad()
 
-                model_loss, model_loss_summary, model_avg_acc, model_logits = self._single_model_losses(
-                    self.models[model_name], train_records, imgs, obj_ids, n_iter, model_name, num_packages
+                model_loss, model_loss_summary, model_acc, model_scaled_logits = self._single_model_losses(
+                    models_logits[i], models_embeddings[i], n_iter, model_name, num_packages
                 )
 
-                avg_acc += model_avg_acc / float(num_models)
+                avg_acc += model_acc / float(num_models)
                 total_loss += model_loss / float(num_models)
                 loss_summary.update(model_loss_summary)
+                models_logits[i] = model_scaled_logits
 
-                for trg_id in range(self.num_targets):
-                    if model_logits[trg_id] is not None:
-                        out_logits[trg_id].append(model_logits[trg_id])
+                if len(model_names) > 1: # mutual learning
+                    mutual_loss = 0
+                    for j in range(len(model_names)):
+                        if i != j:
+                            mutual_loss += self.loss_kl(F.log_softmax(models_logits[i], dim = 1),
+                                                    F.softmax(models_logits[j], dim=1))
+                        mutual_loss / (len(model_names) - 1)
 
-            if len(model_names) > 1:
                 num_mutual_losses = 0
                 mutual_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-                for trg_id in range(self.num_targets):
-                    if len(out_logits[trg_id]) <= 1:
-                        continue
+                with torch.no_grad():
+                    trg_probs = torch.softmax(torch.stack(out_logits[trg_id]), dim=2).mean(dim=0)
 
-                    with torch.no_grad():
-                        trg_probs = torch.softmax(torch.stack(out_logits[trg_id]), dim=2).mean(dim=0)
+                for model_id, logits in enumerate(out_logits):
+                    log_probs = torch.log_softmax(logits, dim=1)
+                    m_loss = (trg_probs * log_probs).sum(dim=1).mean().neg()
 
-                    for model_id, logits in enumerate(out_logits[trg_id]):
-                        log_probs = torch.log_softmax(logits, dim=1)
-                        m_loss = (trg_probs * log_probs).sum(dim=1).mean().neg()
-
-                        mutual_loss += m_loss
-                        loss_summary['mutual_{}/{}'.format(trg_id, model_names[model_id])] = m_loss.item()
-                        num_mutual_losses += 1
+                    mutual_loss += m_loss
+                    loss_summary['mutual_{}/{}'.format(trg_id, model_names[model_id])] = m_loss.item()
+                    num_mutual_losses += 1
 
                 should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
                 coeff_mutual_learning = int(not should_turn_off_mutual_learning)
@@ -204,7 +208,7 @@ class ImageAMSoftmaxEngine(Engine):
                 if self.clip_grad != 0 and step == 1:
                     self.scaler.unscale_(self.optims[model_name])
                     torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
-                for trg_id in range(self.num_targets):
+                for trg_id in range(self.num_classes):
                     if self.enable_metric_losses:
                         ml_loss_module = self.ml_losses[trg_id][model_name]
                         ml_loss_module.end_iteration(do_backward=False)
@@ -235,92 +239,87 @@ class ImageAMSoftmaxEngine(Engine):
 
         return loss_summary, avg_acc
 
-    def _single_model_losses(self, model, train_records, imgs, obj_ids, n_iter, model_name, num_packages):
+    def _forward(self, model, imgs, run_kwargs):
         with autocast(enabled=self.mix_precision):
-            run_kwargs = self._prepare_run_kwargs(obj_ids)
             model_output = model(imgs, **run_kwargs)
             all_logits, all_embeddings = self._parse_model_output(model_output)
 
-            total_loss = torch.zeros([], dtype=imgs.dtype, device=imgs.device)
-            out_logits = []
-            loss_summary = dict()
+        return all_logits, all_embeddings
 
-            num_trg_losses = 0
-            avg_acc = 0
+    def _single_model_losses(self, all_logits, all_embeddings, targets, n_iter, model_name, num_packages):
+        loss_summary = dict()
+        acc = 0
+        trg_num_samples = targets.numel()
+        if trg_num_samples == 0:
+            raise RuntimeError("There is no samples in a batch!")
 
-            for trg_id in range(self.num_targets):
-                trg_mask = train_records['dataset_id'] == trg_id
+        loss = self.main_losses(all_logits, targets, aug_index=self.aug_index,
+                                            lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
+        acc += metrics.accuracy(all_logits, targets)[0].item() # WHY [0]?
+        loss_summary[f'main_{model_name}'] = loss.item()
 
-                trg_obj_ids = obj_ids[trg_mask]
-                trg_num_samples = trg_obj_ids.numel()
-                if trg_num_samples == 0:
-                    out_logits.append(None)
-                    continue
+        scaled_logits = self.main_losses.get_last_scale() * all_logits
 
-                trg_logits = all_logits[trg_id][trg_mask]
-                main_loss = self.main_losses[trg_id](trg_logits, trg_obj_ids, aug_index=self.aug_index,
-                                                    lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
-                avg_acc += metrics.accuracy(trg_logits, trg_obj_ids)[0].item()
-                loss_summary['main_{}/{}'.format(trg_id, model_name)] = main_loss.item()
+        if self.enable_metric_losses:
+            ml_loss_module = self.ml_losses[model_name]
+            ml_loss_module.init_iteration()
+            ml_loss, ml_loss_summary = ml_loss_module(all_embeddings, scaled_logits, targets, n_iter)
 
-                scaled_trg_logits = self.main_losses[trg_id].get_last_scale() * trg_logits
-                out_logits.append(scaled_trg_logits)
+            loss_summary[f'ml_{model_name}'] = ml_loss.item()
+            loss_summary.update(ml_loss_summary)
+            loss += ml_loss
 
-                trg_loss = main_loss
-                if self.enable_metric_losses:
-                    ml_loss_module = self.ml_losses[trg_id][model_name]
-                    embd = all_embeddings[trg_id][trg_mask]
+        if num_packages > 1 and self.mix_weight > 0.0:
+            mix_all_logits = scaled_logits.view(-1, num_packages, scaled_logits.size(1))
+            mix_log_probs = torch.log_softmax(mix_all_logits, dim=2)
 
-                    ml_loss_module.init_iteration()
-                    ml_loss, ml_loss_summary = ml_loss_module(embd, trg_logits, trg_obj_ids, n_iter)
+            with torch.no_grad():
+                trg_mix_probs = torch.softmax(mix_all_logits, dim=2).mean(dim=1, keepdim=True)
 
-                    loss_summary['ml_{}/{}'.format(trg_id, model_name)] = ml_loss.item()
-                    loss_summary.update(ml_loss_summary)
-                    trg_loss += ml_loss
+            mixing_loss = (trg_mix_probs * mix_log_probs).sum(dim=2).neg().mean()
 
-                if num_packages > 1 and self.mix_weight > 0.0:
-                    mix_all_logits = scaled_trg_logits.view(-1, num_packages, scaled_trg_logits.size(1))
-                    mix_log_probs = torch.log_softmax(mix_all_logits, dim=2)
+            loss_summary[f'mix_{model_name}'] = mixing_loss.item()
+            loss += self.mix_weight * mixing_loss
 
-                    with torch.no_grad():
-                        trg_mix_probs = torch.softmax(mix_all_logits, dim=2).mean(dim=1, keepdim=True)
-
-                    mixing_loss = (trg_mix_probs * mix_log_probs).sum(dim=2).neg().mean()
-
-                    loss_summary['mix_{}/{}'.format(trg_id, model_name)] = mixing_loss.item()
-                    trg_loss += self.mix_weight * mixing_loss
-
-                total_loss += trg_loss
-                num_trg_losses += 1
-            total_loss /= float(num_trg_losses)
-            avg_acc /= float(num_trg_losses)
-
-            return total_loss, loss_summary, avg_acc, out_logits
+        return loss, loss_summary, acc, scaled_logits
 
     def _prepare_run_kwargs(self, gt_labels):
         run_kwargs = dict()
         if self.enable_metric_losses:
             run_kwargs['get_embeddings'] = True
-        if self.enable_attr or self.enable_masks:
-            run_kwargs['get_extra_data'] = True
         if self.enable_rsc:
             run_kwargs['gt_labels'] = gt_labels
-
 
         return run_kwargs
 
     def _parse_model_output(self, model_output):
         if self.enable_metric_losses:
             all_logits, all_embeddings = model_output[:2]
-            all_embeddings = all_embeddings if isinstance(all_embeddings, (tuple, list)) else [all_embeddings]
         else:
             all_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
             all_embeddings = None
 
-        # all_logits = all_logits if isinstance(all_logits, (tuple, list)) else [all_logits]
         return all_logits, all_embeddings
 
-    def _apply_batch_augmentation(self, imgs, obj_ids):
+    def _apply_batch_augmentation(self, imgs):
+        def rand_bbox(size, lam):
+            W = size[2]
+            H = size[3]
+            cut_rat = np.sqrt(1. - lam)
+            cut_w = np.int(W * cut_rat)
+            cut_h = np.int(H * cut_rat)
+
+            # uniform
+            cx = np.random.randint(W)
+            cy = np.random.randint(H)
+
+            bbx1 = np.clip(cx - cut_w // 2, 0, W)
+            bby1 = np.clip(cy - cut_h // 2, 0, H)
+            bbx2 = np.clip(cx + cut_w // 2, 0, W)
+            bby2 = np.clip(cy + cut_h // 2, 0, H)
+
+            return bbx1, bby1, bbx2, bby2
+
         if self.aug_type == 'fmix':
             r = np.random.rand(1)
             if self.alpha > 0 and r[0] <= self.aug_prob:
@@ -357,7 +356,7 @@ class ImageAMSoftmaxEngine(Engine):
                 lam = np.random.beta(self.alpha, self.alpha)
                 rand_index = torch.randperm(imgs.size(0), device=imgs.device)
 
-                bbx1, bby1, bbx2, bby2 = self.rand_bbox(imgs.size(), lam)
+                bbx1, bby1, bbx2, bby2 = rand_bbox(imgs.size(), lam)
                 imgs[:, :, bbx1:bbx2, bby1:bby2] = imgs[rand_index, :, bbx1:bbx2, bby1:bby2]
                 # adjust lambda to exactly match pixel ratio
                 lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (imgs.size()[-1] * imgs.size()[-2]))
@@ -367,26 +366,8 @@ class ImageAMSoftmaxEngine(Engine):
                 self.aug_index = None
                 self.lam = None
 
-        return imgs, obj_ids
+        return imgs
 
-    @staticmethod
-    def rand_bbox(size, lam):
-        W = size[2]
-        H = size[3]
-        cut_rat = np.sqrt(1. - lam)
-        cut_w = np.int(W * cut_rat)
-        cut_h = np.int(H * cut_rat)
-
-        # uniform
-        cx = np.random.randint(W)
-        cy = np.random.randint(H)
-
-        bbx1 = np.clip(cx - cut_w // 2, 0, W)
-        bby1 = np.clip(cy - cut_h // 2, 0, H)
-        bbx2 = np.clip(cx + cut_w // 2, 0, W)
-        bby2 = np.clip(cy + cut_h // 2, 0, H)
-
-        return bbx1, bby1, bbx2, bby2
 
     def exit_on_plateau_and_choose_best(self, accuracy):
         '''
