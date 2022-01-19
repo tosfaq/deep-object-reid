@@ -17,7 +17,8 @@ import torch.nn as nn
 import torch.nn.init as init
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, EvalModeSetter, rsc
+from torchreid.utils import  EvalModeSetter
+from torchreid.ops import Dropout, rsc
 from .common import Concurrent, ModelInterface
 
 

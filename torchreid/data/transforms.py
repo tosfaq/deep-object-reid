@@ -25,8 +25,6 @@ from torchvision.transforms import RandomCrop as TorchRandomCrop
 from torchvision.transforms import functional as F
 from randaugment import RandAugment
 
-from ..data.datasets.image.lfw import FivePointsAligner
-
 
 class RandomHorizontalFlip(object):
     def __init__(self, p=0.5):
@@ -505,45 +503,6 @@ class RandomFigures(object):
         return cv_image
 
 
-class CutOutWithPrior(object):
-    """Cut out around facial landmarks
-    """
-
-    def __init__(self, max_area=0.1, p=0.5, **kwargs):
-        self.p = p
-        self.max_area = max_area
-
-    def __call__(self, image, *args, **kwargs):
-        image = np.array(image)
-
-        height, width = image.shape[:2]
-        keypoints_ref = np.zeros((5, 2), dtype=np.float32)
-        keypoints_ref[:, 0] = FivePointsAligner.ref_landmarks[:, 0] * width
-        keypoints_ref[:, 1] = FivePointsAligner.ref_landmarks[:, 1] * height
-
-        if float(torch.FloatTensor(1).uniform_()) < self.p:
-            erase_num = torch.LongTensor(1).random_(1, 4)
-            erase_ratio = torch.FloatTensor(1).uniform_(self.max_area / 2, self.max_area)
-            erase_h = math.sqrt(erase_ratio) / float(erase_num) * height
-            erase_w = math.sqrt(erase_ratio) / float(erase_num) * width
-
-            erased_idx = []
-            for _ in range(erase_num):
-                erase_pos = int(torch.LongTensor(1).random_(0, 5))
-                while erase_pos in erased_idx:
-                    erase_pos = int(torch.LongTensor(1).random_(0, 5))
-
-                left_corner = (
-                    int(keypoints_ref[erase_pos][0] - erase_h / 2), int(keypoints_ref[erase_pos][1] - erase_w / 2))
-                right_corner = (
-                    int(keypoints_ref[erase_pos][0] + erase_h / 2), int(keypoints_ref[erase_pos][1] + erase_w / 2))
-
-                cv2.rectangle(image, tuple(left_corner), tuple(right_corner), (0, 0, 0), thickness=-1)
-                erased_idx.append(erase_pos)
-
-        return Image.fromarray(image)
-
-
 class GaussianBlur(object):
     """Apply gaussian blur with random parameters
     """
@@ -984,10 +943,6 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     if transforms.random_flip.enable:
         print('+ random flip')
         transform_tr += [RandomHorizontalFlip(p=transforms.random_flip.p)]
-    if transforms.cut_out_with_prior.enable:
-        print('+ cut out with prior')
-        transform_tr += [CutOutWithPrior(p=transforms.cut_out_with_prior.p,
-                                         max_area=transforms.cut_out_with_prior.max_area)]
     if transforms.random_blur.enable:
         print('+ random_blur')
         transform_tr += [GaussianBlur(p=transforms.random_blur.p,

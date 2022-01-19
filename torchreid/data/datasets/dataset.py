@@ -6,17 +6,13 @@
 #
 
 from __future__ import absolute_import, division, print_function
-import copy
 import operator
 import os.path as osp
-import tarfile
-import zipfile
 from collections import defaultdict
 
-import numpy as np
 import torch
 
-from torchreid.utils import download_url, mkdir_if_missing, read_image
+from torchreid.utils import read_image
 
 
 class Dataset:
@@ -40,30 +36,19 @@ class Dataset:
         test,
         transform=None,
         mode='train',
-        combineall=False,
         verbose=True,
-        min_id_samples=0,
-        num_sampled_packages=1,
         **kwargs
     ):
         self.train = train
         self.test = test
         self.transform = transform
         self.mode = mode
-        self.combineall = combineall
         self.verbose = verbose
 
-        self.num_sampled_packages = num_sampled_packages
-        assert self.num_sampled_packages >= 1
-
         self.num_train_ids = self.get_num_ids(self.train)
-        if len(self.num_train_ids) == 0: # workaround for classification: test is a validation set
+        if len(self.num_train_ids) == 0: # workaround: test is a validation set
             self.num_train_ids = self.get_num_ids(self.test)
 
-        if self.combineall:
-            self.combine_all()
-
-        self._cut_train_ids(min_id_samples)
         self.data_counts = self.get_data_counts(self.train)
 
         if self.mode == 'train':
@@ -87,19 +72,14 @@ class Dataset:
     def parse_data(data):
         """Parses data list and returns the number of categories.
         """
-        ids = defaultdict(set), defaultdict(set)
+        ids = set(), set()
         for record in data:
-            dataset_id = record[2]
-            if isinstance(record[1], (tuple, list)):
-                for ids in record[1]:
-                    ids[dataset_id].add(ids)
-            else:
-                ids[dataset_id].add(record[1])
-        for dataset_id, dataset_ids in ids.items():
-            if len(dataset_ids) != max(dataset_ids) + 1:
+            ids.update(set(record[1]))
+        for cats in ids:
+            if len(cats) != max(cats) + 1:
                 print("WARNING:: There are some categories are missing in this split for this dataset.")
-            num_ids = {dataset_id: max(dataset_ids) + 1}
-        return num_ids
+            num_cats = max(cats) + 1
+        return num_cats
 
     def get_num_ids(self, data):
         """Returns the number of training categories."""
@@ -124,92 +104,6 @@ class Dataset:
     def show_summary(self):
         """Shows dataset statistics."""
         pass
-
-    @staticmethod
-    def _get_obj_ids(data, junk_obj_ids, obj_ids=None):
-        if obj_ids is None:
-            obj_ids = defaultdict(set)
-
-        for record in data:
-            obj_id = record[1]
-            if obj_id in junk_obj_ids:
-                continue
-
-            dataset_id = record[2]
-            obj_ids[dataset_id].add(obj_id)
-
-        return obj_ids
-
-    def _cut_train_ids(self, min_imgs):
-        if min_imgs < 2:
-            return
-
-        self.train = sorted(self.train, key=operator.itemgetter(1))
-
-        id_counters = {}
-        for path, id, _ in self.train:
-            if id in id_counters:
-                id_counters[id] += 1
-            else:
-                id_counters[id] = 1
-        ids_to_del = set()
-        for k in id_counters:
-            if id_counters[k] < min_imgs:
-                ids_to_del.add(k)
-
-        filtered_train = []
-        removed_ids = set()
-        for path, id, _ in self.train:
-            if id in ids_to_del:
-                removed_ids.add(id)
-            else:
-                filtered_train.append((path, id - len(removed_ids)))
-
-        self.train = filtered_train
-
-        self.num_train_ids = self.get_num_ids(self.train)
-
-    def download_dataset(self, dataset_dir, dataset_url):
-        """Downloads and extracts dataset.
-
-        Args:
-            dataset_dir (str): dataset directory.
-            dataset_url (str): url to download dataset.
-        """
-        if osp.exists(dataset_dir):
-            return
-
-        if dataset_url is None:
-            raise RuntimeError(
-                '{} dataset needs to be manually '
-                'prepared, please follow the '
-                'document to prepare this dataset'.format(
-                    self.__class__.__name__
-                )
-            )
-
-        print('Creating directory "{}"'.format(dataset_dir))
-        mkdir_if_missing(dataset_dir)
-        fpath = osp.join(dataset_dir, osp.basename(dataset_url))
-
-        print(
-            'Downloading {} dataset to "{}"'.format(
-                self.__class__.__name__, dataset_dir
-            )
-        )
-        download_url(dataset_url, fpath)
-
-        print('Extracting "{}"'.format(fpath))
-        try:
-            tar = tarfile.open(fpath)
-            tar.extractall(path=dataset_dir)
-            tar.close()
-        except:
-            zip_ref = zipfile.ZipFile(fpath, 'r')
-            zip_ref.extractall(dataset_dir)
-            zip_ref.close()
-
-        print('{} dataset is ready'.format(self.__class__.__name__))
 
     @staticmethod
     def check_before_run(required_files):
@@ -264,47 +158,19 @@ class ImageDataset(Dataset):
         image = read_image(input_record[0], grayscale=False)
         obj_id = input_record[1]
 
-        if len(input_record) > 3:
-            dataset_id = input_record[2]
-            if isinstance(obj_id, (tuple, list)): # when multi-label classification is available
-                targets = torch.zeros(self.num_train_ids[dataset_id])
-                for obj in obj_id:
-                    targets[obj] = 1
-                obj_id = targets
+        dataset_id = input_record[2]
+        if isinstance(obj_id, (tuple, list)): # when multi-label classification is available
+            targets = torch.zeros(self.num_train_ids[dataset_id])
+            for obj in obj_id:
+                targets[obj] = 1
+            obj_id = targets
 
-            if self.mode == 'train' and self.num_sampled_packages > 1:
-                assert self.transform is not None
-
-                transformed_image = []
-                for _ in range(self.num_sampled_packages):
-                    gen_image = self.transform(image)
-
-                    transformed_image.append(gen_image)
-
-                transformed_image = torch.stack(transformed_image)
-            elif self.transform is not None:
-                transformed_image = self.transform(image)
-            else:
-                transformed_image = image
-
-            output_record = (transformed_image, obj_id, dataset_id)
+        if self.transform is not None:
+            transformed_image = self.transform(image)
         else:
-            if self.mode == 'train' and self.num_sampled_packages > 1:
-                assert self.transform is not None
+            transformed_image = image
 
-                transformed_image = []
-                for _ in range(self.num_sampled_packages):
-                    gen_image, _ = self.transform((image, ''))
-
-                    transformed_image.append(gen_image)
-
-                transformed_image = torch.stack(transformed_image)
-            elif self.transform is not None:
-                transformed_image, _ = self.transform((image, ''))
-            else:
-                transformed_image = image
-
-            output_record = transformed_image, obj_id
+        output_record = (transformed_image, obj_id, dataset_id)
 
         return output_record
 
@@ -316,8 +182,8 @@ class ImageDataset(Dataset):
         print('  ----------------------------------------')
         print('  subset   | # ids | # images ')
         print('  ----------------------------------------')
-        print('  train    | {:5d} | {:8d} | {:9d}'.format(
+        print('  train    | {:5d} | {:8d} |'.format(
             sum(num_train_ids.values()), len(self.train)))
-        print('  test    | {:5d} | {:8d} | {:9d}'.format(
+        print('  test    | {:5d} | {:8d} |'.format(
             sum(num_test_ids.values()), len(self.test)))
         print('  ----------------------------------------')

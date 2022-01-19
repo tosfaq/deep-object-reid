@@ -5,4 +5,3 @@
 from .data_parallel import DataParallel
 from .dropout import Dropout
 from .self_challenging import RSC, rsc
-from .utils import EvalModeSetter
