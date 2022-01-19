@@ -4,7 +4,7 @@ name: EfficientNet-B0
 task_type: CLASSIFICATION
 task_family: VISION
 instantiation: "CLASS"
-summary: Custom Image Classification EfficientNet-B0
+summary: Provides better performance on large datasets, but may be not so stable in case of small amount of training data.
 application:
   ~
 
