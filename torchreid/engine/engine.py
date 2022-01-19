@@ -25,11 +25,9 @@ from torchreid.integration.nncf.compression import (get_nncf_complession_stage,
                                                     get_nncf_prepare_for_tensorboard)
 from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler, CosineAnnealingCycleRestart
 from torchreid import metrics
-from torchreid.losses import DeepSupervision
 from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
                              open_all_layers, open_specified_layers,
-                             re_ranking, save_checkpoint,
-                             visualize_ranked_results, ModelEmaV2)
+                             save_checkpoint, ModelEmaV2)
 
 
 EpochIntervalToValue = namedtuple('EpochIntervalToValue', ['first', 'last', 'value_inside', 'value_outside'])
@@ -382,7 +380,6 @@ class Engine:
 
                 accuracy, should_save_ema_model = self.test(
                     self.epoch,
-                    save_dir=save_dir,
                     topk=topk,
                     lr_finder=lr_finder,
                 )
@@ -653,11 +650,11 @@ class Engine:
         return top1, should_save_ema_model
 
     @torch.no_grad()
-    def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, dataset_name, lr_finder):
+    def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, lr_finder):
         mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader, model, self.use_gpu)
 
         if self.writer is not None and not lr_finder:
-            self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
+            self.writer.add_scalar('Val/{}/mAP'.format(model_name), mAP, epoch + 1)
 
         if not lr_finder:
             print('** Results ({}) **'.format(model_name))
@@ -672,7 +669,7 @@ class Engine:
         return mAP
 
     @torch.no_grad()
-    def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, topk, lr_finder):
+    def _evaluate_classification(self, model, epoch, data_loader, model_name, topk, lr_finder):
         labelmap = []
 
         if data_loader.dataset.classes and get_model_attr(model, 'classification_classes') and \
@@ -684,9 +681,9 @@ class Engine:
         cmc, mAP, norm_cm = metrics.evaluate_classification(data_loader, model, self.use_gpu, topk, labelmap)
 
         if self.writer is not None and not lr_finder:
-            self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
+            self.writer.add_scalar('Val/{}/mAP'.format(model_name), mAP, epoch + 1)
             for i, r in enumerate(topk):
-                self.writer.add_scalar('Val/{}/{}/Top-{}'.format(dataset_name, model_name, r), cmc[i], epoch + 1)
+                self.writer.add_scalar('Val/{}/Top-{}'.format(model_name, r), cmc[i], epoch + 1)
 
         if not lr_finder:
             print('** Results ({}) **'.format(model_name))
