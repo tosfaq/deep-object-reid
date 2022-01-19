@@ -160,10 +160,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
         self.num_devices = 1 if self._cfg.use_gpu else 0
 
         self._cfg.custom_datasets.types = ['external_classification_wrapper', 'external_classification_wrapper']
-        self._cfg.custom_datasets.names = ['train', 'val']
         self._cfg.custom_datasets.roots = ['']*2
-        self._cfg.data.sources = ['train']
-        self._cfg.data.targets = ['val']
         self._cfg.data.save_dir = self._scratch_space
 
         self._cfg.test.test_before_train = False
@@ -214,9 +211,8 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
         self._model.mix_precision = False
         self._model.eval()
         self._model.to(self.device)
-        targets = list(datamanager.test_loader.keys())
         dump_features = not inference_parameters.is_evaluation
-        inference_results, _ = score_extraction(datamanager.test_loader['test'],
+        inference_results, _ = score_extraction(datamanager.test_loader,
                                                 self._model, self._cfg.use_gpu, perf_monitor=time_monitor,
                                                 feature_dump_mode='all' if dump_features else 'vecs')
         self._model.mix_precision = mix_precision_status

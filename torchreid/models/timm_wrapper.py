@@ -26,7 +26,6 @@ class TimmModelsWrapper(ModelInterface):
                  pooling_type='avg',
                  **kwargs):
         super().__init__(**kwargs)
-        assert self.is_classification(), f"{model_name} model is adapted for classification tasks only"
         self.pretrained = pretrained
         self.is_mobilenet = True if model_name in ["mobilenetv3_large_100_miil_in21k", "mobilenetv3_large_100_miil"] else False
         self.model = timm.create_model(model_name,
