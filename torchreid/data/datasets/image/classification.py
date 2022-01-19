@@ -100,7 +100,7 @@ class ExternalDatasetWrapper(ImageDataset):
         # restore missing classes in train
         if mode == 'train':
             for i, _ in enumerate(data_provider.get_classes()):
-                if i not in self.data_counts[0]:
+                if i not in self.data_counts:
                     self.data_counts[i] = 0
         self.num_train_ids = len(data_provider.get_classes())
         self.classes = classes
@@ -111,7 +111,7 @@ class ExternalDatasetWrapper(ImageDataset):
     def get_input(self, idx: int):
         img = self.data_provider[idx]['img']
         if self.transform is not None:
-            img, _ = self.transform((img, ''))
+            img = self.transform(img)
         return img
 
     def __getitem__(self, idx: int):
@@ -126,7 +126,7 @@ class ExternalDatasetWrapper(ImageDataset):
             label = targets
         else:
             label = int(label)
-        return input_image, label, 0, 0
+        return input_image, label
 
     @staticmethod
     def load_annotation(data_provider, filter_classes=None):

@@ -18,17 +18,14 @@ model:
   feature_dim: 1280
 
 mutual_learning:
-  aux_configs: ['configs/classification/mobilenetv3_large_aux.yml']
+  aux_configs: ['configs/classification_experiments/mobilenetv3_large_aux.yml']
 
 custom_datasets:
   roots: ['data/CIFAR100/train', 'data/CIFAR100/val']
   types: ['classification_image_folder', 'classification_image_folder']
-  names: ['CIFAR100_train', 'CIFAR100_val']
 
 data:
   root: './'
-  sources: ['CIFAR100_train']
-  targets: ['CIFAR100_val']
   height: 224
   width: 224
   norm_mean: [0.485, 0.456, 0.406]

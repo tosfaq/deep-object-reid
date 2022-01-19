@@ -53,7 +53,7 @@ def run_lr_finder(cfg, datamanager, model, optimizer, scheduler, classes,
     cfg.lr_finder.enable = False
     set_random_seed(cfg.train.seed, cfg.train.deterministic)
     datamanager = build_datamanager(cfg, classes)
-    num_train_classes = datamanager.num_train_pids
+    num_train_classes = datamanager.num_train_ids
 
     if rebuild_model:
         backup_model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))

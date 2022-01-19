@@ -111,14 +111,12 @@ class ImageDataManager(DataManager):
         correct_batch_size = False,
         workers=4,
         train_sampler='RandomSampler',
-        custom_dataset_names=[''],
         custom_dataset_roots=[''],
         custom_dataset_types=[''],
         min_samples_per_id=0,
         num_sampled_packages=1,
         filter_classes=None,
     ):
-        assert len(custom_dataset_names) == 2
         super(ImageDataManager, self).__init__(
             height=height,
             width=width,

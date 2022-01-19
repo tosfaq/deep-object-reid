@@ -7,11 +7,13 @@
 
 from __future__ import absolute_import, division, print_function
 import copy
+from importlib.metadata import requires
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 from torch.cuda.amp import GradScaler, autocast
 
 from torchreid import metrics
@@ -136,8 +138,10 @@ class ImageAMSoftmaxEngine(Engine):
                     mutual_loss = 0
                     for j in range(num_models):
                         if i != j:
+                            with torch.no_grad():
+                                trg_probs = F.softmax(models_logits[j], dim=1)
                             mutual_loss += self.loss_kl(F.log_softmax(models_logits[i], dim = 1),
-                                                    F.softmax(models_logits[j], dim=1))
+                                                    trg_probs)
                     loss_summary[f'mutual_{model_names[i]}'] = mutual_loss.item()
 
                     should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
@@ -145,41 +149,41 @@ class ImageAMSoftmaxEngine(Engine):
 
                     loss += coeff_mutual_learning * mutual_loss / (num_models - 1)
 
-                    if self.compression_ctrl:
-                        compression_loss = self.compression_ctrl.loss()
-                        loss_summary['compression_loss'] = compression_loss
-                        loss += compression_loss
+                if self.compression_ctrl:
+                    compression_loss = self.compression_ctrl.loss()
+                    loss_summary['compression_loss'] = compression_loss
+                    loss += compression_loss
 
-                    # backward pass
-                    self.scaler.scale(loss).backward(retain_graph=self.enable_metric_losses)
-                    if not self.models[model_name].training:
-                        continue
+                # backward pass
+                self.scaler.scale(loss).backward()
+                if not self.models[model_name].training:
+                    continue
 
-                    if self.clip_grad != 0 and step == 1:
+                if self.clip_grad != 0 and step == 1:
+                    self.scaler.unscale_(self.optims[model_name])
+                    torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
+                if not self.enable_sam and step == 1:
+                    self.scaler.step(self.optims[model_name])
+                    self.scaler.update()
+                elif step == 1:
+                    assert self.enable_sam
+                    if self.clip_grad == 0:
+                        # if self.clip_grad == 0  this means that unscale_ wasn't applied,
+                        # so we manually unscale the parameters to perform SAM manipulations
                         self.scaler.unscale_(self.optims[model_name])
-                        torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
-                    if not self.enable_sam and step == 1:
-                        self.scaler.step(self.optims[model_name])
-                        self.scaler.update()
-                    elif step == 1:
-                        assert self.enable_sam
-                        if self.clip_grad == 0:
-                            # if self.clip_grad == 0  this means that unscale_ wasn't applied,
-                            # so we manually unscale the parameters to perform SAM manipulations
-                            self.scaler.unscale_(self.optims[model_name])
-                        overflow = self.optims[model_name].first_step()
-                        self.scaler.update() # update scaler after first step
-                        if overflow:
-                            print("Overflow occurred. Skipping step ...")
-                            loss_summary['loss'] = loss.item()
-                            # skip second step  if overflow occurred
-                            return loss_summary, main_acc
-                    else:
-                        assert self.enable_sam and step==2
-                        # unscale the parameters to perform SAM manipulations
-                        self.scaler.unscale_(self.optims[model_name])
-                        self.optims[model_name].second_step()
-                        self.scaler.update()
+                    overflow = self.optims[model_name].first_step()
+                    self.scaler.update() # update scaler after first step
+                    if overflow:
+                        print("Overflow occurred. Skipping step ...")
+                        loss_summary['loss'] = loss.item()
+                        # skip second step  if overflow occurred
+                        return loss_summary, main_acc
+                else:
+                    assert self.enable_sam and step==2
+                    # unscale the parameters to perform SAM manipulations
+                    self.scaler.unscale_(self.optims[model_name])
+                    self.optims[model_name].second_step()
+                    self.scaler.update()
 
             loss_summary['loss'] = loss.item()
 

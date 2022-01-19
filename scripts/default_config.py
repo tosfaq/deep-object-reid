@@ -410,7 +410,6 @@ def imagedata_kwargs(cfg):
         'workers': cfg.data.workers,
         'train_sampler': cfg.sampler.train_sampler,
         'min_samples_per_id': cfg.data.min_samples_per_id,
-        'custom_dataset_names': cfg.custom_datasets.names,
         'custom_dataset_roots': cfg.custom_datasets.roots,
         'custom_dataset_types': cfg.custom_datasets.types,
     }
