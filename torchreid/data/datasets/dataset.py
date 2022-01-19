@@ -46,7 +46,7 @@ class Dataset:
         self.verbose = verbose
 
         self.num_train_ids = self.get_num_ids(self.train)
-        if len(self.num_train_ids) == 0: # workaround: test is a validation set
+        if self.num_train_ids == 0: # workaround: test is a validation set
             self.num_train_ids = self.get_num_ids(self.test)
 
         self.data_counts = self.get_data_counts(self.train)
@@ -72,29 +72,34 @@ class Dataset:
     def parse_data(data):
         """Parses data list and returns the number of categories.
         """
-        ids = set(), set()
+        if not data:
+            return 0
+        ids = set()
         for record in data:
-            ids.update(set(record[1]))
-        for cats in ids:
-            if len(cats) != max(cats) + 1:
-                print("WARNING:: There are some categories are missing in this split for this dataset.")
-            num_cats = max(cats) + 1
+            label = record[1]
+            if isinstance(label, (list, tuple)):
+                ids.update(set(label))
+            else:
+                ids.add(label)
+
+        if len(ids) != max(ids) + 1:
+            print("WARNING:: There are some categories are missing in this split for this dataset.")
+        num_cats = max(ids) + 1
         return num_cats
 
     def get_num_ids(self, data):
         """Returns the number of training categories."""
-        return self.parse_data(data)[0]
+        return self.parse_data(data)
 
     @staticmethod
     def get_data_counts(data):
-        counts = dict()
+        counts = {}
         for record in data:
-            dataset_id = record[2]
-            if dataset_id not in counts:
-                counts[dataset_id] = defaultdict(int)
-
             obj_id = record[1]
-            counts[dataset_id][obj_id] += 1
+            if obj_id not in counts:
+                counts[obj_id] = 1
+            else:
+                counts[obj_id] += 1
 
         return counts
 
@@ -158,9 +163,8 @@ class ImageDataset(Dataset):
         image = read_image(input_record[0], grayscale=False)
         obj_id = input_record[1]
 
-        dataset_id = input_record[2]
         if isinstance(obj_id, (tuple, list)): # when multi-label classification is available
-            targets = torch.zeros(self.num_train_ids[dataset_id])
+            targets = torch.zeros(self.num_train_ids)
             for obj in obj_id:
                 targets[obj] = 1
             obj_id = targets
@@ -170,7 +174,7 @@ class ImageDataset(Dataset):
         else:
             transformed_image = image
 
-        output_record = (transformed_image, obj_id, dataset_id)
+        output_record = (transformed_image, obj_id)
 
         return output_record
 
@@ -183,7 +187,7 @@ class ImageDataset(Dataset):
         print('  subset   | # ids | # images ')
         print('  ----------------------------------------')
         print('  train    | {:5d} | {:8d} |'.format(
-            sum(num_train_ids.values()), len(self.train)))
-        print('  test    | {:5d} | {:8d} |'.format(
-            sum(num_test_ids.values()), len(self.test)))
+            num_train_ids, len(self.train)))
+        print('  test     | {:5d} | {:8d} |'.format(
+            num_test_ids, len(self.test)))
         print('  ----------------------------------------')

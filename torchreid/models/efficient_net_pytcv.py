@@ -385,7 +385,7 @@ class EfficientNet(ModelInterface):
 
             if return_all:
                 return [(logits, y, glob_features)]
-            if not self.training and self.is_classification():
+            if not self.training:
                 return [logits]
             if get_embeddings:
                 out_data = [logits, glob_features.view(x.shape[0], -1)]
@@ -396,7 +396,7 @@ class EfficientNet(ModelInterface):
             else:
                 raise KeyError("Unsupported loss: {}".format(self.loss))
 
-            return tuple(out_data)
+            return out_data
 
 
 def get_efficientnet(version,

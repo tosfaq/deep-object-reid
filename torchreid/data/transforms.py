@@ -933,7 +933,7 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
     transform_tr += [Resize((height, width))]
     if transforms.augmix.enable:
         print('+ AugMix')
-        transform_tr += [augment_and_mix_transform(config_str=transforms.augmix.cfg_str, image_mean=norm_mean, grey=transforms.augmix.grey_images)]
+        transform_tr += [augment_and_mix_transform(config_str=transforms.augmix.cfg_str, image_mean=norm_mean, grey=transforms.augmix.grey_imgs)]
     if transforms.randaugment.enable:
         print('+ RandAugment')
         transform_tr += [RandomAugment()]
