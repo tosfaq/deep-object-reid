@@ -207,29 +207,13 @@ def get_default_config():
     cfg.mixing_loss.enable = False
     cfg.mixing_loss.weight = 1.0
 
-    # metric_losses
-    cfg.metric_losses = CN()
-    cfg.metric_losses.enable = False
-    cfg.metric_losses.center_coeff = 0.0
-    cfg.metric_losses.triplet_coeff = 0.0
-    cfg.metric_losses.local_push_coeff = 1.0
-    cfg.metric_losses.center_margin = 0.1
-    cfg.metric_losses.triplet_margin = 0.35
-    cfg.metric_losses.local_push_margin = 0.1
-    cfg.metric_losses.smart_margin = True
-    cfg.metric_losses.triplet = 'semihard'
-    cfg.metric_losses.loss_balancing = True
-    cfg.metric_losses.centers_lr = 0.5
-    cfg.metric_losses.balancing_lr = 0.01
-
     # test
     cfg.test = CN()
     cfg.test.batch_size = 100
-    cfg.test.ranks = [1, 5, 10, 20]  # cmc ranks
+    cfg.test.topk = [1, 5, 10, 20]
     cfg.test.evaluate = False  # test only
     cfg.test.eval_freq = -1  # evaluation frequency (-1 means to only test after training)
     cfg.test.start_eval = 0  # start to evaluate after a specific epoch
-    cfg.test.visactmap = False  # visualize CNN activation maps
     cfg.test.test_before_train = False
 
     # Augmentations
@@ -315,11 +299,6 @@ def get_default_config():
     cfg.data.transforms.random_rotate.p = 0.5
     cfg.data.transforms.random_rotate.angle = (-5, 5)
     cfg.data.transforms.random_rotate.values = (0, )
-
-    cfg.data.transforms.cut_out_with_prior = CN()
-    cfg.data.transforms.cut_out_with_prior.enable = False
-    cfg.data.transforms.cut_out_with_prior.p = 0.5
-    cfg.data.transforms.cut_out_with_prior.max_area = 0.1
 
     cfg.data.transforms.random_blur = CN()
     cfg.data.transforms.random_blur.enable = False
@@ -581,7 +560,6 @@ def augmentation_kwargs(cfg):
         'random_figures': cfg.data.transforms.random_figures,
         'random_grid': cfg.data.transforms.random_grid,
         'random_negative': cfg.data.transforms.random_negative,
-        'cut_out_with_prior': cfg.data.transforms.cut_out_with_prior,
         'coarse_dropout': cfg.data.transforms.coarse_dropout,
         'equalize': cfg.data.transforms.equalize,
         'posterize': cfg.data.transforms.posterize,

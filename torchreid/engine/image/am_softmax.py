@@ -17,7 +17,7 @@ from torch.cuda.amp import GradScaler, autocast
 from torchreid import metrics
 from torchreid.engine import Engine
 from torchreid.utils import get_model_attr, sample_mask
-from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss, MetricLosses)
+from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss)
 from torchreid.optim import SAM
 
 
@@ -28,9 +28,9 @@ class ImageAMSoftmaxEngine(Engine):
                  train_patience, early_stopping, lr_decay_factor, loss_name, label_smooth,
                  margin_type, aug_type, decay_power, alpha, size, lr_finder, aug_prob,
                  conf_penalty, pr_product, m, end_s, clip_grad, duration_s, skip_steps_s,
-                 enable_masks, adaptive_margins, class_weighting, metric_cfg,
-                 symmetric_ce, mix_weight, enable_rsc, should_freeze_aux_models, nncf_metainfo,
-                 compression_ctrl, initial_lr, target_metric, use_ema_decay, ema_decay, mix_precision, **kwargs):
+                 adaptive_margins, class_weighting, symmetric_ce, enable_rsc, should_freeze_aux_models,
+                 nncf_metainfo, compression_ctrl, initial_lr, target_metric, use_ema_decay, ema_decay,
+                 mix_precision, **kwargs):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager,
                                                    models=models,
                                                    optimizers=optimizers,
@@ -111,7 +111,7 @@ class ImageAMSoftmaxEngine(Engine):
         n_iter = self.epoch * self.num_batches + self.batch_idx
         imgs, targets = self.parse_data_for_train(data, self.use_gpu)
 
-        imgs, targets = self._apply_batch_augmentation(imgs, targets)
+        imgs = self._apply_batch_augmentation(imgs)
         model_names = self.get_model_names()
         num_models = len(model_names)
 
@@ -124,7 +124,7 @@ class ImageAMSoftmaxEngine(Engine):
 
             for i, model in enumerate(self.models):
                 loss, model_loss_summary, acc, scaled_logits = self._single_model_losses(
-                    model, imgs, n_iter, model_name
+                    model, imgs, targets, n_iter, model_name
                     )
                 models_logits[i] = scaled_logits
                 loss_summary.update(model_loss_summary)

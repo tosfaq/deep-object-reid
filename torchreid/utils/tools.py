@@ -11,25 +11,19 @@
 from __future__ import absolute_import, division, print_function
 import copy
 import errno
-import json
 import os
 import os.path as osp
 import random
 import sys
 import time
-import warnings
-import yaml
 
 import numpy as np
-import PIL
 import torch
 import cv2 as cv
-from PIL import Image
 
 __all__ = [
-    'mkdir_if_missing', 'check_isfile', 'read_yaml',
-    'set_random_seed', "worker_init_fn", 'download_url', 'read_image', 'collect_env_info',
-    'get_model_attr', 'StateCacher', 'random_image', 'set_model_attr'
+    'mkdir_if_missing', 'check_isfile', 'set_random_seed', "worker_init_fn",
+    'read_image', 'get_model_attr', 'StateCacher', 'random_image', 'EvalModeSetter'
 ]
 
 
@@ -67,35 +61,6 @@ def set_random_seed(seed, deterministic=False):
 def worker_init_fn(worker_id):
     np.random.seed(np.random.get_state()[1][0] + worker_id)
     random.seed(random.getstate()[1][0] + worker_id)
-
-def download_url(url, dst):
-    """Downloads file from a url to a destination.
-
-    Args:
-        url (str): url to download file.
-        dst (str): destination path.
-    """
-    from six.moves import urllib
-    print('* url="{}"'.format(url))
-    print('* destination="{}"'.format(dst))
-
-    def _reporthook(count, block_size, total_size):
-        global start_time
-        if count == 0:
-            start_time = time.time()
-            return
-        duration = time.time() - start_time
-        progress_size = int(count * block_size)
-        speed = int(progress_size / (1024*duration))
-        percent = int(count * block_size * 100 / total_size)
-        sys.stdout.write(
-            '\r...%d%%, %d MB, %d KB/s, %d seconds passed' %
-            (percent, progress_size / (1024*1024), speed, duration)
-        )
-        sys.stdout.flush()
-
-    urllib.request.urlretrieve(url, dst, _reporthook)  # nosec
-    sys.stdout.write('\n')
 
 
 def read_image(path, grayscale=False):
