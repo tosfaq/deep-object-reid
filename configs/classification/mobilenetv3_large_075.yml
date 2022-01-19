@@ -60,9 +60,6 @@ loss:
 sampler:
   train_sampler: 'RandomSampler'
 
-metric_losses:
-  enable: False
-
 train:
   optim: 'sam'
   lr: 0.013
@@ -85,7 +82,7 @@ train:
     enable: True
     ema_decay: 0.999
   mix_precision: True
-  
+
 test:
   batch_size: 128
   evaluate: False

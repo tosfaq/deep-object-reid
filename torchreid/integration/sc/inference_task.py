@@ -154,6 +154,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
             config_file_path = os.path.join(base_dir, 'main_model_multilabel.yaml')
         else:
             config_file_path = os.path.join(base_dir, 'main_model.yaml')
+        print(self._cfg.train.keys())
         merge_from_files_with_base(self._cfg, config_file_path)
         self._cfg.use_gpu = torch.cuda.device_count() > 0
         self.num_devices = 1 if self._cfg.use_gpu else 0
@@ -215,7 +216,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
         self._model.to(self.device)
         targets = list(datamanager.test_loader.keys())
         dump_features = not inference_parameters.is_evaluation
-        inference_results, _ = score_extraction(datamanager.test_loader[targets[0]]['query'],
+        inference_results, _ = score_extraction(datamanager.test_loader['test'],
                                                 self._model, self._cfg.use_gpu, perf_monitor=time_monitor,
                                                 feature_dump_mode='all' if dump_features else 'vecs')
         self._model.mix_precision = mix_precision_status

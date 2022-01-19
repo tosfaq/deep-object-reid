@@ -85,8 +85,6 @@ def get_default_config():
     # data
     cfg.data = CN()
     cfg.data.root = 'data'
-    cfg.data.sources = ['CIFAR100']
-    cfg.data.targets = ['CIFAR100']
     cfg.data.workers = 4  # number of data loading workers
     cfg.data.split_id = 0  # Split index
     cfg.data.height = 256  # image height
@@ -399,8 +397,6 @@ def merge_from_files_with_base(cfg, cfg_path):
 def imagedata_kwargs(cfg):
     return {
         'root': cfg.data.root,
-        'sources': cfg.data.sources,
-        'targets': cfg.data.targets,
         'height': cfg.data.height,
         'width': cfg.data.width,
         'transforms': cfg.data.transforms,
@@ -408,14 +404,10 @@ def imagedata_kwargs(cfg):
         'norm_std': cfg.data.norm_std,
         'use_gpu': cfg.use_gpu,
         'split_id': cfg.data.split_id,
-        'combineall': cfg.data.combineall,
         'batch_size_train': cfg.train.batch_size,
         'batch_size_test': cfg.test.batch_size,
         'correct_batch_size': cfg.train.correct_batch_size,
         'workers': cfg.data.workers,
-        'batch_num_instances': cfg.sampler.batch_num_instances,
-        'epoch_num_instances': cfg.sampler.epoch_num_instances,
-        'fill_instances': cfg.sampler.fill_instances,
         'train_sampler': cfg.sampler.train_sampler,
         'min_samples_per_id': cfg.data.min_samples_per_id,
         'custom_dataset_names': cfg.custom_datasets.names,
