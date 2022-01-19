@@ -160,10 +160,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
         self.num_devices = 1 if self._cfg.use_gpu else 0
 
         self._cfg.custom_datasets.types = ['external_classification_wrapper', 'external_classification_wrapper']
-        self._cfg.custom_datasets.names = ['train', 'val']
         self._cfg.custom_datasets.roots = ['']*2
-        self._cfg.data.sources = ['train']
-        self._cfg.data.targets = ['val']
         self._cfg.data.save_dir = self._scratch_space
 
         self._cfg.test.test_before_train = False

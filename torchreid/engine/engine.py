@@ -209,7 +209,7 @@ class Engine:
                 'epoch': epoch + 1,
                 'optimizer': self.optims[name].state_dict(),
                 'scheduler': self.scheds[name].state_dict(),
-                'num_classes': self.datamanager.num_train_pids,
+                'num_classes': self.datamanager.num_train_ids,
                 'classes_map': self.datamanager.train_loader.dataset.classes,
                 'initial_lr': self.initial_lr,
             }

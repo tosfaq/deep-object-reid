@@ -237,7 +237,7 @@ class MobileNetV3(ModelInterface):
 
             if return_all:
                 return [(logits, y, glob_features)]
-            if not self.training and self.is_classification():
+            if not self.training:
                 return [logits]
             if get_embeddings:
                 out_data = [logits, glob_features]

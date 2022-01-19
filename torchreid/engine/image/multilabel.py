@@ -82,7 +82,7 @@ class MultilabelEngine(Engine):
         self.prev_smooth_accuracy = 0.
 
     def forward_backward(self, data):
-        imgs, targets = self.parse_data_for_train(data, output_dict=True, use_gpu=self.use_gpu)
+        imgs, targets = self.parse_data_for_train(data, use_gpu=self.use_gpu)
 
         model_names = self.get_model_names()
         num_models = len(model_names)
@@ -95,9 +95,9 @@ class MultilabelEngine(Engine):
             models_logits = [[] for i in range(num_models)]
             num_models = len(self.models)
 
-            for i, model in enumerate(self.models):
+            for i, model_name in enumerate(model_names):
                 loss, model_loss_summary, acc, scaled_logits = self._single_model_losses(
-                    model, imgs, targets, model_name
+                    self.models[model_name], imgs, targets, model_name
                     )
                 models_logits[i] = scaled_logits
                 loss_summary.update(model_loss_summary)
@@ -170,7 +170,7 @@ class MultilabelEngine(Engine):
 
             loss = self.main_losses(all_logits, targets, aug_index=self.aug_index,
                                     lam=self.lam, scale=self.scales[model_name])
-            acc += metrics.accuracy(all_logits, targets)[0].item()
+            acc += metrics.accuracy_multilabel(all_logits, targets).item()
             loss_summary[f'main_{model_name}'] = loss.item()
 
             scaled_logits = self.main_losses.get_last_scale() * all_logits
