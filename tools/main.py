@@ -70,7 +70,7 @@ def main():
 
     num_aux_models = len(cfg.mutual_learning.aux_configs)
     datamanager = build_datamanager(cfg, args.classes)
-    num_train_classes = datamanager.num_train_pids
+    num_train_classes = datamanager.num_train_ids
 
     print('Building main model: {}'.format(cfg.model.name))
     model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))

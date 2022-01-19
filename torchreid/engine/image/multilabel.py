@@ -42,7 +42,7 @@ class MultilabelEngine(Engine):
 
         self.main_losses = nn.ModuleList()
         self.clip_grad = clip_grad
-        self.num_classes = self.datamanager.num_train_pids
+        self.num_classes = self.datamanager.num_train_ids
         self.aug_index = None
         self.lam = None
 

@@ -71,20 +71,19 @@ class ImageAMSoftmaxEngine(Engine):
         self.mix_precision = mix_precision
         self.scaler = GradScaler(enabled=mix_precision)
 
-        self.num_classes = self.datamanager.num_train_pids
-        self.main_losses = nn.ModuleList()
+        self.num_classes = self.datamanager.num_train_ids
         self.ml_losses = list()
         self.loss_kl = nn.KLDivLoss(reduction='batchmean')
         if loss_name == 'softmax':
-            self.main_losses.append(CrossEntropyLoss(
+            self.main_loss = CrossEntropyLoss(
                 use_gpu=self.use_gpu,
                 label_smooth=label_smooth,
                 augmentations=self.aug_type,
                 conf_penalty=conf_penalty,
                 scale=self.am_scale
-            ))
+            )
         elif loss_name == 'am_softmax':
-            self.main_losses.append(AMSoftmaxLoss(
+            self.main_loss = AMSoftmaxLoss(
                 use_gpu=self.use_gpu,
                 label_smooth=label_smooth,
                 margin_type=margin_type,
@@ -100,7 +99,7 @@ class ImageAMSoftmaxEngine(Engine):
                 class_counts=self.num_classes,
                 adaptive_margins=adaptive_margins,
                 class_weighting=class_weighting
-            ))
+            )
 
 
     @staticmethod
@@ -122,9 +121,9 @@ class ImageAMSoftmaxEngine(Engine):
             loss_summary = dict()
             models_logits = [[] for i in range(num_models)]
 
-            for i, model in enumerate(self.models):
+            for i, model_name in enumerate(model_names):
                 loss, model_loss_summary, acc, scaled_logits = self._single_model_losses(
-                    model, imgs, targets, n_iter, model_name
+                    self.models[model_name], imgs, targets, n_iter, model_name
                     )
                 models_logits[i] = scaled_logits
                 loss_summary.update(model_loss_summary)
@@ -200,12 +199,12 @@ class ImageAMSoftmaxEngine(Engine):
             if trg_num_samples == 0:
                 raise RuntimeError("There is no samples in a batch!")
 
-            loss = self.main_losses(all_logits, targets, aug_index=self.aug_index,
+            loss = self.main_loss(all_logits, targets, aug_index=self.aug_index,
                                                 lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
             acc += metrics.accuracy(all_logits, targets)[0].item()
             loss_summary[f'main_{model_name}'] = loss.item()
 
-            scaled_logits = self.main_losses.get_last_scale() * all_logits
+            scaled_logits = self.main_loss.get_last_scale() * all_logits
 
             return loss, loss_summary, acc, scaled_logits
 

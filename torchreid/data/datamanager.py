@@ -33,8 +33,6 @@ class DataManager(object):
 
     def __init__(
         self,
-        sources=None,
-        targets=None,
         height=256,
         width=128,
         transforms='random_flip',
@@ -42,8 +40,6 @@ class DataManager(object):
         norm_std=None,
         use_gpu=False,
     ):
-        self.sources = sources
-        self.targets = targets
         self.height = height
         self.width = width
 
@@ -76,13 +72,6 @@ class DataManager(object):
 
         return out_data
 
-    @staticmethod
-    def to_ordered_list(dict_data):
-        keys = sorted(dict_data.keys())
-        out_data = [dict_data[key] for key in keys]
-
-        return out_data
-
 
 class ImageDataManager(DataManager):
     r"""Image data manager.
@@ -110,8 +99,6 @@ class ImageDataManager(DataManager):
     def __init__(
         self,
         root='',
-        train_name=None,
-        test_name=None,
         height=256,
         width=128,
         transforms='random_flip',
@@ -119,7 +106,6 @@ class ImageDataManager(DataManager):
         norm_std=None,
         use_gpu=True,
         split_id=0,
-        combineall=False,
         batch_size_train=32,
         batch_size_test=32,
         correct_batch_size = False,
@@ -132,10 +118,8 @@ class ImageDataManager(DataManager):
         num_sampled_packages=1,
         filter_classes=None,
     ):
-
+        assert len(custom_dataset_names) == 2
         super(ImageDataManager, self).__init__(
-            sources=train_name,
-            targets=test_name,
             height=height,
             width=width,
             transforms=transforms,
@@ -145,26 +129,20 @@ class ImageDataManager(DataManager):
         )
 
         print('=> Loading train dataset')
-        train_dataset = []
         train_dataset = init_image_dataset(
-            train_name,
             transform=self.transform_tr,
             mode='train',
-            combineall=combineall,
             root=root,
             split_id=split_id,
-            custom_dataset_names=custom_dataset_names,
             custom_dataset_roots=custom_dataset_roots,
             custom_dataset_types=custom_dataset_types,
             min_id_samples=min_samples_per_id,
             num_sampled_packages=num_sampled_packages,
             filter_classes=filter_classes,
         )
-        train_dataset = sum(train_dataset)
 
-        self._data_counts = self.to_ordered_list(train_dataset.data_counts)
-        self._num_train_ids = self.to_ordered_list(train_dataset._num_train_ids)
-        assert isinstance(self._num_train_ids, list)
+        self._data_counts = train_dataset.data_counts
+        self._num_train_ids = train_dataset.num_train_ids
         if correct_batch_size:
             batch_size_train = self.calculate_batch(batch_size_train, len(train_dataset))
         batch_size_train = max(1, min(batch_size_train, len(train_dataset)))
@@ -182,24 +160,19 @@ class ImageDataManager(DataManager):
             drop_last=True
         )
         self.num_iter = len(self.train_loader)
-        print('=> Loading test (target) dataset')
-        self.test_loader = {name: {'test': None} for name in self.targets}
-        self.test_dataset = {name: {'test': None} for name in self.targets}
+        print('=> Loading test dataset')
 
         # build test loader
         test_dataset = init_image_dataset(
-            test_name,
             transform=self.transform_te,
             mode='test',
-            combineall=combineall,
             root=root,
             split_id=split_id,
-            custom_dataset_names=custom_dataset_names,
             custom_dataset_roots=custom_dataset_roots,
             custom_dataset_types=custom_dataset_types,
             filter_classes=filter_classes
         )
-        self.test_loader[test_name]['test'] = torch.utils.data.DataLoader(
+        self.test_loader = torch.utils.data.DataLoader(
             test_dataset,
             batch_size=max(min(batch_size_test, len(test_dataset)), 1),
             shuffle=False,
@@ -211,11 +184,9 @@ class ImageDataManager(DataManager):
 
         print('\n')
         print('  **************** Summary ****************')
-        print('  source            : {}'.format(self.sources))
-        print('  # source datasets : {}'.format(len(self.sources)))
-        print('  # source ids      : {}'.format(sum(self._num_train_ids)))
-        print('  # source images   : {}'.format(len(train_dataset)))
-        print('  target            : {}'.format(self.targets))
+        print('  # categories      : {}'.format(self._num_train_ids))
+        print('  # train images    : {}'.format(len(train_dataset)))
+        print('  # test images     : {}'.format(len(test_dataset)))
         print('  *****************************************')
         print('\n')
 

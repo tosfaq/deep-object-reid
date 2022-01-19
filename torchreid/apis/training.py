@@ -76,7 +76,7 @@ def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids
                  nncf_metainfo=None,
                  compression_ctrl=None):
     num_aux_models = len(cfg.mutual_learning.aux_configs)
-    num_train_classes = datamanager.num_train_pids
+    num_train_classes = datamanager.num_train_ids
 
     if num_aux_models > 0:
         print(f'Enabled mutual learning between {len(cfg.mutual_learning.aux_configs) + 1} models.')

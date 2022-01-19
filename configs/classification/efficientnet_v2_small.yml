@@ -56,8 +56,6 @@ loss:
 sampler:
   train_sampler: 'RandomSampler'
 
-metric_losses:
-  enable: False
 
 train:
   optim: 'sam'
