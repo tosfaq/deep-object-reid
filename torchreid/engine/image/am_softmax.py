@@ -6,19 +6,16 @@
 #
 
 from __future__ import absolute_import, division, print_function
-import copy
-from importlib.metadata import requires
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 from torch.cuda.amp import GradScaler, autocast
 
 from torchreid import metrics
 from torchreid.engine import Engine
-from torchreid.utils import get_model_attr, sample_mask
+from torchreid.utils import sample_mask
 from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss)
 from torchreid.optim import SAM
 
@@ -127,7 +124,8 @@ class ImageAMSoftmaxEngine(Engine):
 
             for i, model_name in enumerate(model_names):
                 self.optims[model_name].zero_grad()
-                if num_models > 1: # mutual learning
+                should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
+                if num_models > 1 and not should_turn_off_mutual_learning: # mutual learning
                     mutual_loss = 0
                     for j in range(num_models):
                         if i != j:
@@ -136,11 +134,7 @@ class ImageAMSoftmaxEngine(Engine):
                             mutual_loss += self.loss_kl(F.log_softmax(models_logits[i], dim = 1),
                                                     trg_probs)
                     loss_summary[f'mutual_{model_names[i]}'] = mutual_loss.item()
-
-                    should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
-                    coeff_mutual_learning = int(not should_turn_off_mutual_learning)
-
-                    loss += coeff_mutual_learning * mutual_loss / (num_models - 1)
+                    loss += mutual_loss / (num_models - 1)
 
                 if self.compression_ctrl:
                     compression_loss = self.compression_ctrl.loss()
