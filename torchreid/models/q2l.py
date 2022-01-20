@@ -67,7 +67,6 @@ class Query2Label(ModelInterface):
         self.transformer = transfomer
         self.num_class = num_classes
         assert self.loss in ['asl', 'bce', 'am_binary'], "Q2L supports only ASL, BCE pr AM Binary losses"
-        assert self.is_classification(), "Q2L model is adapted for multilabel setup only"
 
         hidden_dim = transfomer.get_hidden_dim()
         backbone_features = backbone.num_channels

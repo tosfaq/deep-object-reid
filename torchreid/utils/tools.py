@@ -11,25 +11,19 @@
 from __future__ import absolute_import, division, print_function
 import copy
 import errno
-import json
 import os
 import os.path as osp
 import random
 import sys
 import time
-import warnings
-import yaml
 
 import numpy as np
-import PIL
 import torch
 import cv2 as cv
-from PIL import Image
 
 __all__ = [
-    'mkdir_if_missing', 'check_isfile', 'read_json', 'write_json', 'read_yaml',
-    'set_random_seed', "worker_init_fn", 'download_url', 'read_image', 'collect_env_info',
-    'get_model_attr', 'StateCacher', 'random_image'
+    'mkdir_if_missing', 'check_isfile', 'set_random_seed', "worker_init_fn",
+    'read_image', 'get_model_attr', 'StateCacher', 'random_image', 'EvalModeSetter'
 ]
 
 
@@ -54,24 +48,6 @@ def check_isfile(fpath):
     isfile = osp.isfile(fpath)
     return isfile
 
-def read_json(fpath):
-    """Reads json file from a path."""
-    with open(fpath, 'r') as f:
-        obj = json.load(f)
-    return obj
-
-def write_json(obj, fpath):
-    """Writes to a json file."""
-    mkdir_if_missing(osp.dirname(fpath))
-    with open(fpath, 'w') as f:
-        json.dump(obj, f, indent=4, separators=(',', ': '))
-
-def read_yaml(fpath):
-    """Reads YAML file from a path."""
-    with open(fpath, 'r') as f:
-        obj = yaml.safe_load(f)
-    return obj
-
 def set_random_seed(seed, deterministic=False):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -86,45 +62,16 @@ def worker_init_fn(worker_id):
     np.random.seed(np.random.get_state()[1][0] + worker_id)
     random.seed(random.getstate()[1][0] + worker_id)
 
-def download_url(url, dst):
-    """Downloads file from a url to a destination.
-
-    Args:
-        url (str): url to download file.
-        dst (str): destination path.
-    """
-    from six.moves import urllib
-    print('* url="{}"'.format(url))
-    print('* destination="{}"'.format(dst))
-
-    def _reporthook(count, block_size, total_size):
-        global start_time
-        if count == 0:
-            start_time = time.time()
-            return
-        duration = time.time() - start_time
-        progress_size = int(count * block_size)
-        speed = int(progress_size / (1024*duration))
-        percent = int(count * block_size * 100 / total_size)
-        sys.stdout.write(
-            '\r...%d%%, %d MB, %d KB/s, %d seconds passed' %
-            (percent, progress_size / (1024*1024), speed, duration)
-        )
-        sys.stdout.flush()
-
-    urllib.request.urlretrieve(url, dst, _reporthook)  # nosec
-    sys.stdout.write('\n')
-
 
 def read_image(path, grayscale=False):
-    """Reads image from path using ``PIL.Image``.
+    """Reads image from path using ``Open CV``.
 
     Args:
         path (str): path to an image.
         grayscale (bool): load grayscale image
 
     Returns:
-        PIL image
+        Numpy image
     """
 
     got_img = False
@@ -147,17 +94,6 @@ def random_image(height, width):
     img = np.uint8(img * 255)
 
     return img
-
-
-def collect_env_info():
-    """Returns env info as a string.
-
-    Code source: github.com/facebookresearch/maskrcnn-benchmark
-    """
-    from torch.utils.collect_env import get_pretty_env_info
-    env_str = get_pretty_env_info()
-    env_str += '\n        Pillow ({})'.format(PIL.__version__)
-    return env_str
 
 
 def get_model_attr(model, attr):
@@ -216,3 +152,36 @@ class StateCacher(object):
         for k in self.cached:
             if os.path.exists(self.cached[k]):
                 os.remove(self.cached[k])
+
+
+class EvalModeSetter:
+    def __init__(self, module, m_type):
+        self.modules = module
+        if not isinstance(self.modules, (tuple, list)):
+            self.modules = [self.modules]
+
+        self.modes_storage = [{} for _ in range(len(self.modules))]
+
+        self.m_types = m_type
+        if not isinstance(self.m_types, (tuple, list)):
+            self.m_types = [self.m_types]
+
+    def __enter__(self):
+        for module_id, module in enumerate(self.modules):
+            modes_storage = self.modes_storage[module_id]
+
+            for child_name, child_module in module.named_modules():
+                matched = any(isinstance(child_module, m_type) for m_type in self.m_types)
+                if matched:
+                    modes_storage[child_name] = child_module.training
+                    child_module.train(mode=False)
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for module_id, module in enumerate(self.modules):
+            modes_storage = self.modes_storage[module_id]
+
+            for child_name, child_module in module.named_modules():
+                if child_name in modes_storage:
+                    child_module.train(mode=modes_storage[child_name])

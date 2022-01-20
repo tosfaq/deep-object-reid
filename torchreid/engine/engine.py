@@ -6,6 +6,7 @@
 #
 
 from __future__ import absolute_import, division, print_function
+from abc import abstractmethod
 import datetime
 import os
 import os.path as osp
@@ -24,11 +25,9 @@ from torchreid.integration.nncf.compression import (get_nncf_complession_stage,
                                                     get_nncf_prepare_for_tensorboard)
 from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler, CosineAnnealingCycleRestart
 from torchreid import metrics
-from torchreid.losses import DeepSupervision
 from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
                              open_all_layers, open_specified_layers,
-                             re_ranking, save_checkpoint,
-                             visualize_ranked_results, ModelEmaV2)
+                             save_checkpoint, ModelEmaV2)
 
 
 EpochIntervalToValue = namedtuple('EpochIntervalToValue', ['first', 'last', 'value_inside', 'value_outside'])
@@ -209,7 +208,7 @@ class Engine:
                 'epoch': epoch + 1,
                 'optimizer': self.optims[name].state_dict(),
                 'scheduler': self.scheds[name].state_dict(),
-                'num_classes': self.datamanager.num_train_pids,
+                'num_classes': self.datamanager.num_train_ids,
                 'classes_map': self.datamanager.train_loader.dataset.classes,
                 'initial_lr': self.initial_lr,
             }
@@ -291,12 +290,7 @@ class Engine:
         open_layers=None,
         start_eval=0,
         eval_freq=-1,
-        dist_metric='euclidean',
-        normalize_feature=False,
-        visrank=False,
-        visrank_topk=10,
-        use_metric_cuhk03=False,
-        ranks=(1, 5, 10, 20),
+        topk=(1, 5, 10, 20),
         lr_finder=None,
         perf_monitor=None,
         stop_callback=None,
@@ -327,7 +321,7 @@ class Engine:
             visrank_topk (int, optional): top-k ranked images to be visualized. Default is 10.
             use_metric_cuhk03 (bool, optional): use single-gallery-shot setting for cuhk03.
                 Default is False. This should be enabled when using cuhk03 classic split.
-            ranks (list, optional): cmc ranks to be computed. Default is [1, 5, 10, 20].
+            topk (list, optional): cmc topk to be computed. Default is [1, 5, 10, 20].
             rerank (bool, optional): uses person re-ranking (by Zhong et al. CVPR'17).
                 Default is False. This is only enabled when test_only=True.
         """
@@ -382,13 +376,7 @@ class Engine:
 
                 accuracy, should_save_ema_model = self.test(
                     self.epoch,
-                    dist_metric=dist_metric,
-                    normalize_feature=normalize_feature,
-                    visrank=visrank,
-                    visrank_topk=visrank_topk,
-                    save_dir=save_dir,
-                    use_metric_cuhk03=use_metric_cuhk03,
-                    ranks=ranks,
+                    topk=topk,
                     lr_finder=lr_finder,
                 )
             # update test_acc AverageMeter only if the accuracy is better than the average
@@ -567,20 +555,14 @@ class Engine:
 
         return losses.meters['loss'].avg
 
+    @abstractmethod
     def forward_backward(self, data):
-        raise NotImplementedError
+        pass
 
     def test(
         self,
         epoch,
-        dist_metric='euclidean',
-        normalize_feature=False,
-        visrank=False,
-        visrank_topk=10,
-        save_dir='',
-        use_metric_cuhk03=False,
-        ranks=(1, 5, 10, 20),
-        rerank=False,
+        topk=(1, 5, 10, 20),
         lr_finder = False,
         test_only=False
     ):
@@ -599,110 +581,76 @@ class Engine:
         """
 
         self.set_model_mode('eval')
-        targets = list(self.test_loader.keys())
         top1, cur_top1, ema_top1 = [-1]*3
         should_save_ema_model = False
 
-        for dataset_name in targets:
-            domain = 'source' if dataset_name in self.datamanager.sources else 'target'
-            print('##### Evaluating {} ({}) #####'.format(dataset_name, domain))
-            # TO DO reduce amount of code for evaluation functions (DRY rule)
-            for model_id, (model_name, model) in enumerate(self.models.items()):
-                ema_condition = (self.use_ema_decay and not lr_finder
-                        and not test_only and model_name == self.main_model_name)
-                model_type = get_model_attr(model, 'type')
-                if model_type == 'classification':
-                    # do not evaluate second model till last epoch
-                    if (model_name != self.main_model_name
-                        and not test_only and epoch != (self.max_epoch - 1)):
-                        continue
-                    cur_top1 = self._evaluate_classification(
-                        model=model,
+        print('##### Evaluating test dataset) #####')
+        # TO DO reduce amount of code for evaluation functions (DRY rule)
+        for model_id, (model_name, model) in enumerate(self.models.items()):
+            ema_condition = (self.use_ema_decay and not lr_finder
+                    and not test_only and model_name == self.main_model_name)
+            model_type = get_model_attr(model, 'type')
+            # do not evaluate second model till last epoch
+            if model_type == 'classification':
+                if (model_name != self.main_model_name
+                    and not test_only and epoch != (self.max_epoch - 1)):
+                    continue
+                cur_top1 = self._evaluate_classification(
+                    model=model,
+                    epoch=epoch,
+                    data_loader=self.test_loader,
+                    model_name=model_name,
+                    topk=topk,
+                    lr_finder=lr_finder
+                )
+                if ema_condition:
+                    ema_top1 = self._evaluate_classification(
+                        model=self.ema_model.module,
                         epoch=epoch,
-                        data_loader=self.test_loader[dataset_name]['query'],
-                        model_name=model_name,
-                        dataset_name=dataset_name,
-                        ranks=ranks,
-                        lr_finder=lr_finder
+                        data_loader=self.test_loader,
+                        model_name='EMA model',
+                        topk=topk,
+                        lr_finder = lr_finder
                     )
-                    if ema_condition:
-                        ema_top1 = self._evaluate_classification(
-                            model=self.ema_model.module,
-                            epoch=epoch,
-                            data_loader=self.test_loader[dataset_name]['query'],
-                            model_name='EMA model',
-                            dataset_name=dataset_name,
-                            ranks=ranks,
-                            lr_finder = lr_finder
-                        )
-                elif model_type == 'contrastive':
-                    pass
-                elif model_type == 'multilabel':
-                    # do not evaluate second model till last epoch
-                    if (model_name != self.main_model_name
-                        and not test_only and epoch != (self.max_epoch - 1)):
-                        continue
-                    # we compute mAP, but consider it top1 for consistency
-                    # with single label classification
-                    cur_top1 = self._evaluate_multilabel_classification(
-                        model=model,
+            elif model_type == 'multilabel':
+                # do not evaluate second model till last epoch
+                if (model_name != self.main_model_name
+                    and not test_only and epoch != (self.max_epoch - 1)):
+                    continue
+                # we compute mAP, but consider it top1 for consistency
+                # with single label classification
+                cur_top1 = self._evaluate_multilabel_classification(
+                    model=model,
+                    epoch=epoch,
+                    data_loader=self.test_loader,
+                    model_name=model_name,
+                    lr_finder=lr_finder
+                )
+                if ema_condition:
+                    ema_top1 = self._evaluate_multilabel_classification(
+                        model=self.ema_model.module,
                         epoch=epoch,
-                        data_loader=self.test_loader[dataset_name]['query'],
-                        model_name=model_name,
-                        dataset_name=dataset_name,
-                        lr_finder=lr_finder
-                    )
-                    if ema_condition:
-                        ema_top1 = self._evaluate_multilabel_classification(
-                            model=self.ema_model.module,
-                            epoch=epoch,
-                            data_loader=self.test_loader[dataset_name]['query'],
-                            model_name='EMA model',
-                            dataset_name=dataset_name,
-                            lr_finder = lr_finder
-                        )
-                elif dataset_name == 'lfw':
-                    self._evaluate_pairwise(
-                        model=model,
-                        epoch=epoch,
-                        data_loader=self.test_loader[dataset_name]['pairs'],
-                        model_name=model_name
-                    )
-                else:
-                    cur_top1 = self._evaluate_reid(
-                        model=model,
-                        epoch=epoch,
-                        model_name=model_name,
-                        dataset_name=dataset_name,
-                        query_loader=self.test_loader[dataset_name]['query'],
-                        gallery_loader=self.test_loader[dataset_name]['gallery'],
-                        dist_metric=dist_metric,
-                        normalize_feature=normalize_feature,
-                        visrank=visrank,
-                        visrank_topk=visrank_topk,
-                        save_dir=save_dir,
-                        use_metric_cuhk03=use_metric_cuhk03,
-                        ranks=ranks,
-                        rerank=rerank,
-                        lr_finder=lr_finder
+                        data_loader=self.test_loader,
+                        model_name='EMA model',
+                        lr_finder = lr_finder
                     )
 
-                if model_id == 0:
-                    # the function should return accuracy results for the first (main) model only
-                    if self.use_ema_decay and ema_top1 >= cur_top1:
-                        should_save_ema_model = True
-                        top1 = ema_top1
-                    else:
-                        top1 = cur_top1
+            if model_id == 0:
+                # the function should return accuracy results for the first (main) model only
+                if self.use_ema_decay and ema_top1 >= cur_top1:
+                    should_save_ema_model = True
+                    top1 = ema_top1
+                else:
+                    top1 = cur_top1
 
         return top1, should_save_ema_model
 
     @torch.no_grad()
-    def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, dataset_name, lr_finder):
+    def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, lr_finder):
         mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader, model, self.use_gpu)
 
         if self.writer is not None and not lr_finder:
-            self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
+            self.writer.add_scalar('Val/{}/mAP'.format(model_name), mAP, epoch + 1)
 
         if not lr_finder:
             print('** Results ({}) **'.format(model_name))
@@ -717,7 +665,7 @@ class Engine:
         return mAP
 
     @torch.no_grad()
-    def _evaluate_classification(self, model, epoch, data_loader, model_name, dataset_name, ranks, lr_finder):
+    def _evaluate_classification(self, model, epoch, data_loader, model_name, topk, lr_finder):
         labelmap = []
 
         if data_loader.dataset.classes and get_model_attr(model, 'classification_classes') and \
@@ -726,171 +674,37 @@ class Engine:
             for class_name in sorted(data_loader.dataset.classes.keys()):
                 labelmap.append(data_loader.dataset.classes[class_name])
 
-        cmc, mAP, norm_cm = metrics.evaluate_classification(data_loader, model, self.use_gpu, ranks, labelmap)
+        cmc, mAP, norm_cm = metrics.evaluate_classification(data_loader, model, self.use_gpu, topk, labelmap)
 
         if self.writer is not None and not lr_finder:
-            self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
-            for i, r in enumerate(ranks):
-                self.writer.add_scalar('Val/{}/{}/Rank-{}'.format(dataset_name, model_name, r), cmc[i], epoch + 1)
+            self.writer.add_scalar('Val/{}/mAP'.format(model_name), mAP, epoch + 1)
+            for i, r in enumerate(topk):
+                self.writer.add_scalar('Val/{}/Top-{}'.format(model_name, r), cmc[i], epoch + 1)
 
         if not lr_finder:
             print('** Results ({}) **'.format(model_name))
             print('mAP: {:.2%}'.format(mAP))
-            for i, r in enumerate(ranks):
-                print('Rank-{:<3}: {:.2%}'.format(r, cmc[i]))
+            for i, r in enumerate(topk):
+                print('Top-{:<3}: {:.2%}'.format(r, cmc[i]))
             if norm_cm.shape[0] <= 20:
                 metrics.show_confusion_matrix(norm_cm)
 
         return cmc[0]
 
-    @torch.no_grad()
-    def _evaluate_pairwise(self, model, epoch, data_loader, model_name):
-        same_acc, diff_acc, overall_acc, auc, avg_optimal_thresh = metrics.evaluate_lfw(
-            data_loader, model, verbose=False
-        )
-
-        if self.writer is not None:
-            self.writer.add_scalar('Val/LFW/{}/same_accuracy'.format(model_name), same_acc, epoch + 1)
-            self.writer.add_scalar('Val/LFW/{}/diff_accuracy'.format(model_name), diff_acc, epoch + 1)
-            self.writer.add_scalar('Val/LFW/{}/accuracy'.format(model_name), overall_acc, epoch + 1)
-            self.writer.add_scalar('Val/LFW/{}/AUC'.format(model_name), auc, epoch + 1)
-
-        print('\n** Results ({}) **'.format(model_name))
-        print('Accuracy: {:.2%}'.format(overall_acc))
-        print('Accuracy on positive pairs: {:.2%}'.format(same_acc))
-        print('Accuracy on negative pairs: {:.2%}'.format(diff_acc))
-        print('Average threshold: {:.2}'.format(avg_optimal_thresh))
-
-    @torch.no_grad()
-    def _evaluate_reid(
-        self,
-        model,
-        epoch,
-        dataset_name='',
-        query_loader=None,
-        gallery_loader=None,
-        dist_metric='euclidean',
-        normalize_feature=False,
-        visrank=False,
-        visrank_topk=10,
-        save_dir='',
-        use_metric_cuhk03=False,
-        ranks=(1, 5, 10, 20),
-        rerank=False,
-        model_name='',
-        lr_finder=False
-    ):
-        def _feature_extraction(data_loader):
-            f_, pids_, camids_ = [], [], []
-            for _, data in enumerate(data_loader):
-                imgs, pids, camids = self.parse_data_for_eval(data)
-                if self.use_gpu:
-                    imgs = imgs.cuda()
-
-                features = model(imgs),
-                features = features.data.cpu()
-
-                f_.append(features)
-                pids_.extend(pids)
-                camids_.extend(camids)
-
-            f_ = torch.cat(f_, 0)
-            pids_ = np.asarray(pids_)
-            camids_ = np.asarray(camids_)
-
-            return f_, pids_, camids_
-
-        qf, q_pids, q_camids = _feature_extraction(query_loader)
-        gf, g_pids, g_camids = _feature_extraction(gallery_loader)
-
-        if normalize_feature:
-            qf = F.normalize(qf, p=2, dim=1)
-            gf = F.normalize(gf, p=2, dim=1)
-
-        distmat = metrics.compute_distance_matrix(qf, gf, dist_metric)
-        distmat = distmat.numpy()
-
-        if rerank:
-            distmat_qq = metrics.compute_distance_matrix(qf, qf, dist_metric)
-            distmat_gg = metrics.compute_distance_matrix(gf, gf, dist_metric)
-            distmat = re_ranking(distmat, distmat_qq, distmat_gg)
-
-        cmc, mAP = metrics.evaluate_rank(
-            distmat,
-            q_pids,
-            g_pids,
-            q_camids,
-            g_camids,
-            use_metric_cuhk03=use_metric_cuhk03
-        )
-
-        if self.writer is not None and not lr_finder:
-            self.writer.add_scalar('Val/{}/{}/mAP'.format(dataset_name, model_name), mAP, epoch + 1)
-            for r in ranks:
-                self.writer.add_scalar('Val/{}/{}/Rank-{}'.format(dataset_name, model_name, r), cmc[r - 1], epoch + 1)
-        if not lr_finder:
-            print('** Results ({}) **'.format(model_name))
-            print('mAP: {:.2%}'.format(mAP))
-            print('CMC curve')
-            for r in ranks:
-                print('Rank-{:<3}: {:.2%}'.format(r, cmc[r - 1]))
-
-        if visrank and not lr_finder:
-            visualize_ranked_results(
-                distmat,
-                self.datamanager.fetch_test_loaders(dataset_name),
-                self.datamanager.data_type,
-                width=self.datamanager.width,
-                height=self.datamanager.height,
-                save_dir=osp.join(save_dir, 'visrank_' + dataset_name),
-                topk=visrank_topk
-            )
-
-        return cmc[0]
-
     @staticmethod
-    def compute_loss(criterion, outputs, targets, **kwargs):
-        if isinstance(outputs, (tuple, list)):
-            loss = DeepSupervision(criterion, outputs, targets, **kwargs)
-        else:
-            loss = criterion(outputs, targets, **kwargs)
-        return loss
-
-    @staticmethod
-    def parse_data_for_train(data, output_dict=False, enable_masks=False, use_gpu=False):
+    def parse_data_for_train(data, use_gpu=False):
         imgs = data[0]
-
         obj_ids = data[1]
         if use_gpu:
             imgs = imgs.cuda()
             obj_ids = obj_ids.cuda()
-
-        if output_dict:
-            if len(data) > 3:
-                dataset_ids = data[3].cuda() if use_gpu else data[3]
-
-                masks = None
-                if enable_masks:
-                    masks = data[4].cuda() if use_gpu else data[4]
-
-                attr = [record.cuda() if use_gpu else record for record in data[5:]]
-                if len(attr) == 0:
-                    attr = None
-            else:
-                dataset_ids = torch.zeros_like(obj_ids)
-                masks = None
-                attr = None
-
-            return dict(img=imgs, obj_id=obj_ids, dataset_id=dataset_ids, mask=masks, attr=attr)
-        else:
-            return imgs, obj_ids
+        return imgs, obj_ids
 
     @staticmethod
     def parse_data_for_eval(data):
         imgs = data[0]
         obj_ids = data[1]
         cam_ids = data[2]
-
         return imgs, obj_ids, cam_ids
 
     def two_stepped_transfer_learning(self, epoch, fixbase_epoch, open_layers):

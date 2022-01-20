@@ -2,8 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from torchreid.engine import (ImageAMSoftmaxEngine, ImageContrastiveEngine,
-                              ImageTripletEngine, MultilabelEngine)
+from torchreid.engine import (ImageAMSoftmaxEngine, MultilabelEngine)
 
 
 def build_engine(cfg, datamanager, model, optimizer, scheduler,
@@ -20,8 +19,6 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             datamanager=datamanager,
             models=model,
             optimizers=optimizer,
-            reg_cfg=cfg.reg,
-            metric_cfg=cfg.metric_losses,
             schedulers=scheduler,
             use_gpu=cfg.use_gpu,
             save_all_chkpts = cfg.model.save_all_chkpts,
@@ -36,8 +33,6 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             decay_power=cfg.loss.softmax.augmentations.fmix.decay_power,
             alpha=cfg.loss.softmax.augmentations.alpha,
             size=(cfg.data.height, cfg.data.width),
-            max_soft=cfg.loss.softmax.augmentations.fmix.max_soft,
-            reformulate=cfg.loss.softmax.augmentations.fmix.reformulate,
             pr_product=cfg.loss.softmax.pr_product,
             loss_name=cfg.loss.name,
             clip_grad=cfg.train.clip_grad,
@@ -45,16 +40,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             s=cfg.loss.softmax.s,
             compute_s=cfg.loss.softmax.compute_s,
             margin_type=cfg.loss.softmax.margin_type,
-            end_s=cfg.loss.softmax.end_s,
-            duration_s=cfg.loss.softmax.duration_s,
-            skip_steps_s=cfg.loss.softmax.skip_steps_s,
-            enable_masks=cfg.data.enable_masks,
-            adaptive_margins=cfg.loss.softmax.adaptive_margins,
-            class_weighting=cfg.loss.softmax.class_weighting,
-            attr_cfg=cfg.attr_loss,
-            base_num_classes=cfg.loss.softmax.base_num_classes,
             symmetric_ce=cfg.loss.softmax.symmetric_ce,
-            mix_weight=cfg.mixing_loss.enable * cfg.mixing_loss.weight,
             enable_rsc=cfg.model.self_challenging_cfg.enable,
             should_freeze_aux_models=should_freeze_aux_models,
             nncf_metainfo=nncf_metainfo,
@@ -77,33 +63,6 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
     elif cfg.loss.name in ['asl', 'bce', 'am_binary']:
         engine = MultilabelEngine(
             **classification_params
-        )
-
-    elif cfg.loss.name == 'contrastive':
-        engine = ImageContrastiveEngine(
-            datamanager,
-            model,
-            optimizer=optimizer,
-            reg_cfg=cfg.reg,
-            scheduler=scheduler,
-            use_gpu=cfg.use_gpu,
-            s=cfg.loss.softmax.s,
-            end_s=cfg.loss.softmax.end_s,
-            duration_s=cfg.loss.softmax.duration_s,
-            skip_steps_s=cfg.loss.softmax.skip_steps_s,
-        )
-    else:
-        engine = ImageTripletEngine(
-            datamanager,
-            model,
-            optimizer=optimizer,
-            margin=cfg.loss.triplet.margin,
-            weight_t=cfg.loss.triplet.weight_t,
-            weight_x=cfg.loss.triplet.weight_x,
-            scheduler=scheduler,
-            use_gpu=cfg.use_gpu,
-            label_smooth=cfg.loss.softmax.label_smooth,
-            conf_penalty=cfg.loss.softmax.conf_penalty
         )
 
     return engine

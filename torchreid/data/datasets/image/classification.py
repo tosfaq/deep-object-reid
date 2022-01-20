@@ -16,9 +16,7 @@ class Classification(ImageDataset):
     """Classification dataset.
     """
 
-    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, **kwargs):
-        if load_masks:
-            raise NotImplementedError
+    def __init__(self, root='', mode='train', **kwargs):
 
         self.root = osp.abspath(osp.expanduser(root))
         self.data_dir = osp.dirname(self.root)
@@ -33,29 +31,25 @@ class Classification(ImageDataset):
             train, classes = self.load_annotation(
                 self.annot,
                 self.data_dir,
-                dataset_id=dataset_id
             )
-            query = []
+            test = []
 
-        elif mode == 'query':
-            query, classes = self.load_annotation(
+        elif mode == 'test':
+            test, classes = self.load_annotation(
                 self.annot,
                 self.data_dir,
-                dataset_id=dataset_id
             )
             train = []
 
         else:
             classes = []
-            train, query = [], []
+            train, test = [], []
 
-        gallery = []
-
-        super(Classification, self).__init__(train, query, gallery, mode=mode, **kwargs)
+        super(Classification, self).__init__(train, test, mode=mode, **kwargs)
         self.classes = classes
 
     @staticmethod
-    def load_annotation(annot_path, data_dir, dataset_id=0):
+    def load_annotation(annot_path, data_dir):
         out_data = []
         classes_from_data = set()
         predefined_classes = []
@@ -75,44 +69,40 @@ class Classification(ImageDataset):
 
             label = int(label_str)
             classes_from_data.add(label)
-            out_data.append((full_image_path, label, 0, dataset_id, '', -1, -1))
+            out_data.append((full_image_path, label))
         classes = predefined_classes if predefined_classes else classes_from_data
         class_to_idx = {cls: indx for indx, cls in enumerate(classes)}
         return out_data, class_to_idx
 
 
 class ExternalDatasetWrapper(ImageDataset):
-    def __init__(self, data_provider, mode='train', dataset_id=0, load_masks=False, filter_classes=None, **kwargs):
-        if load_masks:
-            raise NotImplementedError
+    def __init__(self, data_provider, mode='train', **kwargs):
+
         self.data_provider = data_provider
-        self.dataset_id = dataset_id
 
         if mode == 'train':
             train, classes = self.load_annotation(
-                self.data_provider, filter_classes, dataset_id
+                self.data_provider
             )
-            query = []
-        elif mode == 'query':
-            query, classes = self.load_annotation(
-                self.data_provider, filter_classes, dataset_id
+            test = []
+        elif mode == 'test':
+            test, classes = self.load_annotation(
+                self.data_provider
             )
             train = []
         else:
             classes = []
-            train, query = [], []
+            train, test = [], []
 
-        gallery = []
-
-        super().__init__(train, query, gallery, mode=mode, **kwargs)
+        super().__init__(train, test, mode=mode, **kwargs)
 
 
         # restore missing classes in train
         if mode == 'train':
             for i, _ in enumerate(data_provider.get_classes()):
-                if i not in self.data_counts[0]:
-                    self.data_counts[dataset_id][i] = 0
-        self.num_train_pids = {dataset_id : len(data_provider.get_classes())}
+                if i not in self.data_counts:
+                    self.data_counts[i] = 0
+        self.num_train_ids = len(data_provider.get_classes())
         self.classes = classes
 
     def __len__(self):
@@ -121,14 +111,14 @@ class ExternalDatasetWrapper(ImageDataset):
     def get_input(self, idx: int):
         img = self.data_provider[idx]['img']
         if self.transform is not None:
-            img, _ = self.transform((img, ''))
+            img = self.transform(img)
         return img
 
     def __getitem__(self, idx: int):
         input_image = self.get_input(idx)
         label = self.data_provider[idx]['label']
         if isinstance(label, (tuple, list)): # when multi-label classification is available
-            targets = torch.zeros(self.num_train_pids[self.dataset_id])
+            targets = torch.zeros(self.num_train_ids)
             for obj in label:
                 idx = int(obj)
                 if idx >= 0:
@@ -136,10 +126,10 @@ class ExternalDatasetWrapper(ImageDataset):
             label = targets
         else:
             label = int(label)
-        return input_image, label, 0, 0
+        return input_image, label
 
     @staticmethod
-    def load_annotation(data_provider, filter_classes=None, dataset_id=0):
+    def load_annotation(data_provider):
 
         all_classes = sorted(data_provider.get_classes())
         class_to_idx = {all_classes[i]: i for i in range(len(all_classes))}
@@ -147,7 +137,7 @@ class ExternalDatasetWrapper(ImageDataset):
         all_annotation = data_provider.get_annotation()
         out_data = []
         for item in all_annotation:
-            out_data.append(('', item['label'], 0, dataset_id, '', -1, -1))\
+            out_data.append(('', item['label']))
 
         return out_data, class_to_idx
 
@@ -156,38 +146,30 @@ class ClassificationImageFolder(ImageDataset):
     """Classification dataset representing raw folders without annotation files.
     """
 
-    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, filter_classes=None, **kwargs):
-        if load_masks:
-            raise NotImplementedError
-        self.root = osp.abspath(osp.expanduser(root))
-        required_files = [
-            self.root
-        ]
-        self.check_before_run(required_files)
-
+    def __init__(self, root='', mode='train', filter_classes=None, **kwargs):
+        self.root = root
+        self.check_before_run(self.root)
         if mode == 'train':
             train, classes = self.load_annotation(
-                self.root, filter_classes, dataset_id
+                self.root, filter_classes
             )
-            query = []
-        elif mode == 'query':
-            query, classes = self.load_annotation(
-                self.root, filter_classes, dataset_id
+            test = []
+        elif mode == 'test':
+            test, classes = self.load_annotation(
+                self.root, filter_classes
             )
             train = []
         else:
             classes = []
-            train, query = [], []
+            train, test = [], []
 
-        gallery = []
-
-        super().__init__(train, query, gallery, mode=mode, **kwargs)
+        super().__init__(train, test, mode=mode, **kwargs)
 
         self.classes = classes
 
 
     @staticmethod
-    def load_annotation(data_dir, filter_classes=None, dataset_id=0):
+    def load_annotation(data_dir, filter_classes=None):
         ALLOWED_EXTS = ('.jpg', '.jpeg', '.png', '.gif')
         def is_valid(filename):
             return not filename.startswith('.') and filename.lower().endswith(ALLOWED_EXTS)
@@ -213,7 +195,7 @@ class ClassificationImageFolder(ImageDataset):
                 for fname in sorted(fnames):
                     path = osp.join(root, fname)
                     if is_valid(path):
-                        out_data.append((path, class_index, 0, dataset_id, '', -1, -1))\
+                        out_data.append((path, class_index))
 
         if not len(out_data):
             print('Failed to locate images in folder ' + data_dir + f' with extensions {ALLOWED_EXTS}')
@@ -225,9 +207,7 @@ class MultiLabelClassification(ImageDataset):
     """Multi label classification dataset.
     """
 
-    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, **kwargs):
-        if load_masks:
-            raise NotImplementedError
+    def __init__(self, root='', mode='train', **kwargs):
 
         self.root = osp.abspath(osp.expanduser(root))
         self.data_dir = osp.dirname(self.root)
@@ -241,26 +221,24 @@ class MultiLabelClassification(ImageDataset):
             train, classes = self.load_annotation(
                 self.annot,
                 self.data_dir,
-                dataset_id=dataset_id
             )
-            query = []
-        elif mode == 'query':
-            query, classes = self.load_annotation(
+            test = []
+        elif mode == 'test':
+            test, classes = self.load_annotation(
                 self.annot,
                 self.data_dir,
-                dataset_id=dataset_id
             )
             train = []
         else:
             classes = []
-            train, query = [], []
+            train, test = [], []
 
-        gallery = []
-        super(MultiLabelClassification, self).__init__(train, query, gallery, mode=mode, **kwargs)
+
+        super(MultiLabelClassification, self).__init__(train, test, mode=mode, **kwargs)
         self.classes = classes
 
     @staticmethod
-    def load_annotation(annot_path, data_dir, dataset_id=0):
+    def load_annotation(annot_path, data_dir):
         out_data = []
         with open(annot_path) as f:
             annotation = json.load(f)
@@ -275,7 +253,7 @@ class MultiLabelClassification(ImageDataset):
                 assert full_image_path
                 if not labels_idx:
                     img_wo_objects += 1
-                out_data.append((full_image_path, tuple(labels_idx), 0, dataset_id, '', -1, -1))
+                out_data.append((full_image_path, tuple(labels_idx)))
         if img_wo_objects:
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
         return out_data, class_to_idx

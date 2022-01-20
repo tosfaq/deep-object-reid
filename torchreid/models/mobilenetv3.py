@@ -14,7 +14,8 @@ import torch.nn as nn
 from torch.cuda.amp import autocast
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, EvalModeSetter, rsc
+from torchreid.utils import EvalModeSetter
+from torchreid.ops import Dropout, rsc
 from .common import HSigmoid, HSwish, ModelInterface, make_divisible
 
 from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
@@ -236,7 +237,7 @@ class MobileNetV3(ModelInterface):
 
             if return_all:
                 return [(logits, y, glob_features)]
-            if not self.training and self.is_classification():
+            if not self.training:
                 return [logits]
             if get_embeddings:
                 out_data = [logits, glob_features]

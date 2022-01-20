@@ -59,17 +59,10 @@ def get_default_config():
     cfg.model.feature_dim = 512  # embedding size
     cfg.model.bn_eval = False
     cfg.model.bn_frozen = False
-    cfg.model.enable_attentions = False
     cfg.model.pooling_type = 'avg'
     cfg.model.IN_first = False
     cfg.model.IN_conv1 = False
-    cfg.model.extra_blocks = False
-    cfg.model.lct_gate = False
-    cfg.model.fpn = CN()
-    cfg.model.fpn.enable = True
-    cfg.model.fpn.dim = 256
-    cfg.model.fpn.process = 'concatenation'
-    cfg.model.type = 'reid'
+    cfg.model.type = 'classification'
     cfg.model.self_challenging_cfg = CN()
     cfg.model.self_challenging_cfg.enable = False
     cfg.model.self_challenging_cfg.drop_p = 0.33
@@ -91,14 +84,11 @@ def get_default_config():
 
     # data
     cfg.data = CN()
-    cfg.data.root = 'reid-data'
-    cfg.data.sources = ['market1501']
-    cfg.data.targets = ['market1501']
+    cfg.data.root = 'data'
     cfg.data.workers = 4  # number of data loading workers
     cfg.data.split_id = 0  # Split index
     cfg.data.height = 256  # image height
     cfg.data.width = 128  # image width
-    cfg.data.enable_masks = False
     cfg.data.combineall = False  # combine train, query and gallery for training
     cfg.data.norm_mean = [0.485, 0.456, 0.406]  # default is imagenet mean
     cfg.data.norm_std = [0.229, 0.224, 0.225]  # default is imagenet std
@@ -106,14 +96,6 @@ def get_default_config():
     cfg.data.tb_log_dir = ''  # path to save tensorboard log. If empty, log will be saved to data.save_dir
     cfg.data.min_samples_per_id = 1
     cfg.data.num_sampled_packages = 1
-
-    # specific datasets
-    cfg.market1501 = CN()
-    cfg.market1501.use_500k_distractors = False  # add 500k distractors to the gallery set for market1501
-    cfg.cuhk03 = CN()
-    cfg.cuhk03.labeled_images = False  # use labeled images, if False, use detected images
-    cfg.cuhk03.classic_split = False  # use classic split by Li et al. CVPR14
-    cfg.cuhk03.use_metric_cuhk03 = False  # use cuhk03's metric for evaluation
 
     # custom_datasets
     cfg.custom_datasets = CN() # this node contains information about custom classification datasets
@@ -125,9 +107,6 @@ def get_default_config():
     # sampler
     cfg.sampler = CN()
     cfg.sampler.train_sampler = 'RandomSampler'
-    cfg.sampler.batch_num_instances = 4  # number of instances per identity for RandomIdentitySampler
-    cfg.sampler.epoch_num_instances = -1
-    cfg.sampler.fill_instances = False
 
     # train
     cfg.train = CN()
@@ -198,19 +177,11 @@ def get_default_config():
     cfg.loss.softmax.augmentations.aug_prob = 1.0
     cfg.loss.softmax.augmentations.fmix = CN()
     cfg.loss.softmax.augmentations.fmix.decay_power = 3
-    cfg.loss.softmax.augmentations.fmix.max_soft = 0.0
-    cfg.loss.softmax.augmentations.fmix.reformulate = False
     cfg.loss.softmax.conf_penalty = 0.0
     cfg.loss.softmax.pr_product = False
     cfg.loss.softmax.m = 0.35
     cfg.loss.softmax.s = 30.
     cfg.loss.softmax.compute_s = False
-    cfg.loss.softmax.end_s = -1.0
-    cfg.loss.softmax.duration_s = -1
-    cfg.loss.softmax.skip_steps_s = -1
-    cfg.loss.softmax.adaptive_margins = False
-    cfg.loss.softmax.class_weighting = False
-    cfg.loss.softmax.base_num_classes = -1
     cfg.loss.softmax.symmetric_ce = False
     cfg.loss.asl = CN()
     cfg.loss.asl.gamma_pos = 0.
@@ -219,72 +190,19 @@ def get_default_config():
     cfg.loss.am_binary = CN()
     cfg.loss.am_binary.amb_k = 0.7
     cfg.loss.am_binary.amb_t = 1.
-    cfg.loss.triplet = CN()
-    cfg.loss.triplet.margin = 0.3  # distance margin
-    cfg.loss.triplet.weight_t = 1.  # weight to balance hard triplet loss
-    cfg.loss.triplet.weight_x = 0.  # weight to balance cross entropy loss
 
     # mixing loss
     cfg.mixing_loss = CN()
     cfg.mixing_loss.enable = False
     cfg.mixing_loss.weight = 1.0
 
-    # metric_losses
-    cfg.metric_losses = CN()
-    cfg.metric_losses.enable = False
-    cfg.metric_losses.center_coeff = 0.0
-    cfg.metric_losses.triplet_coeff = 0.0
-    cfg.metric_losses.local_push_coeff = 1.0
-    cfg.metric_losses.center_margin = 0.1
-    cfg.metric_losses.triplet_margin = 0.35
-    cfg.metric_losses.local_push_margin = 0.1
-    cfg.metric_losses.smart_margin = True
-    cfg.metric_losses.triplet = 'semihard'
-    cfg.metric_losses.loss_balancing = True
-    cfg.metric_losses.centers_lr = 0.5
-    cfg.metric_losses.balancing_lr = 0.01
-
-    # attribute loss
-    cfg.attr_loss = CN()
-    cfg.attr_loss.names = ['color', 'type']
-    cfg.attr_loss.num_classes = [-1, -1]
-    cfg.attr_loss.label_smooth = False
-    cfg.attr_loss.conf_penalty = 0.0
-    cfg.attr_loss.pr_product = False
-    cfg.attr_loss.m = 0.35
-    cfg.attr_loss.s = 30.0
-    cfg.attr_loss.end_s = -1.0
-    cfg.attr_loss.duration_s = -1
-    cfg.attr_loss.skip_steps_s = -1
-
-    # regularizers
-    cfg.reg = CN()
-    cfg.reg.ow = False
-    cfg.reg.ow_beta = 1e-3
-    cfg.reg.nw = False
-    cfg.reg.nw_max_ratio = 10.0
-    cfg.reg.nw_scale = 10.0
-    cfg.reg.hd = False
-    cfg.reg.hd_max_score = 0.5
-    cfg.reg.hd_scale = 10.0
-    cfg.reg.of = False
-    cfg.reg.of_beta = 1e-6
-    cfg.reg.of_start_epoch = 23
-
     # test
     cfg.test = CN()
     cfg.test.batch_size = 100
-    cfg.test.dist_metric = 'euclidean'  # distance metric, ['euclidean', 'cosine']
-    cfg.test.normalize_feature = False  # normalize feature vectors before computing distance
-    cfg.test.ranks = [1, 5, 10, 20]  # cmc ranks
+    cfg.test.topk = [1, 5, 10, 20]
     cfg.test.evaluate = False  # test only
     cfg.test.eval_freq = -1  # evaluation frequency (-1 means to only test after training)
     cfg.test.start_eval = 0  # start to evaluate after a specific epoch
-    cfg.test.rerank = False  # use person re-ranking
-    cfg.test.visrank = False  # visualize ranked results (only available when cfg.test.evaluate=True)
-    cfg.test.visrank_topk = 10  # top-k ranks to visualize
-    cfg.test.visactmap = False  # visualize CNN activation maps
-    cfg.test.apply_masks = False
     cfg.test.test_before_train = False
 
     # Augmentations
@@ -371,11 +289,6 @@ def get_default_config():
     cfg.data.transforms.random_rotate.angle = (-5, 5)
     cfg.data.transforms.random_rotate.values = (0, )
 
-    cfg.data.transforms.cut_out_with_prior = CN()
-    cfg.data.transforms.cut_out_with_prior.enable = False
-    cfg.data.transforms.cut_out_with_prior.p = 0.5
-    cfg.data.transforms.cut_out_with_prior.max_area = 0.1
-
     cfg.data.transforms.random_blur = CN()
     cfg.data.transforms.random_blur.enable = False
     cfg.data.transforms.random_blur.p = 0.5
@@ -411,38 +324,6 @@ def get_default_config():
     cfg.data.transforms.random_figures.circle_radiuses = (5, 64)
     cfg.data.transforms.random_figures.figure_prob = 0.5
     cfg.data.transforms.random_figures.figures = ['line', 'rectangle', 'circle']
-
-    cfg.data.transforms.random_patch = CN()
-    cfg.data.transforms.random_patch.enable = False
-    cfg.data.transforms.random_patch.p = 0.5
-    cfg.data.transforms.random_patch.pool_capacity = 50000
-    cfg.data.transforms.random_patch.min_sample_size = 100
-    cfg.data.transforms.random_patch.patch_min_area = 0.01
-    cfg.data.transforms.random_patch.patch_max_area = 0.5
-    cfg.data.transforms.random_patch.patch_min_ratio = 0.1
-    cfg.data.transforms.random_patch.prob_rotate = 0.5
-    cfg.data.transforms.random_patch.prob_flip_leftright = 0.5
-
-    cfg.data.transforms.random_grid = CN()
-    cfg.data.transforms.random_grid.enable = False
-    cfg.data.transforms.random_grid.p = 0.33
-    cfg.data.transforms.random_grid.color = (-1, -1, -1)
-    cfg.data.transforms.random_grid.grid_size = (24, 64)
-    cfg.data.transforms.random_grid.thickness = (1, 1)
-    cfg.data.transforms.random_grid.angle = (0, 180)
-
-    cfg.data.transforms.random_background_substitution = CN()
-    cfg.data.transforms.random_background_substitution.enable = False
-    cfg.data.transforms.random_background_substitution.p = 0.2
-    cfg.data.transforms.random_background_substitution.images_root_dir = ''
-    cfg.data.transforms.random_background_substitution.images_list_file = ''
-
-    cfg.data.transforms.mixup = CN()
-    cfg.data.transforms.mixup.enable = False
-    cfg.data.transforms.mixup.p = 0.33
-    cfg.data.transforms.mixup.alpha = 0.2
-    cfg.data.transforms.mixup.images_root_dir = ''
-    cfg.data.transforms.mixup.images_list_file = ''
 
     cfg.data.transforms.test = CN()
     cfg.data.transforms.test.resize_first = False
@@ -508,32 +389,17 @@ def merge_from_files_with_base(cfg, cfg_path):
 def imagedata_kwargs(cfg):
     return {
         'root': cfg.data.root,
-        'sources': cfg.data.sources,
-        'targets': cfg.data.targets,
         'height': cfg.data.height,
         'width': cfg.data.width,
         'transforms': cfg.data.transforms,
         'norm_mean': cfg.data.norm_mean,
         'norm_std': cfg.data.norm_std,
         'use_gpu': cfg.use_gpu,
-        'split_id': cfg.data.split_id,
-        'combineall': cfg.data.combineall,
         'batch_size_train': cfg.train.batch_size,
         'batch_size_test': cfg.test.batch_size,
         'correct_batch_size': cfg.train.correct_batch_size,
         'workers': cfg.data.workers,
-        'batch_num_instances': cfg.sampler.batch_num_instances,
-        'epoch_num_instances': cfg.sampler.epoch_num_instances,
-        'fill_instances': cfg.sampler.fill_instances,
         'train_sampler': cfg.sampler.train_sampler,
-        'enable_masks': cfg.data.enable_masks,
-        'num_sampled_packages': cfg.data.num_sampled_packages,
-        'cuhk03_labeled': cfg.cuhk03.labeled_images,
-        'cuhk03_classic_split': cfg.cuhk03.classic_split,
-        'market1501_500k': cfg.market1501.use_500k_distractors,
-        'apply_masks_to_test': cfg.test.apply_masks,
-        'min_samples_per_id': cfg.data.min_samples_per_id,
-        'custom_dataset_names': cfg.custom_datasets.names,
         'custom_dataset_roots': cfg.custom_datasets.roots,
         'custom_dataset_types': cfg.custom_datasets.types,
     }
@@ -598,18 +464,12 @@ def model_kwargs(cfg, num_classes):
         'dropout_cls': cfg.model.dropout_cls,
         'feature_dim': cfg.model.feature_dim,
         'mix_precision': cfg.train.mix_precision,
-        'fpn_cfg': cfg.model.fpn,
         'pooling_type': cfg.model.pooling_type,
         'input_size': (cfg.data.height, cfg.data.width),
         'IN_first': cfg.model.IN_first,
         'IN_conv1': cfg.model.IN_conv1,
-        'extra_blocks': cfg.model.extra_blocks,
-        'lct_gate': cfg.model.lct_gate,
         'bn_eval': cfg.model.bn_eval,
         'bn_frozen': cfg.model.bn_frozen,
-        'enable_attentions': cfg.model.enable_attentions and cfg.data.enable_masks,
-        'attr_names': cfg.attr_loss.names,
-        'attr_num_classes': cfg.attr_loss.num_classes,
         'type': cfg.model.type,
         'self_challenging_cfg': cfg.model.self_challenging_cfg,
         'hidden_dim': cfg.model.transformer.hidden_dim,
@@ -637,27 +497,14 @@ def engine_run_kwargs(cfg):
         'start_eval': cfg.test.start_eval,
         'eval_freq': cfg.test.eval_freq,
         'print_freq': cfg.train.print_freq,
-        'dist_metric': cfg.test.dist_metric,
-        'normalize_feature': cfg.test.normalize_feature,
-        'visrank': cfg.test.visrank,
-        'visrank_topk': cfg.test.visrank_topk,
-        'use_metric_cuhk03': cfg.cuhk03.use_metric_cuhk03,
-        'ranks': cfg.test.ranks,
         'initial_seed': cfg.train.seed
     }
 
 
 def engine_test_kwargs(cfg):
     return {
-        'dist_metric': cfg.test.dist_metric,
-        'normalize_feature': cfg.test.normalize_feature,
-        'visrank': cfg.test.visrank,
-        'visrank_topk': cfg.test.visrank_topk,
         'save_dir': cfg.data.save_dir,
-        'use_metric_cuhk03': cfg.cuhk03.use_metric_cuhk03,
-        'ranks': cfg.test.ranks,
         'test_only': cfg.test.evaluate,
-        'rerank': cfg.test.rerank,
     }
 
 
@@ -693,7 +540,6 @@ def augmentation_kwargs(cfg):
         'random_figures': cfg.data.transforms.random_figures,
         'random_grid': cfg.data.transforms.random_grid,
         'random_negative': cfg.data.transforms.random_negative,
-        'cut_out_with_prior': cfg.data.transforms.cut_out_with_prior,
         'coarse_dropout': cfg.data.transforms.coarse_dropout,
         'equalize': cfg.data.transforms.equalize,
         'posterize': cfg.data.transforms.posterize,
