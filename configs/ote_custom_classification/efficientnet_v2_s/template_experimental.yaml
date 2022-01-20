@@ -1,10 +1,10 @@
 # Description.
-model_template_id: MobileNet-V3-large-0.75x
-name: MobileNet-V3-large-0.75x
+model_template_id: Custom_Image_Classification_EfficientNet-V2-S
+name: EfficientNet-V2-S
 task_type: CLASSIFICATION
 task_family: VISION
 instantiation: "CLASS"
-summary: Provides stable training and fast inference, but may be not as accurate as larger models, especially on large datasets.
+summary: This model is quite slow, but provides superior single and multi label classification performance.
 application:
   ~
 
@@ -32,7 +32,7 @@ hyper_parameters:
       max_num_epochs:
         default_value: 200
       learning_rate:
-        default_value: 0.016
+        default_value: 0.007
       enable_early_stopping:
         default_value: true
     nncf_optimization:
@@ -50,5 +50,5 @@ training_targets:
   - CPU
 
 # Stats.
-gigaflops: 0.32
-size: 2.76
+gigaflops: 5.76
+size: 20.23

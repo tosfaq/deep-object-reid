@@ -384,10 +384,6 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
         >>> file_path = 'log/my_model/model-best.pth.tar'
         >>> load_pretrained_weights(model, file_path)
     """
-    def _add_prefix(key, prefix):
-        key = prefix + "." + key
-        return key
-
     def _remove_prefix(key, prefix):
         prefix = prefix + '.'
         if key.startswith(prefix):
@@ -395,7 +391,6 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
         return key
 
     is_file = check_isfile(file_path)
-    pretraining_timm_model = model.pretrained and isinstance(model, TimmModelsWrapper)
     if not is_file and not pretrained_dict:
         # Then link is presented or something different
         # that will be checked and processed in download function
@@ -422,8 +417,6 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
         # discard known prefixes: 'nncf_module.' from NNCF, 'module.' from DataParallel
         k = _remove_prefix(k, 'nncf_module')
         k = _remove_prefix(k, 'module')
-        if pretraining_timm_model:
-            k = _add_prefix(k, 'model')
 
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
