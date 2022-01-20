@@ -76,18 +76,18 @@ class Classification(ImageDataset):
 
 
 class ExternalDatasetWrapper(ImageDataset):
-    def __init__(self, data_provider, mode='train', filter_classes=None, **kwargs):
+    def __init__(self, data_provider, mode='train', **kwargs):
 
         self.data_provider = data_provider
 
         if mode == 'train':
             train, classes = self.load_annotation(
-                self.data_provider, filter_classes
+                self.data_provider
             )
             test = []
         elif mode == 'test':
             test, classes = self.load_annotation(
-                self.data_provider, filter_classes
+                self.data_provider
             )
             train = []
         else:
@@ -129,7 +129,7 @@ class ExternalDatasetWrapper(ImageDataset):
         return input_image, label
 
     @staticmethod
-    def load_annotation(data_provider, filter_classes=None):
+    def load_annotation(data_provider):
 
         all_classes = sorted(data_provider.get_classes())
         class_to_idx = {all_classes[i]: i for i in range(len(all_classes))}
