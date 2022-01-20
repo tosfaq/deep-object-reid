@@ -20,7 +20,7 @@ import numpy as np
 import torch
 import re
 from PIL import Image, ImageOps, ImageEnhance, ImageDraw
-from torchvision.transforms import (ColorJitter, Compose)
+from torchvision.transforms import ColorJitter, Compose, ToTensor, Normalize
 from torchvision.transforms import RandomCrop as TorchRandomCrop
 from torchvision.transforms import functional as F
 from randaugment import RandAugment
@@ -584,22 +584,6 @@ class Resize:
 class ToPILL:
     def __call__(self, image):
         image = Image.fromarray(image)
-        return image
-
-
-class Normalize(object):
-    def __init__(self, mean, std, inplace=False):
-        self.mean = mean
-        self.std = std
-        self.inplace = inplace
-
-    def __call__(self, image):
-        return F.normalize(image, self.mean, self.std, self.inplace)
-
-
-class ToTensor(object):
-    def __call__(self, image):
-        image = F.to_tensor(image)
         return image
 
 
