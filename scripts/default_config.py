@@ -403,13 +403,11 @@ def imagedata_kwargs(cfg):
         'norm_mean': cfg.data.norm_mean,
         'norm_std': cfg.data.norm_std,
         'use_gpu': cfg.use_gpu,
-        'split_id': cfg.data.split_id,
         'batch_size_train': cfg.train.batch_size,
         'batch_size_test': cfg.test.batch_size,
         'correct_batch_size': cfg.train.correct_batch_size,
         'workers': cfg.data.workers,
         'train_sampler': cfg.sampler.train_sampler,
-        'min_samples_per_id': cfg.data.min_samples_per_id,
         'custom_dataset_roots': cfg.custom_datasets.roots,
         'custom_dataset_types': cfg.custom_datasets.types,
     }

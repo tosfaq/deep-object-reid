@@ -15,13 +15,12 @@ from torchreid.data.sampler import build_train_sampler
 from torchreid.data.transforms import build_transforms
 from torchreid.utils import worker_init_fn
 
-class DataManager(object):
-    r"""Base data manager.
+
+class ImageDataManager(object):
+    r"""Image data manager.
 
     Args:
-        sources (str or list): source dataset(s).
-        targets (str or list, optional): target dataset(s). If not given,
-            it equals to ``sources``.
+        root (str): root path to datasets.
         height (int, optional): target image height. Default is 256.
         width (int, optional): target image width. Default is 128.
         transforms (str or list of str, optional): transformations applied to model training.
@@ -29,21 +28,35 @@ class DataManager(object):
         norm_mean (list or None, optional): data mean. Default is None (use imagenet mean).
         norm_std (list or None, optional): data std. Default is None (use imagenet std).
         use_gpu (bool, optional): use gpu. Default is True.
+        batch_size_train (int, optional): number of images in a training batch. Default is 32.
+        batch_size_test (int, optional): number of images in a test batch. Default is 32.
+        workers (int, optional): number of workers. Default is 4.
+        train_sampler (str, optional): sampler. Default is RandomSampler.
+        correct_batch_size (bool, optional): this heuristic improves multilabel training on small datasets
     """
 
     def __init__(
         self,
-        height=256,
-        width=128,
+        root='',
+        height=224,
+        width=224,
         transforms='random_flip',
         norm_mean=None,
         norm_std=None,
-        use_gpu=False,
+        use_gpu=True,
+        batch_size_train=32,
+        batch_size_test=32,
+        correct_batch_size = False,
+        workers=4,
+        train_sampler='RandomSampler',
+        custom_dataset_roots=[''],
+        custom_dataset_types=[''],
+        filter_classes=None,
     ):
         self.height = height
         self.width = width
 
-        self.transform_tr, self.transform_te = build_transforms(
+        self.transform_train, self.transform_test = build_transforms(
             self.height,
             self.width,
             transforms=transforms,
@@ -53,89 +66,13 @@ class DataManager(object):
 
         self.use_gpu = (torch.cuda.is_available() and use_gpu)
 
-    @property
-    def num_train_ids(self):
-        """Returns the number of training categories."""
-        return self._num_train_ids
-
-    @property
-    def data_counts(self):
-        """Returns the number of samples for each ID."""
-        return self._data_counts
-
-    @staticmethod
-    def build_dataset_map(groups):
-        out_data = dict()
-        for group_id, group in enumerate(groups):
-            for name in group:
-                out_data[name] = group_id
-
-        return out_data
-
-
-class ImageDataManager(DataManager):
-    r"""Image data manager.
-
-    Args:
-        root (str): root path to datasets.
-        sources (str or list): source dataset(s).
-        targets (str or list, optional): target dataset(s). If not given,
-            it equals to ``sources``.
-        height (int, optional): target image height. Default is 256.
-        width (int, optional): target image width. Default is 128.
-        transforms (str or list of str, optional): transformations applied to model training.
-            Default is 'random_flip'.
-        norm_mean (list or None, optional): data mean. Default is None (use imagenet mean).
-        norm_std (list or None, optional): data std. Default is None (use imagenet std).
-        use_gpu (bool, optional): use gpu. Default is True.
-        combineall (bool, optional): combine train, test in a dataset for
-            training. Default is False.
-        batch_size_train (int, optional): number of images in a training batch. Default is 32.
-        batch_size_test (int, optional): number of images in a test batch. Default is 32.
-        workers (int, optional): number of workers. Default is 4.
-        train_sampler (str, optional): sampler. Default is RandomSampler.
-    """
-
-    def __init__(
-        self,
-        root='',
-        height=256,
-        width=128,
-        transforms='random_flip',
-        norm_mean=None,
-        norm_std=None,
-        use_gpu=True,
-        split_id=0,
-        batch_size_train=32,
-        batch_size_test=32,
-        correct_batch_size = False,
-        workers=4,
-        train_sampler='RandomSampler',
-        custom_dataset_roots=[''],
-        custom_dataset_types=[''],
-        min_samples_per_id=0,
-        num_sampled_packages=1,
-        filter_classes=None,
-    ):
-        super(ImageDataManager, self).__init__(
-            height=height,
-            width=width,
-            transforms=transforms,
-            norm_mean=norm_mean,
-            norm_std=norm_std,
-            use_gpu=use_gpu,
-        )
-
         print('=> Loading train dataset')
         train_dataset = init_image_dataset(
-            transform=self.transform_tr,
+            transform=self.transform_train,
             mode='train',
             root=root,
-            split_id=split_id,
             custom_dataset_roots=custom_dataset_roots,
             custom_dataset_types=custom_dataset_types,
-            min_id_samples=min_samples_per_id,
-            num_sampled_packages=num_sampled_packages,
             filter_classes=filter_classes,
         )
 
@@ -162,10 +99,9 @@ class ImageDataManager(DataManager):
 
         # build test loader
         test_dataset = init_image_dataset(
-            transform=self.transform_te,
+            transform=self.transform_test,
             mode='test',
             root=root,
-            split_id=split_id,
             custom_dataset_roots=custom_dataset_roots,
             custom_dataset_types=custom_dataset_types,
             filter_classes=filter_classes
@@ -194,3 +130,13 @@ class ImageDataManager(DataManager):
         if data_len <= 2500:
             return max(int(np.ceil(np.sqrt(data_len) / 2.5)), 6)
         return cur_batch
+
+    @property
+    def num_train_ids(self):
+        """Returns the number of training categories."""
+        return self._num_train_ids
+
+    @property
+    def data_counts(self):
+        """Returns the number of samples for each ID."""
+        return self._data_counts

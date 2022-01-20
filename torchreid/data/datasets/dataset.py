@@ -15,30 +15,26 @@ import torch
 from torchreid.utils import read_image
 
 
-class Dataset:
-    """An abstract class representing a Dataset.
+class ImageDataset:
+    """A base class representing ImageDataset.
 
-    This is the base class for ``ImageDataset``.
+    All other image datasets should subclass it.
 
-    Args:
-        train (list): contains tuples of (img_path(s), id).
-        test (list): contains tuples of (img_path(s), id).
-        transform: transform function.
-        mode (str): 'train', 'test'.
-        combineall (bool): combines train, test in a dataset for training.
-        verbose (bool): show information.
+    ``__getitem__`` returns an image given index.
+    It will return ``img``, ``img_path``
+    where ``img`` has shape (channel, height, width). As a result,
+    data in each batch has shape (batch_size, channel, height, width).
     """
-    _junk_ids = []  # contains useless person IDs, e.g. background, false detections
 
-    def __init__(
-        self,
-        train,
-        test,
-        transform=None,
-        mode='train',
-        verbose=True,
-        **kwargs
-    ):
+    def __init__(self,
+                 train,
+                 test,
+                 transform=None,
+                 mode='train',
+                 verbose=True,
+                 **kwargs):
+
+        self.classes = {}
         self.train = train
         self.test = test
         self.transform = transform
@@ -63,10 +59,40 @@ class Dataset:
             self.show_summary()
 
     def __getitem__(self, index):
-        raise NotImplementedError
+        input_record = self.data[index]
+
+        image = read_image(input_record[0], grayscale=False)
+        obj_id = input_record[1]
+
+        if isinstance(obj_id, (tuple, list)): # when multi-label classification is available
+            targets = torch.zeros(self.num_train_ids)
+            for obj in obj_id:
+                targets[obj] = 1
+            obj_id = targets
+
+        if self.transform is not None:
+            transformed_image = self.transform(image)
+        else:
+            transformed_image = image
+
+        output_record = (transformed_image, obj_id)
+
+        return output_record
 
     def __len__(self):
         return len(self.data)
+
+    @staticmethod
+    def get_data_counts(data):
+        counts = {}
+        for record in data:
+            obj_id = record[1]
+            if obj_id not in counts:
+                counts[obj_id] = 1
+            else:
+                counts[obj_id] += 1
+
+        return counts
 
     @staticmethod
     def parse_data(data):
@@ -92,25 +118,6 @@ class Dataset:
         return self.parse_data(data)
 
     @staticmethod
-    def get_data_counts(data):
-        counts = {}
-        for record in data:
-            obj_id = record[1]
-            if obj_id not in counts:
-                counts[obj_id] = 1
-            else:
-                counts[obj_id] += 1
-
-        return counts
-
-    def get_record(self, index):
-        return self.data[index]
-
-    def show_summary(self):
-        """Shows dataset statistics."""
-        pass
-
-    @staticmethod
     def check_before_run(required_files):
         """Checks if required files exist before going deeper.
 
@@ -132,62 +139,13 @@ class Dataset:
               '  subset   | # ids | # items\n' \
               '  ------------------------------\n' \
               '  train    | {:5d} | {:7d}\n' \
-              '  test    | {:5d} | {:7d}\n' \
-              '  -------------------------------\n' \
-              '  items: images for the dataset\n'.format(
-                  sum(num_train_ids.values()), len(self.train),
-                  sum(num_test_ids.values()), len(self.test)
+              '  test     | {:5d} | {:7d}\n' \
+              '  -------------------------------\n'.format(
+                  num_train_ids, len(self.train),
+                  num_test_ids, len(self.test)
               )
 
         return msg
 
-
-class ImageDataset(Dataset):
-    """A base class representing ImageDataset.
-
-    All other image datasets should subclass it.
-
-    ``__getitem__`` returns an image given index.
-    It will return ``img``, ``img_path``
-    where ``img`` has shape (channel, height, width). As a result,
-    data in each batch has shape (batch_size, channel, height, width).
-    """
-
-    def __init__(self, train, test, **kwargs):
-        super(ImageDataset, self).__init__(train, test, **kwargs)
-        self.classes = {}
-
-    def __getitem__(self, index):
-        input_record = self.data[index]
-
-        image = read_image(input_record[0], grayscale=False)
-        obj_id = input_record[1]
-
-        if isinstance(obj_id, (tuple, list)): # when multi-label classification is available
-            targets = torch.zeros(self.num_train_ids)
-            for obj in obj_id:
-                targets[obj] = 1
-            obj_id = targets
-
-        if self.transform is not None:
-            transformed_image = self.transform(image)
-        else:
-            transformed_image = image
-
-        output_record = (transformed_image, obj_id)
-
-        return output_record
-
     def show_summary(self):
-        num_train_ids = self.parse_data(self.train)
-        num_test_ids = self.parse_data(self.test)
-
-        print('=> Loaded {}'.format(self.__class__.__name__))
-        print('  ----------------------------------------')
-        print('  subset   | # ids | # images ')
-        print('  ----------------------------------------')
-        print('  train    | {:5d} | {:8d} |'.format(
-            num_train_ids, len(self.train)))
-        print('  test     | {:5d} | {:8d} |'.format(
-            num_test_ids, len(self.test)))
-        print('  ----------------------------------------')
+        print(self)
