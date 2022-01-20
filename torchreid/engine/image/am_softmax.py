@@ -29,10 +29,9 @@ class ImageAMSoftmaxEngine(Engine):
     def __init__(self, datamanager, models, optimizers, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stopping, lr_decay_factor, loss_name, label_smooth,
                  margin_type, aug_type, decay_power, alpha, size, lr_finder, aug_prob,
-                 conf_penalty, pr_product, m, end_s, clip_grad, duration_s, skip_steps_s,
-                 adaptive_margins, class_weighting, symmetric_ce, enable_rsc, should_freeze_aux_models,
-                 nncf_metainfo, compression_ctrl, initial_lr, target_metric, use_ema_decay, ema_decay,
-                 mix_precision, **kwargs):
+                 conf_penalty, pr_product, m, clip_grad, symmetric_ce, enable_rsc,
+                 should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
+                 target_metric, use_ema_decay, ema_decay, mix_precision, **kwargs):
         super(ImageAMSoftmaxEngine, self).__init__(datamanager,
                                                    models=models,
                                                    optimizers=optimizers,
@@ -93,14 +92,8 @@ class ImageAMSoftmaxEngine(Engine):
                 conf_penalty=conf_penalty,
                 m=m,
                 s=self.am_scale,
-                end_s=self.am_scale * end_s if self._valid(end_s) else None,
-                duration_s=duration_s * self.num_batches if self._valid(duration_s) else None,
-                skip_steps_s=skip_steps_s * self.num_batches if self._valid(skip_steps_s) else None,
                 pr_product=pr_product,
                 symmetric_ce=symmetric_ce,
-                class_counts=self.num_classes,
-                adaptive_margins=adaptive_margins,
-                class_weighting=class_weighting
             )
 
 
@@ -204,11 +197,11 @@ class ImageAMSoftmaxEngine(Engine):
                 raise RuntimeError("There is no samples in a batch!")
 
             loss = self.main_loss(all_logits, targets, aug_index=self.aug_index,
-                                                lam=self.lam, iteration=n_iter, scale=self.scales[model_name])
+                                                lam=self.lam, scale=self.scales[model_name])
             acc += metrics.accuracy(all_logits, targets)[0].item()
             loss_summary[f'main_{model_name}'] = loss.item()
 
-            scaled_logits = self.main_loss.get_last_scale() * all_logits
+            scaled_logits = self.main_loss.get_scale() * all_logits
 
             return loss, loss_summary, acc, scaled_logits
 
