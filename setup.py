@@ -9,7 +9,6 @@ import os.path as osp
 from setuptools import setup, Extension, find_packages
 
 import numpy as np
-from Cython.Build import cythonize
 
 repo_root = osp.dirname(osp.realpath(__file__))
 
@@ -32,15 +31,6 @@ def numpy_include():
     except AttributeError:
         numpy_include = np.get_numpy_include()
     return numpy_include
-
-
-ext_modules = [
-    Extension(
-        'torchreid.metrics.rank_cylib.rank_cy',
-        [osp.join(repo_root, 'torchreid/metrics/rank_cylib/rank_cy.pyx')],
-        include_dirs=[numpy_include()],
-    )
-]
 
 
 def get_requirements(filename):
@@ -69,5 +59,4 @@ setup(
     packages=find_packages(),
     install_requires=packages,
     keywords=['Object Re-Identification', 'Image Classification', 'Deep Learning', 'Computer Vision'],
-    ext_modules=cythonize(ext_modules)
 )
