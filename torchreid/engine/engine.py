@@ -639,13 +639,13 @@ class Engine:
                         lr_finder = lr_finder
                     )
 
-                if model_id == 0:
-                    # the function should return accuracy results for the first (main) model only
-                    if self.use_ema_decay and ema_top1 >= cur_top1:
-                        should_save_ema_model = True
-                        top1 = ema_top1
-                    else:
-                        top1 = cur_top1
+            if model_id == 0:
+                # the function should return accuracy results for the first (main) model only
+                if self.use_ema_decay and ema_top1 >= cur_top1:
+                    should_save_ema_model = True
+                    top1 = ema_top1
+                else:
+                    top1 = cur_top1
 
         return top1, should_save_ema_model
 

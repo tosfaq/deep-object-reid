@@ -173,7 +173,7 @@ class MultilabelEngine(Engine):
             acc += metrics.accuracy_multilabel(all_logits, targets).item()
             loss_summary[f'main_{model_name}'] = loss.item()
 
-            scaled_logits = self.main_losses.get_last_scale() * all_logits
+            scaled_logits = self.main_losses.get_scale() * all_logits
 
         return loss, loss_summary, acc, scaled_logits
 
