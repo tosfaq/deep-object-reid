@@ -17,6 +17,7 @@ model:
   save_all_chkpts: False
   dropout_cls:
     p: 0.15
+  export_onnx_opset: 11
 
 custom_datasets:
   roots: ['datasets/coco/train.json', 'datasets/coco/val.json']
