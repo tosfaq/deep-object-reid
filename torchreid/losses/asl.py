@@ -20,9 +20,6 @@ class AsymmetricLoss(nn.Module):
         # prevent memory allocation and gpu uploading every iteration, and encourages inplace operations
         self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
 
-    def get_scale(self):
-        return 1.
-
     def forward(self, inputs, targets, scale=1., aug_index=None, lam=None):
         """"
         Parameters
@@ -78,9 +75,6 @@ class AMBinaryLoss(nn.Module):
 
         # prevent memory allocation and gpu uploading every iteration, and encourages inplace operations
         self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
-
-    def get_scale(self):
-        return self.s
 
     def forward(self, cos_theta, targets, scale=None, aug_index=None, lam=None):
         """"

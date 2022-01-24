@@ -29,6 +29,7 @@ class AngleSimpleLinear(nn.Module):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
+        # create proxy weights
         self.weight = Parameter(torch.Tensor(in_features, out_features))
         self.weight.data.normal_().renorm_(2, 1, 1e-5).mul_(1e5)
 
@@ -73,9 +74,6 @@ class AMSoftmaxLoss(nn.Module):
         self.th = math.cos(math.pi - m)
         self.symmetric_ce = symmetric_ce
         self.class_margins = self.m
-
-    def get_scale(self):
-        return self.scale
 
     @staticmethod
     def _valid(params):
