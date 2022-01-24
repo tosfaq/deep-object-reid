@@ -62,7 +62,7 @@ def objective(cfg, args, trial):
     datamanager = build_datamanager(cfg, args.classes)
 
     # build the model.
-    num_train_classes = datamanager.num_train_pids
+    num_train_classes = datamanager.num_train_ids
     print('Building main model: {}'.format(cfg.model.name))
     model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
     aux_lr = cfg.train.lr # placeholder, needed for aux models, may be filled by nncf part below
@@ -77,14 +77,9 @@ def objective(cfg, args, trial):
     if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
         load_pretrained_weights(model, cfg.model.load_weights)
 
-    if cfg.model.type == 'classification':
-        check_classification_classes(model, datamanager, args.classes, test_only=cfg.test.evaluate)
-
+    check_classification_classes(model, datamanager, args.classes, test_only=cfg.test.evaluate)
     model, extra_device_ids = put_main_model_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
-    
     num_aux_models = len(cfg.mutual_learning.aux_configs)
-    num_train_classes = datamanager.num_train_pids
-
     if num_aux_models > 0:
         print(f'Enabled mutual learning between {len(cfg.mutual_learning.aux_configs) + 1} models.')
 
@@ -127,22 +122,22 @@ def objective(cfg, args, trial):
                 lr_finder=False,
                 )
 
-        test_acc.update(top1) 
+        test_acc.update(top1)
         smooth_top1 = test_acc.avg
         target_metric = smooth_top1 if engine.target_metric == 'test_acc' else avg_loss
 
         obj = top1
         if not engine.per_batch_annealing:
             engine.update_lr(output_avg_metric = target_metric)
-        
+
         trial.report(obj, engine.epoch)
 
         # Handle pruning based on the intermediate value.
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
-        
+
         should_exit, _ = engine.exit_on_plateau_and_choose_best(top1, smooth_top1)
-        should_exit = engine.early_stoping and should_exit
+        should_exit = engine.early_stopping and should_exit
         if should_exit:
             break
 
