@@ -48,24 +48,24 @@ def objective(cfg, args, trial):
     # g_ = trial.suggest_int("g_", 1, 7)
     # asl_pm = trial.suggest_float("asl_pm", 0, 0.5)
     # m = trial.suggest_float("m", 0.01, 0.7)
-    thau = trial.suggest_float("thau", 0.1, 0.9, step=0.1)
-    rho_gcn = trial.suggest_float("rho", 0., 1., step=0.1)
-    # lr = trial.suggest_float("lr", 0.0001, 0.1)
+    # thau = trial.suggest_float("thau", 0.1, 0.9, step=0.1)
+    # rho_gcn = trial.suggest_float("rho", 0., 1., step=0.1)
+    lr = trial.suggest_float("lr", 0.001, 0.5)
     # t = trial.suggest_int("t", 1, 7)
-    cfg.data.gcn.thau = thau
-    cfg.model.gcn.rho = rho_gcn
+    # cfg.data.gcn.thau = thau
+    # cfg.model.gcn.rho = rho_gcn
     # cfg.loss.asl.p_m = asl_pm
     # cfg.loss.am_binary.amb_t = t
     # cfg.loss.asl.gamma_pos = gamma_pos
     # cfg.loss.asl.gamma_neg = gamma_neg
-    # cfg.train.lr = lr
+    cfg.train.lr = lr
 
     # geterate damanager
     num_aux_models = len(cfg.mutual_learning.aux_configs)
     datamanager = build_datamanager(cfg, args.classes)
 
     # build the model.
-    num_train_classes = datamanager.num_train_pids
+    num_train_classes = datamanager.num_train_ids
     print('Building main model: {}'.format(cfg.model.name))
     model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
     aux_lr = cfg.train.lr # placeholder, needed for aux models, may be filled by nncf part below
@@ -80,13 +80,11 @@ def objective(cfg, args, trial):
     if cfg.model.load_weights and check_isfile(cfg.model.load_weights):
         load_pretrained_weights(model, cfg.model.load_weights)
 
-    if cfg.model.type == 'classification':
-        check_classification_classes(model, datamanager, args.classes, test_only=cfg.test.evaluate)
+    check_classification_classes(model, datamanager, args.classes, test_only=cfg.test.evaluate)
 
     model, extra_device_ids = put_main_model_on_the_device(model, cfg.use_gpu, args.gpu_num, num_aux_models, args.split_models)
 
     num_aux_models = len(cfg.mutual_learning.aux_configs)
-    num_train_classes = datamanager.num_train_pids
 
     if num_aux_models > 0:
         print(f'Enabled mutual learning between {len(cfg.mutual_learning.aux_configs) + 1} models.')
@@ -112,7 +110,7 @@ def objective(cfg, args, trial):
     obj = 0
     engine.start_epoch = 0
     engine.max_epoch = args.epochs
-    print(f"\nnext trial with [rho_gcn: {rho_gcn}, thau: {thau}]")
+    print(f"\nnext trial with [lr: {lr}")
 
     for engine.epoch in range(args.epochs):
         np.random.seed(cfg.train.seed + engine.epoch)

@@ -8,6 +8,8 @@ import os.path as osp
 import json
 
 import torch
+import numpy as np
+from itertools import permutations
 
 from ..dataset import ImageDataset
 
@@ -237,7 +239,7 @@ class MultiLabelClassification(ImageDataset):
         self.classes = classes
 
     @staticmethod
-    def load_annotation(annot_path, data_dir):
+    def load_annotation(annot_path, data_dir, vectors_path=None, create_adj_matrix=False, thau=None):
         out_data = []
         with open(annot_path) as f:
             annotation = json.load(f)
@@ -277,15 +279,26 @@ class MultiLabelClassification(ImageDataset):
 
         np.save("./glove/voc_word_matrix", word_embedings)
 
-    @staticmethod
-    def prepare_adj_matrix(label_set, out_data):
-        num_classes = len(label_set)
-        M = np.zeros((num_classes,num_classes))
-        for item in out_data:
-            item_labels = item[1]
-            if len(item_labels) > 1:
-                for pair in permutations(item_labels, 2):
-                    i,j = pair
-                    M[i,j] += 1
 
-        return M
+
+def prepare_adj_matrix(label_set, out_data, thau):
+    num_classes = len(label_set)
+    M = np.zeros((num_classes,num_classes))
+    count_all = np.zeros(num_classes)
+    for item in out_data:
+        all_labels = item[1]
+        unique_labels = np.unique(all_labels)
+        for l in all_labels:
+            count_all[l] += 1
+
+        if len(unique_labels) > 1:
+            for pair in permutations(unique_labels, 2):
+                i,j = pair
+                assert i != j
+                M[i,j] += 1
+    M = M / count_all.reshape(20,1)
+    # M[M < thau] = 0.
+    # M[M > 0.9] = 1.
+    # print(M)
+    # exit()
+    return M
