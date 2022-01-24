@@ -143,7 +143,7 @@ def objective(cfg, args, trial):
             raise optuna.exceptions.TrialPruned()
 
         should_exit, _ = engine.exit_on_plateau_and_choose_best(top1)
-        should_exit = engine.early_stoping and should_exit
+        should_exit = engine.early_stopping and should_exit
         if should_exit:
             break
 
