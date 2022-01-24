@@ -278,7 +278,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
                 onnx_model_path = os.path.join(optimized_model_dir, 'model.onnx')
                 mix_precision_status = self._model.mix_precision
                 self._model.mix_precision = False
-                export_onnx(self._model.eval(), self._cfg, onnx_model_path)
+                export_onnx(self._model.eval(), self._cfg, onnx_model_path, opset=self._cfg.model.export_onnx_opset)
                 self._model.mix_precision = mix_precision_status
                 export_ir(onnx_model_path, self._cfg.data.norm_mean, self._cfg.data.norm_std,
                           optimized_model_dir=optimized_model_dir)

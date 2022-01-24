@@ -16,6 +16,7 @@ model:
   type: 'classification'
   pretrained: True
   save_all_chkpts: False
+  export_onnx_opset: 11
 
 custom_datasets:
   roots: ['data/CIFAR100/train', 'data/CIFAR100/val']

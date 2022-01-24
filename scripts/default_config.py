@@ -84,6 +84,7 @@ def get_default_config():
     cfg.model.transformer.pre_norm = False
     cfg.model.transformer.rm_self_attn_dec = True
     cfg.model.transformer.rm_first_self_attn = True
+    cfg.model.export_onnx_opset = 9
 
     # mutual learning, auxiliary model
     cfg.mutual_learning = CN()

@@ -73,7 +73,6 @@ def main():
     parser.add_argument('--output-name', type=str, default='model',
                         help='Path to save ONNX model')
     parser.add_argument('--num-classes', type=int, nargs='+', default=None)
-    parser.add_argument('--opset', type=int, default=11)
     parser.add_argument('--verbose', action='store_true',
                         help='Verbose mode for onnx.export')
     parser.add_argument('--disable-dyn-axes', default=False, action='store_true')
@@ -120,7 +119,7 @@ def main():
                                  output_file_path=args.output_name,
                                  disable_dyn_axes=args.disable_dyn_axes,
                                  verbose=args.verbose,
-                                 opset=args.opset,
+                                 opset=cfg.model.export_onnx_opset,
                                  extra_check=True)
     if args.export_ir:
         input_shape = [1, 3, cfg.data.height, cfg.data.width]
