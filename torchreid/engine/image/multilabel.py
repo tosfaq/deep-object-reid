@@ -112,7 +112,8 @@ class MultilabelEngine(Engine):
                     probabilities_i = torch.sigmoid(models_logits[i])
                     for j, model_name in enumerate(model_names):
                         if i != j:
-                            probabilities_j = torch.sigmoid(models_logits[j])
+                            with torch.no_grad():
+                                probabilities_j = torch.sigmoid(models_logits[j])
                             mutual_loss += self.kl_div_binary(probabilities_i, probabilities_j)
                     loss_summary[f'mutual_{model_names[i]}'] = mutual_loss.item()
 
@@ -173,7 +174,7 @@ class MultilabelEngine(Engine):
             acc += metrics.accuracy_multilabel(all_logits, targets).item()
             loss_summary[f'main_{model_name}'] = loss.item()
 
-            scaled_logits = self.main_losses.get_scale() * all_logits
+            scaled_logits = self.scales[model_name] * all_logits
 
         return loss, loss_summary, acc, scaled_logits
 
