@@ -1,16 +1,12 @@
 from __future__ import absolute_import, division, print_function
-from enum import auto
 
 import torch
 import torch.nn.functional as F
-from torch import nn
 from torch.cuda.amp import GradScaler, autocast
 
 from torchreid import metrics
 from torchreid.losses import AsymmetricLoss, AMBinaryLoss
-from torchreid.metrics.accuracy import accuracy
 from torchreid.optim import SAM
-from torchreid.utils import get_model_attr
 from torchreid.engine import Engine
 
 class MultilabelEngine(Engine):
