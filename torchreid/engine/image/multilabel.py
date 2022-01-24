@@ -40,28 +40,26 @@ class MultilabelEngine(Engine):
                         use_ema_decay=use_ema_decay,
                         ema_decay=ema_decay)
 
-        self.main_losses = nn.ModuleList()
         self.clip_grad = clip_grad
-        self.num_classes = self.datamanager.num_train_ids
         self.aug_index = None
         self.lam = None
 
         if loss_name == 'asl':
-            self.main_losses = AsymmetricLoss(
+            self.main_loss = AsymmetricLoss(
                 gamma_neg=asl_gamma_neg,
                 gamma_pos=asl_gamma_pos,
                 probability_margin=asl_p_m,
                 label_smooth=label_smooth,
             )
         elif loss_name == 'bce':
-            self.main_losses = AsymmetricLoss(
+            self.main_loss = AsymmetricLoss(
                 gamma_neg=0,
                 gamma_pos=0,
                 probability_margin=0,
                 label_smooth=label_smooth,
             )
         elif loss_name == 'am_binary':
-            self.main_losses = AMBinaryLoss(
+            self.main_loss = AMBinaryLoss(
                 m=m,
                 k=amb_k,
                 t=amb_t,
@@ -92,43 +90,43 @@ class MultilabelEngine(Engine):
             # if sam is enabled then statistics will be written each step, but will be saved only the second time
             # this is made just for convenience
             loss_summary = dict()
-            models_logits = [[] for i in range(num_models)]
+            all_models_logits = []
             num_models = len(self.models)
 
             for i, model_name in enumerate(model_names):
-                loss, model_loss_summary, acc, scaled_logits = self._single_model_losses(
-                    self.models[model_name], imgs, targets, model_name
-                    )
-                models_logits[i] = scaled_logits
-                loss_summary.update(model_loss_summary)
-                if i == 0: # main model
-                    main_acc = acc
+                unscaled_model_logits = self._forward_model(self.models[model_name], imgs)
+                all_models_logits.append(unscaled_model_logits)
 
             for i, model_name in enumerate(model_names):
+                should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
+                mutual_learning = num_models > 1 and not should_turn_off_mutual_learning
                 self.optims[model_name].zero_grad()
+                loss, model_loss_summary, acc = self._single_model_losses(all_models_logits[i],
+                                                                          targets,
+                                                                          model_name)
+                loss_summary.update(model_loss_summary)
+                all_models_logits[i] *= self.scales[model_name]
+                if i == 0: # main model
+                    main_acc = acc
                 # compute mutual loss
-                if len(model_names) > 1:
+                if mutual_learning:
                     mutual_loss = 0
-                    probabilities_i = torch.sigmoid(models_logits[i])
-                    for j, model_name in enumerate(model_names):
+
+                    trg_probs = torch.sigmoid(all_models_logits[i])
+                    for j in range(num_models):
                         if i != j:
                             with torch.no_grad():
-                                probabilities_j = torch.sigmoid(models_logits[j])
-                            mutual_loss += self.kl_div_binary(probabilities_i, probabilities_j)
-                    loss_summary[f'mutual_{model_names[i]}'] = mutual_loss.item()
+                                aux_probs = torch.sigmoid(all_models_logits[j])
+                            mutual_loss += self.kl_div_binary(trg_probs, aux_probs)
 
-                    should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
-                    coeff_mutual_learning = int(not should_turn_off_mutual_learning)
+                    loss += mutual_loss / (num_models - 1)
 
-                    loss += coeff_mutual_learning * mutual_loss / (num_models - 1)
-
-                    if self.compression_ctrl:
-                        compression_loss = self.compression_ctrl.loss()
-                        loss_summary['compression_loss'] = compression_loss
-                        loss += compression_loss
+                if self.compression_ctrl:
+                    compression_loss = self.compression_ctrl.loss()
+                    loss += compression_loss
 
                 # backward pass
-                self.scaler.scale(loss).backward(retain_graph=False)
+                self.scaler.scale(loss).backward()
                 if self.clip_grad != 0 and step == 1:
                     self.scaler.unscale_(self.optims[model_name])
                     torch.nn.utils.clip_grad_norm_(self.models[model_name].parameters(), self.clip_grad)
@@ -145,7 +143,6 @@ class MultilabelEngine(Engine):
                     self.scaler.update() # update scaler after first step
                     if overflow:
                         print("Overflow occurred. Skipping step ...")
-                        loss_summary['loss'] = loss.item()
                         # skip second step  if overflow occurred
                         return loss_summary, main_acc
                 else:
@@ -155,28 +152,34 @@ class MultilabelEngine(Engine):
                     self.optims[model_name].second_step()
                     self.scaler.update()
 
-            loss_summary['loss'] = loss.item()
+        # record loss
+        loss_summary['loss'] = loss.item()
+        if mutual_learning:
+            loss_summary[f'mutual_{model_name}'] = mutual_loss.item()
+        if self.compression_ctrl:
+            loss_summary['compression_loss'] = compression_loss
 
         return loss_summary, main_acc
 
-    def _single_model_losses(self, model, imgs, targets, model_name):
+    def _forward_model(self, model, imgs):
         with autocast(enabled=self.mix_precision):
             model_output = model(imgs)
-            all_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
-            loss_summary = dict()
-            acc = 0
-            trg_num_samples = targets.numel()
-            if trg_num_samples == 0:
-                raise RuntimeError("There is no samples in a batch!")
+            all_unscaled_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
+        return all_unscaled_logits
 
-            loss = self.main_losses(all_logits, targets, aug_index=self.aug_index,
-                                    lam=self.lam, scale=self.scales[model_name])
-            acc += metrics.accuracy_multilabel(all_logits, targets).item()
-            loss_summary[f'main_{model_name}'] = loss.item()
+    def _single_model_losses(self, logits,  targets, model_name):
+        loss_summary = dict()
+        acc = 0
+        trg_num_samples = logits.numel()
+        if trg_num_samples == 0:
+            raise RuntimeError("There is no samples in a batch!")
 
-            scaled_logits = self.scales[model_name] * all_logits
+        loss = self.main_loss(logits, targets, aug_index=self.aug_index,
+                                            lam=self.lam, scale=self.scales[model_name])
+        acc += metrics.accuracy_multilabel(logits, targets).item()
+        loss_summary[f'main_{model_name}'] = loss.item()
 
-        return loss, loss_summary, acc, scaled_logits
+        return loss, loss_summary, acc
 
     def kl_div_binary(self, x, y):
         ''' compute KL divergence between two tensors represented
