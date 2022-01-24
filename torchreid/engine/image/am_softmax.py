@@ -124,7 +124,7 @@ class ImageAMSoftmaxEngine(Engine):
                     all_models_logits[i], targets, model_name
                     )
                 loss_summary.update(model_loss_summary)
-                all_models_logits[i] *= self.scales[model_name]
+                all_models_logits[i] = all_models_logits[i] * self.scales[model_name]
                 if i == 0: # main model
                     main_acc = acc
                 mutual_learning = num_models > 1 and not self._should_turn_off_mutual_learning(self.epoch)
