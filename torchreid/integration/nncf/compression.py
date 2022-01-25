@@ -173,8 +173,7 @@ def register_custom_modules():
     # wrap such custom module by yourself.
     from nncf.torch import register_module
     from timm.models.layers.conv2d_same import Conv2dSame
-    wrapper = register_module(ignored_algorithms=[])
-    wrapper(Conv2dSame)
+    register_module(ignored_algorithms=[])(Conv2dSame)
 
 
 def wrap_nncf_model(model, cfg,
