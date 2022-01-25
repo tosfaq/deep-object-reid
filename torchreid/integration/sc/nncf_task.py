@@ -40,7 +40,7 @@ from torchreid.integration.sc.inference_task import OTEClassificationInferenceTa
 from torchreid.integration.sc.monitors import DefaultMetricsMonitor
 from torchreid.integration.sc.utils import OTEClassificationDataset, TrainingProgressCallback
 from torchreid.ops import DataParallel
-from torchreid.utils import set_random_seed, set_model_attr
+from torchreid.utils import set_random_seed
 
 logger = logging.getLogger(__name__)
 
@@ -65,11 +65,6 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
         if not self._cfg.nncf.nncf_config_path:
             self._cfg.nncf.nncf_config_path = os.path.join(self._base_dir, 'compression_config.json')
         self._cfg = patch_config(self._cfg, self._nncf_preset, self._max_acc_drop)
-        # TODO: investigate nncf compatibility with FP16
-        if self._cfg.train.mix_precision:
-            self._cfg.train.mix_precision = False
-            set_model_attr(self._model, 'mix_precision', False)
-
 
         self._compression_ctrl = None
         self._nncf_metainfo = None
