@@ -29,7 +29,7 @@ from PIL import Image
 __all__ = [
     'mkdir_if_missing', 'check_isfile', 'read_json', 'write_json', 'read_yaml',
     'set_random_seed', "worker_init_fn", 'download_url', 'read_image', 'collect_env_info',
-    'get_model_attr', 'StateCacher', 'random_image'
+    'get_model_attr', 'StateCacher', 'random_image', 'set_model_attr'
 ]
 
 
@@ -162,10 +162,19 @@ def collect_env_info():
 
 def get_model_attr(model, attr):
     if hasattr(model, 'module'):
-        model = model.module
+        return getattr(model.module, attr)
     if hasattr(model, 'nncf_module'):
         return getattr(model.nncf_module, attr)
     return getattr(model, attr)
+
+
+def set_model_attr(model, attr, value):
+    if hasattr(model, 'module'):
+        setattr(model.module, attr, value)
+    elif hasattr(model, 'nncf_module'):
+        setattr(model.nncf_module, attr, value)
+    else:
+        setattr(model, attr, value)
 
 
 class StateCacher(object):
