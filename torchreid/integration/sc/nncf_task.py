@@ -40,7 +40,7 @@ from torchreid.integration.sc.inference_task import OTEClassificationInferenceTa
 from torchreid.integration.sc.monitors import DefaultMetricsMonitor
 from torchreid.integration.sc.utils import OTEClassificationDataset, TrainingProgressCallback
 from torchreid.ops import DataParallel
-from torchreid.utils import set_random_seed
+from torchreid.utils import set_random_seed, set_model_attr
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,7 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
         # Set default model attributes.
         self._optimization_type = ModelOptimizationType.NNCF
         logger.info('OTEClassificationNNCFTask initialization completed')
+        set_model_attr(self._model, 'mix_precision', self._cfg.train.mix_precision)
 
     @property
     def _initial_lr(self):
