@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import pickle
+import torch.nn.functional as F
 import numpy as np
 from .common import ModelInterface
 from torch.cuda.amp import autocast
@@ -69,8 +69,7 @@ class Image_GCNN(ModelInterface):
     def forward(self, image):
         with autocast(enabled=self.mix_precision):
             feature = self.backbone(image, return_featuremaps=True)
-            feature = self.pooling(feature)
-            feature = feature.view(feature.size(0), -1)
+            glob_features = self.pooling(feature)
 
             adj = self.gen_adj(self.A).detach()
             x = self.gc1(self.inp, adj)
@@ -78,7 +77,9 @@ class Image_GCNN(ModelInterface):
             x = self.gc2(x, adj)
 
             x = x.transpose(0, 1)
-            logits = torch.matmul(feature, x)
+
+            logits = F.normalize(glob_features.view(glob_features.shape[0], -1), p=2, dim=1).mm(F.normalize(x, p=2, dim=0))
+            logits = logits.clamp(-1, 1)
 
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.similarity_adjustment)

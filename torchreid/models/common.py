@@ -79,7 +79,7 @@ class ModelInterface(nn.Module):
         return float(min(max(np.sqrt(5) * np.log(num_class - 1), 7), 30.))
 
     @staticmethod
-    def _glob_feature_vector(x, mode, reduce_dims=True):
+    def glob_feature_vector(x, mode, reduce_dims=True):
         if mode == 'avg':
             out = F.adaptive_avg_pool2d(x, 1)
         elif mode == 'max':

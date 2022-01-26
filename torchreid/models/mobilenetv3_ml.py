@@ -260,7 +260,7 @@ class MobileNetV3ML(ModelInterface):
         if return_featuremaps:
             return y
 
-        glob_features = self._glob_feature_vector(y, self.pooling_type)
+        glob_features = self.glob_feature_vector(y, self.pooling_type)
         embeddings = [fc(glob_features) for fc in self.fc]
 
         if self.training and len(self.classifier) == 0:
