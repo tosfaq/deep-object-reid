@@ -87,6 +87,3 @@ class CrossEntropyLoss(nn.Module):
             return losses.mean() if losses.numel() > 0 else losses.sum()
 
         return sm_loss.mean()
-
-    def get_scale(self):
-        return 1.

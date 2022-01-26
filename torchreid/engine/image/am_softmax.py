@@ -99,7 +99,6 @@ class ImageAMSoftmaxEngine(Engine):
         return value is not None and value > 0
 
     def forward_backward(self, data):
-        n_iter = self.epoch * self.num_batches + self.batch_idx
         imgs, targets = self.parse_data_for_train(data, self.use_gpu)
 
         imgs = self._apply_batch_augmentation(imgs)
@@ -111,28 +110,32 @@ class ImageAMSoftmaxEngine(Engine):
             # if sam is enabled then statistics will be written each step, but will be saved only the second time
             # this is made just for convenience
             loss_summary = dict()
-            models_logits = [[] for i in range(num_models)]
+            all_models_logits = []
 
             for i, model_name in enumerate(model_names):
-                loss, model_loss_summary, acc, scaled_logits = self._single_model_losses(
-                    self.models[model_name], imgs, targets, n_iter, model_name
+                unscaled_model_logits = self._forward_model(self.models[model_name], imgs, targets)
+                all_models_logits.append(unscaled_model_logits)
+
+            for i, model_name in enumerate(model_names):
+                if not self.models[model_name].training:
+                    continue
+                self.optims[model_name].zero_grad()
+                loss, model_loss_summary, acc = self._single_model_losses(
+                    all_models_logits[i], targets, model_name
                     )
-                models_logits[i] = scaled_logits
                 loss_summary.update(model_loss_summary)
+                all_models_logits[i] = all_models_logits[i] * self.scales[model_name]
                 if i == 0: # main model
                     main_acc = acc
-
-            for i, model_name in enumerate(model_names):
-                self.optims[model_name].zero_grad()
-                should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
-                if num_models > 1 and not should_turn_off_mutual_learning: # mutual learning
+                mutual_learning = num_models > 1 and not self._should_turn_off_mutual_learning(self.epoch)
+                if mutual_learning: # mutual learning
                     mutual_loss = 0
                     for j in range(num_models):
                         if i != j:
                             with torch.no_grad():
-                                trg_probs = F.softmax(models_logits[j], dim=1)
-                            mutual_loss += self.loss_kl(F.log_softmax(models_logits[i], dim = 1),
-                                                    trg_probs)
+                                aux_out_distrib = F.softmax(all_models_logits[j], dim=1)
+                            mutual_loss += self.loss_kl(F.log_softmax(all_models_logits[i], dim = 1),
+                                                        aux_out_distrib)
                     loss_summary[f'mutual_{model_names[i]}'] = mutual_loss.item()
                     loss += mutual_loss / (num_models - 1)
 
@@ -143,8 +146,6 @@ class ImageAMSoftmaxEngine(Engine):
 
                 # backward pass
                 self.scaler.scale(loss).backward()
-                if not self.models[model_name].training:
-                    continue
 
                 if self.clip_grad != 0 and step == 1:
                     self.scaler.unscale_(self.optims[model_name])
@@ -162,7 +163,6 @@ class ImageAMSoftmaxEngine(Engine):
                     self.scaler.update() # update scaler after first step
                     if overflow:
                         print("Overflow occurred. Skipping step ...")
-                        loss_summary['loss'] = loss.item()
                         # skip second step  if overflow occurred
                         return loss_summary, main_acc
                 else:
@@ -172,32 +172,38 @@ class ImageAMSoftmaxEngine(Engine):
                     self.optims[model_name].second_step()
                     self.scaler.update()
 
-            loss_summary['loss'] = loss.item()
+        # record losses
+        if mutual_learning:
+            loss_summary[f'mutual_{model_names[i]}'] = mutual_loss.item()
+        if self.compression_ctrl:
+            loss_summary['compression_loss'] = compression_loss
+        loss_summary['loss'] = loss.item()
 
         return loss_summary, main_acc
 
-    def _single_model_losses(self, model, imgs, targets, n_iter, model_name):
+    def _forward_model(self, model, imgs, targets,):
         run_kwargs = dict()
         if self.enable_rsc:
             run_kwargs['gt_labels'] = targets
 
         with autocast(enabled=self.mix_precision):
             model_output = model(imgs, **run_kwargs)
-            all_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
-            loss_summary = dict()
-            acc = 0
-            trg_num_samples = targets.numel()
-            if trg_num_samples == 0:
-                raise RuntimeError("There is no samples in a batch!")
+            all_unscaled_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
+        return all_unscaled_logits
 
-            loss = self.main_loss(all_logits, targets, aug_index=self.aug_index,
-                                                lam=self.lam, scale=self.scales[model_name])
-            acc += metrics.accuracy(all_logits, targets)[0].item()
-            loss_summary[f'main_{model_name}'] = loss.item()
+    def _single_model_losses(self, logits,  targets, model_name):
+        loss_summary = dict()
+        acc = 0
+        trg_num_samples = logits.numel()
+        if trg_num_samples == 0:
+            raise RuntimeError("There is no samples in a batch!")
 
-            scaled_logits = self.main_loss.get_scale() * all_logits
+        loss = self.main_loss(logits, targets, aug_index=self.aug_index,
+                                            lam=self.lam, scale=self.scales[model_name])
+        acc += metrics.accuracy(logits, targets)[0].item()
+        loss_summary[f'main_{model_name}'] = loss.item()
 
-            return loss, loss_summary, acc, scaled_logits
+        return loss, loss_summary, acc
 
 
     def _apply_batch_augmentation(self, imgs):
