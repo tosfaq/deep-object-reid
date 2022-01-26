@@ -69,7 +69,8 @@ class Image_GCNN(ModelInterface):
     def forward(self, image):
         with autocast(enabled=self.mix_precision):
             feature = self.backbone(image, return_featuremaps=True)
-            glob_features = self.pooling(feature)
+            glob_features = self.backbone.glob_feature_vector(feature, self.backbone.pooling_type, reduce_dims=False)
+            glob_features = glob_features.view(glob_features.shape[0], -1)
 
             adj = self.gen_adj(self.A).detach()
             x = self.gc1(self.inp, adj)
@@ -78,7 +79,7 @@ class Image_GCNN(ModelInterface):
 
             x = x.transpose(0, 1)
 
-            logits = F.normalize(glob_features.view(glob_features.shape[0], -1), p=2, dim=1).mm(F.normalize(x, p=2, dim=0))
+            logits = F.normalize(glob_features, p=2, dim=1).mm(F.normalize(x, p=2, dim=0))
             logits = logits.clamp(-1, 1)
 
             if self.similarity_adjustment:
