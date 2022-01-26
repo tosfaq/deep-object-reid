@@ -51,6 +51,7 @@ def build_model(name, **kwargs):
         >>> model = models.build_model('resnet50', 751, loss='softmax')
     """
     avai_models = list(__model_factory.keys())
+    print(name)
     if name.startswith('q2l'):
         backbone_name = name[4:]
         if backbone_name not in avai_models:
@@ -58,7 +59,7 @@ def build_model(name, **kwargs):
         backbone = __model_factory[backbone_name](**kwargs)
         transformer = build_transformer(**kwargs)
         model = build_q2l(backbone, transformer, **kwargs)
-    if name.startswith('gcn'):
+    elif name.startswith('gcn'):
         backbone_name = name[4:]
         if backbone_name not in avai_models:
             raise KeyError('Unknown backbone for Q2L model: {}. Must be one of {}'.format(backbone_name, avai_models))
