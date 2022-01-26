@@ -190,7 +190,7 @@ class MobileNetV3(ModelInterface):
 
     def infer_head(self, x, skip_pool=False):
         if not skip_pool:
-            glob_features = self._glob_feature_vector(x, self.pooling_type, reduce_dims=False)
+            glob_features = self.glob_feature_vector(x, self.pooling_type, reduce_dims=False)
         else:
             glob_features = x
 
