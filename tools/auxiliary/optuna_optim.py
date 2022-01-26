@@ -50,7 +50,7 @@ def objective(cfg, args, trial):
     # m = trial.suggest_float("m", 0.01, 0.7)
     # thau = trial.suggest_float("thau", 0.1, 0.9, step=0.1)
     # rho_gcn = trial.suggest_float("rho", 0., 1., step=0.1)
-    lr = trial.suggest_float("lr", 0.001, 0.5)
+    lr = trial.suggest_float("lr", 0.0001, 0.01)
     # t = trial.suggest_int("t", 1, 7)
     # cfg.data.gcn.thau = thau
     # cfg.model.gcn.rho = rho_gcn
