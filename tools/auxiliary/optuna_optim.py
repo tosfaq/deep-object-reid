@@ -48,7 +48,8 @@ def objective(cfg, args, trial):
     # g_ = trial.suggest_int("g_", 1, 7)
     # asl_pm = trial.suggest_float("asl_pm", 0, 0.5)
     # s = trial.suggest_int("s", 5, 40)
-    pool = trial.suggest_categorical("pool", ['avg', 'max', 'avg+max'])
+    # pool = trial.suggest_categorical("pool", ['avg', 'max', 'avg+max'])
+    k = trial.suggest_float("k", 0., 1., step=0.05)
     # m = trial.suggest_float("m", 0.01, 0.7, step=0.01)
     # thau = trial.suggest_float("thau", 0.1, 0.9, step=0.1)
     # rho_gcn = trial.suggest_float("rho", 0., 1., step=0.1)
@@ -60,9 +61,10 @@ def objective(cfg, args, trial):
     # cfg.loss.am_binary.amb_t = t
     # cfg.loss.asl.gamma_pos = gamma_pos
     # cfg.loss.asl.gamma_neg = gamma_neg
+    cfg.loss.am_binary.amb_k = k
     # cfg.loss.softmax.m = m
     # cfg.loss.softmax.s = s
-    cfg.model.pooling_type = pool
+    # cfg.model.pooling_type = pool
     # cfg.train.lr = lr
 
     # geterate damanager
@@ -115,7 +117,7 @@ def objective(cfg, args, trial):
     obj = 0
     engine.start_epoch = 0
     engine.max_epoch = args.epochs
-    print(f"\nnext trial with [pool: {pool}]")
+    print(f"\nnext trial with [k: {k}]")
 
     for engine.epoch in range(args.epochs):
         np.random.seed(cfg.train.seed + engine.epoch)
