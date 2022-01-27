@@ -251,7 +251,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
 
             if dump_features:
                 actmap = get_actmap(features[i], (dataset_item.width, dataset_item.height))
-                saliency_media = ResultMediaEntity(name=item_labels[0].label.name, type="Saliency map",
+                saliency_media = ResultMediaEntity(name="saliency_map", type="Saliency map",
                                                    annotation_scene=dataset_item.annotation_scene,
                                                    numpy=actmap, roi=dataset_item.roi, label = item_labels[0].label)
                 dataset_item.append_metadata_item(saliency_media, model=self._task_environment.model)
