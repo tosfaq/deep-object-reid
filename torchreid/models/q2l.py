@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import math
 
-from torchreid.losses.am_softmax import AngleSimpleLinear
-
 from .transformer import build_position_encoding
 from .common import ModelInterface
 from torch.cuda.amp import autocast
@@ -75,10 +73,7 @@ class Query2Label(ModelInterface):
         backbone_features = backbone.num_channels
         self.input_proj = nn.Conv2d(backbone_features, hidden_dim, kernel_size=1)
         self.query_embed = nn.Embedding(num_classes, hidden_dim)
-        if self.loss in ['bce', 'asl']:
-            self.fc = GroupWiseLinear(num_classes, hidden_dim, use_bias=True)
-        else:
-            self.fc = AngleSimpleLinear(num_classes, hidden_dim)
+        self.fc = GroupWiseLinear(num_classes, hidden_dim, use_bias=True)
 
     def forward(self, input):
         with autocast(enabled=self.mix_precision):
