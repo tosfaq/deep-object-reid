@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import math
 
+from torchreid.losses.am_softmax import AngleSimpleLinear
+
 from .transformer import build_position_encoding
 from .common import ModelInterface
 
@@ -72,7 +74,10 @@ class Query2Label(ModelInterface):
         backbone_features = backbone.num_channels
         self.input_proj = nn.Conv2d(backbone_features, hidden_dim, kernel_size=1)
         self.query_embed = nn.Embedding(num_classes, hidden_dim)
-        self.fc = GroupWiseLinear(num_classes, hidden_dim, use_bias=True)
+        if self.loss in ['bce', 'asl']:
+            self.fc = GroupWiseLinear(num_classes, hidden_dim, use_bias=True)
+        else:
+            self.fc = AngleSimpleLinear(num_classes, hidden_dim)
 
     def forward(self, input):
         src, pos = self.backbone(input)
@@ -80,6 +85,7 @@ class Query2Label(ModelInterface):
 
         query_input = self.query_embed.weight
         hs = self.transformer(self.input_proj(src), query_input, pos)[0] # B,K,d
+        print(hs[-1].shape)
         logits = self.fc(hs[-1])
         if self.similarity_adjustment:
             logits = self.sym_adjust(logits, self.amb_t)
@@ -93,31 +99,13 @@ class Query2Label(ModelInterface):
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
         return tuple(out_data)
-    
-    def get_config_optim(self, lrs):
-        parameters = [
-            {'params': self.backbone.parameters()},
-            {'params': self.fc.named_parameters()},
-            {'params': self.input_proj.named_parameters(), 'weight_decay': 0.},
-            {'params': self.query_embed.named_parameters(), 'weight_decay': 0.}
-        ]
-        if isinstance(lrs, list):
-            assert len(lrs) == len(parameters)
-            for lr, param_dict in zip(lrs, parameters):
-                param_dict['lr'] = lr
-        else:
-            assert isinstance(lrs, float)
-            for param_dict in parameters:
-                param_dict['lr'] = lrs
-
-        return parameters
 
     def get_config_optim(self, lrs):
         parameters = [
-            {'params': self.backbone.parameters()},
+            {'params': self.backbone.named_parameters()},
             {'params': self.fc.named_parameters()},
-            {'params': self.input_proj.named_parameters(), 'weight_decay': 0.},
-            {'params': self.query_embed.named_parameters(), 'weight_decay': 0.}
+            {'params': self.input_proj.parameters(), 'weight_decay': 0.},
+            {'params': self.query_embed.parameters(), 'weight_decay': 0.}
         ]
         if isinstance(lrs, list):
             assert len(lrs) == len(parameters)
