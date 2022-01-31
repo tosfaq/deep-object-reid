@@ -28,7 +28,7 @@ def get_default_config():
     cfg.lr_finder.min_lr = 0.004
     cfg.lr_finder.step = None
     cfg.lr_finder.num_epochs = 3
-    cfg.lr_finder.epochs_warmup = 2
+    cfg.lr_finder.epochs_warmup = 5
     cfg.lr_finder.stop_after = False
     cfg.lr_finder.path_to_savefig = ''
     cfg.lr_finder.smooth_f = 0.01

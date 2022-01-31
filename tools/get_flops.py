@@ -61,12 +61,12 @@ def main():
         torch.backends.cudnn.benchmark = True
 
     datamanager = build_datamanager(cfg, args.classes)
-    num_train_classes = datamanager.num_train_pids
+    num_train_classes = datamanager.num_train_ids
 
     print('Building main model: {}'.format(cfg.model.name))
     model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
     macs, num_params = get_model_complexity_info(model, (3, cfg.data.height, cfg.data.width),
-                                                 as_strings=False, verbose=False, print_per_layer_stat=False)
+                                                 as_strings=False, verbose=True, print_per_layer_stat=False)
     print('Main model complexity: M params={:,} G flops={:,}'.format(num_params / 10**6, macs * 2 / 10**9))
 
     if args.out:
