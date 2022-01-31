@@ -68,8 +68,6 @@ def get_default_config():
     cfg.model.self_challenging_cfg.drop_p = 0.33
     cfg.model.self_challenging_cfg.drop_batch_p = 0.33
     cfg.model.transformer = CN()
-    cfg.model.transformer.hidden_dim = 2432
-    cfg.model.transformer.dim_feedforward = 2432
     cfg.model.transformer.dropout = 0.1
     cfg.model.transformer.nheads = 4
     cfg.model.transformer.num_encoder_layers = 1
@@ -478,12 +476,10 @@ def model_kwargs(cfg, num_classes):
         'bn_frozen': cfg.model.bn_frozen,
         'type': cfg.model.type,
         'self_challenging_cfg': cfg.model.self_challenging_cfg,
-        'hidden_dim': cfg.model.transformer.hidden_dim,
         'similarity_adjustment': cfg.loss.am_binary.amb_t > 1.,
         'amb_t' : cfg.loss.am_binary.amb_t,
         'dropout': cfg.model.transformer.dropout,
         'nheads': cfg.model.transformer.nheads,
-        'dim_feedforward': cfg.model.transformer.dim_feedforward,
         'num_encoder_layers': cfg.model.transformer.num_encoder_layers,
         'num_decoder_layers': cfg.model.transformer.num_decoder_layers,
         'pre_norm': cfg.model.transformer.pre_norm,
