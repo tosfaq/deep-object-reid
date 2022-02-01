@@ -77,6 +77,7 @@ class Query2Label(ModelInterface):
         if self.loss == "am_binary":
             self.fc = AngleSimpleLinear(hidden_dim, num_classes)
         else:
+            assert self.loss in ['asl', 'bce']
             self.fc = GroupWiseLinear(num_classes, hidden_dim, use_bias=True)
 
     def forward(self, input):
