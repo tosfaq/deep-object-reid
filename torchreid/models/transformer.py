@@ -82,7 +82,7 @@ class Transformer(nn.Module):
 
     def __init__(self, d_model=2432, nhead=8, num_encoder_layers=6,
                  num_decoder_layers=6, dim_feedforward=2432, dropout=0.1,
-                 activation="relu", normalize_before=False,
+                 activation="prelu", normalize_before=False,
                  return_intermediate_dec=False,
                  rm_self_attn_dec=True, rm_first_self_attn=True,
                  ):
@@ -241,7 +241,7 @@ def _get_clones(module, N):
 class TransformerEncoderLayer(nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2432, dropout=0.1,
-                 activation="relu", normalize_before=False):
+                 activation="prelu", normalize_before=False):
         super().__init__()
         self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
         # Implementation of Feedforward model
@@ -307,7 +307,7 @@ class TransformerEncoderLayer(nn.Module):
 class TransformerDecoderLayer(nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2432, dropout=0.1,
-                 activation="relu", normalize_before=False):
+                 activation="prelu", normalize_before=False):
         super().__init__()
         self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
@@ -425,4 +425,6 @@ def _get_activation_fn(activation):
         return F.gelu
     if activation == "glu":
         return F.glu
-    raise RuntimeError(F"activation should be relu/gelu, not {activation}.")
+    if activation == 'prelu':
+        return nn.PReLU()
+    raise RuntimeError(F"activation should be relu/gelu/glu/prelu, not {activation}.")

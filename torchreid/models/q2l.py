@@ -75,7 +75,6 @@ class Query2Label(ModelInterface):
         self.input_proj = nn.Conv2d(backbone_features, hidden_dim, kernel_size=1)
         self.query_embed = nn.Embedding(num_classes, hidden_dim)
         if self.loss == "am_binary":
-            self.act2 = nn.PReLU()
             self.fc = AngleSimpleLinear(hidden_dim, num_classes)
         else:
             self.fc = GroupWiseLinear(num_classes, hidden_dim, use_bias=True)
@@ -88,8 +87,6 @@ class Query2Label(ModelInterface):
             query_input = self.query_embed.weight
             hs = self.transformer(self.input_proj(src), query_input, pos)[0] # B,K,d
             logits = self.fc(hs[-1])
-            if self.similarity_adjustment:
-                logits = self.sym_adjust(logits, self.amb_t)
 
             if not self.training:
                 return [logits]
