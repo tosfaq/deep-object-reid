@@ -177,13 +177,15 @@ class ClassificationTestTrainingAction(OTETestTrainingAction):
     _name = "training"
 
     def __init__(
-        self, dataset, labels_schema, template_path, max_num_epochs, batch_size
+        self, dataset, labels_schema, template_path, max_num_epochs, batch_size,
+        reference_dir
     ):
         self.dataset = dataset
         self.labels_schema = labels_schema
         self.template_path = template_path
         self.num_training_iters = max_num_epochs
         self.batch_size = batch_size
+        self.reference_dir = reference_dir
 
     def _run_ote_training(self, data_collector):
         logger.debug(f"self.template_path = {self.template_path}")
@@ -263,7 +265,8 @@ class TestOTEReallifeClassification(OTETrainingTestInterface):
 
     @pytest.fixture
     def params_factories_for_test_actions_fx(self, current_test_parameters_fx,
-                                             dataset_definitions_fx, template_paths_fx) -> Dict[str,Callable[[], Dict]]:
+                                             dataset_definitions_fx, template_paths_fx,
+                                             ote_current_reference_dir_fx) -> Dict[str,Callable[[], Dict]]:
         logger.debug('params_factories_for_test_actions_fx: begin')
 
         test_parameters = deepcopy(current_test_parameters_fx)
@@ -295,6 +298,7 @@ class TestOTEReallifeClassification(OTETrainingTestInterface):
                 'template_path': template_path,
                 'max_num_epochs': max_num_epochs,
                 'batch_size': batch_size,
+                'reference_dir': ote_current_reference_dir_fx,
             }
 
         params_factories_for_test_actions = {
