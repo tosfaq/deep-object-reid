@@ -49,7 +49,7 @@ def objective(cfg, args, trial):
     # asl_pm = trial.suggest_float("asl_pm", 0, 0.5)
     # m = trial.suggest_float("m", 0.01, 0.7)
     # s = trial.suggest_int("s", 5, 60)
-    lr = trial.suggest_float("lr", 0.001, 0.5)
+    lr = trial.suggest_float("lr", 0.001, 0.1)
     # t = trial.suggest_int("t", 1, 7)
     # cfg.loss.softmax.m = m
     # cfg.loss.softmax.s = s
