@@ -78,9 +78,12 @@ class Image_GCNN(ModelInterface):
             x = self.gc2(x, adj)
 
             x = x.transpose(0, 1)
-
-            logits = F.normalize(glob_features, p=2, dim=1).mm(F.normalize(x, p=2, dim=0))
-            logits = logits.clamp(-1, 1)
+            if self.loss == 'am_binary':
+                logits = F.normalize(glob_features, p=2, dim=1).mm(F.normalize(x, p=2, dim=0))
+                logits = logits.clamp(-1, 1)
+            else:
+                assert self.loss in ['bce', 'asl']
+                logits = torch.matmul(glob_features, x)
 
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.similarity_adjustment)
