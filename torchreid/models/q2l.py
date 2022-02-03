@@ -5,7 +5,7 @@ import math
 from .transformer import build_position_encoding
 from .common import ModelInterface
 from torch.cuda.amp import autocast
-from torchreid.losses import AngleSimpleLinear
+from torchreid.losses import AngleSimpleLinearV2
 
 __all__ = ['build_q2l']
 
@@ -75,7 +75,7 @@ class Query2Label(ModelInterface):
         self.input_proj = nn.Conv2d(backbone_features, hidden_dim, kernel_size=1)
         self.query_embed = nn.Embedding(num_classes, hidden_dim)
         if self.loss == "am_binary":
-            self.fc = AngleSimpleLinear(hidden_dim, num_classes)
+            self.fc = AngleSimpleLinearV2(hidden_dim, num_classes)
         else:
             assert self.loss in ['asl', 'bce']
             self.fc = GroupWiseLinear(num_classes, hidden_dim, use_bias=True)

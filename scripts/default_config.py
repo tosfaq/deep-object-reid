@@ -77,6 +77,8 @@ def get_default_config():
     cfg.model.transformer.rm_first_self_attn = True
     cfg.model.gcn = CN()
     cfg.model.gcn.rho = 0.25
+    cfg.model.gcn.embeding_dim = 670
+    cfg.model.gcn.hidden_dim = 450
 
     # mutual learning, auxiliary model
     cfg.mutual_learning = CN()
@@ -486,7 +488,9 @@ def model_kwargs(cfg, num_classes):
         'rm_self_attn_dec': cfg.model.transformer.rm_self_attn_dec,
         'rm_first_self_attn': cfg.model.transformer.rm_first_self_attn,
         'thau': cfg.data.gcn.thau,
-        'rho_gcn': cfg.model.gcn.rho
+        'rho_gcn': cfg.model.gcn.rho,
+        'hidden_dim': cfg.model.gcn.hidden_dim,
+        'embeding_dim': cfg.model.gcn.embeding_dim
     }
 
 
