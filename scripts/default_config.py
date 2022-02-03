@@ -489,8 +489,8 @@ def model_kwargs(cfg, num_classes):
         'rm_first_self_attn': cfg.model.transformer.rm_first_self_attn,
         'thau': cfg.data.gcn.thau,
         'rho_gcn': cfg.model.gcn.rho,
-        'hidden_dim': cfg.model.gcn.hidden_dim,
-        'embeding_dim': cfg.model.gcn.embeding_dim
+        'gcn_hidden_dim': cfg.model.gcn.hidden_dim,
+        'gcn_embeding_dim': cfg.model.gcn.embeding_dim
     }
 
 
