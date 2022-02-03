@@ -1,11 +1,7 @@
 import os.path as osp
-import os
 import sys
 import datetime
 import time
-import tempfile
-from subprocess import run # nosec
-import copy
 
 import torch
 import numpy as np
