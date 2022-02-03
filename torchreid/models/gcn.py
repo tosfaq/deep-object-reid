@@ -52,32 +52,39 @@ class GraphConvolution(nn.Module):
 
 
 class Image_GCNN(ModelInterface):
-    def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None, **kwargs):
+    def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None, num_classes=80, **kwargs):
         super().__init__(**kwargs)
         self.backbone = backbone
+        self.num_classes = num_classes
         self.pooling = nn.MaxPool2d(14, 14)
-        self.gc1 = GraphConvolution(in_channel, self.backbone.num_features // 2)
-        self.gc2 = GraphConvolution(self.backbone.num_features // 2, self.backbone.num_features)
+        self.gc1 = GraphConvolution(in_channel, int(in_channel * 1.5))
+        self.gc2 = GraphConvolution(int(in_channel * 1.5), 670)
         self.relu = nn.LeakyReLU(0.2)
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
         self.A = nn.Parameter(torch.from_numpy(adj_matrix).float())
+        self.proj_embed = nn.Linear(self.backbone.num_features, self.num_classes * 670, bias=False)
+        torch.nn.init.xavier_normal_(self.proj_embed.weight)
 
     def forward(self, image):
         with autocast(enabled=self.mix_precision):
             feature = self.backbone(image, return_featuremaps=True)
-            glob_features = self.backbone.glob_feature_vector(feature, self.backbone.pooling_type, reduce_dims=False)
-            glob_features = glob_features.view(glob_features.shape[0], -1)
+            in_size = feature.size()
+            glob_features = feature.view((in_size[0], in_size[1], -1)).mean(dim=2)
+            embedings = self.proj_embed(glob_features)
+            embedings = embedings.reshape(image.size(0), self.num_classes, -1)
+            # glob_features = self.backbone.glob_feature_vector(feature, self.backbone.pooling_type, reduce_dims=False)
+            # glob_features = glob_features.view(glob_features.shape[0], -1)
 
             adj = self.gen_adj(self.A).detach()
             x = self.gc1(self.inp, adj)
             x = self.relu(x)
             x = self.gc2(x, adj)
 
-            x = x.transpose(0, 1)
             if self.loss == 'am_binary':
-                logits = F.normalize(glob_features, p=2, dim=1).mm(F.normalize(x, p=2, dim=0))
+                logits = F.cosine_similarity(embedings, x, dim=2)
                 logits = logits.clamp(-1, 1)
             else:
+                x = x.transpose(0, 1)
                 assert self.loss in ['bce', 'asl']
                 logits = torch.matmul(glob_features, x)
 
@@ -103,6 +110,7 @@ class Image_GCNN(ModelInterface):
 
     def get_config_optim(self, lrs):
         parameters = [
+            {'params': self.proj_embed.named_parameters()},
             {'params': self.backbone.named_parameters()},
             {'params': self.gc1.named_parameters()},
             {'params': self.gc2.named_parameters()},
@@ -129,6 +137,7 @@ def build_image_gcn(backbone, word_matrix_path, adj_file, num_classes=80, word_e
         adj_matrix=adj_matrix,
         pretrain=pretrain,
         in_channel=word_emb_size,
+        num_classes=num_classes,
         **kwargs
     )
     return model
