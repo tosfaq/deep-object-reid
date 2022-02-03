@@ -125,7 +125,6 @@ class Image_GCNN(ModelInterface):
 
 def build_image_gcn(backbone, word_matrix_path, adj_file, num_classes=80, word_emb_size=300,
                     thau = 0.4, rho_gcn=0.25, pretrain=False, **kwargs):
-    print(thau)
     adj_matrix = gen_A(num_classes, thau, rho_gcn, adj_file)
     word_matrix = np.load(word_matrix_path)
     model = Image_GCNN(
