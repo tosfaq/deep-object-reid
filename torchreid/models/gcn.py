@@ -8,10 +8,6 @@ import math
 
 def gen_A(num_classes, t, rho, adj_file):
     _adj = np.load(adj_file)
-    # _adj = result['adj']
-    # _nums = result['nums']
-    # _nums = _nums[:, np.newaxis]
-    # _adj = _adj / _nums
     _adj[_adj < t] = 0
     _adj[_adj >= t] = 1
     _adj = _adj * rho / (_adj.sum(0, keepdims=True) + 1e-6)
