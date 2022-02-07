@@ -333,7 +333,7 @@ def wrap_nncf_model(model, cfg,
     logger.info(f'nncf_config["log_dir"] = {nncf_config["log_dir"]}')
 
     register_custom_modules()
-    logger.error(f"NNCF CONFIG: {nncf_config}")
+
     compression_ctrl, model = create_compressed_model(model,
                                                       nncf_config,
                                                       dummy_forward_fn=dummy_forward,
