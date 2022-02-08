@@ -43,7 +43,6 @@ class TimmModelsWrapper(ModelInterface):
         else:
             assert self.loss in ["softmax", "asl", "bce"]
             self.model.classifier = self.model.get_classifier()
-        print(self.model.classifier)
 
     def forward(self, x, return_featuremaps=False, return_all=False, **kwargs):
         with autocast(enabled=self.mix_precision):
