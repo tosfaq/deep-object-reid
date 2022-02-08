@@ -77,6 +77,9 @@ def get_default_config():
     cfg.model.transformer.rm_first_self_attn = True
     cfg.model.gcn = CN()
     cfg.model.gcn.rho = 0.25
+    cfg.model.gcn.hidden_dim = 1024
+    cfg.model.gcn.emb_dim = 2048
+    cfg.model.gcn.thau = 0.4
 
     # mutual learning, auxiliary model
     cfg.mutual_learning = CN()
@@ -206,9 +209,6 @@ def get_default_config():
     cfg.test.test_before_train = False
 
     # Augmentations
-    cfg.data.gcn = CN()
-    cfg.data.gcn.thau = 0.5
-
     cfg.data.transforms = CN()
 
     cfg.data.transforms.random_flip = CN()
@@ -405,7 +405,6 @@ def imagedata_kwargs(cfg):
         'train_sampler': cfg.sampler.train_sampler,
         'custom_dataset_roots': cfg.custom_datasets.roots,
         'custom_dataset_types': cfg.custom_datasets.types,
-        'thau': cfg.data.gcn.thau
     }
 
 
@@ -485,8 +484,10 @@ def model_kwargs(cfg, num_classes):
         'pre_norm': cfg.model.transformer.pre_norm,
         'rm_self_attn_dec': cfg.model.transformer.rm_self_attn_dec,
         'rm_first_self_attn': cfg.model.transformer.rm_first_self_attn,
-        'thau': cfg.data.gcn.thau,
-        'rho_gcn': cfg.model.gcn.rho
+        'thau': cfg.model.gcn.thau,
+        'rho_gcn': cfg.model.gcn.rho,
+        'hidden_dim': cfg.model.gcn.hidden_dim,
+        'emb_dim': cfg.model.gcn.emb_dim
     }
 
 
