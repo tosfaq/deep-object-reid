@@ -84,7 +84,7 @@ class AMBinaryLoss(nn.Module):
         targets: targets (multi-label binarized vector)
         """
         self.s = scale if scale else self.s
-        print(self.s)
+
         if self.label_smooth > 0:
             targets = targets * (1 - self.label_smooth)
             targets[targets == 0] = self.label_smooth
