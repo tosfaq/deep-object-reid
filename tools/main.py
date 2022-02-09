@@ -6,6 +6,7 @@ import argparse
 import os.path as osp
 import sys
 import time
+import subprocess
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
@@ -23,7 +24,7 @@ from scripts.script_utils import (build_base_argparser, reset_config,
 import torchreid
 from torchreid.apis.training import run_lr_finder, run_training
 from torchreid.utils import (Logger, check_isfile, resume_from_checkpoint,
-                             set_random_seed, load_pretrained_weights)
+                             set_random_seed, load_pretrained_weights, get_git_revision)
 from torchreid.integration.nncf.compression_script_utils import (make_nncf_changes_in_config,
                                                                  make_nncf_changes_in_training)
 
@@ -62,8 +63,10 @@ def main():
     log_name = 'test.log' if cfg.test.evaluate else 'train.log'
     log_name += time.strftime('-%Y-%m-%d-%H-%M-%S')
     sys.stdout = Logger(osp.join(cfg.data.save_dir, log_name))
-
-    print('Show configuration\n{}\n'.format(cfg))
+    sha_commit, branch_name = get_git_revision()
+    print(f'HEAD is: {branch_name}')
+    print(f'commit SHA is: {sha_commit}\n')
+    print(f'Show configuration\n{cfg}\n')
 
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True

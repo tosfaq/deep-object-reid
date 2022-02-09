@@ -232,7 +232,7 @@ def main():
         print('Show configuration\n{}\n'.format(cfg))
 
         sampler = TPESampler(n_startup_trials=5, seed=cfg.train.seed)
-        pruner = optuna.pruners.MedianPruner( n_startup_trials=5, n_warmup_steps=7, interval_steps=5)
+        pruner = optuna.pruners.MedianPruner( n_startup_trials=5, n_warmup_steps=5, interval_steps=3)
         study = optuna.create_study(study_name='classification task', direction="maximize", sampler=sampler, pruner=pruner)
         objective_partial = partial(run_training, cfg, opt_cfg, args)
         try:

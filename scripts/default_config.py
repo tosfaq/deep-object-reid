@@ -80,6 +80,7 @@ def get_default_config():
     cfg.model.gcn.hidden_dim = 1024
     cfg.model.gcn.emb_dim = 2048
     cfg.model.gcn.thau = 0.4
+    cfg.model.export_onnx_opset = 9
 
     # mutual learning, auxiliary model
     cfg.mutual_learning = CN()
@@ -146,7 +147,7 @@ def get_default_config():
     cfg.train.print_freq = 20  # print frequency
     cfg.train.seed = 5  # random seed
     cfg.train.deterministic = False # define to use cuda.deterministic
-    cfg.train.warmup = 1  # After fixbase_epoch
+    cfg.train.warmup = 5  # After fixbase_epoch
     cfg.train.clip_grad = 0.
     cfg.train.ema = CN()
     cfg.train.ema.enable = False

@@ -165,6 +165,17 @@ def get_default_nncf_compression_config(h, w):
     return nncf_config_data
 
 
+def register_custom_modules():
+    # Register custom modules.
+    # Users of nncf should manually check every custom
+    # layer with weights which should be compressed and
+    # in case such layers are not wrapping by nncf,
+    # wrap such custom module by yourself.
+    from nncf.torch import register_module
+    from timm.models.layers.conv2d_same import Conv2dSame
+    register_module(ignored_algorithms=[])(Conv2dSame)
+
+
 def wrap_nncf_model(model, cfg,
                     checkpoint_dict=None,
                     datamanager_for_init=None):
@@ -320,6 +331,8 @@ def wrap_nncf_model(model, cfg,
     if 'log_dir' in nncf_config:
         os.makedirs(nncf_config['log_dir'], exist_ok=True)
     logger.info(f'nncf_config["log_dir"] = {nncf_config["log_dir"]}')
+
+    register_custom_modules()
 
     compression_ctrl, model = create_compressed_model(model,
                                                       nncf_config,

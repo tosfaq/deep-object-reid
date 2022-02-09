@@ -213,7 +213,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
         dump_features = not inference_parameters.is_evaluation
         inference_results, _ = score_extraction(datamanager.test_loader,
                                                 self._model, self._cfg.use_gpu, perf_monitor=time_monitor,
-                                                feature_dump_mode='all' if dump_features else 'vecs')
+                                                feature_dump_mode='all' if dump_features else 'vecs', apply_scale=True)
         self._model.mix_precision = mix_precision_status
         if dump_features:
             scores, features, feature_vecs = inference_results
@@ -249,7 +249,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
                 actmap = get_actmap(features[i], (dataset_item.width, dataset_item.height))
                 saliency_media = ResultMediaEntity(name="saliency_map", type="Saliency map",
                                                    annotation_scene=dataset_item.annotation_scene,
-                                                   numpy=actmap, roi=dataset_item.roi)
+                                                   numpy=actmap, roi=dataset_item.roi, label = item_labels[0].label)
                 dataset_item.append_metadata_item(saliency_media, model=self._task_environment.model)
 
         return dataset
@@ -274,7 +274,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
                 onnx_model_path = os.path.join(optimized_model_dir, 'model.onnx')
                 mix_precision_status = self._model.mix_precision
                 self._model.mix_precision = False
-                export_onnx(self._model.eval(), self._cfg, onnx_model_path)
+                export_onnx(self._model.eval(), self._cfg, onnx_model_path, opset=self._cfg.model.export_onnx_opset)
                 self._model.mix_precision = mix_precision_status
                 export_ir(onnx_model_path, self._cfg.data.norm_mean, self._cfg.data.norm_std,
                           optimized_model_dir=optimized_model_dir)

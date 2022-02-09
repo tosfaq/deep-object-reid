@@ -100,18 +100,17 @@ class MultilabelEngine(Engine):
                                                                           targets,
                                                                           model_name)
                 loss_summary.update(model_loss_summary)
-                all_models_logits[i] = all_models_logits[i] * self.scales[model_name]
                 if i == 0: # main model
                     main_acc = acc
                 # compute mutual loss
                 if mutual_learning:
                     mutual_loss = 0
 
-                    trg_probs = torch.sigmoid(all_models_logits[i])
+                    trg_probs = torch.sigmoid(all_models_logits[i] * self.scales[model_name])
                     for j in range(num_models):
                         if i != j:
                             with torch.no_grad():
-                                aux_probs = torch.sigmoid(all_models_logits[j])
+                                aux_probs = torch.sigmoid(all_models_logits[j] * self.scales[model_names[j]])
                             mutual_loss += self.kl_div_binary(trg_probs, aux_probs)
 
                     loss += mutual_loss / (num_models - 1)
@@ -160,7 +159,7 @@ class MultilabelEngine(Engine):
         with autocast(enabled=self.mix_precision):
             model_output = model(imgs)
             all_unscaled_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
-        return all_unscaled_logits
+            return all_unscaled_logits
 
     def _single_model_losses(self, logits,  targets, model_name):
         with autocast(enabled=self.mix_precision):
@@ -175,7 +174,7 @@ class MultilabelEngine(Engine):
             acc += metrics.accuracy_multilabel(logits, targets).item()
             loss_summary[f'main_{model_name}'] = loss.item()
 
-        return loss, loss_summary, acc
+            return loss, loss_summary, acc
 
     def kl_div_binary(self, x, y):
         ''' compute KL divergence between two tensors represented
@@ -202,13 +201,14 @@ class MultilabelEngine(Engine):
         should_exit = False
         is_candidate_for_best = False
         current_metric = round(accuracy, 4)
+        is_best = current_metric <= self.prev_smooth_accuracy
         # if current metric less than an average
-        if current_metric <= self.prev_smooth_accuracy and self.warmup_finished:
+        if is_best and self.warmup_finished:
             self.iter_to_wait += 1
             if self.iter_to_wait >= self.train_patience:
                 print("LOG:: The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
                 should_exit = True
-        else:
+        elif is_best:
             self.ema_smooth(accuracy)
             self.iter_to_wait = 0
 

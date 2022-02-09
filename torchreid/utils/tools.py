@@ -16,6 +16,7 @@ import os.path as osp
 import random
 import sys
 import time
+import subprocess
 
 import numpy as np
 import torch
@@ -23,8 +24,15 @@ import cv2 as cv
 
 __all__ = [
     'mkdir_if_missing', 'check_isfile', 'set_random_seed', "worker_init_fn",
-    'read_image', 'get_model_attr', 'StateCacher', 'random_image', 'EvalModeSetter'
+    'read_image', 'get_model_attr', 'StateCacher', 'random_image', 'EvalModeSetter', 'get_git_revision'
 ]
+
+def get_git_revision():
+    path = os.path.abspath(os.path.dirname(__file__))
+    sha_message = ['git', 'rev-parse', 'HEAD']
+    head_message = sha_message[:2] + ['--abbrev-ref'] + sha_message[2:]
+    return (subprocess.check_output(sha_message, cwd=path).decode('ascii').strip(),
+            subprocess.check_output(head_message, cwd=path).decode('ascii').strip())
 
 
 def mkdir_if_missing(dirname):
