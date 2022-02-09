@@ -163,16 +163,17 @@ class MultilabelEngine(Engine):
         return all_unscaled_logits
 
     def _single_model_losses(self, logits,  targets, model_name):
-        loss_summary = dict()
-        acc = 0
-        trg_num_samples = logits.numel()
-        if trg_num_samples == 0:
-            raise RuntimeError("There is no samples in a batch!")
+        with autocast(enabled=self.mix_precision):
+            loss_summary = dict()
+            acc = 0
+            trg_num_samples = logits.numel()
+            if trg_num_samples == 0:
+                raise RuntimeError("There is no samples in a batch!")
 
-        loss = self.main_loss(logits, targets, aug_index=self.aug_index,
-                                            lam=self.lam, scale=self.scales[model_name])
-        acc += metrics.accuracy_multilabel(logits, targets).item()
-        loss_summary[f'main_{model_name}'] = loss.item()
+            loss = self.main_loss(logits, targets, aug_index=self.aug_index,
+                                                lam=self.lam, scale=self.scales[model_name])
+            acc += metrics.accuracy_multilabel(logits, targets).item()
+            loss_summary[f'main_{model_name}'] = loss.item()
 
         return loss, loss_summary, acc
 
