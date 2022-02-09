@@ -104,10 +104,10 @@ class LrFinder:
                             'TPE': TPESampler(n_startup_trials=5, seed=True)}
 
     def process(self):
-        print('=> Start learning rate search. Mode: {}'.format(self.mode))
+        print(f'=> Start learning rate search. Mode: {self.mode}')
         if self.mode == 'fast_ai':
-           lr = self.fast_ai()
-           return lr
+            lr = self.fast_ai()
+            return lr
 
         assert self.mode in ['grid_search', 'TPE']
         lr = self.optuna_optim()
@@ -118,8 +118,9 @@ class LrFinder:
 
         if self.epochs_warmup != 0:
             get_model_attr(self.model, 'to')(self.model_device)
-            print("Warmup the model's weights for {} epochs".format(self.epochs_warmup))
-            self.engine.run(max_epoch=self.epochs_warmup, lr_finder=self.engine_cfg, stop_callback=self.stop_callback, eval_freq=1)
+            print(f"Warmup the model's weights for {self.epochs_warmup} epochs")
+            self.engine.run(max_epoch=self.epochs_warmup, lr_finder=self.engine_cfg,
+                            stop_callback=self.stop_callback, eval_freq=1)
             print("Finished warmuping the model. Continue to find learning rate:")
 
         # run lr finder
@@ -158,13 +159,15 @@ class LrFinder:
 
             print("  Params: ")
             for key, value in trial.params.items():
-                print("    {}: {}".format(key, value))
+                print(f"    {key}: {value}")
 
             return trial.params['lr']
 
-        study = optuna.create_study(study_name='classification task', direction="maximize", sampler=self.samplers[self.mode])
-        objective_partial = partial(self.engine.run, max_epoch=self.num_epochs, lr_finder=self.engine_cfg, start_eval=0, eval_freq=1,
-                                stop_callback=self.stop_callback)
+        study = optuna.create_study(study_name='classification task',
+                                    direction="maximize", sampler=self.samplers[self.mode])
+        objective_partial = partial(self.engine.run, max_epoch=self.num_epochs,
+                                    lr_finder=self.engine_cfg, start_eval=0, eval_freq=1,
+                                    stop_callback=self.stop_callback)
         objective = lambda trial: objective_partial(trial)[0]
         try:
             start_time = time.time()

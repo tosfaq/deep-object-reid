@@ -5,9 +5,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+# pylint: disable=too-many-branches
+
 from __future__ import print_function, absolute_import
 import torch
-import torch.nn as nn
+from torch import nn
 
 import warnings
 
@@ -93,9 +95,7 @@ def _build_optim(model,
     param_groups = []
     if optim not in AVAI_OPTIMS:
         raise ValueError(
-            'Unsupported optimizer: {}. Must be one of {}'.format(
-                optim, AVAI_OPTIMS
-            )
+            f'Unsupported optimizer: {optim}. Must be one of {AVAI_OPTIMS}'
         )
 
     if isinstance(base_optim, SAM):
@@ -122,9 +122,9 @@ def _build_optim(model,
 
         for name, module in model.named_children():
             if name in new_layers:
-                new_params += [p for p in module.parameters()]
+                new_params += list(module.parameters())
             else:
-                base_params += [p for p in module.parameters()]
+                base_params += list(module.parameters())
                 base_layers.append(name)
 
         param_groups = [
@@ -161,9 +161,9 @@ def _build_optim(model,
             for name, param in layer_params:
                 if param in compression_params:
                     continue  # Param is already registered
-                elif not param.requires_grad:
+                if not param.requires_grad:
                     continue  # frozen weights
-                elif name.endswith("bias"):
+                if name.endswith("bias"):
                     bias_no_decay.append(param)
                 elif len(param.shape) == 1:
                     weight_no_decay.append(param)
