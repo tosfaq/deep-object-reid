@@ -1,11 +1,7 @@
 import os.path as osp
-import os
 import sys
 import datetime
 import time
-import tempfile
-from subprocess import run # nosec
-import copy
 
 import torch
 import numpy as np
@@ -78,7 +74,7 @@ def finish_process(study):
 
 def run_training(cfg, opt_cfg, args, trial):
     # define max epochs
-    set_random_seed(cfg.train.seed, cfg.train.deterministic)
+    set_random_seed(cfg.train.seed)
     max_epochs = opt_cfg["epochs"] if opt_cfg else cfg['train']['max_epoch']
 
     if opt_cfg is not None:
@@ -160,7 +156,7 @@ def run_training(cfg, opt_cfg, args, trial):
     for engine.epoch in range(max_epochs):
         np.random.seed(cfg.train.seed + engine.epoch)
         avg_loss = engine.train(
-            print_freq=20000,
+            print_freq=100500,
             fixbase_epoch=0,
             open_layers=None,
             lr_finder=False,
@@ -235,11 +231,9 @@ def main():
 
         print('Show configuration\n{}\n'.format(cfg))
 
-        if cfg.use_gpu:
-            torch.backends.cudnn.benchmark = True
-
-        sampler = TPESampler(n_startup_trials=5, seed=True)
-        study = optuna.create_study(study_name='classification task', direction="maximize", sampler=sampler)
+        sampler = TPESampler(n_startup_trials=5, seed=cfg.train.seed)
+        pruner = optuna.pruners.MedianPruner( n_startup_trials=5, n_warmup_steps=5, interval_steps=3)
+        study = optuna.create_study(study_name='classification task', direction="maximize", sampler=sampler, pruner=pruner)
         objective_partial = partial(run_training, cfg, opt_cfg, args)
         try:
             start_time = time.time()
