@@ -28,11 +28,11 @@ __all__ = [
 ]
 
 def get_git_revision():
-    path = os.path.abspath(os.path.dirname(__file__)) + '/../..' # two folders up to .git folder
-    sha_message = ['git', '--git-dir', f'{path}/.git', 'rev-parse', 'HEAD']
+    path = os.path.abspath(os.path.dirname(__file__))
+    sha_message = ['git', 'rev-parse', 'HEAD']
     head_message = sha_message[:4] + ['--abbrev-ref'] + sha_message[4:]
-    return (subprocess.check_output(sha_message).decode('ascii').strip(),
-            subprocess.check_output(head_message).decode('ascii').strip())
+    return (subprocess.check_output(sha_message, cwd=path).decode('ascii').strip(),
+            subprocess.check_output(head_message, cwd=path).decode('ascii').strip())
 
 
 def mkdir_if_missing(dirname):
