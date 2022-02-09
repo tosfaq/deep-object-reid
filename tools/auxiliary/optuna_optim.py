@@ -78,6 +78,7 @@ def finish_process(study):
 
 def run_training(cfg, opt_cfg, args, trial):
     # define max epochs
+    set_random_seed(cfg.train.seed, cfg.train.deterministic)
     max_epochs = opt_cfg["epochs"] if opt_cfg else cfg['train']['max_epoch']
 
     if opt_cfg is not None:
@@ -223,7 +224,6 @@ def main():
     for i, optim_cfg in enumerate(args.opt_configs):
         if logger.file is not None:
             logger.file.close()
-        set_random_seed(cfg.train.seed, cfg.train.deterministic)
         opt_cfg = read_json_cfg(optim_cfg)
         strftime = time.strftime('-%Y-%m-%d-%H-%M-%S')
         log_file = osp.join(cfg.data.save_dir, f'optuna_{i}{strftime}.log')
@@ -264,7 +264,6 @@ def main():
         logger.file.close()
         for name, value in optimized_params.items():
             cfg = make_change_in_cfg(cfg, name, value)
-        set_random_seed(cfg.train.seed, cfg.train.deterministic)
         strftime = time.strftime('-%Y-%m-%d-%H-%M-%S')
         log_file = osp.join(cfg.data.save_dir, f'train{strftime}.log')
         mkdir_if_missing(osp.dirname(log_file))
