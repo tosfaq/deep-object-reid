@@ -12,7 +12,6 @@ if __name__ == '__main__':
         'torchreid/models',
         'torchreid/optim/radam.py',
         'torchreid/optim/sam.py',
-        'torchreid/utils',
         'tests/conftest.py',
         'tests/config.py',
         'torchreid/integration/sc/model_wrappers/classification.py',

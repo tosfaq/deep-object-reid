@@ -5,6 +5,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+# pylint: disable=consider-using-with
+
 from __future__ import absolute_import
 from datetime import datetime
 import os
@@ -16,7 +18,7 @@ from .tools import mkdir_if_missing
 __all__ = ['Logger']
 
 
-class Logger(object):
+class Logger:
     """Writes console output to external text file.
 
     Imported from `<https://github.com/Cysu/open-reid/blob/master/reid/utils/logging.py>`_
