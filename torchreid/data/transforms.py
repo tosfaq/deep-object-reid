@@ -182,7 +182,8 @@ class RandomErasing():
                 x1 = random.randint(0, image_size[0] - h)  # nosec
                 y1 = random.randint(0, image_size[1] - w)  # nosec
 
-                fill_color = self.fill_color if self.fill_color is not None else [random.randint(0, 255)] * 3
+                fill_color = \
+                    self.fill_color if self.fill_color is not None else [random.randint(0, 255)] * 3 # nosec # noqa
                 if self.norm_image:
                     fill_color = np.array(fill_color) / 255.0
 
@@ -493,7 +494,7 @@ class RandomFigures():
         for f in figure:
             p1 = (random.randint(0, w), random.randint(0, h))  # nosec
             p2 = (random.randint(0, w), random.randint(0, h))  # nosec
-            color = tuple(random.randint(0, 256) for _ in range(3)) if self.random_color else (0, 0, 0)
+            color = tuple(random.randint(0, 256) for _ in range(3)) if self.random_color else (0, 0, 0) # nosec # noqa
             thickness = random.randint(*self.thicknesses)  # nosec
             if f != cv2.circle:
                 cv_image = f(cv_image, p1, p2, color, thickness)
