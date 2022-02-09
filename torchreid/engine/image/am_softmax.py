@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.cuda.amp import GradScaler, autocast
 
 from torchreid import metrics
-from torchreid.engine import Engine
+from torchreid.engine.engine import Engine
 from torchreid.utils import sample_mask
 from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss)
 from torchreid.optim import SAM

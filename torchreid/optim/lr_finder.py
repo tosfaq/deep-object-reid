@@ -10,7 +10,7 @@ import time
 import datetime
 
 from torchreid.utils import get_model_attr
-from torchreid.optim import SAM
+from torchreid.optim.sam import SAM
 
 
 class WrappedLRFinder(LRFinder):
