@@ -136,8 +136,8 @@ class ImageDataset:
         msg = '  ------------------------------\n' \
               '  subset   | # ids | # items\n' \
               '  ------------------------------\n' \
-              f'  train    | {num_train_ids:5d} | {self.train:7d}\n' \
-              f'  test     | {num_test_ids:5d} | {self.test:7d}\n' \
+              f'  train    | {num_train_ids:5d} | {len(self.train):7d}\n' \
+              f'  test     | {num_test_ids:5d} | {len(self.test):7d}\n' \
               '  -------------------------------\n'
 
         return msg
