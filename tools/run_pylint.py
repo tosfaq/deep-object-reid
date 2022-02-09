@@ -7,12 +7,9 @@ from subprocess import run, CalledProcessError  # nosec
 if __name__ == '__main__':
     ignored_patterns = [
         'setup.py',
-        'build',
         'tools',
-        'projects',
         '.history',
         'torchreid/models',
-        'torchreid/data',
         'torchreid/engine',
         'torchreid/optim',
         'torchreid/utils',
