@@ -186,8 +186,8 @@ class ImageAMSoftmaxEngine(Engine):
             if self.enable_rsc:
                 run_kwargs['gt_labels'] = targets
 
-                model_output = model(imgs, **run_kwargs)
-                all_unscaled_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
+            model_output = model(imgs, **run_kwargs)
+            all_unscaled_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
             return all_unscaled_logits
 
     def _single_model_losses(self, logits,  targets, model_name):
