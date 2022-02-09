@@ -111,10 +111,10 @@ class AMBinaryLoss(nn.Module):
             balance_koeff_pos = self.k / self.s
             balance_koeff_neg = (1 - self.k) / self.s
 
-        self.loss = balance_koeff_pos * targets * F.logsigmoid(self.s * (cos_theta - self.m))
-        self.loss.add_(balance_koeff_neg * self.anti_targets * F.logsigmoid(- self.s * (cos_theta + self.m)))
+        self.loss = balance_koeff_pos * targets * torch.log(1 + torch.exp(-self.s * (cos_theta - self.m)))
+        self.loss.add_(balance_koeff_neg * self.anti_targets * torch.log(1 + torch.exp(self.s * (cos_theta + self.m))))
 
         if self.asymmetric_focus:
             self.loss *= one_sided_w
 
-        return - self.loss.sum() / cos_theta.size(0)
+        return self.loss.sum()
