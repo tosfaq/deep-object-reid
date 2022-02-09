@@ -10,7 +10,6 @@ if __name__ == '__main__':
         'tools',
         '.history',
         'torchreid/models',
-        'torchreid/engine',
         'torchreid/optim/radam.py',
         'torchreid/optim/sam.py',
         'torchreid/utils',
