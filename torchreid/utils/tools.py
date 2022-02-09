@@ -30,7 +30,7 @@ __all__ = [
 def get_git_revision():
     path = os.path.abspath(os.path.dirname(__file__))
     sha_message = ['git', 'rev-parse', 'HEAD']
-    head_message = sha_message[:4] + ['--abbrev-ref'] + sha_message[4:]
+    head_message = sha_message[:2] + ['--abbrev-ref'] + sha_message[2:]
     return (subprocess.check_output(sha_message, cwd=path).decode('ascii').strip(),
             subprocess.check_output(head_message, cwd=path).decode('ascii').strip())
 
