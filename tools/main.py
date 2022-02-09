@@ -2,11 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import argparse
 import os.path as osp
 import sys
 import time
-import subprocess
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
