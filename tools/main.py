@@ -6,6 +6,7 @@ import argparse
 import os.path as osp
 import sys
 import time
+import subprocess
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
@@ -62,8 +63,12 @@ def main():
     log_name = 'test.log' if cfg.test.evaluate else 'train.log'
     log_name += time.strftime('-%Y-%m-%d-%H-%M-%S')
     sys.stdout = Logger(osp.join(cfg.data.save_dir, log_name))
+    branch_name = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode('ascii').strip()
+    sha_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
 
-    print('Show configuration\n{}\n'.format(cfg))
+    print(f'HEAD is: {branch_name}')
+    print(f'commit SHA is: {sha_commit}\n')
+    print(f'Show configuration\n{cfg}\n')
 
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True

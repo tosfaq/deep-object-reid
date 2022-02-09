@@ -182,28 +182,29 @@ class ImageAMSoftmaxEngine(Engine):
         return loss_summary, main_acc
 
     def _forward_model(self, model, imgs, targets,):
-        run_kwargs = dict()
-        if self.enable_rsc:
-            run_kwargs['gt_labels'] = targets
-
         with autocast(enabled=self.mix_precision):
-            model_output = model(imgs, **run_kwargs)
-            all_unscaled_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
-        return all_unscaled_logits
+            run_kwargs = dict()
+            if self.enable_rsc:
+                run_kwargs['gt_labels'] = targets
+
+                model_output = model(imgs, **run_kwargs)
+                all_unscaled_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
+            return all_unscaled_logits
 
     def _single_model_losses(self, logits,  targets, model_name):
-        loss_summary = dict()
-        acc = 0
-        trg_num_samples = logits.numel()
-        if trg_num_samples == 0:
-            raise RuntimeError("There is no samples in a batch!")
+        with autocast(enabled=self.mix_precision):
+            loss_summary = dict()
+            acc = 0
+            trg_num_samples = logits.numel()
+            if trg_num_samples == 0:
+                raise RuntimeError("There is no samples in a batch!")
 
-        loss = self.main_loss(logits, targets, aug_index=self.aug_index,
-                                            lam=self.lam, scale=self.scales[model_name])
-        acc += metrics.accuracy(logits, targets)[0].item()
-        loss_summary[f'main_{model_name}'] = loss.item()
+            loss = self.main_loss(logits, targets, aug_index=self.aug_index,
+                                                lam=self.lam, scale=self.scales[model_name])
+            acc += metrics.accuracy(logits, targets)[0].item()
+            loss_summary[f'main_{model_name}'] = loss.item()
 
-        return loss, loss_summary, acc
+            return loss, loss_summary, acc
 
 
     def _apply_batch_augmentation(self, imgs):
