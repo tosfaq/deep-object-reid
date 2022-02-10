@@ -2,15 +2,17 @@ import timm
 
 from torchreid.losses import AngleSimpleLinear
 from .common import ModelInterface
+import torchreid.utils as utils
 from torchreid.ops import Dropout
 from torch import nn
 from torch.cuda.amp import autocast
+
 
 __all__ = ["timm_wrapped_models", "TimmModelsWrapper"]
 AVAI_MODELS = {
                 'mobilenetv3_large_21k' : 'mobilenetv3_large_100_miil_in21k',
                 'mobilenetv3_large_1k' : 'mobilenetv3_large_100_miil',
-                'tresnet' : 'tresnet_m',
+                'tresnet_m' : 'tresnet_m',
                 'efficientnetv2_s_21k': 'tf_efficientnetv2_s_in21k',
                 'efficientnetv2_s_1k': 'tf_efficientnetv2_s_in21ft1k',
                 'efficientnetv2_m_21k': 'tf_efficientnetv2_m_in21k',
@@ -32,6 +34,8 @@ class TimmModelsWrapper(ModelInterface):
         self.model = timm.create_model(model_name,
                                        pretrained=pretrained,
                                        num_classes=self.num_classes)
+        if model_name == 'tresnet_l':
+            utils.load_pretrained_weights(self.model, '/ssd/ML_Decoder/tresnet_l.pth')
         self.num_head_features = self.model.num_features
         self.num_features = (self.model.conv_head.in_channels if self.is_mobilenet
                              else self.model.num_features)
