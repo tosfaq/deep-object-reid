@@ -101,25 +101,6 @@ def _create_classification_dataset_and_labels_schema(dataset_params):
     return dataset, labels_schema
 
 
-class ClassificationTestNNCFGraphAction(OTETestNNCFGraphAction):
-
-    def _get_compressed_model(self, task):
-        # pylint:disable=protected-access
-        from torchreid.integration.nncf.compression import wrap_nncf_model
-
-        # Disable quantaizers initialization
-        for compression in task._cfg["nncf_config"]['compression']:
-            if compression["algorithm"] == "quantization":
-                compression["initializer"] = {
-                    "batchnorm_adaptation": {
-                        "num_bn_adaptation_samples": 0
-                    }
-                }
-
-        _, compressed_model, _ = wrap_nncf_model(task._model, task._cfg)
-        return compressed_model
-
-
 def get_image_classification_test_action_classes() -> List[Type[BaseOTETestAction]]:
     return [
         ClassificationTestTrainingAction,
@@ -132,7 +113,7 @@ def get_image_classification_test_action_classes() -> List[Type[BaseOTETestActio
         OTETestNNCFEvaluationAction,
         OTETestNNCFExportAction,
         OTETestNNCFExportEvaluationAction,
-        ClassificationTestNNCFGraphAction
+        OTETestNNCFGraphAction
     ]
 
 class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInterface):
@@ -192,6 +173,27 @@ class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInter
             "batch_size": 2,
         }
         return deepcopy(DEFAULT_TEST_PARAMETERS)
+
+
+def _get_dummy_compressed_model(task):
+    """
+    Return compressed model without initialization
+    """
+    # pylint:disable=protected-access
+    from torchreid.integration.nncf.compression import wrap_nncf_model
+
+    # Disable quantaizers initialization
+    for compression in task._cfg["nncf_config"]['compression']:
+        if compression["algorithm"] == "quantization":
+            compression["initializer"] = {
+                "batchnorm_adaptation": {
+                    "num_bn_adaptation_samples": 0
+                }
+            }
+
+    _, compressed_model, _ = wrap_nncf_model(task._model, task._cfg)
+    return compressed_model
+
 
 # TODO: This function copies with minor change OTETestTrainingAction
 #             from ote_sdk.test_suite.
@@ -344,6 +346,7 @@ class TestOTEReallifeClassification(OTETrainingTestInterface):
                 'labels_schema': labels_schema,
                 'template_path': template_path,
                 'reference_dir': ote_current_reference_dir_fx,
+                'fn_get_compressed_model': _get_dummy_compressed_model
             }
 
         params_factories_for_test_actions = {
