@@ -10,6 +10,7 @@
 from __future__ import absolute_import, division, print_function
 from abc import abstractmethod
 import datetime
+import math
 import os
 import os.path as osp
 import time
@@ -510,6 +511,9 @@ class Engine:
 
             loss_summary, avg_acc = self.forward_backward(data)
             batch_time.update(time.time() - end)
+            last_main_loss = math.isnan(loss_summary[self.get_model_names()[0]])
+            if math.isnan(last_main_loss) or math.isinf(last_main_loss):
+                raise RuntimeError('Loss is NaN or Inf, exiting the training...')
 
             losses.update(loss_summary)
             accuracy.update(avg_acc)
