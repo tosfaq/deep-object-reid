@@ -172,8 +172,6 @@ class ImageAMSoftmaxEngine(Engine):
                     self.scaler.update()
 
         # record losses
-        if mutual_learning:
-            loss_summary['mutual_loss'] = mutual_loss.item()
         if self.compression_ctrl:
             loss_summary['compression_loss'] = compression_loss
         loss_summary['loss'] = loss.item()
@@ -201,7 +199,7 @@ class ImageAMSoftmaxEngine(Engine):
             loss = self.main_loss(logits, targets, aug_index=self.aug_index,
                                                 lam=self.lam, scale=self.scales[model_name])
             acc += metrics.accuracy(logits, targets)[0].item()
-            loss_summary[f'{model_name}'] = loss.item()
+            loss_summary[model_name] = loss.item()
 
             return loss, loss_summary, acc
 
