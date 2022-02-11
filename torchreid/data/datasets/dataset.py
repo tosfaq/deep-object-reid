@@ -25,39 +25,20 @@ class ImageDataset:
     """
 
     def __init__(self,
-                 train,
-                 test,
+                 data,
                  transform=None,
-                 mode='train',
                  verbose=True,
                  mixed_cls_heads_info={},
                  classes={},
                  **kwargs):
 
-        self.classes = classes
-        self.mixed_cls_heads_info = mixed_cls_heads_info
-        self.train = train
-        self.test = test
+        self.classes = {}
+        self.data = data
         self.transform = transform
-        self.mode = mode
         self.verbose = verbose
 
-        self.num_train_ids = self.get_num_ids(self.train)
-        if self.num_train_ids == 0: # workaround: test is a validation set
-            self.num_train_ids = self.get_num_ids(self.test)
-
-        self.data_counts = self.get_data_counts(self.train)
-
-        if self.mode == 'train':
-            self.data = self.train
-        elif self.mode == 'test':
-            self.data = self.test
-        else:
-            raise ValueError(f'Invalid mode. Got {self.mode}, but expected to be '
-                             'one of [train | test]')
-
-        if self.verbose:
-            self.show_summary()
+        self.num_train_ids = self.get_num_ids(self.data)
+        self.data_counts = self.get_data_counts(self.data)
 
     def __getitem__(self, index):
         input_record = self.data[index]
@@ -118,15 +99,7 @@ class ImageDataset:
                     ids.update(set(label))
             else:
                 ids.add(label)
-
-        if len(ids) != max(ids) + 1:
-            print("WARNING:: There are some categories are missing in this split for this dataset.")
-        num_cats = max(ids) + 1
-        return num_cats
-
-    def get_num_ids(self, data):
-        """Returns the number of training categories."""
-        return self.parse_data(data)
+        return len(ids)
 
     @staticmethod
     def check_before_run(required_files):
@@ -141,19 +114,3 @@ class ImageDataset:
         for fpath in required_files:
             if not osp.exists(fpath):
                 raise RuntimeError(f'"{fpath}" is not found')
-
-    def __repr__(self):
-        num_train_ids = self.parse_data(self.train)
-        num_test_ids = self.parse_data(self.test)
-
-        msg = '  ------------------------------\n' \
-              '  subset   | # ids | # items\n' \
-              '  ------------------------------\n' \
-              f'  train    | {num_train_ids:5d} | {len(self.train):7d}\n' \
-              f'  test     | {num_test_ids:5d} | {len(self.test):7d}\n' \
-              '  -------------------------------\n'
-
-        return msg
-
-    def show_summary(self):
-        print(self)
