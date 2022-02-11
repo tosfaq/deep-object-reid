@@ -107,7 +107,7 @@ class ImageDataManager():
             custom_dataset_roots=custom_dataset_roots,
             custom_dataset_types=custom_dataset_types,
             filter_classes=filter_classes,
-            num_classes=num_classes
+            num_classes=self._num_train_ids
         )
 
         self.test_loader = torch.utils.data.DataLoader(
