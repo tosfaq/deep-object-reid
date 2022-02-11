@@ -81,6 +81,7 @@ def get_default_config():
     cfg.model.gcn.emb_dim = 2048
     cfg.model.gcn.thau = 0.4
     cfg.model.export_onnx_opset = 9
+    cfg.model.tresnet_weights = ''
 
     # mutual learning, auxiliary model
     cfg.mutual_learning = CN()
@@ -488,7 +489,8 @@ def model_kwargs(cfg, num_classes):
         'thau': cfg.model.gcn.thau,
         'rho_gcn': cfg.model.gcn.rho,
         'hidden_dim': cfg.model.gcn.hidden_dim,
-        'emb_dim': cfg.model.gcn.emb_dim
+        'emb_dim': cfg.model.gcn.emb_dim,
+        'weights': cfg.model.tresnet_weights
     }
 
 

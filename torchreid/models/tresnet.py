@@ -374,13 +374,13 @@ def TResnetM(num_classes, **kwargs):
     return model
 
 
-def TResnetL(num_classes, **kwargs):
+def TResnetL(num_classes, weights, **kwargs):
     """Constructs a large TResnet model.
     """
     in_chans = 3
     layers_list = [3, 4, 23, 3]
     model = TResNet(layers=layers_list, num_classes=num_classes, in_chans=in_chans, first_two_layers=Bottleneck, **kwargs)
-    utils.load_pretrained_weights(model, '/ssd/ML_Decoder/tresnet_l.pth')
+    utils.load_pretrained_weights(model, weights)
     return model
 
 def TResnetXL(model_params):

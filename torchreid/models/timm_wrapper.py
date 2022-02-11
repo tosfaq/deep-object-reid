@@ -34,8 +34,6 @@ class TimmModelsWrapper(ModelInterface):
         self.model = timm.create_model(model_name,
                                        pretrained=pretrained,
                                        num_classes=self.num_classes)
-        if model_name == 'tresnet_l':
-            utils.load_pretrained_weights(self.model, '/ssd/ML_Decoder/tresnet_l.pth')
         self.num_head_features = self.model.num_features
         self.num_features = (self.model.conv_head.in_channels if self.is_mobilenet
                              else self.model.num_features)
