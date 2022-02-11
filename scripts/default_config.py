@@ -97,6 +97,8 @@ def get_default_config():
     cfg.data.tb_log_dir = ''  # path to save tensorboard log. If empty, log will be saved to data.save_dir
     cfg.data.min_samples_per_id = 1
     cfg.data.num_sampled_packages = 1
+    cfg.data.num_classes = None # provide full number of classes if evaluation / training
+                                #  will be on part of the classes from train dataset
 
     # custom_datasets
     cfg.custom_datasets = CN() # this node contains information about custom classification datasets
@@ -403,6 +405,7 @@ def imagedata_kwargs(cfg):
         'train_sampler': cfg.sampler.train_sampler,
         'custom_dataset_roots': cfg.custom_datasets.roots,
         'custom_dataset_types': cfg.custom_datasets.types,
+        'num_classes': cfg.data.num_classes
     }
 
 

@@ -52,6 +52,7 @@ class ImageDataManager():
         custom_dataset_roots=[''],
         custom_dataset_types=[''],
         filter_classes=None,
+        num_classes=None
     ):
         self.height = height
         self.width = width
@@ -77,7 +78,9 @@ class ImageDataManager():
         )
 
         self._data_counts = train_dataset.data_counts
-        self._num_train_ids = train_dataset.num_train_ids
+        self._num_train_ids = (train_dataset.num_train_ids
+                               if not num_classes
+                               else num_classes)
         if correct_batch_size:
             batch_size_train = self.calculate_batch(batch_size_train, len(train_dataset))
         batch_size_train = max(1, min(batch_size_train, len(train_dataset)))
