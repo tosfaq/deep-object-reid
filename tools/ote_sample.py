@@ -109,7 +109,7 @@ def main(args):
             configuration=environment.get_model_configuration(),
         )
 
-        print(f'Create base Task')
+        print('Create base Task')
         task_impl_path = model_template.entrypoints.base
         task_cls = get_task_class(task_impl_path)
         task = task_cls(task_environment=environment)
@@ -193,6 +193,6 @@ def main(args):
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    print(args)
-    sys.exit(main(args) or 0)
+    cl_args = parse_args()
+    print(cl_args)
+    sys.exit(main(cl_args) or 0)

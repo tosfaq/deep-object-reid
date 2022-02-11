@@ -5,6 +5,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+# pylint: disable=too-many-branches,multiple-statements
+
 from __future__ import absolute_import, division, print_function
 from abc import abstractmethod
 import datetime
@@ -18,7 +20,6 @@ import optuna
 
 import numpy as np
 import torch
-from torch.nn import functional as F
 from torch.optim.lr_scheduler import OneCycleLR
 
 from torchreid.integration.nncf.compression import (get_nncf_complession_stage,
@@ -130,7 +131,7 @@ class Engine:
             if use_ema_decay:
                 self.ema_model = ModelEmaV2(models, decay=ema_decay)
         self.main_model_name = self.get_model_names()[0]
-        self.scales = dict()
+        self.scales = {}
         for model_name, model in self.models.items():
             scale = get_model_attr(model, 'scale')
             if not get_model_attr(model, 'use_angle_simple_linear') and  scale != 1.:
@@ -139,7 +140,8 @@ class Engine:
         self.am_scale = self.scales[self.main_model_name] # for loss initialization
         assert initial_lr is not None
         self.lb_lr = initial_lr / lr_decay_factor
-        self.per_batch_annealing = isinstance(self.scheds[self.main_model_name], (CosineAnnealingCycleRestart, OneCycleLR))
+        self.per_batch_annealing = isinstance(self.scheds[self.main_model_name],
+                                              (CosineAnnealingCycleRestart, OneCycleLR))
 
     def _should_freeze_aux_models(self, epoch):
         if not self.should_freeze_aux_models:
@@ -187,8 +189,7 @@ class Engine:
             for name in names:
                 assert name in names_real
             return names
-        else:
-            return names_real
+        return names_real
 
     def save_model(self, epoch, save_dir, is_best=False, should_save_ema_model=False):
         def create_sym_link(path,name):
@@ -366,7 +367,7 @@ class Engine:
                 print(statistics.to_str())
                 if self.writer is not None and not lr_finder:
                     for key, value in get_nncf_prepare_for_tensorboard()(statistics).items():
-                        self.writer.add_scalar("compression/statistics/{0}".format(key),
+                        self.writer.add_scalar(f"compression/statistics/{key}",
                                                value, len(self.train_loader) * self.epoch)
 
             if stop_callback and stop_callback.check_stop():
@@ -417,14 +418,15 @@ class Engine:
                 if should_exit:
                     if self.compression_ctrl is None or \
                             (self.compression_ctrl is not None and
-                                self.compression_ctrl.compression_stage == get_nncf_complession_stage().FULLY_COMPRESSED):
+                                self.compression_ctrl.compression_stage == \
+                                    get_nncf_complession_stage().FULLY_COMPRESSED):
                         break
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_end()
         if lr_finder and lr_finder.mode != 'fast_ai': self.restore_model()
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
-        print('Elapsed {}'.format(elapsed))
+        print(f'Elapsed {elapsed}')
 
         if self.writer is not None:
             self.writer.close()
@@ -460,7 +462,8 @@ class Engine:
         print("backuping model...")
         model_device = next(self.models[self.main_model_name].parameters()).device
         # explicitly put the model on the CPU before storing it in memory
-        self.state_cacher.store(key="model", state_dict=get_model_attr(self.models[self.main_model_name], 'cpu')().state_dict())
+        self.state_cacher.store(key="model",
+                                state_dict=get_model_attr(self.models[self.main_model_name], 'cpu')().state_dict())
         self.state_cacher.store(key="optimizer", state_dict=self.optims[self.main_model_name].state_dict())
         # restore the model device
         get_model_attr(self.models[self.main_model_name],'to')(model_device)
@@ -519,24 +522,13 @@ class Engine:
                 eta_seconds = batch_time.avg * (nb_this_epoch+nb_future_epochs)
                 eta_str = str(datetime.timedelta(seconds=int(eta_seconds)))
                 print(
-                    'epoch: [{0}/{1}][{2}/{3}]\t'
-                    'time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                    'data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                    'cls acc {accuracy.val:.3f} ({accuracy.avg:.3f})\t'
-                    'eta {eta}\t'
-                    '{losses}\t'
-                    'lr {lr:.6f}'.format(
-                        self.epoch + 1,
-                        self.max_epoch,
-                        self.batch_idx + 1,
-                        self.num_batches,
-                        batch_time=batch_time,
-                        data_time=data_time,
-                        accuracy=accuracy,
-                        eta=eta_str,
-                        losses=losses,
-                        lr=self.get_current_lr()[0]
-                    )
+                    f'epoch: [{self.epoch + 1}/{self.max_epoch}][{self.batch_idx + 1}/{self.num_batches}]\t'
+                    f'time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                    f'data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                    f'cls acc {accuracy.val:.3f} ({accuracy.avg:.3f})\t'
+                    f'eta {eta_str}\t'
+                    f'{losses}\t'
+                    f'lr {self.get_current_lr()[0]:.6f}'
                 )
 
             if self.writer is not None and not lr_finder:
@@ -651,20 +643,22 @@ class Engine:
 
     @torch.no_grad()
     def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, lr_finder):
-        mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader, model, self.use_gpu)
+        mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader,
+                                                                                                      model,
+                                                                                                      self.use_gpu)
 
         if self.writer is not None and not lr_finder:
-            self.writer.add_scalar('Val/{}/mAP'.format(model_name), mAP, epoch + 1)
+            self.writer.add_scalar(f'Val/{model_name}/mAP', mAP, epoch + 1)
 
         if not lr_finder:
-            print('** Results ({}) **'.format(model_name))
-            print('mAP: {:.2%}'.format(mAP))
-            print('P_O: {:.2%}'.format(p_o))
-            print('R_O: {:.2%}'.format(r_o))
-            print('F_O: {:.2%}'.format(f_o))
-            print('mean_P_C: {:.2%}'.format(mean_p_c))
-            print('mean_R_C: {:.2%}'.format(mean_r_c))
-            print('mean_F_C: {:.2%}'.format(mean_f_c))
+            print(f'** Results ({model_name}) **')
+            print(f'mAP: {mAP:.2%}')
+            print(f'P_O: {p_o:.2%}')
+            print(f'R_O: {r_o:.2%}')
+            print(f'F_O: {f_o:.2%}')
+            print(f'mean_P_C: {mean_p_c:.2%}')
+            print(f'mean_R_C: {mean_r_c:.2%}')
+            print(f'mean_F_C: {mean_f_c:.2%}')
 
         return mAP
 
@@ -681,15 +675,15 @@ class Engine:
         cmc, mAP, norm_cm = metrics.evaluate_classification(data_loader, model, self.use_gpu, topk, labelmap)
 
         if self.writer is not None and not lr_finder:
-            self.writer.add_scalar('Val/{}/mAP'.format(model_name), mAP, epoch + 1)
+            self.writer.add_scalar(f'Val/{model_name}/mAP', mAP, epoch + 1)
             for i, r in enumerate(topk):
-                self.writer.add_scalar('Val/{}/Top-{}'.format(model_name, r), cmc[i], epoch + 1)
+                self.writer.add_scalar('Val/{model_name}/Top-{r}', cmc[i], epoch + 1)
 
         if not lr_finder:
-            print('** Results ({}) **'.format(model_name))
-            print('mAP: {:.2%}'.format(mAP))
+            print(f'** Results ({model_name}) **')
+            print(f'mAP: {mAP:.2%}')
             for i, r in enumerate(topk):
-                print('Top-{:<3}: {:.2%}'.format(r, cmc[i]))
+                print(f'Top-{r:<3}: {cmc[i]:.2%}')
             if norm_cm.shape[0] <= 20:
                 metrics.show_confusion_matrix(norm_cm)
 
@@ -721,7 +715,7 @@ class Engine:
         """
 
         if (epoch + 1) <= fixbase_epoch and open_layers is not None:
-            print('* Only train {} (epoch: {}/{})'.format(open_layers, epoch + 1, fixbase_epoch))
+            print(f'* Only train {open_layers} (epoch: {epoch + 1}/{fixbase_epoch})')
 
             for model in self.models.values():
                 open_specified_layers(model, open_layers, strict=False)

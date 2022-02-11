@@ -2,11 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import argparse
 import os.path as osp
 import sys
 import time
-import subprocess
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
@@ -52,7 +50,7 @@ def main():
 
     is_nncf_used = args.enable_quantization or args.enable_pruning
     if is_nncf_used:
-        print(f'Using NNCF -- making NNCF changes in config')
+        print('Using NNCF -- making NNCF changes in config')
         cfg = make_nncf_changes_in_config(cfg,
                                           args.enable_quantization,
                                           args.enable_pruning,
@@ -75,11 +73,11 @@ def main():
     datamanager = build_datamanager(cfg, args.classes)
     num_train_classes = datamanager.num_train_ids
 
-    print('Building main model: {}'.format(cfg.model.name))
+    print(f'Building main model: {cfg.model.name}')
     model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
     macs, num_params = get_model_complexity_info(model, (3, cfg.data.height, cfg.data.width),
                                                  as_strings=False, verbose=False, print_per_layer_stat=False)
-    print('Main model complexity: params={:,} flops={:,}'.format(num_params, macs * 2))
+    print(f'Main model complexity: params={num_params:,} flops={macs * 2:,}')
 
     aux_lr = cfg.train.lr # placeholder, needed for aux models, may be filled by nncf part below
     if is_nncf_used:

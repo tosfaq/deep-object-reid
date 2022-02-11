@@ -16,7 +16,7 @@ from torchreid.data.transforms import build_transforms
 from torchreid.utils import worker_init_fn
 
 
-class ImageDataManager(object):
+class ImageDataManager():
     r"""Image data manager.
 
     Args:
@@ -118,9 +118,9 @@ class ImageDataManager(object):
 
         print('\n')
         print('  **************** Summary ****************')
-        print('  # categories      : {}'.format(self._num_train_ids))
-        print('  # train images    : {}'.format(len(train_dataset)))
-        print('  # test images     : {}'.format(len(test_dataset)))
+        print(f'  # categories      : {self._num_train_ids}')
+        print(f'  # train images    : {len(train_dataset)}')
+        print(f'  # test images     : {len(test_dataset)}')
         print('  *****************************************')
         print('\n')
 

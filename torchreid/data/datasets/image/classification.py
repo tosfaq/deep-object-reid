@@ -45,7 +45,7 @@ class Classification(ImageDataset):
             classes = []
             train, test = [], []
 
-        super(Classification, self).__init__(train, test, mode=mode, **kwargs)
+        super().__init__(train, test, mode=mode, **kwargs)
         self.classes = classes
 
     @staticmethod
@@ -53,23 +53,24 @@ class Classification(ImageDataset):
         out_data = []
         classes_from_data = set()
         predefined_classes = []
-        for line in open(annot_path):
-            parts = line.strip().split(' ')
-            if parts[0] == "classes":
-                predefined_classes = parts[1].split(',')
-                continue
-            if len(parts) != 2:
-                print("line doesn't fits pattern. Expected: 'relative_path/to/image label'")
-                continue
-            rel_image_path, label_str = parts
-            full_image_path = osp.join(data_dir, rel_image_path)
-            if not osp.exists(full_image_path):
-                print(f"{full_image_path}: doesn't exist. Please check path or file")
-                continue
+        with open(annot_path) as f:
+            for line in f:
+                parts = line.strip().split(' ')
+                if parts[0] == "classes":
+                    predefined_classes = parts[1].split(',')
+                    continue
+                if len(parts) != 2:
+                    print("line doesn't fits pattern. Expected: 'relative_path/to/image label'")
+                    continue
+                rel_image_path, label_str = parts
+                full_image_path = osp.join(data_dir, rel_image_path)
+                if not osp.exists(full_image_path):
+                    print(f"{full_image_path}: doesn't exist. Please check path or file")
+                    continue
 
-            label = int(label_str)
-            classes_from_data.add(label)
-            out_data.append((full_image_path, label))
+                label = int(label_str)
+                classes_from_data.add(label)
+                out_data.append((full_image_path, label))
         classes = predefined_classes if predefined_classes else classes_from_data
         class_to_idx = {cls: indx for indx, cls in enumerate(classes)}
         return out_data, class_to_idx
@@ -174,11 +175,11 @@ class ClassificationImageFolder(ImageDataset):
         def is_valid(filename):
             return not filename.startswith('.') and filename.lower().endswith(ALLOWED_EXTS)
 
-        def find_classes(dir, filter_names=None):
+        def find_classes(folder, filter_names=None):
             if filter_names:
-                classes = [d.name for d in os.scandir(dir) if d.is_dir() and d.name in filter_names]
+                classes = [d.name for d in os.scandir(folder) if d.is_dir() and d.name in filter_names]
             else:
-                classes = [d.name for d in os.scandir(dir) if d.is_dir()]
+                classes = [d.name for d in os.scandir(folder) if d.is_dir()]
             classes.sort()
             class_to_idx = {classes[i]: i for i in range(len(classes))}
             return class_to_idx
@@ -197,7 +198,7 @@ class ClassificationImageFolder(ImageDataset):
                     if is_valid(path):
                         out_data.append((path, class_index))
 
-        if not len(out_data):
+        if not out_data:
             print('Failed to locate images in folder ' + data_dir + f' with extensions {ALLOWED_EXTS}')
 
         return out_data, class_to_idx
@@ -234,7 +235,7 @@ class MultiLabelClassification(ImageDataset):
             train, test = [], []
 
 
-        super(MultiLabelClassification, self).__init__(train, test, mode=mode, **kwargs)
+        super().__init__(train, test, mode=mode, **kwargs)
         self.classes = classes
 
     @staticmethod
