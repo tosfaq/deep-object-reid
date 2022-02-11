@@ -33,7 +33,8 @@ class ImageDataset:
                  num_classes=None,
                  **kwargs):
 
-        self.classes = {}
+        self.classes = classes
+        self.mixed_cls_heads_info = mixed_cls_heads_info
         self.data = data
         self.transform = transform
         self.verbose = verbose
@@ -82,7 +83,7 @@ class ImageDataset:
 
         return counts
 
-    def parse_data(self, data):
+    def get_num_ids(self, data):
         """Parses data list and returns the number of categories.
         """
         if not data:
