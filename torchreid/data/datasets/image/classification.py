@@ -136,7 +136,7 @@ class ClassificationImageFolder(ImageDataset):
             self.root, filter_classes
         )
 
-        super().__init__(data **kwargs)
+        super().__init__(data, **kwargs)
         self.classes = classes
 
 
@@ -194,7 +194,7 @@ class MultiLabelClassification(ImageDataset):
             self.data_dir,
         )
 
-        super().__init__(data **kwargs)
+        super().__init__(data, **kwargs)
         self.classes = classes
 
     @staticmethod

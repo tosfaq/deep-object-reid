@@ -30,6 +30,7 @@ class ImageDataset:
                  verbose=True,
                  mixed_cls_heads_info={},
                  classes={},
+                 num_classes=None,
                  **kwargs):
 
         self.classes = {}
@@ -37,7 +38,9 @@ class ImageDataset:
         self.transform = transform
         self.verbose = verbose
 
-        self.num_train_ids = self.get_num_ids(self.data)
+        self.num_train_ids = (self.get_num_ids(self.data)
+                              if not num_classes
+                              else num_classes)
         self.data_counts = self.get_data_counts(self.data)
 
     def __getitem__(self, index):

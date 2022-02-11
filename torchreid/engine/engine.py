@@ -583,7 +583,8 @@ class Engine(metaclass=abc.ABCMeta):
         top1, cur_top1, ema_top1 = [-1]*3
         should_save_ema_model = False
 
-        print('##### Evaluating test dataset) #####')
+        print('##### Evaluating test dataset #####')
+        # TO DO reduce amount of code for evaluation functions (DRY rule)
         for model_id, (model_name, model) in enumerate(self.models.items()):
             ema_condition = (self.use_ema_decay and not lr_finder
                     and not test_only and model_name == self.main_model_name)
