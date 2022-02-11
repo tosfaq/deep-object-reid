@@ -30,9 +30,12 @@ class ImageDataset:
                  transform=None,
                  mode='train',
                  verbose=True,
+                 mixed_cls_heads_info={},
+                 classes={},
                  **kwargs):
 
-        self.classes = {}
+        self.classes = classes
+        self.mixed_cls_heads_info = mixed_cls_heads_info
         self.train = train
         self.test = test
         self.transform = transform
@@ -63,9 +66,12 @@ class ImageDataset:
         obj_id = input_record[1]
 
         if isinstance(obj_id, (tuple, list)): # when multi-label classification is available
-            targets = torch.zeros(self.num_train_ids)
-            for obj in obj_id:
-                targets[obj] = 1
+            if len(self.mixed_cls_heads_info):
+                targets = torch.IntTensor(obj_id)
+            else:
+                targets = torch.zeros(self.num_train_ids)
+                for obj in obj_id:
+                    targets[obj] = 1
             obj_id = targets
 
         if self.transform is not None:
@@ -92,8 +98,7 @@ class ImageDataset:
 
         return counts
 
-    @staticmethod
-    def parse_data(data):
+    def parse_data(self, data):
         """Parses data list and returns the number of categories.
         """
         if not data:
@@ -102,7 +107,15 @@ class ImageDataset:
         for record in data:
             label = record[1]
             if isinstance(label, (list, tuple)):
-                ids.update(set(label))
+                if self.mixed_cls_heads_info:
+                    for i in range(self.mixed_cls_heads_info['num_multiclass_heads']):
+                        if label[i] >= 0:
+                            ids.update([self.mixed_cls_heads_info['head_idx_to_logits_range'][i][0] + label[i]])
+                    for i in range(self.mixed_cls_heads_info['num_multilabel_classes']):
+                        if label[self.mixed_cls_heads_info['num_multiclass_heads'] + i]:
+                            ids.update([self.mixed_cls_heads_info['num_single_label_classes'] + i])
+                else:
+                    ids.update(set(label))
             else:
                 ids.add(label)
 

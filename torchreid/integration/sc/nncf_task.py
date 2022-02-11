@@ -192,8 +192,10 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
         train_subset = dataset.get_subset(Subset.TRAINING)
         val_subset = dataset.get_subset(Subset.VALIDATION)
         self._cfg.custom_datasets.roots = [OTEClassificationDataset(train_subset, self._labels, self._multilabel,
+                                                                    self._hierarchical, self._multihead_class_info,
                                                                     keep_empty_label=self._empty_label in self._labels),
                                            OTEClassificationDataset(val_subset, self._labels, self._multilabel,
+                                                                    self._hierarchical, self._multihead_class_info,
                                                                     keep_empty_label=self._empty_label in self._labels)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
 
