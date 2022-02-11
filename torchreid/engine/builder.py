@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from torchreid.engine import (ImageAMSoftmaxEngine, MultilabelEngine)
+from .image import (ImageAMSoftmaxEngine, MultilabelEngine)
 
 
 def build_engine(cfg, datamanager, model, optimizer, scheduler,

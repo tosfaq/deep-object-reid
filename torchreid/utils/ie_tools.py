@@ -19,7 +19,6 @@ import os
 
 import cv2 as cv
 import numpy as np
-from openvino.inference_engine import IECore
 from torchreid.models.common import ModelInterface
 
 
@@ -46,16 +45,16 @@ class IEModel:
         return np.copy(res[self.output_key])
 
     def forward_async(self, img):
-        id = len(self.reqs_ids)
-        self.net.start_async(request_id=id,
+        r_id = len(self.reqs_ids)
+        self.net.start_async(request_id=r_id,
                              inputs={self.input_key: self._preprocess(img)})
-        self.reqs_ids.append(id)
+        self.reqs_ids.append(r_id)
 
     def grab_all_async(self):
         outputs = []
-        for id in self.reqs_ids:
-            self.net.requests[id].wait(-1)
-            res = self.net.requests[id].output_blobs[self.output_key].buffer
+        for r_id in self.reqs_ids:
+            self.net.requests[r_id].wait(-1)
+            res = self.net.requests[r_id].output_blobs[self.output_key].buffer
             outputs.append(np.copy(res))
         self.reqs_ids = []
         return outputs

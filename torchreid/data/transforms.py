@@ -11,6 +11,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+# pylint: disable=too-many-lines,too-many-branches
+
 from __future__ import absolute_import, division, print_function
 import math
 import random
@@ -26,7 +28,7 @@ from torchvision.transforms import functional as F
 from randaugment import RandAugment
 
 
-class RandomHorizontalFlip(object):
+class RandomHorizontalFlip():
     def __init__(self, p=0.5):
         self.p = p
 
@@ -39,7 +41,7 @@ class RandomHorizontalFlip(object):
         return image
 
 
-class CenterCrop(object):
+class CenterCrop():
     def __init__(self, margin=0, **kwargs):
         self.margin = margin
 
@@ -57,7 +59,7 @@ class CenterCrop(object):
         return image
 
 
-class RandomCrop(object):
+class RandomCrop():
     def __init__(self, p=0.5, scale=0.9, static=False, margin=None,
                     target_ar=None, align_ar=False, align_center=False, **kwargs):
         self.p = p
@@ -132,7 +134,7 @@ class RandomCrop(object):
         return image
 
 
-class RandomErasing(object):
+class RandomErasing():
     """Randomly erases an image patch.
 
     Origin: `<https://github.com/zhunzhong07/Random-Erasing>`_
@@ -168,7 +170,7 @@ class RandomErasing(object):
 
         image_size = image.size() if self.norm_image else image.size
 
-        for attempt in range(100):
+        for _ in range(100):
             source_area = image_size[0] * image_size[1]
             target_area = random.uniform(self.sl, self.sh) * source_area  # nosec
             aspect_ratio = random.uniform(self.rl, self.rh)  # nosec
@@ -180,7 +182,8 @@ class RandomErasing(object):
                 x1 = random.randint(0, image_size[0] - h)  # nosec
                 y1 = random.randint(0, image_size[1] - w)  # nosec
 
-                fill_color = self.fill_color if self.fill_color is not None else [random.randint(0, 255)] * 3  # nosec  # noqa
+                fill_color = \
+                    self.fill_color if self.fill_color is not None else [random.randint(0, 255)] * 3 # nosec # noqa
                 if self.norm_image:
                     fill_color = np.array(fill_color) / 255.0
 
@@ -195,7 +198,7 @@ class RandomErasing(object):
         return image
 
 
-class ColorAugmentation(object):
+class ColorAugmentation():
     """Randomly alters the intensities of RGB channels.
 
     Reference:
@@ -249,7 +252,7 @@ class RandomColorJitter(ColorJitter):
         return image
 
 
-class RandomGrayscale(object):
+class RandomGrayscale():
     def __init__(self, p=0.1):
         self.p = p
 
@@ -261,7 +264,7 @@ class RandomGrayscale(object):
         return image
 
 
-class Equalize(object):
+class Equalize():
     def __init__(self, p=0.5, **kwargs):
         self.p = p
 
@@ -271,7 +274,7 @@ class Equalize(object):
         return ImageOps.equalize(image)
 
 
-class Posterize(object):
+class Posterize():
     def __init__(self, p=0.5, bits=1, **kwargs):
         self.p = p
         self.bits = bits
@@ -283,7 +286,7 @@ class Posterize(object):
         return ImageOps.posterize(image, bit)
 
 
-class RandomNegative(object):
+class RandomNegative():
     def __init__(self, p=0.1, **kwargs):
         self.p = p
 
@@ -293,7 +296,7 @@ class RandomNegative(object):
         return ImageOps.invert(image)
 
 
-class ForceGrayscale(object):
+class ForceGrayscale():
     def __init__(self):
         pass
 
@@ -305,7 +308,7 @@ class ForceGrayscale(object):
         return image
 
 
-class RandomRotate(object):
+class RandomRotate():
     """Random rotate
     """
 
@@ -329,7 +332,7 @@ class RandomRotate(object):
         return image
 
 
-class CoarseDropout(object):
+class CoarseDropout():
     """CoarseDropout of the rectangular regions in the image.
     Args:
         max_holes (int): Maximum number of regions to zero out.
@@ -369,19 +372,18 @@ class CoarseDropout(object):
         self.fill_value = fill_value
         self.mask_fill_value = mask_fill_value
         if not 0 < self.min_holes <= self.max_holes:
-            raise ValueError("Invalid combination of min_holes and max_holes. Got: {}".format([min_holes, max_holes]))
+            raise ValueError(f"Invalid combination of min_holes and max_holes. Got: {[min_holes, max_holes]}")
         if not 0 < self.min_height <= self.max_height:
             raise ValueError(
-                "Invalid combination of min_height and max_height. Got: {}".format([min_height, max_height])
+                f"Invalid combination of min_height and max_height. Got: {[min_height, max_height]}"
             )
         if not 0 < self.min_width <= self.max_width:
-            raise ValueError("Invalid combination of min_width and max_width. Got: {}".format([min_width, max_width]))
+            raise ValueError(f"Invalid combination of min_width and max_width. Got: {[min_width, max_width]}")
 
     def __call__(self, image):
 
         if random.uniform(0, 1) > self.p:  # nosec
             return image
-
 
         height, width = image.size
 
@@ -408,7 +410,7 @@ class CoarseDropout(object):
 
         return Image.fromarray(image)
 
-class Cutout(object):
+class Cutout():
     """Randomly mask out one or more patches from an image.
     Args:
         n_holes (int): Number of patches to cut out of each image.
@@ -445,7 +447,7 @@ class Cutout(object):
         return image
 
 
-class RandomFigures(object):
+class RandomFigures():
     """Insert random figure or some figures from the list [line, rectangle, circle]
     with random color and thickness
     """
@@ -472,7 +474,7 @@ class RandomFigures(object):
                 if hasattr(cv2, figure):
                     self.figures.append(getattr(cv2, figure))
                 else:
-                    raise ValueError('Unknown figure: {}'.format(figure))
+                    raise ValueError(f'Unknown figure: {figure}')
 
     def __call__(self, image):
         if random.uniform(0, 1) > self.p:  # nosec
@@ -484,7 +486,7 @@ class RandomFigures(object):
             figure = [self.figures[random.randint(0, len(self.figures) - 1)]]  # nosec  # noqa
         else:
             figure = []
-            for i in range(len(self.figures)):
+            for i, _ in enumerate(self.figures):
                 if random.uniform(0, 1) > self.figure_prob:  # nosec
                     figure.append(self.figures[i])
 
@@ -492,7 +494,7 @@ class RandomFigures(object):
         for f in figure:
             p1 = (random.randint(0, w), random.randint(0, h))  # nosec
             p2 = (random.randint(0, w), random.randint(0, h))  # nosec
-            color = tuple([random.randint(0, 256) for _ in range(3)]) if self.random_color else (0, 0, 0)  # nosec  # noqa
+            color = tuple(random.randint(0, 256) for _ in range(3)) if self.random_color else (0, 0, 0) # nosec # noqa
             thickness = random.randint(*self.thicknesses)  # nosec
             if f != cv2.circle:
                 cv_image = f(cv_image, p1, p2, color, thickness)
@@ -503,7 +505,7 @@ class RandomFigures(object):
         return cv_image
 
 
-class GaussianBlur(object):
+class GaussianBlur():
     """Apply gaussian blur with random parameters
     """
 
@@ -521,7 +523,7 @@ class GaussianBlur(object):
         return Image.fromarray(image)
 
 
-class GaussianNoise(object):
+class GaussianNoise():
     """Adds gaussian noise with random parameters
     """
 
@@ -662,8 +664,7 @@ class OpsFabric:
             interpolation = kwargs.pop('resample', Image.BILINEAR)
             if isinstance(interpolation, (list, tuple)):
                 return random.choice(interpolation)  # nosec
-            else:
-                return interpolation
+            return interpolation
 
         kwargs['resample'] = _interpolation(kwargs)
 
@@ -732,46 +733,46 @@ class OpsFabric:
         # range [-30, 30]
         level = (level / self.max_level) * 30.
         level = self.randomly_negate(level)
-        return level,
+        return (level,)
 
     def _enhance_increasing_level_to_arg(self, level, _hparams):
         # range [0.1, 1.9]
         level = (level / self.max_level) * .9
         level = 1.0 + self.randomly_negate(level)
-        return level,
+        return (level,)
 
     def _shear_level_to_arg(self, level, _hparams):
         # range [-0.3, 0.3]
         level = (level / self.max_level) * 0.3
         level = self.randomly_negate(level)
-        return level,
+        return (level,)
 
     def _translate_rel_level_to_arg(self, level, hparams):
         # default range [-0.45, 0.45]
         translate_pct = hparams.get('translate_pct', 0.45)
         level = (level / self.max_level) * translate_pct
         level = self.randomly_negate(level)
-        return level,
+        return (level,)
 
     def _posterize_level_to_arg(self, level, _hparams):
         # range [0, 4], 'keep 0 up to 4 MSB of original image'
         # intensity/severity of augmentation decreases with level
-        return int((level / self.max_level) * 4),
+        return (int((level / self.max_level) * 4),)
 
     def _posterize_increasing_level_to_arg(self, level, hparams):
         # range [4, 0], 'keep 4 down to 0 MSB of original image',
         # intensity/severity of augmentation increases with level
-        return 4 - self._posterize_level_to_arg(level, hparams)[0],
+        return (4 - self._posterize_level_to_arg(level, hparams)[0],)
 
     def _solarize_level_to_arg(self, level, _hparams):
         # range [0, 256]
         # intensity/severity of augmentation decreases with level
-        return int((level / self.max_level) * 256),
+        return (int((level / self.max_level) * 256),)
 
     def _solarize_increasing_level_to_arg(self, level, _hparams):
         # range [0, 256]
         # intensity/severity of augmentation increases with level
-        return 256 - self._solarize_level_to_arg(level, _hparams)[0],
+        return (256 - self._solarize_level_to_arg(level, _hparams)[0],)
 
     def __call__(self, image):
         if self.prob < 1.0 and random.random() > self.prob:  # nosec
@@ -848,7 +849,7 @@ def augment_and_mix_transform(config_str, image_mean, translate_const=250, grey=
     p=1.0
     hparams = dict(
             translate_const=translate_const,
-            image_mean=tuple([int(c * 256) for c in image_mean]),
+            image_mean=tuple(int(c * 256) for c in image_mean),
             magnitude_std=float('inf')
         )
     config = config_str.split('-')
@@ -913,11 +914,12 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
                                     align_ar=transforms.random_crop.scale,
                                     align_center=transforms.random_crop.align_center,
                                     target_ar=float(height)/float(width))]
-    print('+ resize to {}x{}'.format(height, width))
+    print(f'+ resize to {height}x{width}')
     transform_tr += [Resize((height, width))]
     if transforms.augmix.enable:
         print('+ AugMix')
-        transform_tr += [augment_and_mix_transform(config_str=transforms.augmix.cfg_str, image_mean=norm_mean, grey=transforms.augmix.grey_imgs)]
+        transform_tr += [augment_and_mix_transform(config_str=transforms.augmix.cfg_str, image_mean=norm_mean,
+                                                   grey=transforms.augmix.grey_imgs)]
     if transforms.randaugment.enable:
         print('+ RandAugment')
         transform_tr += [RandomAugment()]
@@ -969,7 +971,7 @@ def build_transforms(height, width, transforms=None, norm_mean=(0.485, 0.456, 0.
 
     print('+ to torch tensor of range [0, 1]')
     transform_tr += [ToTensor()]
-    print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
+    print(f'+ normalization (mean={norm_mean}, std={norm_std})')
     transform_tr += [Normalize(mean=norm_mean, std=norm_std)]
     if transforms.random_erase.enable and transforms.random_erase.norm_image:
         print('+ random erase')
@@ -984,7 +986,7 @@ def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_st
                          transforms=None, **kwargs):
     def get_resize(h, w, scale, to_pill=True):
         t_h, t_w = int(h * scale), int(w * scale)
-        print('+ resize to {}x{}'.format(t_h, t_w))
+        print(f'+ resize to {t_h}x{t_w}')
         return Resize((t_h, t_w), to_pill=to_pill)
     print('Building test transforms ...')
     transform_te = []
@@ -1002,7 +1004,7 @@ def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_st
         transform_te.append(ForceGrayscale())
     print('+ to torch tensor of range [0, 1]')
     transform_te.append(ToTensor())
-    print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
+    print(f'+ normalization (mean={norm_mean}, std={norm_std})')
     transform_te.append(Normalize(mean=norm_mean, std=norm_std))
     transform_te = Compose(transform_te)
 
@@ -1012,9 +1014,9 @@ def build_test_transform(height, width, norm_mean=(0.485, 0.456, 0.406), norm_st
 def build_inference_transform(height, width, norm_mean=(0.485, 0.456, 0.406),
                               norm_std=(0.229, 0.224, 0.225), **kwargs):
     print('Building inference transforms ...')
-    print('+ resize to {}x{}'.format(height, width))
+    print(f'+ resize to {height}x{width}')
     print('+ to torch tensor of range [0, 1]')
-    print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
+    print(f'+ normalization (mean={norm_mean}, std={norm_std})')
     transform_te = Compose([
         Resize((height, width)),
         ToTensor(),

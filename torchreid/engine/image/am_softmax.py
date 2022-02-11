@@ -9,12 +9,12 @@ from __future__ import absolute_import, division, print_function
 
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 import torch.nn.functional as F
 from torch.cuda.amp import GradScaler, autocast
 
 from torchreid import metrics
-from torchreid.engine import Engine
+from torchreid.engine.engine import Engine
 from torchreid.utils import sample_mask
 from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss)
 from torchreid.optim import SAM
@@ -29,23 +29,23 @@ class ImageAMSoftmaxEngine(Engine):
                  conf_penalty, pr_product, m, clip_grad, symmetric_ce, enable_rsc,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
                  target_metric, use_ema_decay, ema_decay, mix_precision, **kwargs):
-        super(ImageAMSoftmaxEngine, self).__init__(datamanager,
-                                                   models=models,
-                                                   optimizers=optimizers,
-                                                   schedulers=schedulers,
-                                                   use_gpu=use_gpu,
-                                                   save_all_chkpts=save_all_chkpts,
-                                                   train_patience=train_patience,
-                                                   lr_decay_factor=lr_decay_factor,
-                                                   early_stopping=early_stopping,
-                                                   should_freeze_aux_models=should_freeze_aux_models,
-                                                   nncf_metainfo=nncf_metainfo,
-                                                   compression_ctrl=compression_ctrl,
-                                                   initial_lr=initial_lr,
-                                                   target_metric=target_metric,
-                                                   lr_finder=lr_finder,
-                                                   use_ema_decay=use_ema_decay,
-                                                   ema_decay=ema_decay)
+        super().__init__(datamanager,
+                         models=models,
+                         optimizers=optimizers,
+                         schedulers=schedulers,
+                         use_gpu=use_gpu,
+                         save_all_chkpts=save_all_chkpts,
+                         train_patience=train_patience,
+                         lr_decay_factor=lr_decay_factor,
+                         early_stopping=early_stopping,
+                         should_freeze_aux_models=should_freeze_aux_models,
+                         nncf_metainfo=nncf_metainfo,
+                         compression_ctrl=compression_ctrl,
+                         initial_lr=initial_lr,
+                         target_metric=target_metric,
+                         lr_finder=lr_finder,
+                         use_ema_decay=use_ema_decay,
+                         ema_decay=ema_decay)
 
         assert loss_name in ['softmax', 'am_softmax']
         self.loss_name = loss_name
@@ -70,7 +70,6 @@ class ImageAMSoftmaxEngine(Engine):
         self.scaler = GradScaler(enabled=mix_precision)
 
         self.num_classes = self.datamanager.num_train_ids
-        self.ml_losses = list()
         self.loss_kl = nn.KLDivLoss(reduction='batchmean')
         if loss_name == 'softmax':
             self.main_loss = CrossEntropyLoss(
@@ -109,7 +108,7 @@ class ImageAMSoftmaxEngine(Engine):
         for step in steps:
             # if sam is enabled then statistics will be written each step, but will be saved only the second time
             # this is made just for convenience
-            loss_summary = dict()
+            loss_summary = {}
             all_models_logits = []
 
             for i, model_name in enumerate(model_names):
@@ -183,17 +182,17 @@ class ImageAMSoftmaxEngine(Engine):
 
     def _forward_model(self, model, imgs, targets,):
         with autocast(enabled=self.mix_precision):
-            run_kwargs = dict()
+            run_kwargs = {}
             if self.enable_rsc:
                 run_kwargs['gt_labels'] = targets
 
-                model_output = model(imgs, **run_kwargs)
-                all_unscaled_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
+            model_output = model(imgs, **run_kwargs)
+            all_unscaled_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
             return all_unscaled_logits
 
     def _single_model_losses(self, logits,  targets, model_name):
         with autocast(enabled=self.mix_precision):
-            loss_summary = dict()
+            loss_summary = {}
             acc = 0
             trg_num_samples = logits.numel()
             if trg_num_samples == 0:
@@ -300,7 +299,8 @@ class ImageAMSoftmaxEngine(Engine):
             if round(self.current_lr, 8) < round(self.initial_lr, 8) and self.warmup_finished:
                 self.iter_to_wait += 1
                 if self.iter_to_wait >= self.train_patience:
-                    print("LOG:: The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
+                    print("LOG:: The training should be stopped due to no improvements",
+                           f"for {self.train_patience} epochs")
                     should_exit = True
         else:
             self.best_metric = current_metric

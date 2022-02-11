@@ -24,7 +24,8 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0,
         out_scores, gt_labels, all_feature_maps, all_feature_vecs = [], [], [], []
         for batch_idx, data in enumerate(data_loader):
             batch_images, batch_labels = data[0], data[1]
-            if perf_monitor: perf_monitor.on_test_batch_begin(batch_idx, None)
+            if perf_monitor:
+                perf_monitor.on_test_batch_begin(batch_idx, None)
             if use_gpu:
                 batch_images = batch_images.cuda()
 
@@ -32,7 +33,8 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0,
                 for i, label in enumerate(labelmap):
                     batch_labels[torch.where(batch_labels==i)] = label
 
-            if perf_monitor: perf_monitor.on_test_batch_end(batch_idx, None)
+            if perf_monitor:
+                perf_monitor.on_test_batch_end(batch_idx, None)
 
             if return_featuremaps:
                 logits, features, global_features = model.forward(batch_images,
@@ -165,10 +167,10 @@ def norm_confusion_matrix(scores, labels):
 
 
 def show_confusion_matrix(norm_cm):
-    header = ['class {}'.format(i) for i in range(norm_cm.shape[0])]
+    header = [f'class {i}' for i in range(norm_cm.shape[0])]
     data_info = []
     for line in norm_cm:
-        data_info.append(['{:.2f}'.format(1e2 * v) for v in line])
+        data_info.append([f'{1e2 * v:.2f}' for v in line])
     table_data = [header] + data_info
     table = AsciiTable(table_data)
     print('Confusion matrix:\n' + table.table)
@@ -179,7 +181,7 @@ def get_invalid(scores, gt_labels, data_info):
     matches = pred_labels != gt_labels
 
     unmatched = defaultdict(list)
-    for i in range(len(matches)):
+    for i, _ in enumerate(matches):
         if matches[i]:
             unmatched[gt_labels[i]].append((data_info[i], pred_labels[i]))
 
@@ -269,7 +271,7 @@ def evaluate_multilabel_classification(dataloader, model, use_gpu):
     else:
         scores, labels = score_extraction(dataloader, model, use_gpu)
 
-    scores = 1. / (1 + np.exp(-scores))
+    scores = 1. / (1. + np.exp(-1. * scores))
     mAP_score = mAP(labels, scores)
 
     return mAP_score

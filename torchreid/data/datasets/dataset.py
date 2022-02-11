@@ -6,9 +6,7 @@
 #
 
 from __future__ import absolute_import, division, print_function
-import operator
 import os.path as osp
-from collections import defaultdict
 
 import torch
 
@@ -52,8 +50,8 @@ class ImageDataset:
         elif self.mode == 'test':
             self.data = self.test
         else:
-            raise ValueError('Invalid mode. Got {}, but expected to be '
-                             'one of [train | test]'.format(self.mode))
+            raise ValueError(f'Invalid mode. Got {self.mode}, but expected to be '
+                             'one of [train | test]')
 
         if self.verbose:
             self.show_summary()
@@ -129,7 +127,7 @@ class ImageDataset:
 
         for fpath in required_files:
             if not osp.exists(fpath):
-                raise RuntimeError('"{}" is not found'.format(fpath))
+                raise RuntimeError(f'"{fpath}" is not found')
 
     def __repr__(self):
         num_train_ids = self.parse_data(self.train)
@@ -138,12 +136,9 @@ class ImageDataset:
         msg = '  ------------------------------\n' \
               '  subset   | # ids | # items\n' \
               '  ------------------------------\n' \
-              '  train    | {:5d} | {:7d}\n' \
-              '  test     | {:5d} | {:7d}\n' \
-              '  -------------------------------\n'.format(
-                  num_train_ids, len(self.train),
-                  num_test_ids, len(self.test)
-              )
+              f'  train    | {num_train_ids:5d} | {len(self.train):7d}\n' \
+              f'  test     | {num_test_ids:5d} | {len(self.test):7d}\n' \
+              '  -------------------------------\n'
 
         return msg
 

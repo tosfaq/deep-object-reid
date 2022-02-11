@@ -7,7 +7,7 @@ from torch.cuda.amp import GradScaler, autocast
 from torchreid import metrics
 from torchreid.losses import AsymmetricLoss, AMBinaryLoss
 from torchreid.optim import SAM
-from torchreid.engine import Engine
+from torchreid.engine.engine import Engine
 
 class MultilabelEngine(Engine):
     r"""Multilabel classification engine. It supports ASL, BCE and Angular margin loss with binary classification."""
@@ -85,7 +85,7 @@ class MultilabelEngine(Engine):
         for step in steps:
             # if sam is enabled then statistics will be written each step, but will be saved only the second time
             # this is made just for convenience
-            loss_summary = dict()
+            loss_summary = {}
             all_models_logits = []
             num_models = len(self.models)
 
@@ -164,7 +164,7 @@ class MultilabelEngine(Engine):
 
     def _single_model_losses(self, logits,  targets, model_name):
         with autocast(enabled=self.mix_precision):
-            loss_summary = dict()
+            loss_summary = {}
             acc = 0
             trg_num_samples = logits.numel()
             if trg_num_samples == 0:
@@ -207,7 +207,7 @@ class MultilabelEngine(Engine):
         if is_best and self.warmup_finished:
             self.iter_to_wait += 1
             if self.iter_to_wait >= self.train_patience:
-                print("LOG:: The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
+                print(f"LOG:: The training should be stopped due to no improvements for {self.train_patience} epochs")
                 should_exit = True
         elif is_best:
             self.ema_smooth(accuracy)
