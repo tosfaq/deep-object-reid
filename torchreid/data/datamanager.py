@@ -75,19 +75,18 @@ class ImageDataManager():
             custom_dataset_roots=custom_dataset_roots,
             custom_dataset_types=custom_dataset_types,
             filter_classes=filter_classes,
+            num_classes=num_classes
         )
 
         self._data_counts = train_dataset.data_counts
-        self._num_train_ids = (train_dataset.num_train_ids
-                               if not num_classes
-                               else num_classes)
+        self._num_train_ids = train_dataset.num_train_ids
         if correct_batch_size:
             batch_size_train = self.calculate_batch(batch_size_train, len(train_dataset))
         batch_size_train = max(1, min(batch_size_train, len(train_dataset)))
         self.train_loader = torch.utils.data.DataLoader(
             train_dataset,
             sampler=build_train_sampler(
-                train_dataset.train,
+                train_dataset.data,
                 train_sampler,
             ),
             batch_size=batch_size_train,
@@ -107,8 +106,10 @@ class ImageDataManager():
             root=root,
             custom_dataset_roots=custom_dataset_roots,
             custom_dataset_types=custom_dataset_types,
-            filter_classes=filter_classes
+            filter_classes=filter_classes,
+            num_classes=num_classes
         )
+
         self.test_loader = torch.utils.data.DataLoader(
             test_dataset,
             batch_size=max(min(batch_size_test, len(test_dataset)), 1),
