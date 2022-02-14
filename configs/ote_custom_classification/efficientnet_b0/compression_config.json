@@ -13,8 +13,7 @@
             "batch_size": 64,
             "ema": {
                 "enable": false
-            },
-            "mix_precision": false
+            }
         },
         "test": {
             "batch_size": 64
