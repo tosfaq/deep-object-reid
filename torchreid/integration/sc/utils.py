@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions
 # and limitations under the License.
 
+from enum import Enum, auto
 import importlib
 import json
 import os
@@ -19,6 +20,7 @@ import shutil
 import tempfile
 import time
 from os import path as osp
+from operator import itemgetter
 from typing import List
 
 import cv2 as cv
@@ -39,6 +41,13 @@ from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.train_parameters import UpdateProgressCallback
 from ote_sdk.usecases.reporting.time_monitor_callback import TimeMonitorCallback
 
+# from sc_sdk.utils.label_resolver import LabelResolver
+
+class ClassificationType(Enum):
+    MULTICLASS = auto()
+    MULTILABEL = auto()
+    MULTIHEAD = auto()
+
 
 class ClassificationDatasetAdapter(DatasetEntity):
     def __init__(self,
@@ -51,7 +60,7 @@ class ClassificationDatasetAdapter(DatasetEntity):
                  **kwargs):
         self.data_roots = {}
         self.ann_files = {}
-        self.multilabel = False
+        self.data_type = ClassificationType.MULTICLASS
         if train_data_root:
             self.data_roots[Subset.TRAINING] = train_data_root
             self.ann_files[Subset.TRAINING] = train_ann_file
@@ -67,13 +76,11 @@ class ClassificationDatasetAdapter(DatasetEntity):
                 self.data_roots[k] = osp.abspath(v)
                 if self.ann_files[k] and '.json' in self.ann_files[k] and osp.isfile(self.ann_files[k]):
                     self.data_roots[k] = osp.dirname(self.ann_files[k])
-                    self.multilabel = True
-                    self.annotations[k] = self._load_annotation_multilabel(self.ann_files[k], self.data_roots[k])
+                    self.annotations[k], self.data_type = \
+                        self._load_text_annotation(self.ann_files[k], self.data_roots[k])
                 else:
-                    self.annotations[k] = self._load_annotation(self.data_roots[k])
-                    assert not self.multilabel
+                    self.annotations[k], self.data_type = self._load_annotation(self.data_roots[k])
 
-        self.label_map = None
         self.labels = None
         self._set_labels_obtained_from_annotation()
         self.project_labels = [LabelEntity(name=name, domain=Domain.CLASSIFICATION,
@@ -94,25 +101,35 @@ class ClassificationDatasetAdapter(DatasetEntity):
         super().__init__(items=dataset_items, **kwargs)
 
     @staticmethod
-    def _load_annotation_multilabel(annot_path, data_dir):
+    def _load_text_annotation(annot_path, data_dir):
         out_data = []
         with open(annot_path) as f:
             annotation = json.load(f)
-            classes = sorted(annotation['classes'])
-            class_to_idx = {classes[i]: i for i in range(len(classes))}
+            if not 'label_groups' in annotation:
+                all_classes = sorted(annotation['classes'])
+                annotation_type = ClassificationType.MULTILABEL
+                groups = [[c] for c in all_classes]
+            else: # load multihead
+                groups = annotation['label_groups']
+                all_classes = []
+                for g in groups:
+                    for c in g:
+                        all_classes.append(c)
+                annotation_type = ClassificationType.MULTIHEAD
+
             images_info = annotation['images']
             img_wo_objects = 0
             for img_info in images_info:
                 rel_image_path, img_labels = img_info
                 full_image_path = osp.join(data_dir, rel_image_path)
-                labels_idx = [lbl for lbl in img_labels if lbl in class_to_idx]
+                labels_idx = [lbl for lbl in img_labels if lbl in all_classes]
                 assert full_image_path
                 if not labels_idx:
                     img_wo_objects += 1
-                out_data.append((full_image_path, tuple(labels_idx), 0, 0, '', -1, -1))
-        if img_wo_objects:
-            print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
-        return out_data, class_to_idx
+                out_data.append((full_image_path, tuple(labels_idx)))
+            if img_wo_objects:
+                print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
+        return (out_data, all_classes, groups), annotation_type
 
     @staticmethod
     def _load_annotation(data_dir, filter_classes=None):
@@ -146,14 +163,13 @@ class ClassificationDatasetAdapter(DatasetEntity):
         if not out_data:
             print('Failed to locate images in folder ' + data_dir + f' with extensions {ALLOWED_EXTS}')
 
-        return out_data, class_to_idx
+        all_classes = list(class_to_idx.keys())
+        return (out_data, all_classes, [all_classes]), ClassificationType.MULTICLASS
 
     def _set_labels_obtained_from_annotation(self):
         self.labels = None
-        self.label_map = {}
         for subset in self.data_roots:
-            self.label_map = self.annotations[subset][1]
-            labels = list(self.annotations[subset][1].keys())
+            labels = self.annotations[subset][1]
             if self.labels and self.labels != labels:
                 raise RuntimeError('Labels are different from annotation file to annotation file.')
             self.labels = labels
@@ -163,7 +179,24 @@ class ClassificationDatasetAdapter(DatasetEntity):
         return [label for label in self.project_labels if label.name == label_name][0]
 
     def is_multilabel(self):
-        return self.multilabel
+        return self.data_type == ClassificationType.MULTILABEL
+
+    def generate_label_schema(self):
+        label_schema = LabelSchemaEntity()
+        if self.data_type == ClassificationType.MULTICLASS:
+            main_group = LabelGroup(name="labels", labels=self.project_labels, group_type=LabelGroupType.EXCLUSIVE)
+            label_schema.add_group(main_group)
+        elif self.data_type in [ClassificationType.MULTIHEAD, ClassificationType.MULTILABEL]:
+            emptylabel = LabelEntity(name="Empty label", is_empty=True, domain=Domain.CLASSIFICATION)
+            empty_group = LabelGroup(name="empty", labels=[emptylabel], group_type=LabelGroupType.EMPTY_LABEL)
+            for g in self.annotations[Subset.TRAINING][2]:
+                group_labels = []
+                for cls in g:
+                    group_labels.append(self._label_name_to_project_label(cls))
+                label_schema.add_group(LabelGroup(name=group_labels[0].name,
+                                                  labels=group_labels, group_type=LabelGroupType.EXCLUSIVE))
+            label_schema.add_group(empty_group)
+        return label_schema
 
 
 def generate_label_schema(not_empty_labels, multilabel=False):
@@ -182,12 +215,51 @@ def generate_label_schema(not_empty_labels, multilabel=False):
     return label_schema
 
 
-class OTEClassificationDataset():
-    def __init__(self, ote_dataset: DatasetEntity, labels, multilabel=False,
-                 keep_empty_label=False):
+def get_multihead_class_info(label_schema: LabelSchemaEntity):
+    all_groups = label_schema.get_groups(include_empty=False)
+    all_groups_str = []
+    for g in all_groups:
+        group_labels_str = [lbl.name for lbl in g.labels]
+        all_groups_str.append(group_labels_str)
+
+    single_label_groups = [g for g in all_groups_str if len(g) == 1]
+    exclusive_groups = [sorted(g) for g in all_groups_str if len(g) > 1]
+    single_label_groups.sort(key=itemgetter(0))
+    exclusive_groups.sort(key=itemgetter(0))
+    class_to_idx = {}
+    head_idx_to_logits_range = {}
+    num_single_label_classes = 0
+    last_logits_pos = 0
+    for i, g in enumerate(exclusive_groups):
+        head_idx_to_logits_range[i] = (last_logits_pos, last_logits_pos + len(g))
+        last_logits_pos += len(g)
+        for j, c in enumerate(g):
+            class_to_idx[c] = (i, j) # group idx and idx inside group
+            num_single_label_classes += 1
+
+    # other labels are in multilabel group
+    for j, g in enumerate(single_label_groups):
+        class_to_idx[g[0]] = (len(exclusive_groups), j)
+
+    mixed_cls_heads_info = {
+                            'num_multiclass_heads': len(exclusive_groups),
+                            'num_multilabel_classes': len(single_label_groups),
+                            'head_idx_to_logits_range': head_idx_to_logits_range,
+                            'num_single_label_classes': num_single_label_classes,
+                            'class_to_group_idx': class_to_idx,
+                            'all_groups': exclusive_groups + single_label_groups,
+                            }
+    return mixed_cls_heads_info
+
+
+class OTEClassificationDataset:
+    def __init__(self, ote_dataset: DatasetEntity, labels, multilabel=False, hierarchical=False,
+                 mixed_cls_heads_info={}, keep_empty_label=False):
         super().__init__()
         self.ote_dataset = ote_dataset
         self.multilabel = multilabel
+        self.mixed_cls_heads_info = mixed_cls_heads_info
+        self.hierarchical = hierarchical
         self.labels = labels
         self.annotation = []
         self.keep_empty_label = keep_empty_label
@@ -198,12 +270,31 @@ class OTEClassificationDataset():
             item_labels = self.ote_dataset[i].get_roi_labels(self.labels,
                                                              include_empty=self.keep_empty_label)
             if item_labels:
-                for ote_lbl in item_labels:
-                    class_indices.append(self.label_names.index(ote_lbl.name))
-            else: # this supposed to happen only on inference stage or if we have a negative in multilabel data
-                class_indices.append(-1)
+                if not self.hierarchical:
+                    for ote_lbl in item_labels:
+                        class_indices.append(self.label_names.index(ote_lbl.name))
+                else:
+                    num_cls_heads = self.mixed_cls_heads_info['num_multiclass_heads']
 
-            if self.multilabel:
+                    class_indices = [0]*(self.mixed_cls_heads_info['num_multiclass_heads'] + \
+                                         self.mixed_cls_heads_info['num_multilabel_classes'])
+                    for j in range(num_cls_heads):
+                        class_indices[j] = -1
+                    for ote_lbl in item_labels:
+                        group_idx, in_group_idx = self.mixed_cls_heads_info['class_to_group_idx'][ote_lbl.name]
+                        if group_idx < num_cls_heads:
+                            class_indices[group_idx] = in_group_idx
+                        else:
+                            class_indices[num_cls_heads + in_group_idx] = 1
+
+            else: # this supposed to happen only on inference stage or if we have a negative in multilabel data
+                if self.mixed_cls_heads_info:
+                    class_indices = [-1]*(self.mixed_cls_heads_info['num_multiclass_heads'] + \
+                                          self.mixed_cls_heads_info['num_multilabel_classes'])
+                else:
+                    class_indices.append(-1)
+
+            if self.multilabel or self.hierarchical:
                 self.annotation.append({'label': tuple(class_indices)})
             else:
                 self.annotation.append({'label': class_indices[0]})
@@ -338,3 +429,33 @@ def get_multilabel_predictions(logits: np.ndarray, labels: List[LabelEntity],
             item_labels.append(label)
 
     return item_labels
+
+
+def get_hierarchical_predictions(logits: np.ndarray, labels: List[LabelEntity],
+                                 label_schema: LabelSchemaEntity, multihead_class_info: dict,
+                                 pos_thr: float = 0.5, activate: bool = True) -> List[ScoredLabel]:
+    predicted_labels = []
+    for i in range(multihead_class_info['num_multiclass_heads']):
+        logits_begin, logits_end = multihead_class_info['head_idx_to_logits_range'][i]
+        head_logits = logits[logits_begin : logits_end]
+        if activate:
+            head_logits = softmax_numpy(head_logits)
+        j = np.argmax(head_logits)
+        label_str = multihead_class_info['all_groups'][i][j]
+        ote_label = next(x for x in labels if x.name == label_str)
+        predicted_labels.append(ScoredLabel(label=ote_label, probability=float(head_logits[j])))
+
+    if multihead_class_info['num_multilabel_classes']:
+        logits_begin, logits_end = multihead_class_info['num_single_label_classes'], -1
+        head_logits = logits[logits_begin : logits_end]
+        if activate:
+            head_logits = sigmoid_numpy(head_logits)
+
+        for i in range(head_logits.shape[0]):
+            if head_logits[i] > pos_thr:
+                label_str = multihead_class_info['all_groups'][multihead_class_info['num_multiclass_heads'] + i][0]
+                ote_label = next(x for x in labels if x.name == label_str)
+                predicted_labels.append(ScoredLabel(label=ote_label, probability=float(head_logits[i])))
+
+    # return LabelResolver.resolve_labels_probabilistic(label_schema, predicted_labels)
+    return predicted_labels

@@ -9,19 +9,21 @@ from __future__ import absolute_import, print_function
 from copy import copy
 
 from .image import (Classification, ClassificationImageFolder, ExternalDatasetWrapper,
-                    MultiLabelClassification)
+                    MultiLabelClassification, MultiheadClassification)
 
 __image_datasets = {
     'classification': Classification,
     'classification_image_folder' : ClassificationImageFolder,
     'external_classification_wrapper' : ExternalDatasetWrapper,
     'multilabel_classification': MultiLabelClassification,
+    'multihead_classification': MultiheadClassification,
 }
 
 
 def init_image_dataset(mode,
                        custom_dataset_roots=[''],
-                       custom_dataset_types=[''], **kwargs):
+                       custom_dataset_types=[''],
+                       **kwargs):
     """Initializes an image dataset."""
 
     # handle also custom datasets
