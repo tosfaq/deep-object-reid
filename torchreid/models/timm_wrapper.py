@@ -1,6 +1,6 @@
 import timm
 
-from torchreid.losses import AngleSimpleLinear
+from torchreid.losses import AngleSimpleLinear, AngleSimpleLinearV2
 from .common import ModelInterface
 import torchreid.utils as utils
 from torchreid.ops import Dropout
@@ -27,6 +27,7 @@ class TimmModelsWrapper(ModelInterface):
                  pretrained=False,
                  dropout_cls = None,
                  pooling_type='avg',
+                 emb_dim=1680,
                  **kwargs):
         super().__init__(**kwargs)
         self.pretrained = pretrained
@@ -39,9 +40,15 @@ class TimmModelsWrapper(ModelInterface):
                              else self.model.num_features)
         self.dropout = Dropout(**dropout_cls)
         self.pooling_type = pooling_type
+        print("emb_dim: ", emb_dim)
         if self.loss in ["am_softmax", "am_binary"]:
             self.model.act2 = nn.PReLU()
             self.model.classifier = AngleSimpleLinear(self.num_head_features, self.num_classes)
+        elif self.loss == 'am_binary2':
+            self.proj_embed = nn.Linear(self.num_features, self.num_classes * emb_dim)
+            self.proj_embed.weight = nn.init.xavier_normal_(self.proj_embed.weight)
+            self.model.act2 = nn.PReLU()
+            self.model.classifier = AngleSimpleLinearV2(self.num_classes, emb_dim)
         else:
             assert self.loss in ["softmax", "asl", "bce"]
             self.model.classifier = self.model.get_classifier()
@@ -51,9 +58,13 @@ class TimmModelsWrapper(ModelInterface):
             y = self.extract_features(x)
             if return_featuremaps:
                 return y
-
             glob_features = self.glob_feature_vector(y, self.pooling_type, reduce_dims=False)
-            logits = self.infer_head(glob_features)
+            if self.loss == 'am_binary2':
+                embedings = self.proj_embed(glob_features.view(x.shape[0], -1))
+                embedings = embedings.reshape(x.size(0), self.num_classes, -1)
+                logits = self.model.classifier(embedings, self.num_classes)
+            else:
+                logits = self.infer_head(glob_features)
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.amb_t)
 

@@ -280,7 +280,6 @@ class MultiLabelClassification(ImageDataset):
         np.save("./glove/voc_word_matrix", word_embedings)
 
 
-
 def prepare_adj_matrix(label_set, out_data, thau):
     num_classes = len(label_set)
     M = np.zeros((num_classes,num_classes))

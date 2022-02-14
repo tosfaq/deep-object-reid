@@ -54,7 +54,7 @@ class MultilabelEngine(Engine):
                 probability_margin=0,
                 label_smooth=label_smooth,
             )
-        elif loss_name == 'am_binary':
+        elif loss_name in ['am_binary', 'am_binary2']:
             self.main_loss = AMBinaryLoss(
                 m=m,
                 k=amb_k,

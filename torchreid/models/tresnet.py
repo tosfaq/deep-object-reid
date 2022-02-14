@@ -10,7 +10,7 @@ from inplace_abn import InPlaceABN, ABN
 from .common import ModelInterface
 
 import torchreid.utils as utils
-
+from torchreid.losses import AngleSimpleLinear
 class Flatten(nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
@@ -181,7 +181,7 @@ def conv2d_ABN(ni, nf, stride, activation="leaky_relu", kernel_size=3, activatio
 class BasicBlock(Module):
     expansion = 1
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, use_se=True, anti_alias_layer=None):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, use_se=True, anti_alias_layer=None, loss='asl'):
         super(BasicBlock, self).__init__()
         if stride == 1:
             self.conv1 = conv2d_ABN(inplanes, planes, stride=1, activation_param=1e-3)
@@ -220,7 +220,7 @@ class BasicBlock(Module):
 class Bottleneck(Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, use_se=True, anti_alias_layer=None):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, use_se=True, anti_alias_layer=None, loss='asl'):
         super(Bottleneck, self).__init__()
         self.conv1 = conv2d_ABN(inplanes, planes, kernel_size=1, stride=1, activation="leaky_relu",
                                 activation_param=1e-3)
@@ -238,8 +238,10 @@ class Bottleneck(Module):
 
         self.conv3 = conv2d_ABN(planes, planes * self.expansion, kernel_size=1, stride=1,
                                 activation="identity")
-
-        self.relu = nn.ReLU(inplace=True)
+        if loss in ['am_softmax', 'am_binary']:
+            self.relu = nn.PReLU()
+        else:
+            self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
 
@@ -267,7 +269,7 @@ class TResNet(ModelInterface):
 
     def __init__(self, layers, in_chans=3, num_classes=1000, width_factor=1.0, first_two_layers=BasicBlock, **kwargs):
         super().__init__(**kwargs)
-
+        self.num_classes = num_classes
         # JIT layers
         space_to_depth = SpaceToDepthModule()
         anti_alias_layer = AntiAliasDownsampleLayer
@@ -284,8 +286,7 @@ class TResNet(ModelInterface):
         layer3 = self._make_layer(Bottleneck, self.planes * 4, layers[2], stride=2, use_se=True,
                                   anti_alias_layer=anti_alias_layer)  # 14x14
         layer4 = self._make_layer(Bottleneck, self.planes * 8, layers[3], stride=2, use_se=False,
-                                  anti_alias_layer=anti_alias_layer)  # 7x7
-
+                                  anti_alias_layer=anti_alias_layer, loss=self.loss)  # 7x7
         # body
         self.body = nn.Sequential(OrderedDict([
             ('SpaceToDepth', space_to_depth),
@@ -298,7 +299,10 @@ class TResNet(ModelInterface):
         # head
         self.global_pool = nn.Sequential(OrderedDict([('global_pool_layer', global_pool_layer)]))
         self.num_features = (self.planes * 8) * Bottleneck.expansion
-        fc = nn.Linear(self.num_features, num_classes)
+        if self.loss in ["am_softmax", "am_binary"]:
+            fc = AngleSimpleLinear(self.num_features, self.num_classes)
+        else:
+            fc = nn.Linear(self.num_features, self.num_classes)
         self.head = nn.Sequential(OrderedDict([('fc', fc)]))
 
         # model initilization
@@ -317,7 +321,7 @@ class TResNet(ModelInterface):
                 m.conv3[1].weight = nn.Parameter(torch.zeros_like(m.conv3[1].weight))  # BN to zero
             if isinstance(m, nn.Linear): m.weight.data.normal_(0, 0.01)
 
-    def _make_layer(self, block, planes, blocks, stride=1, use_se=True, anti_alias_layer=None):
+    def _make_layer(self, block, planes, blocks, stride=1, use_se=True, anti_alias_layer=None, loss='asl'):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             layers = []
@@ -330,10 +334,10 @@ class TResNet(ModelInterface):
 
         layers = []
         layers.append(block(self.inplanes, planes, stride, downsample, use_se=use_se,
-                            anti_alias_layer=anti_alias_layer))
+                            anti_alias_layer=anti_alias_layer, loss=loss))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks): layers.append(
-            block(self.inplanes, planes, use_se=use_se, anti_alias_layer=anti_alias_layer))
+            block(self.inplanes, planes, use_se=use_se, anti_alias_layer=anti_alias_layer, loss=loss))
         return nn.Sequential(*layers)
 
     def forward(self, x, return_featuremaps=False, return_all=False, **kwargs):

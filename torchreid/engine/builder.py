@@ -11,7 +11,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
                  compression_ctrl=None,
                  initial_lr=None):
     if should_freeze_aux_models or nncf_metainfo:
-        if cfg.loss.name not in ['softmax', 'am_softmax', 'am_binary']:
+        if cfg.loss.name not in ['softmax', 'am_softmax', 'am_binary', 'am_binary2']:
             raise NotImplementedError('Freezing of aux models or NNCF compression are supported only for '
                                       'softmax, am_softmax and am_binary losses for data.type = image')
     initial_lr = initial_lr if initial_lr else cfg.train.lr
@@ -60,7 +60,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
         engine = ImageAMSoftmaxEngine(
             **classification_params
         )
-    elif cfg.loss.name in ['asl', 'bce', 'am_binary']:
+    elif cfg.loss.name in ['asl', 'bce', 'am_binary', 'am_binary2']:
         engine = MultilabelEngine(
             **classification_params
         )
