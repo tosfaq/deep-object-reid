@@ -241,7 +241,7 @@ class MultiheadClassification(ImageDataset):
         super().__init__(data,
                          classes=classes,
                          num_ids=len(classes),
-                         mixed_cls_heads_info = mixed_cls_heads_info,
+                         mixed_cls_heads_info=mixed_cls_heads_info,
                          **kwargs)
 
     @staticmethod
