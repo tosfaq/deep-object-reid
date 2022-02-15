@@ -17,8 +17,7 @@ class Classification(ImageDataset):
     """Classification dataset.
     """
 
-    def __init__(self, root='', mode='train', **kwargs):
-
+    def __init__(self, root='', **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.data_dir = osp.dirname(self.root)
         self.annot = self.root
@@ -28,25 +27,15 @@ class Classification(ImageDataset):
         ]
         self.check_before_run(required_files)
 
-        if mode == 'train':
-            train, classes = self.load_annotation(
-                self.annot,
-                self.data_dir,
-            )
-            test = []
+        data, classes = self.load_annotation(
+            self.annot,
+            self.data_dir,
+        )
 
-        elif mode == 'test':
-            test, classes = self.load_annotation(
-                self.annot,
-                self.data_dir,
-            )
-            train = []
-
-        else:
-            classes = []
-            train, test = [], []
-
-        super().__init__(train, test, mode=mode, classes=classes, **kwargs)
+        super().__init__(data,
+                         classes=classes,
+                         num_ids=len(classes),
+                         **kwargs)
 
     @staticmethod
     def load_annotation(annot_path, data_dir):
@@ -77,26 +66,13 @@ class Classification(ImageDataset):
 
 
 class ExternalDatasetWrapper(ImageDataset):
-    def __init__(self, data_provider, mode='train', **kwargs):
-
+    def __init__(self, data_provider, mode='train', filter_classes=None,  **kwargs):
         self.data_provider = data_provider
-
-        if mode == 'train':
-            train, classes = self.load_annotation(
+        data, classes = self.load_annotation(
                 self.data_provider
-            )
-            test = []
-        elif mode == 'test':
-            test, classes = self.load_annotation(
-                self.data_provider
-            )
-            train = []
-        else:
-            classes = []
-            train, test = [], []
+                )
 
-        super().__init__(train, test, mode=mode, classes=classes,
-                         mixed_cls_heads_info=self.data_provider.mixed_cls_heads_info, **kwargs)
+        super().__init__(data, **kwargs)
 
         # restore missing classes in train
         if mode == 'train':
@@ -104,6 +80,8 @@ class ExternalDatasetWrapper(ImageDataset):
                 if i not in self.data_counts:
                     self.data_counts[i] = 0
         self.num_train_ids = len(data_provider.get_classes())
+        self.classes = classes
+        self.num_ids = len(self.classes)
 
     def __len__(self):
         return len(self.data_provider)
@@ -150,24 +128,17 @@ class ClassificationImageFolder(ImageDataset):
     """Classification dataset representing raw folders without annotation files.
     """
 
-    def __init__(self, root='', mode='train', filter_classes=None, **kwargs):
+    def __init__(self, root='', filter_classes=None, **kwargs):
         self.root = root
         self.check_before_run(self.root)
-        if mode == 'train':
-            train, classes = self.load_annotation(
-                self.root, filter_classes
-            )
-            test = []
-        elif mode == 'test':
-            test, classes = self.load_annotation(
-                self.root, filter_classes
-            )
-            train = []
-        else:
-            classes = []
-            train, test = [], []
+        data, classes = self.load_annotation(
+            self.root, filter_classes
+        )
 
-        super().__init__(train, test, mode=mode, classes=classes, **kwargs)
+        super().__init__(data,
+                         classes=classes,
+                         num_ids=len(classes),
+                         **kwargs)
 
     @staticmethod
     def load_annotation(data_dir, filter_classes=None):
@@ -208,8 +179,7 @@ class MultiLabelClassification(ImageDataset):
     """Multi label classification dataset.
     """
 
-    def __init__(self, root='', mode='train', **kwargs):
-
+    def __init__(self, root='', **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.data_dir = osp.dirname(self.root)
         self.annot = self.root
@@ -218,24 +188,15 @@ class MultiLabelClassification(ImageDataset):
             self.data_dir, self.annot
         ]
         self.check_before_run(required_files)
-        if mode == 'train':
-            train, classes = self.load_annotation(
-                self.annot,
-                self.data_dir,
-            )
-            test = []
-        elif mode == 'test':
-            test, classes = self.load_annotation(
-                self.annot,
-                self.data_dir,
-            )
-            train = []
-        else:
-            classes = []
-            train, test = [], []
+        data, classes = self.load_annotation(
+            self.annot,
+            self.data_dir,
+        )
 
-
-        super().__init__(train, test, mode=mode, classes=classes, **kwargs)
+        super().__init__(data,
+                         classes=classes,
+                         num_ids=len(classes),
+                         **kwargs)
 
     @staticmethod
     def load_annotation(annot_path, data_dir):
@@ -263,10 +224,7 @@ class MultiheadClassification(ImageDataset):
     """Mixed multilabel/multiclass classification dataset.
     """
 
-    def __init__(self, root='', mode='train', dataset_id=0, load_masks=False, **kwargs):
-        if load_masks:
-            raise NotImplementedError
-
+    def __init__(self, root='', **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.data_dir = osp.dirname(self.root)
         self.annot = self.root
@@ -275,24 +233,16 @@ class MultiheadClassification(ImageDataset):
             self.data_dir, self.annot
         ]
         self.check_before_run(required_files)
-        if mode == 'train':
-            train, mixed_cls_heads_info = self.load_annotation(
-                self.annot,
-                self.data_dir,
-            )
-            test = []
-        elif mode == 'test':
-            test, mixed_cls_heads_info = self.load_annotation(
-                self.annot,
-                self.data_dir,
-            )
-            train = []
-        else:
-            mixed_cls_heads_info = []
-            train, test = [], []
-
-        super().__init__(train, test, mode=mode, classes=mixed_cls_heads_info['class_to_global_idx'],
-                         mixed_cls_heads_info=mixed_cls_heads_info, **kwargs)
+        data, mixed_cls_heads_info = self.load_annotation(
+            self.annot,
+            self.data_dir,
+        )
+        classes = mixed_cls_heads_info['class_to_global_idx']
+        super().__init__(data,
+                         classes=classes,
+                         num_ids=len(classes),
+                         mixed_cls_heads_info=mixed_cls_heads_info,
+                         **kwargs)
 
     @staticmethod
     def load_annotation(annot_path, data_dir):

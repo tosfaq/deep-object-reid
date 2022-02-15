@@ -25,39 +25,21 @@ class ImageDataset:
     """
 
     def __init__(self,
-                 train,
-                 test,
+                 data,
                  transform=None,
-                 mode='train',
                  verbose=True,
                  mixed_cls_heads_info={},
                  classes={},
+                 num_ids=0,
                  **kwargs):
 
         self.classes = classes
         self.mixed_cls_heads_info = mixed_cls_heads_info
-        self.train = train
-        self.test = test
+        self.data = data
         self.transform = transform
-        self.mode = mode
         self.verbose = verbose
-
-        self.num_train_ids = self.get_num_ids(self.train)
-        if self.num_train_ids == 0: # workaround: test is a validation set
-            self.num_train_ids = self.get_num_ids(self.test)
-
-        self.data_counts = self.get_data_counts(self.train)
-
-        if self.mode == 'train':
-            self.data = self.train
-        elif self.mode == 'test':
-            self.data = self.test
-        else:
-            raise ValueError(f'Invalid mode. Got {self.mode}, but expected to be '
-                             'one of [train | test]')
-
-        if self.verbose:
-            self.show_summary()
+        self.num_ids = num_ids
+        self.data_counts = self.get_data_counts(self.data)
 
     def __getitem__(self, index):
         input_record = self.data[index]
@@ -69,7 +51,7 @@ class ImageDataset:
             if len(self.mixed_cls_heads_info):
                 targets = torch.IntTensor(obj_id)
             else:
-                targets = torch.zeros(self.num_train_ids)
+                targets = torch.zeros(self.num_ids)
                 for obj in obj_id:
                     targets[obj] = 1
             obj_id = targets
@@ -98,36 +80,6 @@ class ImageDataset:
 
         return counts
 
-    def parse_data(self, data):
-        """Parses data list and returns the number of categories.
-        """
-        if not data:
-            return 0
-        ids = set()
-        for record in data:
-            label = record[1]
-            if isinstance(label, (list, tuple)):
-                if self.mixed_cls_heads_info:
-                    for i in range(self.mixed_cls_heads_info['num_multiclass_heads']):
-                        if label[i] >= 0:
-                            ids.update([self.mixed_cls_heads_info['head_idx_to_logits_range'][i][0] + label[i]])
-                    for i in range(self.mixed_cls_heads_info['num_multilabel_classes']):
-                        if label[self.mixed_cls_heads_info['num_multiclass_heads'] + i]:
-                            ids.update([self.mixed_cls_heads_info['num_single_label_classes'] + i])
-                else:
-                    ids.update(set(label))
-            else:
-                ids.add(label)
-
-        if len(ids) != max(ids) + 1:
-            print("WARNING:: There are some categories are missing in this split for this dataset.")
-        num_cats = max(ids) + 1
-        return num_cats
-
-    def get_num_ids(self, data):
-        """Returns the number of training categories."""
-        return self.parse_data(data)
-
     @staticmethod
     def check_before_run(required_files):
         """Checks if required files exist before going deeper.
@@ -141,19 +93,3 @@ class ImageDataset:
         for fpath in required_files:
             if not osp.exists(fpath):
                 raise RuntimeError(f'"{fpath}" is not found')
-
-    def __repr__(self):
-        num_train_ids = self.parse_data(self.train)
-        num_test_ids = self.parse_data(self.test)
-
-        msg = '  ------------------------------\n' \
-              '  subset   | # ids | # items\n' \
-              '  ------------------------------\n' \
-              f'  train    | {num_train_ids:5d} | {len(self.train):7d}\n' \
-              f'  test     | {num_test_ids:5d} | {len(self.test):7d}\n' \
-              '  -------------------------------\n'
-
-        return msg
-
-    def show_summary(self):
-        print(self)

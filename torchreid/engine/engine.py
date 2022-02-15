@@ -580,15 +580,15 @@ class Engine(metaclass=abc.ABCMeta):
         """
 
         self.set_model_mode('eval')
-        top1, cur_top1, ema_top1 = [-1]*3
-        should_save_ema_model = False
+        models_to_eval = list(self.models.items())
+        top1=[]
+        if (self.use_ema_decay and not lr_finder and not test_only):
+            models_to_eval.append(('EMA model', self.ema_model.module))
 
-        print('##### Evaluating test dataset) #####')
-        for model_id, (model_name, model) in enumerate(self.models.items()):
-            ema_condition = (self.use_ema_decay and not lr_finder
-                    and not test_only and model_name == self.main_model_name)
+        print('##### Evaluating test dataset #####')
+        for model_name, model in models_to_eval:
             # do not evaluate second model till last epoch
-            if (model_name != self.main_model_name
+            if (model_name not in [self.main_model_name, 'EMA model']
                     and not test_only and epoch != (self.max_epoch - 1)):
                 continue
             # we may compute some other metric here, but consider it as top1 for consistency
@@ -601,25 +601,10 @@ class Engine(metaclass=abc.ABCMeta):
                 topk=topk,
                 lr_finder=lr_finder
             )
-            if ema_condition:
-                ema_top1 = self._evaluate(
-                    model=self.ema_model.module,
-                    epoch=epoch,
-                    data_loader=self.test_loader,
-                    model_name='EMA model',
-                    topk=topk,
-                    lr_finder = lr_finder
-                )
-
-            if model_id == 0:
-                # the function should return accuracy results for the first (main) model only
-                if self.use_ema_decay and ema_top1 >= cur_top1:
-                    should_save_ema_model = True
-                    top1 = ema_top1
-                else:
-                    top1 = cur_top1
-
-        return top1, should_save_ema_model
+            if model_name in [self.main_model_name, 'EMA model']:
+                top1.append(cur_top1)
+        max_top1 = max(top1)
+        return max_top1, top1.index(max_top1)
 
     @staticmethod
     def parse_data_for_train(data, use_gpu=False):

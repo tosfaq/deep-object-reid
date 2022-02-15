@@ -22,7 +22,8 @@ __image_datasets = {
 
 def init_image_dataset(mode,
                        custom_dataset_roots=[''],
-                       custom_dataset_types=[''], **kwargs):
+                       custom_dataset_types=[''],
+                       **kwargs):
     """Initializes an image dataset."""
 
     # handle also custom datasets
