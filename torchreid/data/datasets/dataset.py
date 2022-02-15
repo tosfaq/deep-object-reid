@@ -39,7 +39,6 @@ class ImageDataset:
         self.transform = transform
         self.verbose = verbose
         self.num_ids = num_ids
-        self.data_counts = self.get_data_counts(self.data)
 
     def __getitem__(self, index):
         input_record = self.data[index]
@@ -67,18 +66,6 @@ class ImageDataset:
 
     def __len__(self):
         return len(self.data)
-
-    @staticmethod
-    def get_data_counts(data):
-        counts = {}
-        for record in data:
-            obj_id = record[1]
-            if obj_id not in counts:
-                counts[obj_id] = 1
-            else:
-                counts[obj_id] += 1
-
-        return counts
 
     @staticmethod
     def check_before_run(required_files):

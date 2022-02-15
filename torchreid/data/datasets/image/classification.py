@@ -74,10 +74,6 @@ class ExternalDatasetWrapper(ImageDataset):
 
         super().__init__(data, classes=classes, num_ids=len(data_provider.get_classes()),
                          mixed_cls_heads_info=self.data_provider.mixed_cls_heads_info, **kwargs)
-        # restore missing classes
-        for i, _ in enumerate(data_provider.get_classes()):
-            if i not in self.data_counts:
-                self.data_counts[i] = 0
 
     def __len__(self):
         return len(self.data_provider)
