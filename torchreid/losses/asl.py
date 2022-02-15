@@ -119,3 +119,31 @@ class AMBinaryLoss(nn.Module):
             self.loss *= one_sided_w
 
         return - self.loss.sum()
+
+
+class CentersPush(nn.Module):
+    def __init__(self, margin=0.3):
+        super().__init__()
+
+        self.margin = margin
+
+    def forward(self, centers, labels):
+        centers = F.normalize(centers, p=2, dim=1)
+
+        unique_labels = torch.unique(labels)
+        unique_centers = centers[unique_labels, :]
+
+        distances = 1.0 - torch.mm(unique_centers, torch.t(unique_centers)).clamp(-1, 1)
+        losses = self.margin - distances
+
+        different_class_pairs = unique_labels.view(-1, 1) != unique_labels.view(1, -1)
+        pairs_valid_mask = different_class_pairs & (losses > 0.0)
+
+        losses = torch.where(pairs_valid_mask, losses, torch.zeros_like(losses))
+
+        num_valid = pairs_valid_mask.sum().float()
+        loss = losses.sum()
+        if num_valid > 0.0:
+            loss /= num_valid
+
+        return loss
