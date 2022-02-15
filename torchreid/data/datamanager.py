@@ -76,7 +76,6 @@ class ImageDataManager():
             filter_classes=filter_classes,
         )
 
-        self._data_counts = train_dataset.data_counts
         if correct_batch_size:
             batch_size_train = self.calculate_batch(batch_size_train, len(train_dataset))
         batch_size_train = max(1, min(batch_size_train, len(train_dataset)))
@@ -137,8 +136,3 @@ class ImageDataManager():
     def num_train_ids(self):
         """Returns the number of training categories."""
         return self._num_train_ids
-
-    @property
-    def data_counts(self):
-        """Returns the number of samples for each ID."""
-        return self._data_counts

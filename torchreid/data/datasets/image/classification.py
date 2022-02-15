@@ -66,22 +66,14 @@ class Classification(ImageDataset):
 
 
 class ExternalDatasetWrapper(ImageDataset):
-    def __init__(self, data_provider, mode='train', filter_classes=None,  **kwargs):
+    def __init__(self, data_provider, filter_classes=None,  **kwargs):
         self.data_provider = data_provider
         data, classes = self.load_annotation(
                 self.data_provider
                 )
 
-        super().__init__(data, **kwargs)
-
-        # restore missing classes in train
-        if mode == 'train':
-            for i, _ in enumerate(data_provider.get_classes()):
-                if i not in self.data_counts:
-                    self.data_counts[i] = 0
-        self.num_train_ids = len(data_provider.get_classes())
-        self.classes = classes
-        self.num_ids = len(self.classes)
+        super().__init__(data, classes=classes, num_ids=len(data_provider.get_classes()),
+                         mixed_cls_heads_info=self.data_provider.mixed_cls_heads_info, **kwargs)
 
     def __len__(self):
         return len(self.data_provider)
@@ -100,7 +92,7 @@ class ExternalDatasetWrapper(ImageDataset):
             if len(self.mixed_cls_heads_info):
                 targets = torch.IntTensor(label)
             else:
-                targets = torch.zeros(self.num_train_ids)
+                targets = torch.zeros(self.num_ids)
                 for obj in label:
                     idx = int(obj)
                     if idx >= 0:
