@@ -127,23 +127,22 @@ class CentersPush(nn.Module):
 
         self.margin = margin
 
-    def forward(self, centers, labels):
+    def forward(self, centers):
         centers = F.normalize(centers, p=2, dim=1)
 
-        unique_labels = torch.unique(labels)
-        unique_centers = centers[unique_labels, :]
+        # unique_labels = torch.unique(labels)
+        unique_centers = centers
 
         distances = 1.0 - torch.mm(unique_centers, torch.t(unique_centers)).clamp(-1, 1)
-        losses = self.margin - distances
+        # losses = self.margin - distances
+        # print(losses)
 
-        different_class_pairs = unique_labels.view(-1, 1) != unique_labels.view(1, -1)
-        pairs_valid_mask = different_class_pairs & (losses > 0.0)
+        # different_class_pairs = unique_labels.view(-1, 1) != unique_labels.view(1, -1)
+        # pairs_valid_mask = different_class_pairs & (losses > 0.0)
 
-        losses = torch.where(pairs_valid_mask, losses, torch.zeros_like(losses))
+        # losses = torch.where(pairs_valid_mask, losses, torch.zeros_like(losses))
 
-        num_valid = pairs_valid_mask.sum().float()
-        loss = losses.sum()
-        if num_valid > 0.0:
-            loss /= num_valid
+        # num_valid = pairs_valid_mask.sum().float()
+        loss = distances.sum() / centers.size(0)
 
         return loss

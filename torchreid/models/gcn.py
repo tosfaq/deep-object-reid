@@ -133,9 +133,6 @@ class Image_GCNN(ModelInterface):
             x = self.relu(x)
             x = self.gc2(x, adj)
 
-            if return_embedings:
-                return x, embedings
-
             if self.loss == 'am_binary':
                 logits = F.cosine_similarity(embedings, x, dim=2)
                 logits = logits.clamp(-1, 1)
@@ -151,7 +148,11 @@ class Image_GCNN(ModelInterface):
                 return [logits]
 
             elif self.loss in ['asl', 'bce', 'am_binary']:
+                if return_embedings:
+                    return tuple([logits]), x, embedings
+                else:
                     out_data = [logits]
+
             else:
                 raise KeyError("Unsupported loss: {}".format(self.loss))
 

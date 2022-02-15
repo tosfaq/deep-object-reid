@@ -27,6 +27,7 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0,
             if perf_monitor: perf_monitor.on_test_batch_begin(batch_idx, None)
             if use_gpu:
                 batch_images = batch_images.cuda()
+                batch_labels = batch_labels.cuda()
 
             if labelmap:
                 for i, label in enumerate(labelmap):
@@ -42,7 +43,7 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0,
                 all_feature_vecs.append(global_features)
             else:
                 logits = model.forward(batch_images)[head_id]
-            out_scores.append(logits * get_model_attr(model, 'scale'))
+            out_scores.append(logits)
             gt_labels.append(batch_labels)
 
         out_scores = torch.cat(out_scores, 0).data.cpu().numpy()
