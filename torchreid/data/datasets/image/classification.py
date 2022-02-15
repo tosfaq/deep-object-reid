@@ -32,9 +32,10 @@ class Classification(ImageDataset):
             self.data_dir,
         )
 
-        super().__init__(data, **kwargs)
-        self.classes = classes
-        self.num_ids = len(self.classes)
+        super().__init__(data,
+                         classes=classes,
+                         num_ids=len(classes),
+                         **kwargs)
 
     @staticmethod
     def load_annotation(annot_path, data_dir):
@@ -134,9 +135,10 @@ class ClassificationImageFolder(ImageDataset):
             self.root, filter_classes
         )
 
-        super().__init__(data, **kwargs)
-        self.classes = classes
-        self.num_ids = len(self.classes)
+        super().__init__(data,
+                         classes=classes,
+                         num_ids=len(classes),
+                         **kwargs)
 
     @staticmethod
     def load_annotation(data_dir, filter_classes=None):
@@ -191,9 +193,10 @@ class MultiLabelClassification(ImageDataset):
             self.data_dir,
         )
 
-        super().__init__(data, **kwargs)
-        self.classes = classes
-        self.num_ids = len(self.classes)
+        super().__init__(data,
+                         classes=classes,
+                         num_ids=len(classes),
+                         **kwargs)
 
     @staticmethod
     def load_annotation(annot_path, data_dir):
@@ -234,10 +237,12 @@ class MultiheadClassification(ImageDataset):
             self.annot,
             self.data_dir,
         )
-
-        super().__init__(data, mixed_cls_heads_info=mixed_cls_heads_info, **kwargs)
-        self.classes = mixed_cls_heads_info['class_to_global_idx']
-        self.num_ids = len(self.classes)
+        classes = mixed_cls_heads_info['class_to_global_idx']
+        super().__init__(data,
+                         classes=classes,
+                         num_ids=len(classes),
+                         mixed_cls_heads_info = mixed_cls_heads_info,
+                         **kwargs)
 
     @staticmethod
     def load_annotation(annot_path, data_dir):
