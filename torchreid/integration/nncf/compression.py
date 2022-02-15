@@ -198,8 +198,9 @@ def wrap_nncf_model(model, cfg,
         resuming_checkpoint = checkpoint_dict
 
     if datamanager_for_init is None and not is_nncf_state(resuming_checkpoint):
-        raise RuntimeError('Either datamanager_for_init or NNCF pre-trained '
-                           'model checkpoint should be set')
+        logger.warning('Either dataloader_for_init or NNCF pre-trained '
+                       'model checkpoint should be set. Without this, '
+                       'quantizers will not be initialized')
 
     nncf_metainfo = None
     if is_nncf_state(resuming_checkpoint):
@@ -292,11 +293,12 @@ def wrap_nncf_model(model, cfg,
 
     if resuming_checkpoint is None:
         logger.info('No NNCF checkpoint is provided -- register initialize data loader')
-        train_loader = datamanager_for_init.train_loader
-        test_loader = datamanager_for_init.test_loader
-        wrapped_loader = ReidInitializeDataLoader(train_loader)
-        nncf_config = register_default_init_args(nncf_config, wrapped_loader,
-                                                 model_eval_fn=model_eval_fn, device=cur_device)
+        if datamanager_for_init:
+            train_loader = datamanager_for_init.train_loader
+            test_loader = datamanager_for_init.test_loader
+            wrapped_loader = ReidInitializeDataLoader(train_loader)
+            nncf_config = register_default_init_args(nncf_config, wrapped_loader,
+                                                     model_eval_fn=model_eval_fn, device=cur_device)
         model_state_dict = None
         compression_state = None
     else:
