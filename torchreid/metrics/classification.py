@@ -28,6 +28,7 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0,
                 perf_monitor.on_test_batch_begin(batch_idx, None)
             if use_gpu:
                 batch_images = batch_images.cuda()
+                batch_labels = batch_labels.cuda()
 
             if labelmap:
                 for i, label in enumerate(labelmap):
