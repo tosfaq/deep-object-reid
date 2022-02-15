@@ -117,4 +117,4 @@ class AMBinaryLoss(nn.Module):
         if self.asymmetric_focus:
             self.loss *= one_sided_w
 
-        return - self.loss.sum()
+        return - self.loss.sum() / cos_theta.size(0)
