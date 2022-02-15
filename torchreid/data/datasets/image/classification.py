@@ -34,6 +34,7 @@ class Classification(ImageDataset):
 
         super().__init__(data, **kwargs)
         self.classes = classes
+        self.num_ids = len(self.classes)
 
     @staticmethod
     def load_annotation(annot_path, data_dir):
@@ -79,6 +80,7 @@ class ExternalDatasetWrapper(ImageDataset):
                     self.data_counts[i] = 0
         self.num_train_ids = len(data_provider.get_classes())
         self.classes = classes
+        self.num_ids = len(self.classes)
 
     def __len__(self):
         return len(self.data_provider)
@@ -134,7 +136,7 @@ class ClassificationImageFolder(ImageDataset):
 
         super().__init__(data, **kwargs)
         self.classes = classes
-
+        self.num_ids = len(self.classes)
 
     @staticmethod
     def load_annotation(data_dir, filter_classes=None):
@@ -191,6 +193,7 @@ class MultiLabelClassification(ImageDataset):
 
         super().__init__(data, **kwargs)
         self.classes = classes
+        self.num_ids = len(self.classes)
 
     @staticmethod
     def load_annotation(annot_path, data_dir):
@@ -234,6 +237,7 @@ class MultiheadClassification(ImageDataset):
 
         super().__init__(data, mixed_cls_heads_info=mixed_cls_heads_info, **kwargs)
         self.classes = mixed_cls_heads_info['class_to_global_idx']
+        self.num_ids = len(self.classes)
 
     @staticmethod
     def load_annotation(annot_path, data_dir):

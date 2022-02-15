@@ -30,7 +30,6 @@ class ImageDataset:
                  verbose=True,
                  mixed_cls_heads_info={},
                  classes={},
-                 num_classes=None,
                  **kwargs):
 
         self.classes = classes
@@ -38,10 +37,7 @@ class ImageDataset:
         self.data = data
         self.transform = transform
         self.verbose = verbose
-
-        self.num_train_ids = (self.get_num_ids(self.data)
-                              if not num_classes
-                              else num_classes)
+        self.num_ids = 0
         self.data_counts = self.get_data_counts(self.data)
 
     def __getitem__(self, index):
@@ -54,7 +50,7 @@ class ImageDataset:
             if len(self.mixed_cls_heads_info):
                 targets = torch.IntTensor(obj_id)
             else:
-                targets = torch.zeros(self.num_train_ids)
+                targets = torch.zeros(self.num_ids)
                 for obj in obj_id:
                     targets[obj] = 1
             obj_id = targets
@@ -82,28 +78,6 @@ class ImageDataset:
                 counts[obj_id] += 1
 
         return counts
-
-    def get_num_ids(self, data):
-        """Parses data list and returns the number of categories.
-        """
-        if not data:
-            return 0
-        ids = set()
-        for record in data:
-            label = record[1]
-            if isinstance(label, (list, tuple)):
-                if self.mixed_cls_heads_info:
-                    for i in range(self.mixed_cls_heads_info['num_multiclass_heads']):
-                        if label[i] >= 0:
-                            ids.update([self.mixed_cls_heads_info['head_idx_to_logits_range'][i][0] + label[i]])
-                    for i in range(self.mixed_cls_heads_info['num_multilabel_classes']):
-                        if label[self.mixed_cls_heads_info['num_multiclass_heads'] + i]:
-                            ids.update([self.mixed_cls_heads_info['num_single_label_classes'] + i])
-                else:
-                    ids.update(set(label))
-            else:
-                ids.add(label)
-        return len(ids)
 
     @staticmethod
     def check_before_run(required_files):
