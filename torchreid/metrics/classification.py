@@ -72,7 +72,7 @@ def score_extraction_from_ir(data_loader, model, labelmap=[]):
         gt_labels.append(label)
 
     out_scores = np.concatenate(out_scores, 0)
-    if model.type == 'multilabel':
+    if get_model_attr(model, 'model_type') == 'multilabel':
         gt_labels = np.concatenate(gt_labels, 0)
     else:
         gt_labels = np.array(gt_labels)
