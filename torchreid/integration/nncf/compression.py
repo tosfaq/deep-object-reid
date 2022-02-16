@@ -262,6 +262,9 @@ def wrap_nncf_model(model, cfg,
                                'dataset since the validation data loader was not passed '
                                'to wrap_nncf_model')
 
+        mix_precision_status = model.mix_precision
+        model.mix_precision = False
+
         model_type = get_model_attr(model, 'model_type')
         targets = list(test_loader.keys())
         use_gpu = cur_device.type == 'cuda'
@@ -286,6 +289,7 @@ def wrap_nncf_model(model, cfg,
                 raise ValueError(f'Cannot perform a model evaluation on the validation dataset'
                                  f'since the model has unsupported model_type {model_type or "None"}')
 
+        model.mix_precision = mix_precision_status
         return accuracy
 
     cur_device = next(model.parameters()).device

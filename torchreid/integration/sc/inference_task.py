@@ -53,7 +53,9 @@ from torchreid.integration.sc.utils import (active_score_from_probs, get_actmap,
                                             OTEClassificationDataset, preprocess_features_for_actmap,
                                             sigmoid_numpy, softmax_numpy)
 from torchreid.metrics.classification import score_extraction
+from torchreid.utils import get_model_attr
 from torchreid.utils import load_pretrained_weights
+from torchreid.utils import set_model_attr
 
 logger = logging.getLogger(__name__)
 
@@ -209,8 +211,8 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
                                            OTEClassificationDataset(dataset, self._labels, self._multilabel,
                                                                     keep_empty_label=self._empty_label in self._labels)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
-        mix_precision_status = self._model.mix_precision
-        self._model.mix_precision = False
+        mix_precision_status = get_model_attr(self._model, 'mix_precision')
+        set_model_attr(self._model, 'mix_precision', False)
         self._model.eval()
         self._model.to(self.device)
         targets = list(datamanager.test_loader.keys())
@@ -218,7 +220,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
         inference_results, _ = score_extraction(datamanager.test_loader[targets[0]]['query'],
                                                 self._model, self._cfg.use_gpu, perf_monitor=time_monitor,
                                                 feature_dump_mode='all' if dump_features else 'vecs')
-        self._model.mix_precision = mix_precision_status
+        set_model_attr(self._model, 'mix_precision', mix_precision_status)
         if dump_features:
             scores, features, feature_vecs = inference_results
             features = preprocess_features_for_actmap(features)
@@ -276,10 +278,10 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
             os.makedirs(optimized_model_dir, exist_ok=True)
             try:
                 onnx_model_path = os.path.join(optimized_model_dir, 'model.onnx')
-                mix_precision_status = self._model.mix_precision
-                self._model.mix_precision = False
+                mix_precision_status = get_model_attr(self._model, 'mix_precision')
+                set_model_attr(self._model, 'mix_precision', False)
                 export_onnx(self._model.eval(), self._cfg, onnx_model_path, opset=self._cfg.model.export_onnx_opset)
-                self._model.mix_precision = mix_precision_status
+                set_model_attr(self._model, 'mix_precision', mix_precision_status)
                 export_ir(onnx_model_path, self._cfg.data.norm_mean, self._cfg.data.norm_std,
                           optimized_model_dir=optimized_model_dir)
 
