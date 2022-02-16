@@ -9,8 +9,9 @@ from torchreid.losses import AngleSimpleLinearV2
 
 def gen_A(num_classes, t, rho, adj_file):
     print(f"ACTUAL MATRIX PARAMS: {t}, {rho}")
-    print(t, rho)
     _adj = np.load(adj_file)
+    # t = 0.1
+    # rho = 0.2
     _adj[_adj < t] = 0
     _adj[_adj >= t] = 1
     if rho != 0.0:

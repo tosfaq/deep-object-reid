@@ -39,7 +39,7 @@ class MultilabelEngine(Engine):
         self.clip_grad = clip_grad
         self.aug_index = None
         self.lam = None
-        self.center_push = True
+        self.center_push = False
 
         if loss_name == 'asl':
             self.main_loss = AsymmetricLoss(

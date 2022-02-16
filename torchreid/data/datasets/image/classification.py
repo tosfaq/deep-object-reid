@@ -260,7 +260,7 @@ class MultiLabelClassification(ImageDataset):
         if create_adj_matrix:
             print('here', thau)
             matrix = prepare_adj_matrix(classes, out_data, thau)
-            np.save("./glove/voc_adj_matrix_M_all", matrix)
+            np.save("./glove/coco_adj_matrix_M_all", matrix)
         return out_data, class_to_idx
 
     @staticmethod
@@ -286,6 +286,8 @@ def prepare_adj_matrix(label_set, out_data, thau):
     count_all = np.zeros(num_classes)
     for item in out_data:
         all_labels = item[1]
+        if not all_labels:
+            continue
         unique_labels = np.unique(all_labels)
         for l in all_labels:
             count_all[l] += 1
@@ -295,7 +297,8 @@ def prepare_adj_matrix(label_set, out_data, thau):
                 i,j = pair
                 assert i != j
                 M[i,j] += 1
-    M = M / count_all.reshape(20,1)
+
+    M = M / count_all.reshape(num_classes,1)
     # M[M < thau] = 0.
     # M[M > 0.9] = 1.
     # print(M)
