@@ -173,7 +173,7 @@ def run_training(cfg, opt_cfg, args, trial):
         smooth_top1 = test_acc.avg
         target_metric = smooth_top1 if engine.target_metric == 'test_acc' else avg_loss
 
-        obj = top1
+        obj = (engine.best_metric + top1) / 2
         if not engine.per_batch_annealing:
             engine.update_lr(output_avg_metric = target_metric)
 
@@ -232,7 +232,7 @@ def main():
         print('Show configuration\n{}\n'.format(cfg))
 
         sampler = TPESampler(n_startup_trials=5, seed=cfg.train.seed)
-        pruner = optuna.pruners.MedianPruner( n_startup_trials=5, n_warmup_steps=5, interval_steps=3)
+        pruner = optuna.pruners.MedianPruner( n_startup_trials=5, n_warmup_steps=4, interval_steps=2)
         study = optuna.create_study(study_name='classification task', direction="maximize", sampler=sampler, pruner=pruner)
         objective_partial = partial(run_training, cfg, opt_cfg, args)
         try:
@@ -258,6 +258,8 @@ def main():
         logger.file.close()
         for name, value in optimized_params.items():
             cfg = make_change_in_cfg(cfg, name, value)
+        cfg.data.height = 448
+        cfg.data.width = 448
         strftime = time.strftime('-%Y-%m-%d-%H-%M-%S')
         log_file = osp.join(cfg.data.save_dir, f'train{strftime}.log')
         mkdir_if_missing(osp.dirname(log_file))
