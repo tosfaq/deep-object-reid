@@ -614,7 +614,7 @@ class Engine:
             for model_id, (model_name, model) in enumerate(self.models.items()):
                 ema_condition = (self.use_ema_decay and not lr_finder
                         and not test_only and model_name == self.main_model_name)
-                model_type = get_model_attr(model, 'type')
+                model_type = get_model_attr(model, 'model_type')
                 if model_type == 'classification':
                     # do not evaluate second model till last epoch
                     if (model_name != self.main_model_name
