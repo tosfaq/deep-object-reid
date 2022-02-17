@@ -299,6 +299,7 @@ class TResNet(ModelInterface):
         # head
         self.global_pool = nn.Sequential(OrderedDict([('global_pool_layer', global_pool_layer)]))
         self.num_features = (self.planes * 8) * Bottleneck.expansion
+        print(self.num_features)
         if self.loss in ["am_softmax", "am_binary"]:
             fc = AngleSimpleLinear(self.num_features, self.num_classes)
         else:
@@ -383,8 +384,9 @@ def TResnetL(num_classes, weights, **kwargs):
     """
     in_chans = 3
     layers_list = [3, 4, 23, 3]
-    model = TResNet(layers=layers_list, num_classes=num_classes, in_chans=in_chans, first_two_layers=Bottleneck, **kwargs)
+    model = TResNet(layers=layers_list, num_classes=9598, in_chans=in_chans, first_two_layers=Bottleneck, **kwargs)
     utils.load_pretrained_weights(model, weights)
+    exit()
     return model
 
 def TResnetXL(model_params):

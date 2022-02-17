@@ -5,7 +5,7 @@ import numpy as np
 from .common import ModelInterface
 from torch.cuda.amp import autocast
 import math
-from torchreid.losses import AngleSimpleLinearV2
+from torchreid.losses import AngleSimpleLinear
 
 def gen_A(num_classes, t, rho, adj_file):
     print(f"ACTUAL MATRIX PARAMS: {t}, {rho}")
@@ -120,27 +120,35 @@ class Image_GCNN(ModelInterface):
         self.A = nn.Parameter(torch.from_numpy(adj_matrix).float())
         self.proj_embed = nn.Linear(self.backbone.num_features, self.num_classes * emb_dim, bias=False)
         self.proj_embed.weight = torch.nn.init.xavier_normal_(self.proj_embed.weight)
+        if self.loss == "am_binary":
+            self.head = AngleSimpleLinear(self.backbone.num_features, self.num_classes)
+        else:
+            self.head = nn.Linear(self.backbone.num_features, self.num_classes)
 
     def forward(self, image, return_embedings=False):
         with autocast(enabled=self.mix_precision):
             feature = self.backbone(image, return_featuremaps=True)
-            in_size = feature.size()
-            glob_features = feature.view((in_size[0], in_size[1], -1)).mean(dim=2)
-            embedings = self.proj_embed(glob_features)
-            embedings = embedings.reshape(image.size(0), self.num_classes, -1)
+            # glob_features = feature.view((in_size[0], in_size[1], -1)).mean(dim=2)
+            # embedings = self.proj_embed(glob_features)
+            # embedings = embedings.reshape(image.size(0), self.num_classes, -1)
 
             adj = self.gen_adj(self.A).detach()
             x = self.gc1(self.inp, adj)
             x = self.relu(x)
             x = self.gc2(x, adj)
+            weights = x.max(dim=0)[0]
+            weights = torch.sigmoid(weights)
+
+            weighted_cam = weights.view(1, -1, 1, 1) * feature
+            glob_features = self.backbone.glob_feature_vector(weighted_cam, self.backbone.pooling_type, reduce_dims=False)
 
             if self.loss == 'am_binary':
-                logits = F.cosine_similarity(embedings, x, dim=2)
+                logits = self.head(glob_features)
+                # logits = F.cosine_similarity(embedings, x, dim=2)
                 logits = logits.clamp(-1, 1)
             else:
-                x = x.transpose(0, 1)
                 assert self.loss in ['bce', 'asl']
-                logits = torch.matmul(glob_features, x)
+                logits = self.head(glob_features.view(glob_features.size(0), -1))
 
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.similarity_adjustment)
@@ -150,6 +158,7 @@ class Image_GCNN(ModelInterface):
 
             elif self.loss in ['asl', 'bce', 'am_binary']:
                 if return_embedings:
+                    embedings = None
                     return tuple([logits]), x, embedings
                 else:
                     out_data = [logits]
@@ -168,7 +177,7 @@ class Image_GCNN(ModelInterface):
 
     def get_config_optim(self, lrs):
         parameters = [
-            {'params': self.proj_embed.named_parameters()},
+            {'params': self.head.named_parameters()},
             {'params': self.backbone.named_parameters()},
             {'params': self.gc1.named_parameters()},
             {'params': self.gc2.named_parameters()},

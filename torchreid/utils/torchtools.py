@@ -363,6 +363,9 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
             matched_layers.append(k)
+        elif k.startswith('head.fc.FC'):
+            print(state_dict[k].size())
+            exit()
         else:
             discarded_layers.append(k)
     model_dict.update(new_state_dict)
