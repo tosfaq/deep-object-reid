@@ -82,7 +82,7 @@ train:
   sam:
     rho: 0.05
     adaptive: False
-  mix_precision: False
+  mix_precision: True
 
 test:
   batch_size: 64

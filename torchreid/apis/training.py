@@ -89,6 +89,9 @@ def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids
                                                                                  extra_device_ids,
                                                                                  aux_pretrained_dicts,
                                                                                  nncf_aux_config_changes):
+            if aux_config_opts is None:
+                aux_config_opts = []
+            aux_config_opts.extend(['train.mix_precision', cfg.train.mix_precision])
             aux_model, aux_optimizer, aux_scheduler = build_auxiliary_model(
                 config_file, num_train_classes, cfg.use_gpu, device_ids, num_iter=datamanager.num_iter,
                 lr=init_lr, nncf_aux_config_changes=nncf_config_changes,
