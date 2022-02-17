@@ -299,7 +299,6 @@ class TResNet(ModelInterface):
         # head
         self.global_pool = nn.Sequential(OrderedDict([('global_pool_layer', global_pool_layer)]))
         self.num_features = (self.planes * 8) * Bottleneck.expansion
-        print(self.num_features)
         if self.loss in ["am_softmax", "am_binary"]:
             fc = AngleSimpleLinear(self.num_features, self.num_classes)
         else:

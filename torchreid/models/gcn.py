@@ -107,19 +107,22 @@ class GraphConvolution(nn.Module):
 
 class Image_GCNN(ModelInterface):
     def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None, num_classes=80,
-                 hidden_dim_scale=1., emb_dim_scale=1., gcn_layers=2, **kwargs):
+                 hidden_dim_scale=1., emb_dim_scale=1., gcn_layers=2, gcn_pooling_type='avg', use_last_sigmoid=True,**kwargs):
         super().__init__(**kwargs)
-        print(f"ACTUAL GCN DIMS: {int(self.backbone.num_features / hidden_dim_scale)}, {int(self.backbone.num_features / emb_dim_scale)}")
         self.backbone = backbone
+        hidden_dim = int(self.backbone.num_features / hidden_dim_scale)
+        embedding_dim = int(self.backbone.num_features / emb_dim_scale)
+        print(f"ACTUAL GCN DIMS: hidden_dim: {hidden_dim}, embedding_dim: {embedding_dim}")
         self.num_classes = num_classes
-        self.pooling = nn.MaxPool2d(14, 14)
-        self.gc1 = GraphConvolution(in_channel, int(self.backbone.num_features / hidden_dim_scale))
+        self.pooling = gcn_pooling_type
+        self.gc1 = GraphConvolution(in_channel, hidden_dim)
         self.gcn_layers = gcn_layers
+        self.use_last_sigmoid = use_last_sigmoid
         if gcn_layers == 2:
-            self.gc2 = GraphConvolution(int(self.backbone.num_features / hidden_dim_scale), int(self.backbone.num_features / emb_dim_scale))
+            self.gc2 = GraphConvolution(hidden_dim, embedding_dim)
         elif gcn_layers == 3:
-            self.gc2 = GraphConvolution(int(self.backbone.num_features / hidden_dim_scale), int(self.backbone.num_features / hidden_dim_scale))
-            self.gc3 = GraphConvolution(int(self.backbone.num_features / hidden_dim_scale), int(self.backbone.num_features / emb_dim_scale))
+            self.gc2 = GraphConvolution(hidden_dim, hidden_dim)
+            self.gc3 = GraphConvolution(hidden_dim, embedding_dim)
 
         self.relu = nn.LeakyReLU(0.2)
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
@@ -133,23 +136,29 @@ class Image_GCNN(ModelInterface):
 
     def forward(self, image, return_embedings=False):
         with autocast(enabled=self.mix_precision):
-            feature = self.backbone(image, return_featuremaps=True)
-            glob_features = self.backbone.glob_feature_vector(feature, self.backbone.pooling_type, reduce_dims=False)
-            embedings = self.proj_embed(glob_features)
-            embedings = embedings.reshape(image.size(0), self.num_classes, -1)
+            spat_features = self.backbone(image, return_featuremaps=True)
 
             adj = self.gen_adj(self.A).detach()
             x = self.gc1(self.inp, adj)
             x = self.relu(x)
-            if self.gcn_layers >= 2:
-                x = self.gc2(x, adj)
-                x = self.relu(x)
-                if self.gcn_layers == 3:
-                    x = self.gc3(x, adj)
-                    x = self.relu(x)
+            x = self.gc2(x, adj)
+            x = self.relu(x)
+            if self.pooling == 'max':
+                weights = x.max(dim=0)[0]
+            elif self.pooling == 'avg':
+                weights = x.mean(dim=0)
+            else:
+                weights = x.mean(dim=0) + x.max(dim=0)[0]
+
+            if self.use_last_sigmoid:
+                weights = torch.sigmoid(weights)
+
+            weighted_cam = weights.view(1, -1, 1, 1) * spat_features
+            glob_features = self.backbone.glob_feature_vector(weighted_cam, self.backbone.pooling_type, reduce_dims=False)
 
             if self.loss == 'am_binary':
-                logits = F.cosine_similarity(embedings, x, dim=2)
+                logits = self.head(glob_features)
+                # logits = F.cosine_similarity(embedings, x, dim=2)
                 logits = logits.clamp(-1, 1)
             else:
                 assert self.loss in ['bce', 'asl']
@@ -182,7 +191,7 @@ class Image_GCNN(ModelInterface):
 
     def get_config_optim(self, lrs):
         parameters = [
-            {'params': self.proj_embed.named_parameters()},
+            {'params': self.head.named_parameters()},
             {'params': self.backbone.named_parameters()},
             {'params': self.gc1.named_parameters()},
             {'params': self.gc2.named_parameters()},
