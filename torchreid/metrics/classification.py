@@ -265,14 +265,50 @@ def mAP(targs, preds, pos_thr=0.5):
     return ap.mean(), mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o
 
 
+def compute_optimal_thresh(pos_scores, neg_scores, i=0):
+    """Computes an optimal threshold for pairwise face verification"""
+    bins = np.linspace(0, 1., num = 100)
+    hist_pos, _ = np.histogram(pos_scores, bins, density=True)
+    hist_neg, _ = np.histogram(neg_scores, bins, density=True)
+
+    '''
+    import matplotlib.pyplot as plt
+    n, _, patches = plt.hist(pos_scores, bins, density=True, facecolor='g', alpha=0.75)
+    n, _, patches = plt.hist(neg_scores, bins, density=True, facecolor='r', alpha=0.75)
+    plt.grid(True)
+    plt.savefig(f'./hist_{i}.png')
+    '''
+    intersection_bins = []
+
+    for i in range(1, len(hist_neg)):
+        if hist_pos[i - 1] >= hist_neg[i - 1]:
+            intersection_bins.append(bins[i])
+
+    if not intersection_bins:
+        intersection_bins.append(0.5)
+
+    return np.mean(intersection_bins)
+
+
 def evaluate_multilabel_classification(dataloader, model, use_gpu):
     if get_model_attr(model, 'is_ie_model'):
-        scores, labels = score_extraction_from_ir(dataloader, model)
+        scores, labels = score_extraction_from_ir(dataloader[1], model)
     else:
-        scores, labels = score_extraction(dataloader, model, use_gpu)
-
+        scores, labels = score_extraction(dataloader[1], model, use_gpu)
     scores = 1. / (1. + np.exp(-1. * scores))
-    mAP_score = mAP(labels, scores)
+
+    threshs = np.zeros(labels.shape[1])
+    for i in range(labels.shape[1]):
+        pos_idx = (labels[:, i] > 0).reshape(-1)
+        neg_idx = (labels[:, i] < 1).reshape(-1)
+
+        pos_scores = scores[pos_idx, i]
+        neg_scores = scores[neg_idx, i]
+
+        threshs[i] = compute_optimal_thresh(pos_scores, neg_scores, i)
+
+    print(threshs)
+    mAP_score = mAP(labels, scores, pos_thr=threshs)
 
     return mAP_score
 
