@@ -88,6 +88,10 @@ class OTEClassificationTrainingTask(OTEClassificationInferenceTask, ITrainingTas
             update_progress_callback = train_parameters.update_progress
         else:
             update_progress_callback = default_progress_callback
+
+        if self._cfg.type == 'multilabel':
+            self._cfg.train.max_epoch = int(self._cfg.train.max_epoch / self._cfg.train.epoch_scale)
+
         time_monitor = TrainingProgressCallback(update_progress_callback, num_epoch=self._cfg.train.max_epoch,
                                                 num_train_steps=math.ceil(len(dataset.get_subset(Subset.TRAINING)) /
                                                                           self._cfg.train.batch_size),

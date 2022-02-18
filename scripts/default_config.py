@@ -116,6 +116,7 @@ def get_default_config():
     cfg.train.lr = 0.0003
     cfg.train.weight_decay = 5e-4
     cfg.train.max_epoch = 60
+    cfg.train.epoch_scale = 3.
     cfg.train.start_epoch = 0
     cfg.train.batch_size = 32
     cfg.train.correct_batch_size = False
