@@ -155,7 +155,7 @@ class Image_GCNN(ModelInterface):
                     x = self.relu(x)
 
             if self.loss == 'am_binary':
-                print(embedings.shape, x.shape)
+                x = x.reshape(1, self.num_classes, -1)
                 logits = F.cosine_similarity(embedings, x, dim=2)
                 logits = logits.clamp(-1, 1)
             else:
