@@ -500,8 +500,7 @@ def model_kwargs(cfg, num_classes):
         'layer_type': cfg.model.gcn.layer_type,
         'use_last_sigmoid': cfg.model.gcn.use_last_sigmoid,
         'gcn_pooling_type': cfg.model.gcn.gcn_pooling_type,
-        'gcn_layers': cfg.model.gcn.gcn_layers,
-
+        'gcn_layers': cfg.model.gcn.gcn_layers
     }
 
 
