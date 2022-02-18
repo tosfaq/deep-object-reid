@@ -219,8 +219,10 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
             self._model.eval()
             self._model.to(self.device)
             dump_features = not inference_parameters.is_evaluation
-            inference_results, _ = score_extraction(datamanager.test_loader, self._model, self._cfg.use_gpu,
-                                                    perf_monitor=time_monitor, feature_dump_mode='all' if dump_features else 'vecs')
+            inference_results, _ = score_extraction(datamanager.test_loader,
+                                                    self._model, self._cfg.use_gpu,
+                                                    perf_monitor=time_monitor,
+                                                    feature_dump_mode='all' if dump_features else 'vecs')
         if dump_features:
             scores, features, feature_vecs = inference_results
             features = preprocess_features_for_actmap(features)
