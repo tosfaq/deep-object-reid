@@ -25,7 +25,7 @@ class GraphAttentionLayer(nn.Module):
     """
     Simple GAT layer, similar to https://arxiv.org/abs/1710.10903
     """
-    def __init__(self, in_features, out_features, dropout, alpha, concat=True):
+    def __init__(self, in_features, out_features, dropout=0.0, alpha=0.2, concat=True):
         super(GraphAttentionLayer, self).__init__()
         self.dropout = dropout
         self.in_features = in_features
@@ -106,27 +106,125 @@ class GraphConvolution(nn.Module):
                + str(self.out_features) + ')'
 
 
+class SpecialSpmmFunction(torch.autograd.Function):
+    """Special function for only sparse region backpropataion layer."""
+    @staticmethod
+    def forward(ctx, indices, values, shape, b):
+        assert indices.requires_grad == False
+        a = torch.sparse_coo_tensor(indices, values, shape)
+        ctx.save_for_backward(a, b)
+        ctx.N = shape[0]
+        return torch.matmul(a, b)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        a, b = ctx.saved_tensors
+        grad_values = grad_b = None
+        if ctx.needs_input_grad[1]:
+            grad_a_dense = grad_output.matmul(b.t())
+            edge_idx = a._indices()[0, :] * ctx.N + a._indices()[1, :]
+            grad_values = grad_a_dense.view(-1)[edge_idx]
+        if ctx.needs_input_grad[3]:
+            grad_b = a.t().matmul(grad_output)
+        return None, grad_values, None, grad_b
+
+
+class SpecialSpmm(nn.Module):
+    def forward(self, indices, values, shape, b):
+        return SpecialSpmmFunction.apply(indices, values, shape, b)
+
+
+class SpGraphAttentionLayer(nn.Module):
+    """
+    Sparse version GAT layer, similar to https://arxiv.org/abs/1710.10903
+    """
+
+    def __init__(self, in_features, out_features, dropout=0.0, alpha=0.2, concat=True):
+        super(SpGraphAttentionLayer, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.alpha = alpha
+        self.concat = concat
+
+        self.W = nn.Parameter(torch.zeros(size=(in_features, out_features)))
+        nn.init.xavier_normal_(self.W.data, gain=1.414)
+
+        self.a = nn.Parameter(torch.zeros(size=(1, 2*out_features)))
+        nn.init.xavier_normal_(self.a.data, gain=1.414)
+
+        self.dropout = nn.Dropout(dropout)
+        self.leakyrelu = nn.LeakyReLU(self.alpha)
+        self.special_spmm = SpecialSpmm()
+
+    def forward(self, input, adj):
+        dv = 'cuda' if input.is_cuda else 'cpu'
+
+        N = input.size()[0]
+        edge = adj.nonzero().t()
+
+        h = torch.mm(input, self.W)
+        # h: N x out
+        assert not torch.isnan(h).any()
+
+        # Self-attention on the nodes - Shared attention mechanism
+        edge_h = torch.cat((h[edge[0, :], :], h[edge[1, :], :]), dim=1).t()
+        # edge: 2*D x E
+
+        edge_e = torch.exp(-self.leakyrelu(self.a.mm(edge_h).squeeze()))
+        assert not torch.isnan(edge_e).any()
+        # edge_e: E
+
+        e_rowsum = self.special_spmm(edge, edge_e, torch.Size([N, N]), torch.ones(size=(N,1), device=dv))
+        # e_rowsum: N x 1
+
+        edge_e = self.dropout(edge_e)
+        # edge_e: E
+
+        h_prime = self.special_spmm(edge, edge_e, torch.Size([N, N]), h)
+        assert not torch.isnan(h_prime).any()
+        # h_prime: N x out
+
+        h_prime = h_prime.div(e_rowsum)
+        # h_prime: N x out
+        assert not torch.isnan(h_prime).any()
+
+        if self.concat:
+            # if this layer is not last layer,
+            return F.elu(h_prime)
+        else:
+            # if this layer is last layer,
+            return h_prime
+
+
 class Image_GCNN(ModelInterface):
     def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None, num_classes=80,
-                 hidden_dim_scale=1., emb_dim_scale=1., gcn_layers=2, gcn_pooling_type='avg', use_last_sigmoid=True,**kwargs):
+                 hidden_dim_scale=1., emb_dim_scale=1., gcn_layers=2, gcn_pooling_type='max',
+                 use_last_sigmoid=True, layer_type='gcn', **kwargs):
         super().__init__(**kwargs)
         self.backbone = backbone
         hidden_dim = int(self.backbone.num_features / hidden_dim_scale)
         embedding_dim = int(self.backbone.num_features / emb_dim_scale)
         print(f"ACTUAL GCN DIMS: hidden_dim: {hidden_dim}, embedding_dim: {embedding_dim}")
+        if layer_type == 'gcn':
+            self.layer_block = GraphConvolution
+        elif layer_type == 'gan':
+            self.layer_block = GraphAttentionLayer
+        else:
+            self.layer_block = SpGraphAttentionLayer
+
         self.num_classes = num_classes
         if gcn_layers == 1:
-            self.gc1 = GraphConvolution(in_channel, embedding_dim)
+            self.gc1 = self.layer_block(in_channel, embedding_dim)
         self.pooling = gcn_pooling_type
         self.gcn_layers = gcn_layers
         self.use_last_sigmoid = use_last_sigmoid
         if gcn_layers == 2:
-            self.gc1 = GraphConvolution(in_channel, hidden_dim)
-            self.gc2 = GraphConvolution(hidden_dim, embedding_dim)
+            self.gc1 = self.layer_block(in_channel, hidden_dim)
+            self.gc2 = self.layer_block(hidden_dim, embedding_dim)
         elif gcn_layers == 3:
-            self.gc1 = GraphConvolution(in_channel, hidden_dim)
-            self.gc2 = GraphConvolution(hidden_dim, hidden_dim)
-            self.gc3 = GraphConvolution(hidden_dim, embedding_dim)
+            self.gc1 = self.layer_block(in_channel, hidden_dim)
+            self.gc2 = self.layer_block(hidden_dim, hidden_dim)
+            self.gc3 = self.layer_block(hidden_dim, embedding_dim)
 
         self.relu = nn.LeakyReLU(0.2)
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
@@ -160,11 +258,7 @@ class Image_GCNN(ModelInterface):
             weighted_cam = weights.view(1, -1, 1, 1) * spat_features
             glob_features = self.backbone.glob_feature_vector(weighted_cam, self.backbone.pooling_type, reduce_dims=False)
 
-            if self.loss == 'am_binary':
-                logits = self.head(glob_features)
-            else:
-                assert self.loss in ['bce', 'asl']
-                logits = self.head(glob_features.view(glob_features.size(0), -1))
+            logits = self.head(glob_features.view(glob_features.size(0), -1))
 
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.similarity_adjustment)
