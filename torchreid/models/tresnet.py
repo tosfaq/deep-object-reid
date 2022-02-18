@@ -386,7 +386,6 @@ def TResnetL(num_classes, weights, **kwargs):
     layers_list = [3, 4, 23, 3]
     model = TResNet(layers=layers_list, num_classes=9598, in_chans=in_chans, first_two_layers=Bottleneck, **kwargs)
     utils.load_pretrained_weights(model, weights)
-    exit()
     return model
 
 def TResnetXL(model_params):
