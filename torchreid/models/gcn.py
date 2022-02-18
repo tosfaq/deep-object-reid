@@ -109,22 +109,27 @@ class Image_GCNN(ModelInterface):
     def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None, num_classes=80,
                  hidden_dim_scale=1., emb_dim_scale=1., gcn_layers=2, **kwargs):
         super().__init__(**kwargs)
-        print(f"ACTUAL GCN DIMS: {int(self.backbone.num_features / hidden_dim_scale)}, {int(self.backbone.num_features / emb_dim_scale)}")
         self.backbone = backbone
+        hidden_dim = int(self.backbone.num_features / hidden_dim_scale)
+        embedding_dim = int(self.backbone.num_features / emb_dim_scale)
+        print(f"ACTUAL GCN DIMS: hidden_dim: {hidden_dim}, embedding_dim: {embedding_dim}")
         self.num_classes = num_classes
         self.pooling = nn.MaxPool2d(14, 14)
-        self.gc1 = GraphConvolution(in_channel, int(self.backbone.num_features / hidden_dim_scale))
+        if gcn_layers == 1:
+            self.gc1 = GraphConvolution(in_channel, embedding_dim)
         self.gcn_layers = gcn_layers
         if gcn_layers == 2:
-            self.gc2 = GraphConvolution(int(self.backbone.num_features / hidden_dim_scale), int(self.backbone.num_features / emb_dim_scale))
+            self.gc1 = GraphConvolution(in_channel, hidden_dim)
+            self.gc2 = GraphConvolution(hidden_dim, embedding_dim)
         elif gcn_layers == 3:
-            self.gc2 = GraphConvolution(int(self.backbone.num_features / hidden_dim_scale), int(self.backbone.num_features / hidden_dim_scale))
-            self.gc3 = GraphConvolution(int(self.backbone.num_features / hidden_dim_scale), int(self.backbone.num_features / emb_dim_scale))
+            self.gc1 = GraphConvolution(in_channel, hidden_dim)
+            self.gc2 = GraphConvolution(hidden_dim, hidden_dim)
+            self.gc3 = GraphConvolution(hidden_dim, embedding_dim)
 
         self.relu = nn.LeakyReLU(0.2)
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
         self.A = nn.Parameter(torch.from_numpy(adj_matrix).float())
-        self.proj_embed = nn.Linear(self.backbone.num_features, self.num_classes * self.backbone.num_features, bias=False)
+        self.proj_embed = nn.Linear(self.backbone.num_features, self.num_classes * embedding_dim, bias=False)
         self.proj_embed.weight = torch.nn.init.xavier_normal_(self.proj_embed.weight)
         if self.loss == "am_binary":
             self.head = AngleSimpleLinear(self.backbone.num_features, self.num_classes)
@@ -135,7 +140,7 @@ class Image_GCNN(ModelInterface):
         with autocast(enabled=self.mix_precision):
             feature = self.backbone(image, return_featuremaps=True)
             glob_features = self.backbone.glob_feature_vector(feature, self.backbone.pooling_type, reduce_dims=False)
-            embedings = self.proj_embed(glob_features)
+            embedings = self.proj_embed(glob_features.view(image.size(0), -1))
             embedings = embedings.reshape(image.size(0), self.num_classes, -1)
 
             adj = self.gen_adj(self.A).detach()
