@@ -22,7 +22,8 @@ import cv2 as cv
 
 __all__ = [
     'mkdir_if_missing', 'check_isfile', 'set_random_seed', "worker_init_fn",
-    'read_image', 'get_model_attr', 'StateCacher', 'random_image', 'EvalModeSetter', 'get_git_revision'
+    'read_image', 'get_model_attr', 'StateCacher', 'random_image', 'EvalModeSetter',
+    'get_git_revision', 'set_model_attr'
 ]
 
 def get_git_revision():

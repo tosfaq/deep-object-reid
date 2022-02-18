@@ -476,7 +476,7 @@ def model_kwargs(cfg, num_classes):
         'IN_conv1': cfg.model.IN_conv1,
         'bn_eval': cfg.model.bn_eval,
         'bn_frozen': cfg.model.bn_frozen,
-        'type': cfg.model.type,
+        'model_type': cfg.model.type,
         'self_challenging_cfg': cfg.model.self_challenging_cfg,
         'hidden_dim': cfg.model.transformer.hidden_dim,
         'similarity_adjustment': cfg.loss.am_binary.amb_t > 1.,
