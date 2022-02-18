@@ -108,24 +108,27 @@ class GraphConvolution(nn.Module):
 
 class Image_GCNN(ModelInterface):
     def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None, num_classes=80,
-                 hidden_dim_scale=1., emb_dim_scale=1., gcn_layers=2, **kwargs):
+                 hidden_dim_scale=1., emb_dim_scale=1., gcn_layers=2, layer_type='gcn', **kwargs):
         super().__init__(**kwargs)
         self.backbone = backbone
         hidden_dim = int(self.backbone.num_features / hidden_dim_scale)
         embedding_dim = int(self.backbone.num_features / emb_dim_scale)
         print(f"ACTUAL GCN DIMS: hidden_dim: {hidden_dim}, embedding_dim: {embedding_dim}")
         self.num_classes = num_classes
-        self.pooling = nn.MaxPool2d(14, 14)
+        if layer_type == 'gcn':
+            self.layer_block = GraphConvolution
+        elif layer_type == 'gan':
+            self.layer_block = GraphAttentionLayer
         if gcn_layers == 1:
-            self.gc1 = GraphConvolution(in_channel, embedding_dim)
+            self.gc1 = self.layer_block(in_channel, embedding_dim)
         self.gcn_layers = gcn_layers
         if gcn_layers == 2:
-            self.gc1 = GraphConvolution(in_channel, hidden_dim)
-            self.gc2 = GraphConvolution(hidden_dim, embedding_dim)
+            self.gc1 = self.layer_block(in_channel, hidden_dim)
+            self.gc2 = self.layer_block(hidden_dim, embedding_dim)
         elif gcn_layers == 3:
-            self.gc1 = GraphConvolution(in_channel, hidden_dim)
-            self.gc2 = GraphConvolution(hidden_dim, hidden_dim)
-            self.gc3 = GraphConvolution(hidden_dim, embedding_dim)
+            self.gc1 = self.layer_block(in_channel, hidden_dim)
+            self.gc2 = self.layer_block(hidden_dim, hidden_dim)
+            self.gc3 = self.layer_block(hidden_dim, embedding_dim)
 
         self.relu = nn.LeakyReLU(0.2)
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())

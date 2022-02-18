@@ -82,6 +82,7 @@ def get_default_config():
     cfg.model.gcn.thau = 0.4
     cfg.model.gcn.gcn_layers = 2
     cfg.model.gcn.smoothing = 'full'
+    cfg.model.gcn.layer_type = 'gcn'
     cfg.model.export_onnx_opset = 9
     cfg.model.tresnet_weights = ''
 
@@ -493,7 +494,8 @@ def model_kwargs(cfg, num_classes):
         'hidden_dim_scale': cfg.model.gcn.hidden_dim_scale,
         'emb_dim_scale': cfg.model.gcn.emb_dim_scale,
         'weights': cfg.model.tresnet_weights,
-        'smoothing': cfg.model.gcn.smoothing
+        'smoothing': cfg.model.gcn.smoothing,
+        'layer_type': cfg.model.gcn.layer_type
     }
 
 
