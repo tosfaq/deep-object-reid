@@ -7,16 +7,17 @@ from torch.cuda.amp import autocast
 import math
 from torchreid.losses import AngleSimpleLinear
 
-def gen_A(num_classes, t, rho, adj_file):
-    print(f"ACTUAL MATRIX PARAMS: {t}, {rho}")
+def gen_A(num_classes, t, rho, smoothing, adj_file):
+    print(f"ACTUAL MATRIX PARAMS: t: {t}, rho: {rho}, smoothing: {smoothing}")
     _adj = np.load(adj_file)
-    # t = 0.1
-    # rho = 0.2
     _adj[_adj < t] = 0
     _adj[_adj >= t] = 1
     if rho != 0.0:
         _adj = _adj * rho / (_adj.sum(0, keepdims=True) + 1e-6)
-        _adj = _adj + np.identity(num_classes, np.int)
+        if smoothing == 'full':
+            _adj = _adj + np.identity(num_classes, np.int)
+        elif smoothing == 'formula':
+            _adj = _adj + np.identity(num_classes, np.int) * (1-rho)
     return _adj
 
 
@@ -205,8 +206,8 @@ class Image_GCNN(ModelInterface):
 
 
 def build_image_gcn(backbone, word_matrix_path, adj_file, num_classes=80, word_emb_size=300,
-                    thau = 0.4, rho_gcn=0.25, pretrain=False, **kwargs):
-    adj_matrix = gen_A(num_classes, thau, rho_gcn, adj_file)
+                    thau = 0.4, rho_gcn=0.25, smoothing='full', pretrain=False, **kwargs):
+    adj_matrix = gen_A(num_classes, thau, rho_gcn, smoothing, adj_file)
     word_matrix = np.load(word_matrix_path)
     model = Image_GCNN(
         backbone=backbone,

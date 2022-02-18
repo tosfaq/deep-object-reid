@@ -38,6 +38,16 @@ def make_change_in_cfg(main_cfg, field_name, value):
     set_attr_dict(main_cfg, keys, value)
     return main_cfg
 
+def check_attr_dict(dict_, keys, val, i=0):
+    i = i if i else 0
+    if not keys[i] in dict_:
+        raise RuntimeError(f"{keys} not in config!")
+    elif not isinstance(dict_[keys[i]], dict):
+        if not keys[i] in dict_:
+            raise RuntimeError(f"{keys} not in config!")
+    else:
+        check_attr_dict(dict_[keys[i]], keys, val, i+1)
+
 def set_attr_dict(dict_, keys, val, i=0):
     i = i if i else 0
     if not isinstance(dict_[keys[i]], dict):
