@@ -5,8 +5,6 @@ from collections import OrderedDict
 import torch.nn.functional as F
 import torch.nn.parallel
 
-from inplace_abn import InPlaceABN, ABN
-
 from .common import ModelInterface
 
 import torchreid.utils as utils
@@ -363,6 +361,7 @@ class TResNet(ModelInterface):
 
 
 def TResnetS(model_params):
+    from inplace_abn import InPlaceABN, ABN
     """Constructs a small TResnet model.
     """
     in_chans = 3
@@ -372,6 +371,7 @@ def TResnetS(model_params):
     return model
 
 def TResnetM(num_classes, **kwargs):
+    from inplace_abn import InPlaceABN, ABN
     """Constructs a medium TResnet model.
     """
     in_chans = 3
@@ -380,6 +380,7 @@ def TResnetM(num_classes, **kwargs):
 
 
 def TResnetL(num_classes, weights, **kwargs):
+    from inplace_abn import InPlaceABN, ABN
     """Constructs a large TResnet model.
     """
     in_chans = 3
@@ -390,6 +391,7 @@ def TResnetL(num_classes, weights, **kwargs):
     return model
 
 def TResnetXL(model_params):
+    from inplace_abn import InPlaceABN, ABN
     """Constructs a large TResnet model.
     """
     in_chans = 3
