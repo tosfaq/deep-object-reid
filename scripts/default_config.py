@@ -116,8 +116,6 @@ def get_default_config():
     cfg.train.lr = 0.0003
     cfg.train.weight_decay = 5e-4
     cfg.train.max_epoch = 60
-    cfg.train.epoch_scale = 1.
-    cfg.train.lr_scale = 1.
     cfg.train.start_epoch = 0
     cfg.train.batch_size = 32
     cfg.train.correct_batch_size = False
@@ -339,6 +337,11 @@ def get_default_config():
     cfg.nncf.coeff_decrease_lr_for_nncf = 0.035
     # path to a json file with NNCF config
     cfg.nncf.nncf_config_path = ''
+
+    # SC integration part
+    cfg.sc_integration = CN()
+    cfg.sc_integration.lr_scale = 1.
+    cfg.sc_integration.epoch_scale = 1.
 
     return cfg
 

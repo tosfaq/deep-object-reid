@@ -64,8 +64,6 @@ train:
   max_epoch: 60
   weight_decay: 5e-4
   batch_size: 64
-  epoch_scale: 3.
-  lr_scale: 3.
   lr_scheduler: 'onecycle'
   early_stopping: True
   pct_start: 0.1
@@ -85,3 +83,7 @@ test:
   batch_size: 128
   evaluate: False
   eval_freq: 1
+
+sc_integration:
+  epoch_scale: 3.
+  lr_scale: 3.

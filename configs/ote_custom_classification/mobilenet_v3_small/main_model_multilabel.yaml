@@ -63,8 +63,6 @@ train:
   lr: 0.016
   nbd: True
   max_epoch: 60
-  epoch_scale: 3.
-  lr_scale: 3.
   weight_decay: 5e-4
   batch_size: 64
   lr_scheduler: 'onecycle'
@@ -86,3 +84,7 @@ test:
   batch_size: 128
   evaluate: False
   eval_freq: 1
+
+sc_integration:
+  epoch_scale: 3.
+  lr_scale: 3.
