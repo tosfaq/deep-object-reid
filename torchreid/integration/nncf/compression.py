@@ -263,7 +263,6 @@ def wrap_nncf_model(model, cfg,
                                'to wrap_nncf_model')
 
         model_type = get_model_attr(model, 'model_type')
-        targets = list(test_loader.keys())
         use_gpu = cur_device.type == 'cuda'
         print('##### Evaluating test dataset #####')
         if model_type == 'classification':

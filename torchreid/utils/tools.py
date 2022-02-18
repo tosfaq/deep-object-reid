@@ -116,7 +116,7 @@ def set_model_attr(model, attr, value):
     setattr(model, attr, value)
 
 
-class StateCacher(object):
+class StateCacher:
     def __init__(self, in_memory, cache_dir=None):
         self.in_memory = in_memory
         self.cache_dir = cache_dir
