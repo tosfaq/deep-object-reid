@@ -3,46 +3,26 @@
 #
 
 import pytest
-
 from ote_sdk.configuration.configurable_parameters import ConfigurableParameters
-from ote_sdk.configuration.helper import create
 from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.label_schema import LabelSchemaEntity
 from ote_sdk.entities.model import ModelConfiguration, ModelEntity
-from ote_sdk.entities.model_template import parse_model_template
-from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.tests.constants.ote_sdk_components import OteSdkComponent
 from ote_sdk.tests.constants.requirements import Requirements
 from ote_sdk.tests.parameters_validation.validation_helper import (
     check_value_error_exception_raised,
 )
+
 from torchreid.integration.sc.train_task import OTEClassificationTrainingTask
 
-from .helpers import load_test_dataset
+
+class MockClassificationTrainingTask(OTEClassificationTrainingTask):
+    def __init__(self):
+        pass
 
 
 @pytest.mark.components(OteSdkComponent.OTE_SDK)
 class TestOTEClassificationTrainingTaskInputParamsValidation:
-    @staticmethod
-    def task():
-        labels_list = load_test_dataset()[1]
-        labels_schema = LabelSchemaEntity.from_labels(labels_list)
-        model_template = parse_model_template(
-            "configs/ote_custom_classification/efficientnet_b0/template.yaml"
-        )
-
-        params = create(model_template.hyper_parameters.data)
-        params.learning_parameters.num_iters = 5
-        params.learning_parameters.learning_rate_warmup_iters = 1
-        params.learning_parameters.batch_size = 2
-        environment = TaskEnvironment(
-            model=None,
-            hyper_parameters=params,
-            label_schema=labels_schema,
-            model_template=model_template,
-        )
-        return OTEClassificationTrainingTask(task_environment=environment)
-
     @staticmethod
     def model():
         model_configuration = ModelConfiguration(
@@ -88,7 +68,7 @@ class TestOTEClassificationTrainingTaskInputParamsValidation:
         Test passes if ValueError exception is raised when unexpected type object is specified as
         input parameter for "save_model" method
         """
-        task = self.task()
+        task = MockClassificationTrainingTask()
         with pytest.raises(ValueError):
             task.save_model(output_model="unexpected string")  # type: ignore
 
@@ -107,7 +87,7 @@ class TestOTEClassificationTrainingTaskInputParamsValidation:
         Test passes if ValueError exception is raised when unexpected type object is specified as
         input parameter for "train" method
         """
-        task = self.task()
+        task = MockClassificationTrainingTask()
         correct_values_dict = {
             "dataset": DatasetEntity(),
             "output_model": self.model(),

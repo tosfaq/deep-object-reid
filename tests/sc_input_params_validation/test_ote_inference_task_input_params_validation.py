@@ -1,44 +1,25 @@
 import pytest
-
 from ote_sdk.configuration.configurable_parameters import ConfigurableParameters
-from ote_sdk.configuration.helper import create
 from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.inference_parameters import InferenceParameters
 from ote_sdk.entities.label_schema import LabelSchemaEntity
 from ote_sdk.entities.model import ModelConfiguration, ModelEntity
-from ote_sdk.entities.model_template import parse_model_template
 from ote_sdk.entities.resultset import ResultSetEntity
-from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.test_suite.e2e_test_system import e2e_pytest_unit
 from ote_sdk.tests.parameters_validation.validation_helper import (
     check_value_error_exception_raised,
 )
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
+
 from torchreid.integration.sc.inference_task import OTEClassificationInferenceTask
-from .helpers import load_test_dataset
+
+
+class MockClassificationInferenceTask(OTEClassificationInferenceTask):
+    def __init__(self):
+        pass
 
 
 class TestOTEClassificationInferenceTaskInputParamsValidation:
-    @staticmethod
-    def task():
-        labels_list = load_test_dataset()[1]
-        labels_schema = LabelSchemaEntity.from_labels(labels_list)
-        model_template = parse_model_template(
-            "configs/ote_custom_classification/efficientnet_b0/template.yaml"
-        )
-
-        params = create(model_template.hyper_parameters.data)
-        params.learning_parameters.num_iters = 5
-        params.learning_parameters.learning_rate_warmup_iters = 1
-        params.learning_parameters.batch_size = 2
-        environment = TaskEnvironment(
-            model=None,
-            hyper_parameters=params,
-            label_schema=labels_schema,
-            model_template=model_template,
-        )
-        return OTEClassificationInferenceTask(task_environment=environment)
-
     @staticmethod
     def model():
         model_configuration = ModelConfiguration(
@@ -80,7 +61,7 @@ class TestOTEClassificationInferenceTaskInputParamsValidation:
         Test passes if ValueError exception is raised when unexpected type object is specified as
         input parameter for "infer" method
         """
-        task = self.task()
+        task = MockClassificationInferenceTask()
         correct_values_dict = {
             "dataset": DatasetEntity(),
             "inference_parameters": InferenceParameters(),
@@ -112,7 +93,7 @@ class TestOTEClassificationInferenceTaskInputParamsValidation:
         Test passes if ValueError exception is raised when unexpected type object is specified as
         input parameter for "evaluate" method
         """
-        task = self.task()
+        task = MockClassificationInferenceTask()
         model = self.model()
         result_set = ResultSetEntity(
             model=model,
@@ -150,7 +131,7 @@ class TestOTEClassificationInferenceTaskInputParamsValidation:
         Test passes if ValueError exception is raised when unexpected type object is specified as
         input parameter for "export" method
         """
-        task = self.task()
+        task = MockClassificationInferenceTask()
         model = self.model()
         correct_values_dict = {
             "export_type": ExportType.OPENVINO,
