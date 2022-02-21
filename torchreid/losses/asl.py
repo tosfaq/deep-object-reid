@@ -31,7 +31,7 @@ class AsymmetricLoss(nn.Module):
         if inputs.shape[0] == 0:
             return 0.
 
-        targets = label_smooth(targets, self.label_smooth)
+        targets = label_smoothing(targets, self.label_smooth)
         self.anti_targets = 1 - targets
 
         # Calculating Probabilities
@@ -90,7 +90,7 @@ class AMBinaryLoss(nn.Module):
         if cos_theta.shape[0] == 0:
             return 0.
 
-        targets = label_smooth(targets, self.label_smooth)
+        targets = label_smoothing(targets, self.label_smooth)
         self.anti_targets = 1 - targets
 
         # Calculating Probabilities
@@ -124,7 +124,7 @@ class AMBinaryLoss(nn.Module):
         return - self.loss.sum()
 
 
-def label_smooth(targets, smooth_degree):
+def label_smoothing(targets, smooth_degree):
     if smooth_degree > 0:
         targets = targets * (1 - smooth_degree)
         targets[targets == 0] = smooth_degree
