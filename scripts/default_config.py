@@ -611,7 +611,7 @@ def model_kwargs(cfg, num_classes):
         'enable_attentions': cfg.model.enable_attentions and cfg.data.enable_masks,
         'attr_names': cfg.attr_loss.names,
         'attr_num_classes': cfg.attr_loss.num_classes,
-        'type': cfg.model.type,
+        'model_type': cfg.model.type,
         'self_challenging_cfg': cfg.model.self_challenging_cfg,
         'hidden_dim': cfg.model.transformer.hidden_dim,
         'similarity_adjustment': cfg.loss.am_binary.amb_t > 1.,

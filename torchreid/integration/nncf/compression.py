@@ -262,7 +262,7 @@ def wrap_nncf_model(model, cfg,
                                'dataset since the validation data loader was not passed '
                                'to wrap_nncf_model')
 
-        model_type = get_model_attr(model, 'type')
+        model_type = get_model_attr(model, 'model_type')
         targets = list(test_loader.keys())
         use_gpu = cur_device.type == 'cuda'
         for dataset_name in targets:

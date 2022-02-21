@@ -84,7 +84,8 @@ fi
 CONSTRAINTS_FILE=$(tempfile)
 export PIP_CONSTRAINT=${CONSTRAINTS_FILE}
 
-pip install --upgrade pip || exit 1
+# Newer versions of pip have troubles with NNCF installation from the repo commit.
+pip install pip==21.2.1 || exit 1
 
 if [[ -z $CUDA_VERSION_CODE ]]; then
   export TORCH_VERSION=${TORCH_VERSION}+cpu

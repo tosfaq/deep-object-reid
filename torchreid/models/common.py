@@ -18,7 +18,7 @@ _VALID_MODEL_TYPES = ['classification', 'contrastive', 'reid', 'multilabel']
 
 class ModelInterface(nn.Module):
     def __init__(self,
-                 type,
+                 model_type,
                  feature_dim,
                  num_classes=1000,
                  pretrained=False,
@@ -31,8 +31,8 @@ class ModelInterface(nn.Module):
                  **kwargs):
         super().__init__()
 
-        assert type in _VALID_MODEL_TYPES
-        self.type = type
+        assert model_type in _VALID_MODEL_TYPES
+        self.model_type = model_type
         self.num_classes = num_classes
         if compute_scale:
             self.scale = self.compute_s(num_classes)
@@ -52,7 +52,7 @@ class ModelInterface(nn.Module):
         self.use_angle_simple_linear = True if loss in ['am_softmax', 'am_binary'] else False
 
     def is_classification(self):
-        return self.type == 'classification' or self.type == 'multilabel'
+        return self.model_type == 'classification' or self.model_type == 'multilabel'
 
     def get_num_features(self):
         return self.num_features
