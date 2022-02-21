@@ -31,6 +31,12 @@ from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.entities.train_parameters import default_progress_callback
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import IOptimizationTask, OptimizationType
+from ote_sdk.utils.argument_checks import (
+    DatasetParamTypeCheck,
+    OptionalParamTypeCheck,
+    RequiredParamTypeCheck,
+    check_input_param_type,
+)
 from scripts.default_config import imagedata_kwargs, lr_scheduler_kwargs, optimizer_kwargs
 from torchreid.apis.training import run_training
 from torchreid.integration.nncf.compression import check_nncf_is_enabled, is_nncf_state, wrap_nncf_model
@@ -51,6 +57,9 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
         """"
         Task for compressing classification models using NNCF.
         """
+        RequiredParamTypeCheck(
+            task_environment, "task_environment", TaskEnvironment
+        ).check()
         logger.info('Loading OTEClassificationNNCFTask.')
         super().__init__(task_environment)
 
@@ -153,13 +162,25 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
         return aux_models_data
 
     def optimize(
-        self,
-        optimization_type: OptimizationType,
-        dataset: DatasetEntity,
-        output_model: ModelEntity,
-        optimization_parameters: Optional[OptimizationParameters],
+            self,
+            optimization_type: OptimizationType,
+            dataset: DatasetEntity,
+            output_model: ModelEntity,
+            optimization_parameters: Optional[OptimizationParameters],
     ):
         """ Optimize a model on a dataset """
+        check_input_param_type(
+            RequiredParamTypeCheck(
+                optimization_type, "optimization_type", OptimizationType
+            ),
+            DatasetParamTypeCheck(dataset, "dataset"),
+            RequiredParamTypeCheck(output_model, "output_model", ModelEntity),
+            OptionalParamTypeCheck(
+                optimization_parameters,
+                "optimization_parameters",
+                OptimizationParameters,
+            ),
+        )
         if optimization_type is not OptimizationType.NNCF:
             raise RuntimeError('NNCF is the only supported optimization')
         if self._compression_ctrl:
@@ -241,6 +262,7 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
         output_model.precision = self._precision
 
     def save_model(self, output_model: ModelEntity):
+        RequiredParamTypeCheck(output_model, "output_model", ModelEntity).check()
         state_dict = None
         if self._compression_ctrl is not None:
             state_dict = {
@@ -250,6 +272,10 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
         self._save_model(output_model, state_dict)
 
     def export(self, export_type: ExportType, output_model: ModelEntity):
+        check_input_param_type(
+            RequiredParamTypeCheck(export_type, "export_type", ExportType),
+            RequiredParamTypeCheck(output_model, "output_model", ModelEntity),
+        )
         if self._compression_ctrl is None:
             super().export(export_type, output_model)
         else:

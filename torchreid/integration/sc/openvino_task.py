@@ -53,6 +53,12 @@ from ote_sdk.usecases.tasks.interfaces.optimization_interface import (
     IOptimizationTask,
     OptimizationType,
 )
+from ote_sdk.utils.argument_checks import (
+    DatasetParamTypeCheck,
+    OptionalParamTypeCheck,
+    RequiredParamTypeCheck,
+    check_input_param_type,
+)
 
 from compression.api import DataLoader
 from compression.engines.ie_engine import IEEngine
@@ -92,6 +98,14 @@ class OpenVINOClassificationInferencer(BaseInferencer):
             Good value is the number of available cores. Defaults to 1.
         :param device: Device to run inference on, such as CPU, GPU or MYRIAD. Defaults to "CPU".
         """
+        check_input_param_type(
+            RequiredParamTypeCheck(hparams, "hparams", OTEClassificationParameters),
+            RequiredParamTypeCheck(label_schema, "label_schema", LabelSchemaEntity),
+            RequiredParamTypeCheck(model_file, "model_file", (str, bytes)),
+            OptionalParamTypeCheck(weight_file, "weight_file", (str, bytes)),
+            RequiredParamTypeCheck(device, "device", str),
+            RequiredParamTypeCheck(num_requests, "num_requests", int),
+        )
 
         multilabel = len(label_schema.get_groups(False)) > 1 and \
             len(label_schema.get_groups(False)) == len(label_schema.get_labels(include_empty=False))
@@ -106,24 +120,35 @@ class OpenVINOClassificationInferencer(BaseInferencer):
         self.converter = ClassificationToAnnotationConverter(self.label_schema)
 
     def pre_process(self, image: np.ndarray) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
+        RequiredParamTypeCheck(image, "image", np.ndarray).check()
         return self.model.preprocess(image)
 
     def post_process(self, prediction: Dict[str, np.ndarray], metadata: Dict[str, Any]) -> AnnotationSceneEntity:
+        check_input_param_type(
+            RequiredParamTypeCheck(prediction, "prediction", Dict[str, np.ndarray]),
+            RequiredParamTypeCheck(metadata, "metadata", Dict[str, Any]),
+        )
         prediction = self.model.postprocess(prediction, metadata)
 
         return self.converter.convert_to_annotation(prediction, metadata)
 
     def forward(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        RequiredParamTypeCheck(inputs, "inputs", Dict[str, np.ndarray]).check()
         return self.model.infer_sync(inputs)
 
 
 class OTEOpenVinoDataLoader(DataLoader):
     def __init__(self, dataset: DatasetEntity, inferencer: BaseInferencer):
+        check_input_param_type(
+            DatasetParamTypeCheck(dataset, "dataset"),
+            RequiredParamTypeCheck(inferencer, "inferencer", BaseInferencer),
+        )
         super().__init__(config=None)
         self.dataset = dataset
         self.inferencer = inferencer
 
     def __getitem__(self, index):
+        RequiredParamTypeCheck(index, "index", int).check()
         image = self.dataset[index].numpy
         annotation = self.dataset[index].annotation_scene
         inputs, metadata = self.inferencer.pre_process(image)
@@ -136,6 +161,9 @@ class OTEOpenVinoDataLoader(DataLoader):
 
 class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTask, IOptimizationTask):
     def __init__(self, task_environment: TaskEnvironment):
+        RequiredParamTypeCheck(
+            task_environment, "task_environment", TaskEnvironment
+        ).check()
         self.task_environment = task_environment
         self.hparams = self.task_environment.get_hyper_parameters(OTEClassificationParameters)
         self.model = self.task_environment.model
@@ -149,6 +177,12 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
 
     def infer(self, dataset: DatasetEntity,
               inference_parameters: Optional[InferenceParameters] = None) -> DatasetEntity:
+        check_input_param_type(
+            DatasetParamTypeCheck(dataset, "dataset"),
+            OptionalParamTypeCheck(
+                inference_parameters, "inference_parameters", InferenceParameters
+            ),
+        )
         update_progress_callback = default_progress_callback
         if inference_parameters is not None:
             update_progress_callback = inference_parameters.update_progress
@@ -162,6 +196,12 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
     def evaluate(self,
                  output_result_set: ResultSetEntity,
                  evaluation_metric: Optional[str] = None):
+        check_input_param_type(
+            RequiredParamTypeCheck(
+                output_result_set, "output_result_set", ResultSetEntity
+            ),
+            OptionalParamTypeCheck(evaluation_metric, "evaluation_metric", str),
+        )
         if evaluation_metric is not None:
             logger.warning(f'Requested to use {evaluation_metric} metric,'
                            'but parameter is ignored. Use accuracy instead.')
@@ -169,6 +209,7 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
 
     def deploy(self,
                output_model: ModelEntity) -> None:
+        RequiredParamTypeCheck(output_model, "output_model", ModelEntity).check()
         logger.info('Deploying the model')
 
         work_dir = os.path.dirname(demo.__file__)
@@ -213,6 +254,18 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
                  dataset: DatasetEntity,
                  output_model: ModelEntity,
                  optimization_parameters: Optional[OptimizationParameters]):
+        check_input_param_type(
+            RequiredParamTypeCheck(
+                optimization_type, "optimization_type", OptimizationType
+            ),
+            DatasetParamTypeCheck(dataset, "dataset"),
+            RequiredParamTypeCheck(output_model, "output_model", ModelEntity),
+            OptionalParamTypeCheck(
+                optimization_parameters,
+                "optimization_parameters",
+                OptimizationParameters,
+            ),
+        )
 
         if optimization_type is not OptimizationType.POT:
             raise ValueError("POT is the only supported optimization type for OpenVino models")

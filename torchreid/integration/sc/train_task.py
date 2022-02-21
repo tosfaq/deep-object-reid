@@ -35,6 +35,12 @@ from torchreid.integration.sc.monitors import DefaultMetricsMonitor
 from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingProgressCallback)
 from torchreid.ops import DataParallel
 from torchreid.utils import load_pretrained_weights, set_random_seed
+from ote_sdk.utils.argument_checks import (
+    DatasetParamTypeCheck,
+    OptionalParamTypeCheck,
+    RequiredParamTypeCheck,
+    check_input_param_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +48,7 @@ logger = logging.getLogger(__name__)
 class OTEClassificationTrainingTask(OTEClassificationInferenceTask, ITrainingTask):
 
     def __init__(self, task_environment: TaskEnvironment):
+        RequiredParamTypeCheck(task_environment, "task_environment", TaskEnvironment).check()
         super().__init__(task_environment)
         self._aux_model_snap_paths = {}
 
@@ -56,6 +63,7 @@ class OTEClassificationTrainingTask(OTEClassificationInferenceTask, ITrainingTas
         self.stop_callback.stop()
 
     def save_model(self, output_model: ModelEntity):
+        RequiredParamTypeCheck(output_model, "output_model", ModelEntity).check()
         for name, path in self._aux_model_snap_paths.items():
             with open(path, 'rb') as read_file:
                 output_model.set_data(name, read_file.read())
@@ -81,7 +89,13 @@ class OTEClassificationTrainingTask(OTEClassificationInferenceTask, ITrainingTas
     def train(self, dataset: DatasetEntity, output_model: ModelEntity,
               train_parameters: Optional[TrainParameters] = None):
         """ Trains a model on a dataset """
-
+        check_input_param_type(
+            DatasetParamTypeCheck(dataset, "dataset"),
+            RequiredParamTypeCheck(output_model, "output_model", ModelEntity),
+            OptionalParamTypeCheck(
+                train_parameters, "train_parameters", TrainParameters
+            ),
+        )
         train_model = deepcopy(self._model)
 
         if train_parameters is not None:

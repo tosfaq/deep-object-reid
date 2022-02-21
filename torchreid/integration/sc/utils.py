@@ -33,11 +33,19 @@ from ote_sdk.entities.image import Image
 from ote_sdk.entities.label import Domain, LabelEntity
 from ote_sdk.entities.label_schema import (LabelGroup, LabelGroupType,
                                            LabelSchemaEntity)
+from ote_sdk.entities.model_template import ModelTemplate
 from ote_sdk.entities.scored_label import ScoredLabel
 from ote_sdk.entities.shapes.rectangle import Rectangle
 from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.train_parameters import UpdateProgressCallback
 from ote_sdk.usecases.reporting.time_monitor_callback import TimeMonitorCallback
+from ote_sdk.utils.argument_checks import (
+    DatasetParamTypeCheck,
+    RequiredParamTypeCheck,
+    check_input_param_type,
+    OptionalFilePathCheck,
+    OptionalDirectoryPathCheck
+)
 
 
 class ClassificationDatasetAdapter(DatasetEntity):
@@ -49,6 +57,14 @@ class ClassificationDatasetAdapter(DatasetEntity):
                  test_ann_file=None,
                  test_data_root=None,
                  **kwargs):
+        check_input_param_type(
+            OptionalFilePathCheck(train_ann_file, "train_ann_file", ["json"]),
+            OptionalDirectoryPathCheck(train_data_root, "train_data_root"),
+            OptionalFilePathCheck(val_ann_file, "val_ann_file", ["json"]),
+            OptionalDirectoryPathCheck(val_data_root, "val_data_root"),
+            OptionalFilePathCheck(test_ann_file, "test_ann_file", ["json"]),
+            OptionalDirectoryPathCheck(test_data_root, "test_data_root"),
+        )
         self.data_roots = {}
         self.ann_files = {}
         self.multilabel = False
@@ -167,6 +183,10 @@ class ClassificationDatasetAdapter(DatasetEntity):
 
 
 def generate_label_schema(not_empty_labels, multilabel=False):
+    check_input_param_type(
+        RequiredParamTypeCheck(not_empty_labels, "not_empty_labels", List[LabelEntity]),
+        RequiredParamTypeCheck(multilabel, "multilabel", bool),
+    )
     assert len(not_empty_labels) > 1
 
     label_schema = LabelSchemaEntity()
@@ -185,6 +205,11 @@ def generate_label_schema(not_empty_labels, multilabel=False):
 class OTEClassificationDataset():
     def __init__(self, ote_dataset: DatasetEntity, labels, multilabel=False,
                  keep_empty_label=False):
+        check_input_param_type(
+            DatasetParamTypeCheck(ote_dataset, "ote_dataset"),
+            RequiredParamTypeCheck(labels, "labels", List[LabelEntity]),
+            RequiredParamTypeCheck(multilabel, "multilabel", bool),
+        )
         super().__init__()
         self.ote_dataset = ote_dataset
         self.multilabel = multilabel
@@ -209,6 +234,7 @@ class OTEClassificationDataset():
                 self.annotation.append({'label': class_indices[0]})
 
     def __getitem__(self, idx):
+        RequiredParamTypeCheck(idx, "idx", int).check()
         sample = self.ote_dataset[idx].numpy  # This returns 8-bit numpy array of shape (height, width, RGB)
         label = self.annotation[idx]['label']
         return {'img': sample, 'label': label}
@@ -224,6 +250,7 @@ class OTEClassificationDataset():
 
 
 def get_task_class(path):
+    RequiredParamTypeCheck(path, "path", str).check()
     module_name, class_name = path.rsplit('.', 1)
     module = importlib.import_module(module_name)
     return getattr(module, class_name)
@@ -235,7 +262,7 @@ def reload_hyper_parameters(model_template):
         This function should not be used in general case, it is assumed that
         the 'configuration.yaml' should be in the same folder as 'template.yaml' file.
     """
-
+    RequiredParamTypeCheck(model_template, "model_template", ModelTemplate).check()
     template_file = model_template.model_template_path
     template_dir = osp.dirname(template_file)
     temp_folder = tempfile.mkdtemp()
@@ -249,6 +276,7 @@ def reload_hyper_parameters(model_template):
 
 
 def set_values_as_default(parameters):
+    RequiredParamTypeCheck(parameters, "parameters", dict).check()
     for v in parameters.values():
         if isinstance(v, dict) and 'value' not in v:
             set_values_as_default(v)
@@ -286,6 +314,7 @@ class InferenceProgressCallback(TimeMonitorCallback):
 
 
 def preprocess_features_for_actmap(features):
+    RequiredParamTypeCheck(features, "features", (np.ndarray, int, float, str, tuple, list)).check()
     features = np.mean(features, axis=1)
     b, h, w = features.shape
     features = features.reshape(b, h * w)
@@ -296,6 +325,10 @@ def preprocess_features_for_actmap(features):
 
 
 def get_actmap(features, output_res):
+    check_input_param_type(
+        RequiredParamTypeCheck(features, "features", (np.ndarray, int, float, str, tuple, list)),
+        RequiredParamTypeCheck(output_res, "output_res", (tuple, list)),
+    )
     am = cv.resize(features, output_res)
     am = 255 * (am - np.min(am)) / (np.max(am) - np.min(am) + 1e-12)
     am = np.uint8(np.floor(am))
@@ -304,16 +337,19 @@ def get_actmap(features, output_res):
 
 
 def active_score_from_probs(predictions):
+    RequiredParamTypeCheck(predictions, "predictions", (np.ndarray, int, float, str, tuple, list)).check()
     top_idxs = np.argpartition(predictions, -2)[-2:]
     top_probs = predictions[top_idxs]
     return np.max(top_probs) - np.min(top_probs)
 
 
 def sigmoid_numpy(x: np.ndarray):
+    RequiredParamTypeCheck(x, "x", np.ndarray).check()
     return 1. / (1. + np.exp(-1. * x))
 
 
 def softmax_numpy(x: np.ndarray):
+    RequiredParamTypeCheck(x, "x", np.ndarray).check()
     x = np.exp(x)
     x /= np.sum(x)
     return x
@@ -321,6 +357,11 @@ def softmax_numpy(x: np.ndarray):
 
 def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity],
                                activate: bool = True) -> List[ScoredLabel]:
+    check_input_param_type(
+        RequiredParamTypeCheck(logits, "logits", np.ndarray),
+        RequiredParamTypeCheck(labels, "labels", List[LabelEntity]),
+        RequiredParamTypeCheck(activate, "activate", bool),
+    )
     i = np.argmax(logits)
     if activate:
         logits = softmax_numpy(logits)
@@ -329,6 +370,12 @@ def get_multiclass_predictions(logits: np.ndarray, labels: List[LabelEntity],
 
 def get_multilabel_predictions(logits: np.ndarray, labels: List[LabelEntity],
                                pos_thr: float = 0.5, activate: bool = True) -> List[ScoredLabel]:
+    check_input_param_type(
+        RequiredParamTypeCheck(logits, "logits", np.ndarray),
+        RequiredParamTypeCheck(labels, "labels", List[LabelEntity]),
+        RequiredParamTypeCheck(pos_thr, "pos_thr", float),
+        RequiredParamTypeCheck(activate, "activate", bool),
+    )
     if activate:
         logits = sigmoid_numpy(logits)
     item_labels = []

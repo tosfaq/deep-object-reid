@@ -15,6 +15,10 @@
 import cv2
 import numpy as np
 from typing import Any, Dict
+from ote_sdk.utils.argument_checks import (
+    RequiredParamTypeCheck,
+    check_input_param_type,
+)
 
 try:
     from openvino.model_zoo.model_api.models.classification import Classification
@@ -39,6 +43,7 @@ class OteClassification(Classification):
         return parameters
 
     def preprocess(self, image: np.ndarray):
+        RequiredParamTypeCheck(image, "image", np.ndarray).check()
         meta = {'original_shape': image.shape}
         resized_image = self.resize(image, (self.w, self.h))
         resized_image = cv2.cvtColor(resized_image, cv2.COLOR_RGB2BGR)
@@ -51,6 +56,10 @@ class OteClassification(Classification):
         return dict_inputs, meta
 
     def postprocess(self, outputs: Dict[str, np.ndarray], metadata: Dict[str, Any]):
+        check_input_param_type(
+            RequiredParamTypeCheck(outputs, "outputs", Dict[str, np.ndarray]),
+            RequiredParamTypeCheck(metadata, "metadata", Dict[str, Any]),
+        )
         outputs = outputs[self.out_layer_name].squeeze()
         self.activate = False
         if not np.isclose(np.sum(outputs), 1.0, atol=0.01):
@@ -63,17 +72,22 @@ class OteClassification(Classification):
 
 
 def sigmoid_numpy(x: np.ndarray):
+    RequiredParamTypeCheck(x, "x", np.ndarray).check()
     return 1. / (1. + np.exp(-1. * x))
 
 
 def softmax_numpy(x: np.ndarray):
+    RequiredParamTypeCheck(x, "x", np.ndarray).check()
     x = np.exp(x)
     x /= np.sum(x)
     return x
 
 
 def get_multiclass_predictions(logits: np.ndarray, activate: bool = True):
-
+    check_input_param_type(
+        RequiredParamTypeCheck(logits, "logits", np.ndarray),
+        RequiredParamTypeCheck(activate, "activate", bool),
+    )
     index = np.argmax(logits)
     if activate:
         logits = softmax_numpy(logits)
@@ -81,6 +95,11 @@ def get_multiclass_predictions(logits: np.ndarray, activate: bool = True):
 
 
 def get_multilabel_predictions(logits: np.ndarray, pos_thr: float = 0.5, activate: bool = True):
+    check_input_param_type(
+        RequiredParamTypeCheck(logits, "logits", np.ndarray),
+        RequiredParamTypeCheck(pos_thr, "pos_thr", float),
+        RequiredParamTypeCheck(activate, "activate", bool),
+    )
     if activate:
         logits = sigmoid_numpy(logits)
     scores = []

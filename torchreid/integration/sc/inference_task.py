@@ -42,6 +42,12 @@ from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
 from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
+from ote_sdk.utils.argument_checks import (
+    DatasetParamTypeCheck,
+    OptionalParamTypeCheck,
+    RequiredParamTypeCheck,
+    check_input_param_type,
+)
 from ote_sdk.utils.labels_utils import get_empty_label, get_leaf_labels, get_ancestors_by_prediction
 from scripts.default_config import (get_default_config, imagedata_kwargs,
                                     merge_from_files_with_base, model_kwargs)
@@ -63,6 +69,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
     task_environment: TaskEnvironment
 
     def __init__(self, task_environment: TaskEnvironment):
+        RequiredParamTypeCheck(task_environment, "task_environment", TaskEnvironment).check()
         logger.info("Loading OTEClassificationTask.")
         self._scratch_space = tempfile.mkdtemp(prefix="ote-cls-scratch-")
         logger.info(f"Scratch space created at {self._scratch_space}")
@@ -189,6 +196,13 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
             For example, when results are generated for evaluation purposes, Saliency maps can be turned off.
         :return: Dataset that also includes the classification results
         """
+        check_input_param_type(
+            DatasetParamTypeCheck(dataset, "dataset"),
+            OptionalParamTypeCheck(
+                inference_parameters, "inference_parameters", InferenceParameters
+            ),
+        )
+
         if len(dataset) == 0:
             logger.warning("Empty dataset has been passed for the inference.")
             return dataset
@@ -261,11 +275,21 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
     def evaluate(
         self, output_resultset: ResultSetEntity, evaluation_metric: Optional[str] = None
     ):
+        check_input_param_type(
+            RequiredParamTypeCheck(
+                output_resultset, "output_result_set", ResultSetEntity
+            ),
+            OptionalParamTypeCheck(evaluation_metric, "evaluation_metric", str),
+        )
         performance = MetricsHelper.compute_accuracy(output_resultset).get_performance()
         logger.info(f"Computes performance of {performance}")
         output_resultset.performance = performance
 
     def export(self, export_type: ExportType, output_model: ModelEntity):
+        check_input_param_type(
+            RequiredParamTypeCheck(export_type, "export_type", ExportType),
+            RequiredParamTypeCheck(output_model, "output_model", ModelEntity),
+        )
         assert export_type == ExportType.OPENVINO
         output_model.model_format = ModelFormat.OPENVINO
         output_model.optimization_type = self._optimization_type

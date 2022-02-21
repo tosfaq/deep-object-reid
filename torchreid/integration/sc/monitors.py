@@ -17,6 +17,11 @@
 import abc
 
 from torch.utils.tensorboard import SummaryWriter
+from ote_sdk.utils.argument_checks import (
+    DirectoryPathCheck,
+    RequiredParamTypeCheck,
+    check_input_param_type,
+)
 
 
 class IMetricsMonitor(metaclass=abc.ABCMeta):
@@ -73,10 +78,16 @@ class StopCallback(IStopCallback):
 
 class MetricsMonitor(IMetricsMonitor):
     def __init__(self, log_dir):
+        DirectoryPathCheck(log_dir, "log_dir").check()
         self.log_dir = log_dir
         self.tb = None
 
     def add_scalar(self, capture: str, value: float, timestamp: int):
+        check_input_param_type(
+            RequiredParamTypeCheck(capture, "capture", str),
+            RequiredParamTypeCheck(value, "value", float),
+            RequiredParamTypeCheck(timestamp, "timestamp", int),
+        )
         if not self.tb:
             self.tb = SummaryWriter(self.log_dir)
         self.tb.add_scalar(capture, value, timestamp)
@@ -103,6 +114,11 @@ class DefaultMetricsMonitor(IMetricsMonitor):
         self.metrics_dict = {}
 
     def add_scalar(self, capture: str, value: float, timestamp: int):
+        check_input_param_type(
+            RequiredParamTypeCheck(capture, "capture", str),
+            RequiredParamTypeCheck(value, "value", float),
+            RequiredParamTypeCheck(timestamp, "timestamp", int),
+        )
         if capture in self.metrics_dict:
             self.metrics_dict[capture].append((timestamp, value))
         else:
@@ -112,9 +128,11 @@ class DefaultMetricsMonitor(IMetricsMonitor):
         return self.metrics_dict.keys()
 
     def get_metric_values(self, capture: str):
+        RequiredParamTypeCheck(capture, "capture", str).check()
         return [item[1] for item in self.metrics_dict[capture]]
 
     def get_metric_timestamps(self, capture: str):
+        RequiredParamTypeCheck(capture, "capture", str).check()
         return [item[0] for item in self.metrics_dict[capture]]
 
     def close(self):
