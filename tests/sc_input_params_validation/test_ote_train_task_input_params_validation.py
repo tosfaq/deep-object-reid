@@ -7,8 +7,7 @@ from ote_sdk.configuration.configurable_parameters import ConfigurableParameters
 from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.label_schema import LabelSchemaEntity
 from ote_sdk.entities.model import ModelConfiguration, ModelEntity
-from ote_sdk.tests.constants.ote_sdk_components import OteSdkComponent
-from ote_sdk.tests.constants.requirements import Requirements
+from ote_sdk.test_suite.e2e_test_system import e2e_pytest_unit
 from ote_sdk.tests.parameters_validation.validation_helper import (
     check_value_error_exception_raised,
 )
@@ -21,7 +20,6 @@ class MockClassificationTrainingTask(OTEClassificationTrainingTask):
         pass
 
 
-@pytest.mark.components(OteSdkComponent.OTE_SDK)
 class TestOTEClassificationTrainingTaskInputParamsValidation:
     @staticmethod
     def model():
@@ -35,9 +33,7 @@ class TestOTEClassificationTrainingTaskInputParamsValidation:
             train_dataset=DatasetEntity(), configuration=model_configuration
         )
 
-    @pytest.mark.priority_medium
-    @pytest.mark.component
-    @pytest.mark.reqids(Requirements.REQ_1)
+    @e2e_pytest_unit
     def test_ote_classification_train_task_init_params_validation(self):
         """
         <b>Description:</b>
@@ -53,9 +49,7 @@ class TestOTEClassificationTrainingTaskInputParamsValidation:
         with pytest.raises(ValueError):
             OTEClassificationTrainingTask(task_environment="unexpected string")  # type: ignore
 
-    @pytest.mark.priority_medium
-    @pytest.mark.component
-    @pytest.mark.reqids(Requirements.REQ_1)
+    @e2e_pytest_unit
     def test_ote_classification_train_task_save_model_input_params_validation(self):
         """
         <b>Description:</b>
@@ -72,9 +66,7 @@ class TestOTEClassificationTrainingTaskInputParamsValidation:
         with pytest.raises(ValueError):
             task.save_model(output_model="unexpected string")  # type: ignore
 
-    @pytest.mark.priority_medium
-    @pytest.mark.component
-    @pytest.mark.reqids(Requirements.REQ_1)
+    @e2e_pytest_unit
     def test_ote_classification_train_task_input_params_validation(self):
         """
         <b>Description:</b>
