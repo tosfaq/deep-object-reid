@@ -54,6 +54,7 @@ from ote_sdk.usecases.tasks.interfaces.optimization_interface import (
     OptimizationType,
 )
 from ote_sdk.utils.argument_checks import (
+    ClassNameCheck,
     DatasetParamTypeCheck,
     OptionalParamTypeCheck,
     RequiredParamTypeCheck,
@@ -260,10 +261,10 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
             ),
             DatasetParamTypeCheck(dataset, "dataset"),
             RequiredParamTypeCheck(output_model, "output_model", ModelEntity),
-            OptionalParamTypeCheck(
+            ClassNameCheck(
                 optimization_parameters,
                 "optimization_parameters",
-                OptimizationParameters,
+                "OptimizationParameters",
             ),
         )
 

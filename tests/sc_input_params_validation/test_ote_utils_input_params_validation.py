@@ -45,14 +45,10 @@ class TestClassificationDatasetAdapterInputParamsValidation:
             ("train_ann_file", unexpected_int),
             # Empty string is specified as "train_ann_file" parameter
             ("train_ann_file", ""),
-            # Path to non-json file is specified as "train_ann_file" parameter
-            ("train_ann_file", "./non_json.jpg"),
             # Path with null character is specified as "train_ann_file" parameter
             ("train_ann_file", "./\0fake_data.json"),
             # Path with non-printable character is specified as "train_ann_file" parameter
             ("train_ann_file", "./\nfake_data.json"),
-            # Path to non-existing file is specified as "train_ann_file" parameter
-            ("train_ann_file", "./non_existing.json"),
             # Unexpected integer is specified as "train_data_root" parameter
             ("train_data_root", unexpected_int),
             # Empty string is specified as "train_data_root" parameter
@@ -65,14 +61,10 @@ class TestClassificationDatasetAdapterInputParamsValidation:
             ("val_ann_file", unexpected_int),
             # Empty string is specified as "val_ann_file" parameter
             ("val_ann_file", ""),
-            # Path to non-json file is specified as "val_ann_file" parameter
-            ("val_ann_file", "./non_json.jpg"),
             # Path with null character is specified as "val_ann_file" parameter
             ("val_ann_file", "./\0fake_data.json"),
             # Path with non-printable character is specified as "val_ann_file" parameter
             ("val_ann_file", "./\nfake_data.json"),
-            # Path to non-existing file is specified as "val_ann_file" parameter
-            ("val_ann_file", "./non_existing.json"),
             # Unexpected integer is specified as "val_data_root" parameter
             ("val_data_root", unexpected_int),
             # Empty string is specified as "val_data_root" parameter
@@ -85,14 +77,10 @@ class TestClassificationDatasetAdapterInputParamsValidation:
             ("test_ann_file", unexpected_int),
             # Empty string is specified as "test_ann_file" parameter
             ("test_ann_file", ""),
-            # Path to non-json file is specified as "test_ann_file" parameter
-            ("test_ann_file", "./non_json.jpg"),
             # Path with null character is specified as "test_ann_file" parameter
             ("test_ann_file", "./\0fake_data.json"),
             # Path with non-printable character is specified as "test_ann_file" parameter
             ("test_ann_file", "./\nfake_data.json"),
-            # Path to non-existing file is specified as "test_ann_file" parameter
-            ("test_ann_file", "./non_existing.json"),
             # Unexpected integer is specified as "test_data_root" parameter
             ("test_data_root", unexpected_int),
             # Empty string is specified as "test_data_root" parameter
