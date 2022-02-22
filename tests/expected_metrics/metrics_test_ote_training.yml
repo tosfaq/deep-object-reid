@@ -23,7 +23,7 @@
 
 'ACTION-training_evaluation,model-Custom_Image_Classification_EfficientNet-V2-S,dataset-cifar100,num_epochs-CONFIG,batch-CONFIG,usecase-reallife':
         'metrics.accuracy.Accuracy':
-                'target_value': 0.85
+                'target_value': 0.91
                 'max_diff_if_less_threshold': 0.005
                 'max_diff_if_greater_threshold': 0.03
 'ACTION-export_evaluation,model-Custom_Image_Classification_EfficientNet-V2-S,dataset-cifar100,num_epochs-CONFIG,batch-CONFIG,usecase-reallife':
