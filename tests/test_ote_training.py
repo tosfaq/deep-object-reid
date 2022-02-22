@@ -126,7 +126,7 @@ class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInter
         test_bunches = [
                 dict(
                     model_name=[
-                       'Custom_Image_Classification_EfficinetNet-B0',
+                       'Custom_Image_Classification_EfficientNet-V2-S',
                        'Custom_Image_Classification_MobileNet-V3-large-1x',
                     ],
                     dataset_name='lg_chem_short',
@@ -134,7 +134,7 @@ class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInter
                 ),
                 dict(
                     model_name=[
-                       'Custom_Image_Classification_EfficinetNet-B0',
+                       'Custom_Image_Classification_EfficientNet-V2-S',
                        'Custom_Image_Classification_MobileNet-V3-large-1x',
                     ],
                     dataset_name=['lg_chem','cifar100'],
@@ -412,5 +412,10 @@ class TestOTEReallifeClassification(OTETrainingTestInterface):
                 or "nncf_graph" in test_parameters["test_stage"]
         ):
             pytest.xfail("The MobileNet model requires loading aux weights for NNCF")
+
+        if "EfficientNet" in test_parameters["model_name"] and \
+                "nncf_graph" in test_parameters["test_stage"]:
+            pytest.xfail("The EfficientNet model has no a reference NNCF graph")
+
         test_case_fx.run_stage(test_parameters['test_stage'], data_collector_fx,
                                cur_test_expected_metrics_callback_fx)

@@ -25,12 +25,13 @@ class AsymmetricLoss(nn.Module):
         Parameters
         ----------
         inputs: input logits
-        targets: targets (multi-label binarized vector)
+        targets: targets (multi-label binarized vector. Elements < 0 are ignored)
         """
-        if self.label_smooth > 0:
-            targets = targets * (1-self.label_smooth)
-            targets[targets == 0] = self.label_smooth
+        inputs, targets = filter_input(inputs, targets)
+        if inputs.shape[0] == 0:
+            return 0.
 
+        targets = label_smoothing(targets, self.label_smooth)
         self.anti_targets = 1 - targets
 
         # Calculating Probabilities
@@ -81,12 +82,15 @@ class AMBinaryLoss(nn.Module):
         Parameters
         ----------
         cos_theta: dot product between normalized features and proxies
-        targets: targets (multi-label binarized vector)
+        targets: targets (multi-label binarized vector. Elements < 0 are ignored)
         """
         self.s = scale if scale else self.s
-        if self.label_smooth > 0:
-            targets = targets * (1 - self.label_smooth)
-            targets[targets == 0] = self.label_smooth
+
+        cos_theta, targets = filter_input(cos_theta, targets)
+        if cos_theta.shape[0] == 0:
+            return 0.
+
+        targets = label_smoothing(targets, self.label_smooth)
         self.anti_targets = 1 - targets
 
         # Calculating Probabilities
@@ -118,3 +122,18 @@ class AMBinaryLoss(nn.Module):
             self.loss *= one_sided_w
 
         return - self.loss.sum()
+
+
+def label_smoothing(targets, smooth_degree):
+    if smooth_degree > 0:
+        targets = targets * (1 - smooth_degree)
+        targets[targets == 0] = smooth_degree
+    return targets
+
+
+def filter_input(inputs, targets):
+    valid_idx = targets >= 0
+    inputs = inputs[valid_idx]
+    targets = targets[valid_idx]
+
+    return inputs, targets
