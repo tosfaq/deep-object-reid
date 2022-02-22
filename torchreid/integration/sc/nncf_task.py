@@ -32,8 +32,8 @@ from ote_sdk.entities.train_parameters import default_progress_callback
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import IOptimizationTask, OptimizationType
 from ote_sdk.utils.argument_checks import (
+    ClassNameCheck,
     DatasetParamTypeCheck,
-    OptionalParamTypeCheck,
     RequiredParamTypeCheck,
     check_input_param_type,
 )
@@ -176,10 +176,10 @@ class OTEClassificationNNCFTask(OTEClassificationInferenceTask, IOptimizationTas
             ),
             DatasetParamTypeCheck(dataset, "dataset"),
             RequiredParamTypeCheck(output_model, "output_model", ModelEntity),
-            OptionalParamTypeCheck(
+            ClassNameCheck(
                 optimization_parameters,
                 "optimization_parameters",
-                OptimizationParameters,
+                "OptimizationParameters",
             ),
         )
         if optimization_type is not OptimizationType.NNCF:

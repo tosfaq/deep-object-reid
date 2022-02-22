@@ -44,7 +44,6 @@ from ote_sdk.utils.argument_checks import (
     DatasetParamTypeCheck,
     RequiredParamTypeCheck,
     check_input_param_type,
-    OptionalFilePathCheck,
     OptionalDirectoryPathCheck
 )
 
@@ -61,11 +60,11 @@ class ClassificationDatasetAdapter(DatasetEntity):
                  test_data_root=None,
                  **kwargs):
         check_input_param_type(
-            OptionalFilePathCheck(train_ann_file, "train_ann_file", ["json"]),
+            OptionalDirectoryPathCheck(train_ann_file, "train_ann_file"),
             OptionalDirectoryPathCheck(train_data_root, "train_data_root"),
-            OptionalFilePathCheck(val_ann_file, "val_ann_file", ["json"]),
+            OptionalDirectoryPathCheck(val_ann_file, "val_ann_file"),
             OptionalDirectoryPathCheck(val_data_root, "val_data_root"),
-            OptionalFilePathCheck(test_ann_file, "test_ann_file", ["json"]),
+            OptionalDirectoryPathCheck(test_ann_file, "test_ann_file"),
             OptionalDirectoryPathCheck(test_data_root, "test_data_root"),
         )
         self.data_roots = {}
