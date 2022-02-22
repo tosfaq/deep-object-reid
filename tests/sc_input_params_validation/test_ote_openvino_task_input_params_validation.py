@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 from ote_sdk.configuration.configurable_parameters import ConfigurableParameters
 from ote_sdk.entities.datasets import DatasetEntity
-from ote_sdk.entities.label import Domain, LabelEntity
 from ote_sdk.entities.label_schema import LabelSchemaEntity
 from ote_sdk.entities.model import ModelConfiguration, ModelEntity
 from ote_sdk.entities.resultset import ResultSetEntity
@@ -14,10 +13,8 @@ from ote_sdk.test_suite.e2e_test_system import e2e_pytest_unit
 from ote_sdk.tests.parameters_validation.validation_helper import (
     check_value_error_exception_raised,
 )
-from ote_sdk.usecases.exportable_code.prediction_to_annotation_converter import (
-    DetectionToAnnotationConverter,
-)
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import OptimizationType
+
 from torchreid.integration.sc.openvino_task import (
     OpenVINOClassificationInferencer,
     OTEOpenVinoDataLoader,
@@ -249,8 +246,6 @@ class TestOpenVINOClassificationInferencerInputParamsValidation:
         Test passes if ValueError exception is raised when unexpected type object is specified as
         OpenVINOClassificationInferencer object initialization parameter
         """
-        label = LabelEntity(name="test label", domain=Domain.DETECTION)
-        converter = DetectionToAnnotationConverter([label])
         correct_values_dict = {
             "hparams": OTEClassificationParameters("header"),
             "label_schema": LabelSchemaEntity(),
@@ -281,7 +276,8 @@ class TestOpenVINOClassificationInferencerInputParamsValidation:
     def test_openvino_classification_inferencer_pre_process_params_validation(self):
         """
         <b>Description:</b>
-        Check OpenVINOClassificationInferencer object "pre_process" method input parameters validation
+        Check OpenVINOClassificationInferencer object "pre_process" method input parameters
+        validation
 
         <b>Input data:</b>
         OpenVINOClassificationInferencer object, "image" non-ndarray object
@@ -298,10 +294,12 @@ class TestOpenVINOClassificationInferencerInputParamsValidation:
     def test_openvino_classification_inferencer_post_process_params_validation(self):
         """
         <b>Description:</b>
-        Check OpenVINOClassificationInferencer object "post_process" method input parameters validation
+        Check OpenVINOClassificationInferencer object "post_process" method input parameters
+        validation
 
         <b>Input data:</b>
-        OpenVINOClassificationInferencer object, "post_process" method unexpected-type input parameters
+        OpenVINOClassificationInferencer object, "post_process" method unexpected-type input
+        parameters
 
         <b>Expected results:</b>
         Test passes if ValueError exception is raised when unexpected type object is specified as

@@ -3,6 +3,7 @@ from ote_sdk.test_suite.e2e_test_system import e2e_pytest_unit
 from ote_sdk.tests.parameters_validation.validation_helper import (
     check_value_error_exception_raised,
 )
+
 from torchreid.integration.sc.monitors import MetricsMonitor, DefaultMetricsMonitor
 
 
@@ -126,7 +127,8 @@ class TestDefaultMetricsMonitorParamsValidation:
     def test_default_metrics_monitor_get_metric_timestamps_params_validation(self):
         """
         <b>Description:</b>
-        Check DefaultMetricsMonitor object "get_metric_timestamps" method input parameters validation
+        Check DefaultMetricsMonitor object "get_metric_timestamps" method input parameters
+        validation
 
         <b>Input data:</b>
         DefaultMetricsMonitor object, "capture" unexpected-type value

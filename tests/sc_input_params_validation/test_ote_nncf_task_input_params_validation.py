@@ -3,7 +3,6 @@
 #
 
 import pytest
-
 from ote_sdk.configuration.configurable_parameters import ConfigurableParameters
 from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.label_schema import LabelSchemaEntity
@@ -14,6 +13,7 @@ from ote_sdk.tests.parameters_validation.validation_helper import (
 )
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import OptimizationType
+
 from torchreid.integration.sc.nncf_task import OTEClassificationNNCFTask
 
 

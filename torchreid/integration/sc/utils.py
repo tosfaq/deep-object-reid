@@ -46,7 +46,7 @@ from ote_sdk.utils.argument_checks import (
     check_input_param_type,
     OptionalDirectoryPathCheck
 )
-
+from torchreid.models.common import ModelInterface
 from torchreid.utils import set_model_attr, get_model_attr
 
 
@@ -289,6 +289,8 @@ def set_values_as_default(parameters):
 
 @contextmanager
 def force_fp32(model):
+    RequiredParamTypeCheck(
+        model, "model", ModelInterface).check()
     mix_precision_status = get_model_attr(model, 'mix_precision')
     set_model_attr(model, 'mix_precision', False)
     try:

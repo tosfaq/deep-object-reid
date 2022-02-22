@@ -1,11 +1,11 @@
 import numpy as np
 import pytest
-
 from ote_sdk.entities.label import LabelEntity, Domain
 from ote_sdk.test_suite.e2e_test_system import e2e_pytest_unit
 from ote_sdk.tests.parameters_validation.validation_helper import (
     check_value_error_exception_raised,
 )
+
 from torchreid.integration.sc.utils import (
     ClassificationDatasetAdapter,
     active_score_from_probs,
@@ -20,6 +20,7 @@ from torchreid.integration.sc.utils import (
     sigmoid_numpy,
     softmax_numpy,
     get_multilabel_predictions,
+    force_fp32
 )
 from .helpers import load_test_dataset
 
@@ -241,6 +242,23 @@ class TestUtilsFunctionsParamsValidation:
             set_values_as_default(parameters="unexpected string")  # type: ignore
 
     @e2e_pytest_unit
+    def test_force_fp32_parameters_params_validation(self):
+        """
+        <b>Description:</b>
+        Check "force_fp32" function input parameters validation
+
+        <b>Input data:</b>
+        "model" non-Module parameter
+
+        <b>Expected results:</b>
+        Test passes if ValueError exception is raised when unexpected type object is specified as
+        input parameter for "force_fp32" function
+        """
+        with pytest.raises(ValueError):
+            with force_fp32(model="unexpected string"):  # type: ignore
+                pass
+
+    @e2e_pytest_unit
     def test_preprocess_features_for_actmap_parameters_params_validation(self):
         """
         <b>Description:</b>
@@ -254,7 +272,7 @@ class TestUtilsFunctionsParamsValidation:
         input parameter for "preprocess_features_for_actmap" function
         """
         with pytest.raises(ValueError):
-            preprocess_features_for_actmap(features="unexpected string")  # type: ignore
+            preprocess_features_for_actmap(features={"unexpected": "dict"})  # type: ignore
 
     @e2e_pytest_unit
     def test_get_actmap_params_validation(self):
