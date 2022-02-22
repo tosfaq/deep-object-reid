@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions
 # and limitations under the License.
 
+from contextlib import contextmanager
 import importlib
 import json
 import os
@@ -45,6 +46,8 @@ from ote_sdk.utils.argument_checks import (
     check_input_param_type,
     OptionalDirectoryPathCheck
 )
+
+from torchreid.utils import set_model_attr, get_model_attr
 
 
 class ClassificationDatasetAdapter(DatasetEntity):
@@ -282,6 +285,16 @@ def set_values_as_default(parameters):
         elif isinstance(v, dict) and 'value' in v:
             if v['value'] != v['default_value']:
                 v['value'] = v['default_value']
+
+
+@contextmanager
+def force_fp32(model):
+    mix_precision_status = get_model_attr(model, 'mix_precision')
+    set_model_attr(model, 'mix_precision', False)
+    try:
+        yield model
+    finally:
+        set_model_attr(model, 'mix_precision', mix_precision_status)
 
 
 class TrainingProgressCallback(TimeMonitorCallback):
