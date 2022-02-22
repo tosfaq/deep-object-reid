@@ -32,7 +32,6 @@ class PTCVModel(ModelInterface):
                  pooling_type='avg',
                  **kwargs):
         super().__init__(**kwargs)
-        assert self.is_classification(), f"{model_name} model is adapted for classification tasks only"
         self.pooling_type = pooling_type
         self.loss = loss
         assert isinstance(num_classes, int)
