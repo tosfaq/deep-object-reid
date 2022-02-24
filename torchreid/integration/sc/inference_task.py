@@ -227,7 +227,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
                                                                     self._hierarchical, self._multihead_class_info,
                                                                     keep_empty_label=self._empty_label in self._labels),
                                            OTEClassificationDataset(dataset, self._labels, self._multilabel,
-                                                                    self._multihead_class_info,
+                                                                    mixed_cls_heads_info=self._multihead_class_info,
                                                                     keep_empty_label=self._empty_label in self._labels)]
         datamanager = torchreid.data.ImageDataManager(**imagedata_kwargs(self._cfg))
         with force_fp32(self._model):

@@ -48,7 +48,7 @@ from ote_sdk.utils.argument_checks import (
     check_input_param_type,
     OptionalDirectoryPathCheck
 )
-from torchreid.models.common import ModelInterface
+from torch.nn.modules import Module
 from torchreid.utils import set_model_attr, get_model_attr
 # from sc_sdk.utils.label_resolver import LabelResolver
 
@@ -385,7 +385,7 @@ def set_values_as_default(parameters):
 @contextmanager
 def force_fp32(model):
     RequiredParamTypeCheck(
-        model, "model", ModelInterface).check()
+        model, "model", Module).check()
     mix_precision_status = get_model_attr(model, 'mix_precision')
     set_model_attr(model, 'mix_precision', False)
     try:
