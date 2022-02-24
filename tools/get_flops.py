@@ -10,7 +10,7 @@ from scripts.default_config import (get_default_config, imagedata_kwargs,
                                     model_kwargs, merge_from_files_with_base)
 
 import torchreid
-from torchreid.utils import collect_env_info, set_random_seed
+from torchreid.utils import set_random_seed
 from ptflops import get_model_complexity_info
 
 
@@ -55,24 +55,22 @@ def main():
     cfg.merge_from_list(args.opts)
     set_random_seed(cfg.train.seed)
 
-    print('Show configuration\n{}\n'.format(cfg))
-    print('Collecting env info ...')
-    print('** System info **\n{}\n'.format(collect_env_info()))
+    print(f'Show configuration\n{cfg}\n')
 
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True
 
     datamanager = build_datamanager(cfg, args.classes)
-    num_train_classes = datamanager.num_train_pids
+    num_train_classes = datamanager.num_train_ids
 
-    print('Building main model: {}'.format(cfg.model.name))
+    print(f'Building main model: {cfg.model.name}')
     model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
     macs, num_params = get_model_complexity_info(model, (3, cfg.data.height, cfg.data.width),
                                                  as_strings=False, verbose=False, print_per_layer_stat=False)
-    print('Main model complexity: M params={:,} G flops={:,}'.format(num_params / 10**6, macs * 2 / 10**9))
+    print(f'Main model complexity: M params={num_params / 10**6:,} G flops={macs * 2 / 10**9:,}')
 
     if args.out:
-        out = list()
+        out = []
         out.append({'key': 'size', 'display_name': 'Size', 'value': num_params / 10**6, 'unit': 'Mp'})
         out.append({'key': 'complexity', 'display_name': 'Complexity', 'value': 2 * macs / 10**9,
                     'unit': 'GFLOPs'})

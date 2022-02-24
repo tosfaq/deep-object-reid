@@ -91,7 +91,7 @@ def main():
     compression_hyperparams = get_compression_hyperparams(cfg.model.load_weights)
     is_nncf_used = compression_hyperparams['enable_quantization'] or compression_hyperparams['enable_pruning']
     if is_nncf_used:
-        print(f'Using NNCF -- making NNCF changes in config')
+        print('Using NNCF -- making NNCF changes in config')
         cfg = make_nncf_changes_in_config(cfg,
                                           compression_hyperparams['enable_quantization'],
                                           compression_hyperparams['enable_pruning'],
@@ -99,7 +99,7 @@ def main():
     cfg.train.mix_precision = False
     cfg.freeze()
     num_classes = parse_num_classes(source_datasets=cfg.data.sources,
-                                    classification=cfg.model.type == 'classification' or cfg.model.type == 'multilabel',
+                                    classification=cfg.model.type in ('classification', 'multilabel'),
                                     num_classes=args.num_classes,
                                     snap_path=cfg.model.load_weights)
     model = build_model(**model_kwargs(cfg, num_classes))

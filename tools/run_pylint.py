@@ -1,22 +1,16 @@
-import logging
 import os
 import re
 
-from subprocess import run, CalledProcessError  # nosec
+from subprocess import run  # nosec
 
 if __name__ == '__main__':
     ignored_patterns = [
         'setup.py',
-        'build',
-        'tools',
-        'projects',
+        'tools/auxiliary/',
         '.history',
         'torchreid/models',
-        'torchreid/data',
-        'torchreid/engine',
-        'torchreid/metrics',
-        'torchreid/optim',
-        'torchreid/utils',
+        'torchreid/optim/radam.py',
+        'torchreid/optim/sam.py',
         'tests/conftest.py',
         'tests/config.py',
         'torchreid/integration/sc/model_wrappers/classification.py',

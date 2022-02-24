@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import argparse
 import os.path as osp
 import sys
 import time
@@ -23,7 +22,7 @@ from scripts.script_utils import (build_base_argparser, reset_config,
 import torchreid
 from torchreid.apis.training import run_lr_finder, run_training
 from torchreid.utils import (Logger, check_isfile, resume_from_checkpoint,
-                             set_random_seed, load_pretrained_weights)
+                             set_random_seed, load_pretrained_weights, get_git_revision)
 from torchreid.integration.nncf.compression_script_utils import (make_nncf_changes_in_config,
                                                                  make_nncf_changes_in_training)
 
@@ -51,7 +50,7 @@ def main():
 
     is_nncf_used = args.enable_quantization or args.enable_pruning
     if is_nncf_used:
-        print(f'Using NNCF -- making NNCF changes in config')
+        print('Using NNCF -- making NNCF changes in config')
         cfg = make_nncf_changes_in_config(cfg,
                                           args.enable_quantization,
                                           args.enable_pruning,
@@ -62,21 +61,23 @@ def main():
     log_name = 'test.log' if cfg.test.evaluate else 'train.log'
     log_name += time.strftime('-%Y-%m-%d-%H-%M-%S')
     sys.stdout = Logger(osp.join(cfg.data.save_dir, log_name))
-
-    print('Show configuration\n{}\n'.format(cfg))
+    sha_commit, branch_name = get_git_revision()
+    print(f'HEAD is: {branch_name}')
+    print(f'commit SHA is: {sha_commit}\n')
+    print(f'Show configuration\n{cfg}\n')
 
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True
 
     num_aux_models = len(cfg.mutual_learning.aux_configs)
     datamanager = build_datamanager(cfg, args.classes)
-    num_train_classes = datamanager.num_train_pids
+    num_train_classes = datamanager.num_train_ids
 
-    print('Building main model: {}'.format(cfg.model.name))
+    print(f'Building main model: {cfg.model.name}')
     model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
     macs, num_params = get_model_complexity_info(model, (3, cfg.data.height, cfg.data.width),
                                                  as_strings=False, verbose=False, print_per_layer_stat=False)
-    print('Main model complexity: params={:,} flops={:,}'.format(num_params, macs * 2))
+    print(f'Main model complexity: params={num_params:,} flops={macs * 2:,}')
 
     aux_lr = cfg.train.lr # placeholder, needed for aux models, may be filled by nncf part below
     if is_nncf_used:

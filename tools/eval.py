@@ -14,7 +14,6 @@
  limitations under the License.
 """
 
-import argparse
 import os.path as osp
 import time
 import sys
@@ -49,7 +48,7 @@ def main():
         is_nncf_used = compression_hyperparams['enable_quantization'] or compression_hyperparams['enable_pruning']
 
         if is_nncf_used:
-            print(f'Using NNCF -- making NNCF changes in config')
+            print('Using NNCF -- making NNCF changes in config')
             cfg = make_nncf_changes_in_config(cfg,
                                               compression_hyperparams['enable_quantization'],
                                               compression_hyperparams['enable_pruning'],
@@ -62,7 +61,7 @@ def main():
     log_name = 'test.log' + time.strftime('-%Y-%m-%d-%H-%M-%S')
     sys.stdout = Logger(osp.join(cfg.data.save_dir, log_name))
     datamanager = torchreid.data.ImageDataManager(filter_classes=args.classes, **imagedata_kwargs(cfg))
-    num_classes = len(datamanager.test_loader[cfg.data.targets[0]]['query'].dataset.classes)
+    num_classes = len(datamanager.test_loader.dataset.classes)
     cfg.train.ema.enable = False
     if not is_ie_model:
         model = torchreid.models.build_model(**model_kwargs(cfg, num_classes))
@@ -88,15 +87,7 @@ def main():
         check_classification_classes(model, datamanager, args.classes, test_only=True)
 
     engine = build_engine(cfg=cfg, datamanager=datamanager, model=model, optimizer=None, scheduler=None)
-    engine.test(0,
-                dist_metric=cfg.test.dist_metric,
-                normalize_feature=cfg.test.normalize_feature,
-                visrank=cfg.test.visrank,
-                visrank_topk=cfg.test.visrank_topk,
-                save_dir=cfg.data.save_dir,
-                use_metric_cuhk03=cfg.cuhk03.use_metric_cuhk03,
-                ranks=(1, 5, 10, 20),
-                rerank=cfg.test.rerank)
+    engine.test(0, topk=(1, 5, 10, 20), test_only=True)
 
 
 if __name__ == '__main__':
