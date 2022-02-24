@@ -217,6 +217,11 @@ class ClassificationDatasetAdapter(DatasetEntity):
 
 
 def generate_label_schema(not_empty_labels, multilabel=False):
+    check_input_param_type(
+        RequiredParamTypeCheck(not_empty_labels, "not_empty_labels", List[LabelEntity]),
+        RequiredParamTypeCheck(multilabel, "multilabel", bool),
+    )
+
     assert len(not_empty_labels) > 1
 
     label_schema = LabelSchemaEntity()
@@ -233,6 +238,7 @@ def generate_label_schema(not_empty_labels, multilabel=False):
 
 
 def get_multihead_class_info(label_schema: LabelSchemaEntity):
+    RequiredParamTypeCheck(label_schema, "label_schema", LabelSchemaEntity).check()
     all_groups = label_schema.get_groups(include_empty=False)
     all_groups_str = []
     for g in all_groups:
@@ -493,6 +499,14 @@ def get_multilabel_predictions(logits: np.ndarray, labels: List[LabelEntity],
 def get_hierarchical_predictions(logits: np.ndarray, labels: List[LabelEntity],
                                  label_schema: LabelSchemaEntity, multihead_class_info: dict,
                                  pos_thr: float = 0.5, activate: bool = True) -> List[ScoredLabel]:
+    check_input_param_type(
+        RequiredParamTypeCheck(logits, "logits", np.ndarray),
+        RequiredParamTypeCheck(labels, "labels", List[LabelEntity]),
+        RequiredParamTypeCheck(label_schema, "label_schema", LabelSchemaEntity),
+        RequiredParamTypeCheck(multihead_class_info, "multihead_class_info", dict),
+        RequiredParamTypeCheck(pos_thr, "pos_thr", float),
+        RequiredParamTypeCheck(activate, "activate", bool),
+    )
     predicted_labels = []
     for i in range(multihead_class_info['num_multiclass_heads']):
         logits_begin, logits_end = multihead_class_info['head_idx_to_logits_range'][i]

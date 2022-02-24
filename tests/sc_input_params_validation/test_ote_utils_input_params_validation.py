@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from ote_sdk.entities.label import LabelEntity, Domain
+from ote_sdk.entities.label_schema import LabelSchemaEntity
 from ote_sdk.test_suite.e2e_test_system import e2e_pytest_unit
 from ote_sdk.tests.parameters_validation.validation_helper import (
     check_value_error_exception_raised,
@@ -20,7 +21,9 @@ from torchreid.integration.sc.utils import (
     sigmoid_numpy,
     softmax_numpy,
     get_multilabel_predictions,
-    force_fp32
+    force_fp32,
+    get_multihead_class_info,
+    get_hierarchical_predictions,
 )
 from .helpers import load_test_dataset
 
@@ -128,6 +131,12 @@ class TestOTEClassificationDatasetInputParamsValidation:
             ("labels", [labels_list[0], unexpected_str]),
             # Unexpected string is specified as "multilabel" parameter
             ("multilabel", unexpected_str),
+            # Unexpected string is specified as "hierarchical" parameter
+            ("hierarchical", unexpected_str),
+            # Unexpected string is specified as "mixed_cls_heads_info" parameter
+            ("mixed_cls_heads_info", unexpected_str),
+            # Unexpected string is specified as "keep_empty_label" parameter
+            ("keep_empty_label", unexpected_str),
         ]
 
         check_value_error_exception_raised(
@@ -192,6 +201,22 @@ class TestUtilsFunctionsParamsValidation:
             unexpected_values=unexpected_values,
             class_or_function=generate_label_schema,
         )
+
+    @e2e_pytest_unit
+    def test_get_multihead_class_info_params_validation(self):
+        """
+        <b>Description:</b>
+        Check "get_multihead_class_info" function input parameters validation
+
+        <b>Input data:</b>
+        "label_schema" non-LabelSchemaEntity parameter
+
+        <b>Expected results:</b>
+        Test passes if ValueError exception is raised when unexpected type object is specified as
+        input parameter for "get_multihead_class_info" function
+        """
+        with pytest.raises(ValueError):
+            get_multihead_class_info(label_schema=1)  # type: ignore
 
     @e2e_pytest_unit
     def test_get_task_class_params_validation(self):
@@ -287,16 +312,16 @@ class TestUtilsFunctionsParamsValidation:
         Test passes if ValueError exception is raised when unexpected type object is specified as
         input parameter for "get_actmap" function
         """
-
+        unexpected_dict = {"unexpected": "dictionary"}
         correct_values_dict = {
             "features": ["some", "features"],
             "output_res": ("iterable", "object")
         }
         unexpected_values = [
             # Unexpected dictionary is specified as "features" parameter
-            ("features", {}),
+            ("features", unexpected_dict),
             # Unexpected dictionary is specified as "output_res" parameter
-            ("output_res", {}),
+            ("output_res", unexpected_dict),
         ]
 
         check_value_error_exception_raised(
@@ -425,4 +450,48 @@ class TestUtilsFunctionsParamsValidation:
             correct_parameters=correct_values_dict,
             unexpected_values=unexpected_values,
             class_or_function=get_multilabel_predictions,
+        )
+
+    @e2e_pytest_unit
+    def test_get_hierarchical_predictions_params_validation(self):
+        """
+        <b>Description:</b>
+        Check "get_hierarchical_predictions" function input parameters validation
+
+        <b>Input data:</b>
+        "get_hierarchical_predictions" unexpected type parameters
+
+        <b>Expected results:</b>
+        Test passes if ValueError exception is raised when unexpected type object is specified as
+        input parameter for "get_hierarchical_predictions" function
+        """
+        label = LabelEntity(name="test label", domain=Domain.DETECTION)
+        correct_values_dict = {
+            "logits": np.random.randint(low=0, high=255, size=(10, 16, 3)),
+            "labels": [label],
+            "label_schema": LabelSchemaEntity(),
+            "multihead_class_info": {"class": "info"},
+        }
+        unexpected_str = "unexpected string"
+        unexpected_values = [
+            # Unexpected string is specified as "features" parameter
+            ("logits", unexpected_str),
+            # Unexpected string is specified as "labels" parameter
+            ("labels", unexpected_str),
+            # Unexpected string is specified as nested label
+            ("labels", [label, unexpected_str]),
+            # Unexpected string is specified as "label_schema" parameter
+            ("label_schema", unexpected_str),
+            # Unexpected string is specified as "multihead_class_info" parameter
+            ("multihead_class_info", unexpected_str),
+            # Unexpected string is specified as "pos_thr" parameter
+            ("pos_thr", unexpected_str),
+            # Unexpected string is specified as "output_res" parameter
+            ("activate", unexpected_str),
+        ]
+
+        check_value_error_exception_raised(
+            correct_parameters=correct_values_dict,
+            unexpected_values=unexpected_values,
+            class_or_function=get_hierarchical_predictions,
         )
