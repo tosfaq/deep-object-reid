@@ -102,7 +102,6 @@ echo torchvision==${TORCHVISION_VERSION} >> ${CONSTRAINTS_FILE}
 # Install other requirements.
 cat requirements.txt | xargs -n 1 -L 1 pip install -c ${CONSTRAINTS_FILE} || exit 1
 cat openvino-requirements.txt | xargs -n 1 -L 1 pip install -c ${CONSTRAINTS_FILE} || exit 1
-cat compression_requirements.txt | xargs -n 1 -L 1 pip install -c ${CONSTRAINTS_FILE} || exit 1
 
 pip install -e . || exit 1
 
