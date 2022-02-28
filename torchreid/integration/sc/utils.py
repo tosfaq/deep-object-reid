@@ -68,12 +68,12 @@ class ClassificationDatasetAdapter(DatasetEntity):
                  test_data_root=None,
                  **kwargs):
         check_input_param_type(
-            OptionalDirectoryPathCheck(train_ann_file, "train_ann_file"),
-            OptionalDirectoryPathCheck(train_data_root, "train_data_root"),
-            OptionalDirectoryPathCheck(val_ann_file, "val_ann_file"),
-            OptionalDirectoryPathCheck(val_data_root, "val_data_root"),
-            OptionalDirectoryPathCheck(test_ann_file, "test_ann_file"),
-            OptionalDirectoryPathCheck(test_data_root, "test_data_root"),
+            OptionalDirectoryPathCheck(train_ann_file, "train_ann_file", True),
+            OptionalDirectoryPathCheck(train_data_root, "train_data_root", True),
+            OptionalDirectoryPathCheck(val_ann_file, "val_ann_file", True),
+            OptionalDirectoryPathCheck(val_data_root, "val_data_root", True),
+            OptionalDirectoryPathCheck(test_ann_file, "test_ann_file", True),
+            OptionalDirectoryPathCheck(test_data_root, "test_data_root", True),
         )
         self.data_roots = {}
         self.ann_files = {}

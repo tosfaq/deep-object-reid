@@ -43,7 +43,6 @@ from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExpo
 from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
 from ote_sdk.utils.argument_checks import (
-    ClassNameCheck,
     DatasetParamTypeCheck,
     OptionalParamTypeCheck,
     RequiredParamTypeCheck,
@@ -203,10 +202,7 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
         """
         check_input_param_type(
             DatasetParamTypeCheck(dataset, "dataset"),
-            ClassNameCheck(
-                inference_parameters, "inference_parameters", "InferenceParameters"
-            ),
-        )
+            OptionalParamTypeCheck(inference_parameters, "inference_parameters", InferenceParameters))
 
         if len(dataset) == 0:
             logger.warning("Empty dataset has been passed for the inference.")

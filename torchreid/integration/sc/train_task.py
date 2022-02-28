@@ -36,8 +36,8 @@ from torchreid.integration.sc.utils import (OTEClassificationDataset, TrainingPr
 from torchreid.ops import DataParallel
 from torchreid.utils import load_pretrained_weights, set_random_seed
 from ote_sdk.utils.argument_checks import (
-    ClassNameCheck,
     DatasetParamTypeCheck,
+    OptionalParamTypeCheck,
     RequiredParamTypeCheck,
     check_input_param_type,
 )
@@ -92,10 +92,7 @@ class OTEClassificationTrainingTask(OTEClassificationInferenceTask, ITrainingTas
         check_input_param_type(
             DatasetParamTypeCheck(dataset, "dataset"),
             RequiredParamTypeCheck(output_model, "output_model", ModelEntity),
-            ClassNameCheck(
-                train_parameters, "train_parameters", "TrainParameters"
-            ),
-        )
+            OptionalParamTypeCheck(train_parameters, "train_parameters", TrainParameters))
         train_model = deepcopy(self._model)
 
         if train_parameters is not None:
