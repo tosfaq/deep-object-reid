@@ -11,7 +11,7 @@ lr_finder:
   n_trials: 15
 
 model:
-  name: 'mobilenetv3_large'
+  name: 'mobilenetv3_large_21k'
   type: 'multihead'
   pretrained: True
   save_all_chkpts: False
@@ -26,9 +26,9 @@ data:
   root: './'
   height: 224
   width: 224
-  norm_mean: [0.485, 0.456, 0.406]
-  norm_std: [0.229, 0.224, 0.225]
-  save_dir: 'output/mulitihead/mobilenetv3_large_75'
+  norm_mean: [0, 0, 0]
+  norm_std: [1, 1, 1]
+  save_dir: 'output/mulitihead/mobilenetv3_large_1'
   workers: 6
   transforms:
     random_flip:
@@ -74,7 +74,7 @@ train:
   ema:
     enable: True
     ema_decay: 0.9995
-  mix_precision: False
+  mix_precision: True
 
 test:
   batch_size: 128
