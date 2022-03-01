@@ -174,7 +174,7 @@ class MobileNetV3(ModelInterface):
                 nn.Linear(output_channel, self.num_classes),
             )
         else:
-            assert self.loss in ['am_softmax', 'am_binary']
+            assert 'am_softmax' in self.loss or 'am_binary' in self.loss
             self.classifier = nn.Sequential(
                 nn.Linear(exp_size, output_channel),
                 nn.BatchNorm1d(output_channel),
