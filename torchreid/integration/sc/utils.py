@@ -50,7 +50,6 @@ from ote_sdk.utils.argument_checks import (
 )
 from torch.nn.modules import Module
 from torchreid.utils import set_model_attr, get_model_attr
-# from sc_sdk.utils.label_resolver import LabelResolver
 
 class ClassificationType(Enum):
     MULTICLASS = auto()
@@ -530,5 +529,4 @@ def get_hierarchical_predictions(logits: np.ndarray, labels: List[LabelEntity],
                 ote_label = next(x for x in labels if x.name == label_str)
                 predicted_labels.append(ScoredLabel(label=ote_label, probability=float(head_logits[i])))
 
-    # return LabelResolver.resolve_labels_probabilistic(label_schema, predicted_labels)
-    return predicted_labels
+    return label_schema.resolve_labels_probabilistic(predicted_labels)
