@@ -320,7 +320,7 @@ class ImageAMSoftmaxEngine(Engine):
         if self.writer is not None and not lr_finder:
             self.writer.add_scalar(f'Val/{model_name}/mAP', mAP, epoch + 1)
             for i, r in enumerate(topk):
-                self.writer.add_scalar('Val/{model_name}/Top-{r}', cmc[i], epoch + 1)
+                self.writer.add_scalar(f'Val/{model_name}/Top-{r}', cmc[i], epoch + 1)
 
         if not lr_finder:
             print(f'** Results ({model_name}) **')
