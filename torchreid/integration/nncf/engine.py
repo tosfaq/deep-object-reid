@@ -16,7 +16,9 @@ from torchreid.utils import ModelEmaV2
 
 
 def run_acc_aware_training_loop(engine, nncf_config, configure_optimizers_fn, stop_callback=None, perf_monitor=None):
-    from nncf.common.accuracy_aware_training import create_accuracy_aware_training_loop
+    from torchreid.integration.nncf.accuracy_aware_training.common.training_loop import (
+        create_accuracy_aware_training_loop
+    )
 
     training_data = {}
 
