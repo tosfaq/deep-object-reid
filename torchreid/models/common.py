@@ -1,6 +1,9 @@
 # Copyright (c) 2018-2021 Oleg Sémery
 # SPDX-License-Identifier: MIT
 #
+# Copyright 2022 Google LLC. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
 # Copyright (C) 2020-2021 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #

@@ -7,6 +7,12 @@
 # Copyright (c) 2019 Ross Wightman
 # SPDX-License-Identifier: Apache-2.0
 #
+# Copyright (c) 2018-2021 Zhun Zhong
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright 2019 Google LLC
+# SPDX-License-Identifier: Apache-2.0
+#
 # Copyright (C) 2020-2021 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
