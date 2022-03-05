@@ -76,14 +76,11 @@ class OteClassification(Classification):
         features = preprocess_features_for_actmap(outputs['features'])
         actmap = get_actmap(features[0], (metadata['original_shape'][1], metadata['original_shape'][0]))
         repr_vector = outputs['vector']
-        self.activate = False
-        if not np.isclose(np.sum(logits), 1.0, atol=0.01):
-            self.activate = True
 
         if self.multilabel:
-            predictions = get_multilabel_predictions(logits, activate=self.activate)
+            predictions = get_multilabel_predictions(logits)
 
-        predictions = get_multiclass_predictions(logits, activate=self.activate)
+        predictions = get_multiclass_predictions(logits)
 
         return predictions, actmap, repr_vector
 
