@@ -1,6 +1,9 @@
 # Copyright (c) 2018-2021 Kaiyang Zhou
 # SPDX-License-Identifier: MIT
 #
+# Copyright (c) 2017 Tong Xiao
+# SPDX-License-Identifier: MIT
+#
 # Copyright (C) 2020-2021 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
