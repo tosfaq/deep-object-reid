@@ -77,9 +77,14 @@ def get_default_config():
     cfg.model.transformer.rm_first_self_attn = True
     cfg.model.gcn = CN()
     cfg.model.gcn.rho = 0.25
-    cfg.model.gcn.hidden_dim = 1024
-    cfg.model.gcn.emb_dim = 2048
+    cfg.model.gcn.hidden_dim_scale = 1.
+    cfg.model.gcn.emb_dim_scale = 1.
     cfg.model.gcn.thau = 0.4
+    cfg.model.gcn.gcn_layers = 2
+    cfg.model.gcn.smoothing = 'full'
+    cfg.model.gcn.layer_type = 'gcn'
+    cfg.model.gcn.use_last_sigmoid = True
+    cfg.model.gcn.gcn_pooling_type = 'max'
     cfg.model.export_onnx_opset = 9
     cfg.model.tresnet_weights = ''
 
@@ -488,9 +493,14 @@ def model_kwargs(cfg, num_classes):
         'rm_first_self_attn': cfg.model.transformer.rm_first_self_attn,
         'thau': cfg.model.gcn.thau,
         'rho_gcn': cfg.model.gcn.rho,
-        'hidden_dim': cfg.model.gcn.hidden_dim,
-        'emb_dim': cfg.model.gcn.emb_dim,
-        'weights': cfg.model.tresnet_weights
+        'hidden_dim_scale': cfg.model.gcn.hidden_dim_scale,
+        'emb_dim_scale': cfg.model.gcn.emb_dim_scale,
+        'weights': cfg.model.tresnet_weights,
+        'smoothing': cfg.model.gcn.smoothing,
+        'layer_type': cfg.model.gcn.layer_type,
+        'use_last_sigmoid': cfg.model.gcn.use_last_sigmoid,
+        'gcn_pooling_type': cfg.model.gcn.gcn_pooling_type,
+        'gcn_layers': cfg.model.gcn.gcn_layers
     }
 
 

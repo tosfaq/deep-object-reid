@@ -7,16 +7,17 @@ from torch.cuda.amp import autocast
 import math
 from torchreid.losses import AngleSimpleLinear
 
-def gen_A(num_classes, t, rho, adj_file):
-    print(f"ACTUAL MATRIX PARAMS: {t}, {rho}")
+def gen_A(num_classes, t, rho, smoothing, adj_file):
+    print(f"ACTUAL MATRIX PARAMS: t: {t}, rho: {rho}, smoothing: {smoothing}")
     _adj = np.load(adj_file)
-    # t = 0.1
-    # rho = 0.2
     _adj[_adj < t] = 0
     _adj[_adj >= t] = 1
     if rho != 0.0:
         _adj = _adj * rho / (_adj.sum(0, keepdims=True) + 1e-6)
-        _adj = _adj + np.identity(num_classes, np.int)
+        if smoothing == 'full':
+            _adj = _adj + np.identity(num_classes, np.int)
+        elif smoothing == 'formula':
+            _adj = _adj + np.identity(num_classes, np.int) * (1-rho)
     return _adj
 
 
@@ -24,7 +25,7 @@ class GraphAttentionLayer(nn.Module):
     """
     Simple GAT layer, similar to https://arxiv.org/abs/1710.10903
     """
-    def __init__(self, in_features, out_features, dropout, alpha, concat=True):
+    def __init__(self, in_features, out_features, dropout=0.0, alpha=0.2, concat=True):
         super(GraphAttentionLayer, self).__init__()
         self.dropout = dropout
         self.in_features = in_features
@@ -105,34 +106,138 @@ class GraphConvolution(nn.Module):
                + str(self.out_features) + ')'
 
 
+class SpecialSpmmFunction(torch.autograd.Function):
+    """Special function for only sparse region backpropataion layer."""
+    @staticmethod
+    def forward(ctx, indices, values, shape, b):
+        assert indices.requires_grad == False
+        a = torch.sparse_coo_tensor(indices, values, shape)
+        ctx.save_for_backward(a, b)
+        ctx.N = shape[0]
+        return torch.matmul(a, b)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        a, b = ctx.saved_tensors
+        grad_values = grad_b = None
+        if ctx.needs_input_grad[1]:
+            grad_a_dense = grad_output.matmul(b.t())
+            edge_idx = a._indices()[0, :] * ctx.N + a._indices()[1, :]
+            grad_values = grad_a_dense.view(-1)[edge_idx]
+        if ctx.needs_input_grad[3]:
+            grad_b = a.t().matmul(grad_output)
+        return None, grad_values, None, grad_b
+
+
+class SpecialSpmm(nn.Module):
+    def forward(self, indices, values, shape, b):
+        return SpecialSpmmFunction.apply(indices, values, shape, b)
+
+
+class SpGraphAttentionLayer(nn.Module):
+    """
+    Sparse version GAT layer, similar to https://arxiv.org/abs/1710.10903
+    """
+
+    def __init__(self, in_features, out_features, dropout=0.0, alpha=0.2, concat=True):
+        super(SpGraphAttentionLayer, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.alpha = alpha
+        self.concat = concat
+
+        self.W = nn.Parameter(torch.zeros(size=(in_features, out_features)))
+        nn.init.xavier_normal_(self.W.data, gain=1.414)
+
+        self.a = nn.Parameter(torch.zeros(size=(1, 2*out_features)))
+        nn.init.xavier_normal_(self.a.data, gain=1.414)
+
+        self.dropout = nn.Dropout(dropout)
+        self.leakyrelu = nn.LeakyReLU(self.alpha)
+        self.special_spmm = SpecialSpmm()
+
+    def forward(self, input, adj):
+        dv = 'cuda' if input.is_cuda else 'cpu'
+
+        N = input.size()[0]
+        edge = adj.nonzero().t()
+
+        h = torch.mm(input, self.W)
+        # h: N x out
+        assert not torch.isnan(h).any()
+
+        # Self-attention on the nodes - Shared attention mechanism
+        edge_h = torch.cat((h[edge[0, :], :], h[edge[1, :], :]), dim=1).t()
+        # edge: 2*D x E
+
+        edge_e = torch.exp(-self.leakyrelu(self.a.mm(edge_h).squeeze()))
+        assert not torch.isnan(edge_e).any()
+        # edge_e: E
+
+        e_rowsum = self.special_spmm(edge, edge_e, torch.Size([N, N]), torch.ones(size=(N,1), device=dv))
+        # e_rowsum: N x 1
+
+        edge_e = self.dropout(edge_e)
+        # edge_e: E
+
+        h_prime = self.special_spmm(edge, edge_e, torch.Size([N, N]), h)
+        assert not torch.isnan(h_prime).any()
+        # h_prime: N x out
+
+        h_prime = h_prime.div(e_rowsum)
+        # h_prime: N x out
+        assert not torch.isnan(h_prime).any()
+
+        if self.concat:
+            # if this layer is not last layer,
+            return F.elu(h_prime)
+        else:
+            # if this layer is last layer,
+            return h_prime
+
+
 class Image_GCNN(ModelInterface):
     def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None, num_classes=80,
-                 hidden_dim_scale=1., emb_dim_scale=1., gcn_layers=2, gcn_pooling_type='avg', use_last_sigmoid=True,**kwargs):
+                 hidden_dim_scale=1., emb_dim_scale=1., gcn_layers=2, gcn_pooling_type='max',
+                 use_last_sigmoid=True, layer_type='gcn', **kwargs):
         super().__init__(**kwargs)
         self.backbone = backbone
         hidden_dim = int(self.backbone.num_features / hidden_dim_scale)
-        embedding_dim = int(self.backbone.num_features / emb_dim_scale)
+        embedding_dim = self.backbone.num_features
         print(f"ACTUAL GCN DIMS: hidden_dim: {hidden_dim}, embedding_dim: {embedding_dim}")
+        if layer_type == 'gcn':
+            self.layer_block = GraphConvolution
+        elif layer_type == 'gan':
+            self.layer_block = GraphAttentionLayer
+        else:
+            self.layer_block = SpGraphAttentionLayer
+
         self.num_classes = num_classes
+        if gcn_layers == 1:
+            self.gc1 = self.layer_block(in_channel, embedding_dim)
         self.pooling = gcn_pooling_type
-        self.gc1 = GraphConvolution(in_channel, hidden_dim)
         self.gcn_layers = gcn_layers
         self.use_last_sigmoid = use_last_sigmoid
         if gcn_layers == 2:
-            self.gc2 = GraphConvolution(hidden_dim, embedding_dim)
+            self.gc1 = self.layer_block(in_channel, hidden_dim)
+            self.gc2 = self.layer_block(hidden_dim, embedding_dim)
         elif gcn_layers == 3:
-            self.gc2 = GraphConvolution(hidden_dim, hidden_dim)
-            self.gc3 = GraphConvolution(hidden_dim, embedding_dim)
+            self.gc1 = self.layer_block(in_channel, hidden_dim)
+            self.gc2 = self.layer_block(hidden_dim, hidden_dim)
+            self.gc3 = self.layer_block(hidden_dim, embedding_dim)
 
         self.relu = nn.LeakyReLU(0.2)
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
         self.A = nn.Parameter(torch.from_numpy(adj_matrix).float())
-        self.proj_embed = nn.Linear(self.backbone.num_features, self.num_classes * self.backbone.num_features, bias=False)
+        self.proj_embed = nn.Linear(self.backbone.num_features, self.num_classes * embedding_dim, bias=False)
         self.proj_embed.weight = torch.nn.init.xavier_normal_(self.proj_embed.weight)
+        self.prototypes = nn.Parameter(torch.Tensor(self.num_classes, embedding_dim))
+        self.prototypes.data.normal_().renorm_(2, 1, 1e-5).mul_(1e5)
         if self.loss == "am_binary":
             self.head = AngleSimpleLinear(self.backbone.num_features, self.num_classes)
         else:
             self.head = nn.Linear(self.backbone.num_features, self.num_classes)
+        # self.counting_head = nn.Linear(self.backbone.num_features, 1)
 
     def forward(self, image, return_embedings=False):
         with autocast(enabled=self.mix_precision):
@@ -155,17 +260,20 @@ class Image_GCNN(ModelInterface):
 
             weighted_cam = weights.view(1, -1, 1, 1) * spat_features
             glob_features = self.backbone.glob_feature_vector(weighted_cam, self.backbone.pooling_type, reduce_dims=False)
-
-            if self.loss == 'am_binary':
-                logits = self.head(glob_features)
-                # logits = F.cosine_similarity(embedings, x, dim=2)
-                logits = logits.clamp(-1, 1)
-            else:
-                assert self.loss in ['bce', 'asl']
-                logits = self.head(glob_features.view(glob_features.size(0), -1))
+            # count_num = self.counting_head(glob_features.view(image.size(0), -1))
+            # projection head
+            ###
+            # embedings = self.proj_embed(glob_features.view(image.size(0), -1))
+            # embedings = embedings.reshape(image.size(0), self.num_classes, -1)
+            # logits = F.cosine_similarity(embedings, self.prototypes, dim=2)
+            # logits = logits.clamp(-1, 1)
+            ###
+            logits = self.head(glob_features.view(glob_features.size(0), -1))
+            # logits = [logits, count_num]
 
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.similarity_adjustment)
+
 
             if not self.training:
                 return [logits]
@@ -192,6 +300,9 @@ class Image_GCNN(ModelInterface):
     def get_config_optim(self, lrs):
         parameters = [
             {'params': self.head.named_parameters()},
+            # {'params': self.proj_embed.named_parameters()},
+            # {'params': [('proto.weights', self.prototypes), ]},
+            # {'params': self.counting_head.named_parameters()},
             {'params': self.backbone.named_parameters()},
             {'params': self.gc1.named_parameters()},
             {'params': self.gc2.named_parameters()},
@@ -209,8 +320,8 @@ class Image_GCNN(ModelInterface):
 
 
 def build_image_gcn(backbone, word_matrix_path, adj_file, num_classes=80, word_emb_size=300,
-                    thau = 0.4, rho_gcn=0.25, pretrain=False, **kwargs):
-    adj_matrix = gen_A(num_classes, thau, rho_gcn, adj_file)
+                    thau = 0.4, rho_gcn=0.25, smoothing='full', pretrain=False, **kwargs):
+    adj_matrix = gen_A(num_classes, thau, rho_gcn, smoothing, adj_file)
     word_matrix = np.load(word_matrix_path)
     model = Image_GCNN(
         backbone=backbone,

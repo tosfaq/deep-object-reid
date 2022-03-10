@@ -251,16 +251,19 @@ class MultiLabelClassification(ImageDataset):
                 rel_image_path, img_labels = img_info
                 full_image_path = osp.join(data_dir, rel_image_path)
                 labels_idx = [class_to_idx[lbl] for lbl in img_labels if lbl in class_to_idx]
+                # num_obj = len(labels_idx)
                 assert full_image_path
                 if not labels_idx:
                     img_wo_objects += 1
+                # out_data.append((full_image_path, tuple(labels_idx), num_obj))
                 out_data.append((full_image_path, tuple(labels_idx)))
         if img_wo_objects:
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
         if create_adj_matrix:
             print('here', thau)
             matrix = prepare_adj_matrix(classes, out_data, thau)
-            np.save("./glove/coco_adj_matrix_M_all", matrix)
+            np.save("./glove/nus_wide_adj_matrix_M_all", matrix)
+            exit()
         return out_data, class_to_idx
 
     @staticmethod
@@ -277,7 +280,7 @@ class MultiLabelClassification(ImageDataset):
                 word_embedings.append(vectors['<unk>'])
             word_embedings.append(vectors[label])
 
-        np.save("./glove/voc_word_matrix", word_embedings)
+        np.save("./glove/nus_wide_word_matrix", word_embedings)
 
 
 def prepare_adj_matrix(label_set, out_data, thau):

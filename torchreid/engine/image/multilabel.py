@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import torch
 import torch.nn.functional as F
 from torch.cuda.amp import GradScaler, autocast
+import numpy as np
 
 from torchreid import metrics
 from torchreid.losses import AsymmetricLoss, AMBinaryLoss, CentersPush
@@ -13,7 +14,7 @@ class MultilabelEngine(Engine):
     r"""Multilabel classification engine. It supports ASL, BCE and Angular margin loss with binary classification."""
     def __init__(self, datamanager, models, optimizers, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stopping, lr_decay_factor, loss_name, label_smooth,
-                 lr_finder, m, amb_k, amb_t, clip_grad,
+                 lr_finder, m, amb_k, amb_t, clip_grad, aug_prob, alpha, aug_type,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
                  target_metric, use_ema_decay, ema_decay, asl_gamma_pos, asl_gamma_neg, asl_p_m,
                  mix_precision, **kwargs):
@@ -37,9 +38,12 @@ class MultilabelEngine(Engine):
                         ema_decay=ema_decay)
 
         self.clip_grad = clip_grad
+        self.aug_prob = aug_prob
         self.aug_index = None
+        self.aug_type = aug_type
         self.lam = None
-        self.center_push = False
+        self.alpha = alpha
+        self.center_push = None
 
         if loss_name == 'asl':
             self.main_loss = AsymmetricLoss(
@@ -66,8 +70,6 @@ class MultilabelEngine(Engine):
                 label_smooth=label_smooth,
             )
 
-            self.center_push = CentersPush()
-
         self.enable_sam = isinstance(self.optims[self.main_model_name], SAM)
 
         for model_name in self.get_model_names():
@@ -79,7 +81,8 @@ class MultilabelEngine(Engine):
 
     def forward_backward(self, data):
         imgs, targets = self.parse_data_for_train(data, use_gpu=self.use_gpu)
-
+        if self.aug_type == 'mixup':
+            imgs = self._apply_batch_augmentation(imgs)
         model_names = self.get_model_names()
         num_models = len(model_names)
         steps = [1,2] if self.enable_sam and not self.lr_finder else [1]
@@ -93,9 +96,8 @@ class MultilabelEngine(Engine):
             num_models = len(self.models)
 
             for i, model_name in enumerate(model_names):
-                unscaled_model_logits, embedings = self._forward_model(self.models[model_name], imgs)
+                unscaled_model_logits = self._forward_model(self.models[model_name], imgs)
                 all_models_logits.append(unscaled_model_logits)
-                all_embedings.append(embedings)
 
             for i, model_name in enumerate(model_names):
                 should_turn_off_mutual_learning = self._should_turn_off_mutual_learning(self.epoch)
@@ -167,9 +169,9 @@ class MultilabelEngine(Engine):
 
     def _forward_model(self, model, imgs):
         with autocast(enabled=self.mix_precision):
-            model_output = model(imgs, return_embedings=True)
+            model_output = model(imgs)
             all_unscaled_logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
-            return all_unscaled_logits[0], model_output[1]
+            return all_unscaled_logits
 
     def _single_model_losses(self, logits,  targets, model_name):
         with autocast(enabled=self.mix_precision):
@@ -233,3 +235,17 @@ class MultilabelEngine(Engine):
         """
         assert 0 < alpha <= 1
         self.prev_smooth_accuracy = alpha * cur_metric + (1. - alpha) * self.prev_smooth_accuracy
+
+    def _apply_batch_augmentation(self, imgs):
+        r = np.random.rand(1)
+        if self.alpha > 0 and r <= self.aug_prob:
+            lam = np.random.beta(self.alpha, self.alpha)
+            index = torch.randperm(imgs.size(0), device=imgs.device)
+
+            imgs = lam * imgs + (1 - lam) * imgs[index, :]
+            self.lam = lam
+            self.aug_index = index
+        else:
+            self.aug_index = None
+            self.lam = None
+        return imgs
