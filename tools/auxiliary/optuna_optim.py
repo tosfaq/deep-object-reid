@@ -88,7 +88,7 @@ def run_training(cfg, opt_cfg, args, trial):
     max_epochs = opt_cfg["epochs"] if opt_cfg else cfg['train']['max_epoch']
 
     if opt_cfg is not None:
-        ### READING A JSON OPTIMIZATION CONFIG ####
+        #### READING A JSON OPTIMIZATION CONFIG ####
         log_message = "\nnext trial with [ "
         if 'float' in opt_cfg:
             for param in opt_cfg['float']:

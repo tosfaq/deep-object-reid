@@ -77,6 +77,17 @@ class AMBinaryLoss(nn.Module):
         # prevent memory allocation and gpu uploading every iteration, and encourages inplace operations
         self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
 
+    @staticmethod
+    def _valid(params):
+        if isinstance(params, (list, tuple)):
+            for p in params:
+                if p is None:
+                    return False
+        else:
+            if params is None:
+                return False
+        return True
+
     def forward(self, cos_theta, targets, scale=None, aug_index=None, lam=None):
         """"
         Parameters
@@ -85,6 +96,13 @@ class AMBinaryLoss(nn.Module):
         targets: targets (multi-label binarized vector)
         """
         self.s = scale if scale else self.s
+        logits_aug_avai = self._valid([aug_index, lam]) # augmentations like fmix, cutmix, augmix
+
+        if logits_aug_avai:
+            aug_targets = targets[aug_index]
+            new_targets = targets * lam + aug_targets * (1 - lam)
+            targets = new_targets.clamp(0, 1)
+
         if self.label_smooth > 0:
             targets = targets * (1 - self.label_smooth)
             targets[targets == 0] = self.label_smooth
@@ -146,3 +164,13 @@ class CentersPush(nn.Module):
         loss = distances.sum() / centers.size(0)
 
         return loss
+
+
+class CountingLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, logits, targets):
+        count_num = targets
+        pred_count_num = logits
+        return F.smooth_l1_loss(pred_count_num, count_num)

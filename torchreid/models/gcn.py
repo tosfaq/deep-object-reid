@@ -203,7 +203,7 @@ class Image_GCNN(ModelInterface):
         super().__init__(**kwargs)
         self.backbone = backbone
         hidden_dim = int(self.backbone.num_features / hidden_dim_scale)
-        embedding_dim = int(self.backbone.num_features / emb_dim_scale)
+        embedding_dim = self.backbone.num_features
         print(f"ACTUAL GCN DIMS: hidden_dim: {hidden_dim}, embedding_dim: {embedding_dim}")
         if layer_type == 'gcn':
             self.layer_block = GraphConvolution
@@ -231,10 +231,13 @@ class Image_GCNN(ModelInterface):
         self.A = nn.Parameter(torch.from_numpy(adj_matrix).float())
         self.proj_embed = nn.Linear(self.backbone.num_features, self.num_classes * embedding_dim, bias=False)
         self.proj_embed.weight = torch.nn.init.xavier_normal_(self.proj_embed.weight)
+        self.prototypes = nn.Parameter(torch.Tensor(self.num_classes, embedding_dim))
+        self.prototypes.data.normal_().renorm_(2, 1, 1e-5).mul_(1e5)
         if self.loss == "am_binary":
             self.head = AngleSimpleLinear(self.backbone.num_features, self.num_classes)
         else:
             self.head = nn.Linear(self.backbone.num_features, self.num_classes)
+        # self.counting_head = nn.Linear(self.backbone.num_features, 1)
 
     def forward(self, image, return_embedings=False):
         with autocast(enabled=self.mix_precision):
@@ -257,11 +260,20 @@ class Image_GCNN(ModelInterface):
 
             weighted_cam = weights.view(1, -1, 1, 1) * spat_features
             glob_features = self.backbone.glob_feature_vector(weighted_cam, self.backbone.pooling_type, reduce_dims=False)
-
+            # count_num = self.counting_head(glob_features.view(image.size(0), -1))
+            # projection head
+            ###
+            # embedings = self.proj_embed(glob_features.view(image.size(0), -1))
+            # embedings = embedings.reshape(image.size(0), self.num_classes, -1)
+            # logits = F.cosine_similarity(embedings, self.prototypes, dim=2)
+            # logits = logits.clamp(-1, 1)
+            ###
             logits = self.head(glob_features.view(glob_features.size(0), -1))
+            # logits = [logits, count_num]
 
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.similarity_adjustment)
+
 
             if not self.training:
                 return [logits]
@@ -288,6 +300,9 @@ class Image_GCNN(ModelInterface):
     def get_config_optim(self, lrs):
         parameters = [
             {'params': self.head.named_parameters()},
+            # {'params': self.proj_embed.named_parameters()},
+            # {'params': [('proto.weights', self.prototypes), ]},
+            # {'params': self.counting_head.named_parameters()},
             {'params': self.backbone.named_parameters()},
             {'params': self.gc1.named_parameters()},
             {'params': self.gc2.named_parameters()},
