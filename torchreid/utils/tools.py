@@ -4,6 +4,9 @@
 # Copyright (c) 2018 davidtvs
 # SPDX-License-Identifier: MIT
 #
+# Copyright (c) 2018 Facebook
+# SPDX-License-Identifier: MIT
+#
 # Copyright (C) 2020-2021 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,8 +17,6 @@ import errno
 import os
 import os.path as osp
 import random
-import sys
-import time
 import subprocess
 
 import numpy as np
@@ -24,7 +25,8 @@ import cv2 as cv
 
 __all__ = [
     'mkdir_if_missing', 'check_isfile', 'set_random_seed', "worker_init_fn",
-    'read_image', 'get_model_attr', 'StateCacher', 'random_image', 'EvalModeSetter', 'get_git_revision'
+    'read_image', 'get_model_attr', 'StateCacher', 'random_image', 'EvalModeSetter',
+    'get_git_revision', 'set_model_attr'
 ]
 
 def get_git_revision():
@@ -84,14 +86,14 @@ def read_image(path, grayscale=False):
 
     got_img = False
     if not osp.exists(path):
-        raise IOError('"{}" does not exist'.format(path))
+        raise IOError(f'"{path}" does not exist')
 
     while not got_img:
         try:
             img = cv.cvtColor(cv.imread(path, cv.IMREAD_COLOR), cv.COLOR_BGR2RGB)
             got_img = True
         except IOError:
-            print('IOError occurred when reading "{}".'.format(path))
+            print(f'IOError occurred when reading "{path}".')
 
     return img
 
@@ -107,12 +109,18 @@ def random_image(height, width):
 def get_model_attr(model, attr):
     if hasattr(model, 'module'):
         model = model.module
-    if hasattr(model, 'nncf_module'):
-        return getattr(model.nncf_module, attr)
     return getattr(model, attr)
 
 
-class StateCacher(object):
+def set_model_attr(model, attr, value):
+    if hasattr(model, 'module'):
+        model = model.module
+    if hasattr(model, 'nncf_module'):
+        setattr(model.nncf_module, attr, value)
+    setattr(model, attr, value)
+
+
+class StateCacher:
     def __init__(self, in_memory, cache_dir=None):
         self.in_memory = in_memory
         self.cache_dir = cache_dir
@@ -131,24 +139,24 @@ class StateCacher(object):
         if self.in_memory:
             self.cached.update({key: copy.deepcopy(state_dict)})
         else:
-            fn = os.path.join(self.cache_dir, "state_{}_{}.pt".format(key, id(self)))
+            fn = os.path.join(self.cache_dir, f"state_{key}_{id(self)}.pt")
             self.cached.update({key: fn})
             torch.save(state_dict, fn)
 
     def retrieve(self, key):
         if key not in self.cached:
-            raise KeyError("Target {} was not cached.".format(key))
+            raise KeyError(f"Target {key} was not cached.")
 
         if self.in_memory:
             return self.cached.get(key)
-        else:
-            fn = self.cached.get(key)
-            if not os.path.exists(fn):
-                raise RuntimeError(
-                    "Failed to load state in {}. File doesn't exist anymore.".format(fn)
-                )
-            state_dict = torch.load(fn, map_location=lambda storage, location: storage)
-            return state_dict
+
+        fn = self.cached.get(key)
+        if not os.path.exists(fn):
+            raise RuntimeError(
+                f"Failed to load state in {fn}. File doesn't exist anymore."
+            )
+        state_dict = torch.load(fn, map_location=lambda storage, location: storage)
+        return state_dict
 
     def __del__(self):
         """Check whether there are unused cached files existing in `cache_dir` before
@@ -157,9 +165,9 @@ class StateCacher(object):
         if self.in_memory:
             return
 
-        for k in self.cached:
-            if os.path.exists(self.cached[k]):
-                os.remove(self.cached[k])
+        for _, v in self.cached.items():
+            if os.path.exists(v):
+                os.remove(v)
 
 
 class EvalModeSetter:

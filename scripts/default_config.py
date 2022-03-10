@@ -347,6 +347,11 @@ def get_default_config():
     # path to a json file with NNCF config
     cfg.nncf.nncf_config_path = ''
 
+    # SC integration part
+    cfg.sc_integration = CN()
+    cfg.sc_integration.lr_scale = 1.
+    cfg.sc_integration.epoch_scale = 1.
+
     return cfg
 
 
@@ -480,7 +485,11 @@ def model_kwargs(cfg, num_classes):
         'IN_conv1': cfg.model.IN_conv1,
         'bn_eval': cfg.model.bn_eval,
         'bn_frozen': cfg.model.bn_frozen,
+<<<<<<< HEAD
         'type': cfg.model.type,
+=======
+        'model_type': cfg.model.type,
+>>>>>>> ote
         'self_challenging_cfg': cfg.model.self_challenging_cfg,
         'similarity_adjustment': cfg.loss.am_binary.amb_t > 1.,
         'amb_t' : cfg.loss.am_binary.amb_t,

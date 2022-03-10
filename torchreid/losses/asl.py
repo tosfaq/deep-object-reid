@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
+
 
 class AsymmetricLoss(nn.Module):
     ''' Notice - optimized version, minimizes memory allocation and gpu uploading,
@@ -25,14 +25,13 @@ class AsymmetricLoss(nn.Module):
         Parameters
         ----------
         inputs: input logits
-        targets: targets (multi-label binarized vector)
+        targets: targets (multi-label binarized vector. Elements < 0 are ignored)
         """
-        if self.gamma_neg == 0 and self.gamma_pos == 0:
-            return self.bce(inputs, targets)
-        if self.label_smooth > 0:
-            targets = targets * (1-self.label_smooth)
-            targets[targets == 0] = self.label_smooth
+        inputs, targets = filter_input(inputs, targets)
+        if inputs.shape[0] == 0:
+            return 0.
 
+        targets = label_smoothing(targets, self.label_smooth)
         self.anti_targets = 1 - targets
 
         # Calculating Probabilities
@@ -93,7 +92,7 @@ class AMBinaryLoss(nn.Module):
         Parameters
         ----------
         cos_theta: dot product between normalized features and proxies
-        targets: targets (multi-label binarized vector)
+        targets: targets (multi-label binarized vector. Elements < 0 are ignored)
         """
         self.s = scale if scale else self.s
         logits_aug_avai = self._valid([aug_index, lam]) # augmentations like fmix, cutmix, augmix
@@ -103,9 +102,11 @@ class AMBinaryLoss(nn.Module):
             new_targets = targets * lam + aug_targets * (1 - lam)
             targets = new_targets.clamp(0, 1)
 
-        if self.label_smooth > 0:
-            targets = targets * (1 - self.label_smooth)
-            targets[targets == 0] = self.label_smooth
+        cos_theta, targets = filter_input(cos_theta, targets)
+        if cos_theta.shape[0] == 0:
+            return 0.
+
+        targets = label_smoothing(targets, self.label_smooth)
         self.anti_targets = 1 - targets
 
         # Calculating Probabilities
@@ -174,3 +175,18 @@ class CountingLoss(nn.Module):
         count_num = targets
         pred_count_num = logits
         return F.smooth_l1_loss(pred_count_num, count_num)
+
+
+def label_smoothing(targets, smooth_degree):
+    if smooth_degree > 0:
+        targets = targets * (1 - smooth_degree)
+        targets[targets == 0] = smooth_degree
+    return targets
+
+
+def filter_input(inputs, targets):
+    valid_idx = targets >= 0
+    inputs = inputs[valid_idx]
+    targets = targets[valid_idx]
+
+    return inputs, targets

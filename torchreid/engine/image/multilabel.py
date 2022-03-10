@@ -1,3 +1,7 @@
+# Copyright (C) 2020-2021 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
 from __future__ import absolute_import, division, print_function
 
 import torch
@@ -59,7 +63,7 @@ class MultilabelEngine(Engine):
                 probability_margin=0,
                 label_smooth=label_smooth,
             )
-        elif loss_name in ['am_binary', 'am_binary2']:
+        elif loss_name == 'am_binary':
             self.main_loss = AMBinaryLoss(
                 m=m,
                 k=amb_k,
@@ -120,12 +124,14 @@ class MultilabelEngine(Engine):
                                 aux_probs = torch.sigmoid(all_models_logits[j] * self.scales[model_names[j]])
                             mutual_loss += self.kl_div_binary(trg_probs, aux_probs)
 
+                    loss_summary[f'mutual_{model_names[i]}'] = mutual_loss.item()
                     loss += mutual_loss / (num_models - 1)
 
                 if self.center_push:
                     for emb in all_embedings:
                         center_push_loss = self.center_push(emb)
                         loss += center_push_loss
+
 
                 if self.compression_ctrl:
                     compression_loss = self.compression_ctrl.loss()
@@ -160,8 +166,6 @@ class MultilabelEngine(Engine):
 
         # record loss
         loss_summary['loss'] = loss.item()
-        if mutual_learning:
-            loss_summary[f'mutual_{model_name}'] = mutual_loss.item()
         if self.compression_ctrl:
             loss_summary['compression_loss'] = compression_loss
 
@@ -175,7 +179,7 @@ class MultilabelEngine(Engine):
 
     def _single_model_losses(self, logits,  targets, model_name):
         with autocast(enabled=self.mix_precision):
-            loss_summary = dict()
+            loss_summary = {}
             acc = 0
             trg_num_samples = logits.numel()
             if trg_num_samples == 0:
@@ -184,7 +188,7 @@ class MultilabelEngine(Engine):
             loss = self.main_loss(logits, targets, aug_index=self.aug_index,
                                                 lam=self.lam, scale=self.scales[model_name])
             acc += metrics.accuracy_multilabel(logits, targets).item()
-            loss_summary[f'main_{model_name}'] = loss.item()
+            loss_summary[model_name] = loss.item()
 
             return loss, loss_summary, acc
 
@@ -218,7 +222,7 @@ class MultilabelEngine(Engine):
         if is_best and self.warmup_finished:
             self.iter_to_wait += 1
             if self.iter_to_wait >= self.train_patience:
-                print("LOG:: The training should be stopped due to no improvements for {} epochs".format(self.train_patience))
+                print(f"LOG:: The training should be stopped due to no improvements for {self.train_patience} epochs")
                 should_exit = True
         elif is_best:
             self.ema_smooth(accuracy)
@@ -249,3 +253,24 @@ class MultilabelEngine(Engine):
             self.aug_index = None
             self.lam = None
         return imgs
+
+    @torch.no_grad()
+    def _evaluate(self, model, epoch, data_loader, model_name, topk, lr_finder):
+        mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader,
+                                                                                                      model,
+                                                                                                      self.use_gpu)
+
+        if self.writer is not None and not lr_finder:
+            self.writer.add_scalar(f'Val/{model_name}/mAP', mAP, epoch + 1)
+
+        if not lr_finder:
+            print(f'** Results ({model_name}) **')
+            print(f'mAP: {mAP:.2%}')
+            print(f'P_O: {p_o:.2%}')
+            print(f'R_O: {r_o:.2%}')
+            print(f'F_O: {f_o:.2%}')
+            print(f'mean_P_C: {mean_p_c:.2%}')
+            print(f'mean_R_C: {mean_r_c:.2%}')
+            print(f'mean_F_C: {mean_f_c:.2%}')
+
+        return mAP

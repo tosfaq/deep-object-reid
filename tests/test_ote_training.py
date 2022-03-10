@@ -51,7 +51,9 @@ from ote_sdk.test_suite.training_tests_actions import (OTETestTrainingAction,
                                                        OTETestNNCFAction,
                                                        OTETestNNCFEvaluationAction,
                                                        OTETestNNCFExportAction,
-                                                       OTETestNNCFExportEvaluationAction)
+                                                       OTETestNNCFExportEvaluationAction,
+                                                       OTETestNNCFGraphAction,
+                                                       create_environment_and_task)
 
 
 logger = logging.getLogger(__name__)
@@ -98,6 +100,7 @@ def _create_classification_dataset_and_labels_schema(dataset_params):
     labels_schema = generate_label_schema(dataset.get_labels(), dataset.is_multilabel())
     return dataset, labels_schema
 
+
 def get_image_classification_test_action_classes() -> List[Type[BaseOTETestAction]]:
     return [
         ClassificationTestTrainingAction,
@@ -110,6 +113,7 @@ def get_image_classification_test_action_classes() -> List[Type[BaseOTETestActio
         OTETestNNCFEvaluationAction,
         OTETestNNCFExportAction,
         OTETestNNCFExportEvaluationAction,
+        OTETestNNCFGraphAction
     ]
 
 class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInterface):
@@ -122,7 +126,7 @@ class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInter
         test_bunches = [
                 dict(
                     model_name=[
-                       'Custom_Image_Classification_EfficinetNet-B0',
+                       'Custom_Image_Classification_EfficientNet-V2-S',
                        'Custom_Image_Classification_MobileNet-V3-large-1x',
                     ],
                     dataset_name='lg_chem_short',
@@ -130,7 +134,7 @@ class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInter
                 ),
                 dict(
                     model_name=[
-                       'Custom_Image_Classification_EfficinetNet-B0',
+                       'Custom_Image_Classification_EfficientNet-V2-S',
                        'Custom_Image_Classification_MobileNet-V3-large-1x',
                     ],
                     dataset_name=['lg_chem','cifar100'],
@@ -170,6 +174,27 @@ class ClassificationTrainingTestParameters(DefaultOTETestCreationParametersInter
         }
         return deepcopy(DEFAULT_TEST_PARAMETERS)
 
+
+def _get_dummy_compressed_model(task):
+    """
+    Return compressed model without initialization
+    """
+    # pylint:disable=protected-access
+    from torchreid.integration.nncf.compression import wrap_nncf_model
+
+    # Disable quantaizers initialization
+    for compression in task._cfg["nncf_config"]['compression']:
+        if compression["algorithm"] == "quantization":
+            compression["initializer"] = {
+                "batchnorm_adaptation": {
+                    "num_bn_adaptation_samples": 0
+                }
+            }
+
+    _, compressed_model, _ = wrap_nncf_model(task._model, task._cfg)
+    return compressed_model
+
+
 # TODO: This function copies with minor change OTETestTrainingAction
 #             from ote_sdk.test_suite.
 #             Try to avoid copying of code.
@@ -177,15 +202,13 @@ class ClassificationTestTrainingAction(OTETestTrainingAction):
     _name = "training"
 
     def __init__(
-        self, dataset, labels_schema, template_path, max_num_epochs, batch_size,
-        reference_dir
+        self, dataset, labels_schema, template_path, max_num_epochs, batch_size
     ):
         self.dataset = dataset
         self.labels_schema = labels_schema
         self.template_path = template_path
         self.num_training_iters = max_num_epochs
         self.batch_size = batch_size
-        self.reference_dir = reference_dir
 
     def _run_ote_training(self, data_collector):
         logger.debug(f"self.template_path = {self.template_path}")
@@ -228,7 +251,7 @@ class ClassificationTestTrainingAction(OTETestTrainingAction):
             )
 
         logger.debug("Setup environment")
-        self.environment, self.task = self._create_environment_and_task(
+        self.environment, self.task = create_environment_and_task(
             params, self.labels_schema, self.model_template
         )
 
@@ -298,11 +321,37 @@ class TestOTEReallifeClassification(OTETrainingTestInterface):
                 'template_path': template_path,
                 'max_num_epochs': max_num_epochs,
                 'batch_size': batch_size,
+            }
+
+        def _nncf_graph_params_factory() -> Dict:
+            if dataset_definitions is None:
+                pytest.skip('The parameter "--dataset-definitions" is not set')
+
+            model_name = test_parameters['model_name']
+            dataset_name = test_parameters['dataset_name']
+
+            dataset_params = _get_dataset_params_from_dataset_definitions(dataset_definitions, dataset_name)
+
+            if model_name not in template_paths:
+                raise ValueError(f'Model {model_name} is absent in template_paths, '
+                                 f'template_paths.keys={list(template_paths.keys())}')
+            template_path = make_path_be_abs(template_paths[model_name], template_paths[ROOT_PATH_KEY])
+
+            logger.debug('training params factory: Before creating dataset and labels_schema')
+            dataset, labels_schema = _create_classification_dataset_and_labels_schema(dataset_params)
+            logger.debug('training params factory: After creating dataset and labels_schema')
+
+            return {
+                'dataset': dataset,
+                'labels_schema': labels_schema,
+                'template_path': template_path,
                 'reference_dir': ote_current_reference_dir_fx,
+                'fn_get_compressed_model': _get_dummy_compressed_model
             }
 
         params_factories_for_test_actions = {
-            'training': _training_params_factory
+            'training': _training_params_factory,
+            'nncf_graph': _nncf_graph_params_factory,
         }
         logger.debug('params_factories_for_test_actions_fx: end')
         return params_factories_for_test_actions
@@ -358,7 +407,15 @@ class TestOTEReallifeClassification(OTETrainingTestInterface):
              test_case_fx, data_collector_fx,
              cur_test_expected_metrics_callback_fx):
         # TODO(pfinashx): remove after fixing loading aux weights in NNCF
-        if "MobileNet" in test_parameters['model_name'] and "nncf" in test_parameters['test_stage']:
+        if "MobileNet" in test_parameters["model_name"] and (
+                "nncf" in test_parameters["test_stage"]
+                or "nncf_graph" in test_parameters["test_stage"]
+        ):
             pytest.xfail("The MobileNet model requires loading aux weights for NNCF")
+
+        if "EfficientNet" in test_parameters["model_name"] and \
+                "nncf_graph" in test_parameters["test_stage"]:
+            pytest.xfail("The EfficientNet model has no a reference NNCF graph")
+
         test_case_fx.run_stage(test_parameters['test_stage'], data_collector_fx,
                                cur_test_expected_metrics_callback_fx)

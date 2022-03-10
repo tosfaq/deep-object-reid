@@ -351,12 +351,12 @@ class EfficientNet(ModelInterface):
         self.output = nn.Sequential()
         if dropout_cls:
             self.output.add_module("dropout", Dropout(**dropout_cls))
-        if self.loss in ['softmax', 'asl']:
+        if 'softmax' in self.loss or 'asl' in self.loss:
             self.output.add_module("fc", nn.Linear(
                 in_features=final_block_channels,
                 out_features=self.num_classes))
         else:
-            assert self.loss in ['am_softmax', 'am_binary']
+            assert 'am_softmax' in self.loss or 'am_binary' in self.loss
             self.output.add_module("asl", AngleSimpleLinear(
                 in_features=final_block_channels,
                 out_features=self.num_classes))
@@ -388,13 +388,9 @@ class EfficientNet(ModelInterface):
             if not self.training:
                 return [logits]
             if get_embeddings:
-                out_data = [logits, glob_features.view(x.shape[0], -1)]
-            elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
-                out_data = [logits]
-            elif self.loss in ['triplet']:
                 out_data = [logits, glob_features]
-            else:
-                raise KeyError("Unsupported loss: {}".format(self.loss))
+
+            out_data = [logits]
 
             return out_data
 

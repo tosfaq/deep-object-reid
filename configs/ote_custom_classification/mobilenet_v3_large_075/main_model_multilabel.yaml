@@ -45,7 +45,7 @@ loss:
   name: 'am_binary'
   softmax:
     s: 30.0
-    m: 0.15
+    m: 0.01
     compute_s: False
   asl:
     gamma_pos: 0.
@@ -61,7 +61,7 @@ train:
   optim: 'sam'
   lr: 0.016
   nbd: True
-  max_epoch: 80
+  max_epoch: 60
   weight_decay: 5e-4
   batch_size: 64
   lr_scheduler: 'onecycle'
@@ -77,9 +77,13 @@ train:
   ema:
     enable: True
     ema_decay: 0.9995
-  mix_precision: False
+  mix_precision: True
 
 test:
   batch_size: 128
   evaluate: False
   eval_freq: 1
+
+sc_integration:
+  epoch_scale: 3.
+  lr_scale: 3.

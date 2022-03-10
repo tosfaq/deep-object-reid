@@ -5,9 +5,12 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+# pylint: disable=too-many-branches,multiple-statements
+
 from __future__ import absolute_import, division, print_function
-from abc import abstractmethod
+import abc
 import datetime
+import math
 import os
 import os.path as osp
 import time
@@ -18,13 +21,11 @@ import optuna
 
 import numpy as np
 import torch
-from torch.nn import functional as F
 from torch.optim.lr_scheduler import OneCycleLR
 
 from torchreid.integration.nncf.compression import (get_nncf_complession_stage,
                                                     get_nncf_prepare_for_tensorboard)
 from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler, CosineAnnealingCycleRestart
-from torchreid import metrics
 from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
                              open_all_layers, open_specified_layers,
                              save_checkpoint, ModelEmaV2)
@@ -45,7 +46,7 @@ def _get_cur_action_from_epoch_interval(epoch_interval, epoch):
     return epoch_interval.value_inside
 
 
-class Engine:
+class Engine(metaclass=abc.ABCMeta):
     r"""A generic base Engine class for both image- and video-reid."""
     def __init__(self,
                  datamanager,
@@ -130,7 +131,7 @@ class Engine:
             if use_ema_decay:
                 self.ema_model = ModelEmaV2(models, decay=ema_decay)
         self.main_model_name = self.get_model_names()[0]
-        self.scales = dict()
+        self.scales = {}
         for model_name, model in self.models.items():
             scale = get_model_attr(model, 'scale')
             if not get_model_attr(model, 'use_angle_simple_linear') and  scale != 1.:
@@ -139,7 +140,8 @@ class Engine:
         self.am_scale = self.scales[self.main_model_name] # for loss initialization
         assert initial_lr is not None
         self.lb_lr = initial_lr / lr_decay_factor
-        self.per_batch_annealing = isinstance(self.scheds[self.main_model_name], (CosineAnnealingCycleRestart, OneCycleLR))
+        self.per_batch_annealing = isinstance(self.scheds[self.main_model_name],
+                                              (CosineAnnealingCycleRestart, OneCycleLR))
 
     def _should_freeze_aux_models(self, epoch):
         if not self.should_freeze_aux_models:
@@ -187,8 +189,7 @@ class Engine:
             for name in names:
                 assert name in names_real
             return names
-        else:
-            return names_real
+        return names_real
 
     def save_model(self, epoch, save_dir, is_best=False, should_save_ema_model=False):
         def create_sym_link(path,name):
@@ -366,7 +367,7 @@ class Engine:
                 print(statistics.to_str())
                 if self.writer is not None and not lr_finder:
                     for key, value in get_nncf_prepare_for_tensorboard()(statistics).items():
-                        self.writer.add_scalar("compression/statistics/{0}".format(key),
+                        self.writer.add_scalar(f"compression/statistics/{key}",
                                                value, len(self.train_loader) * self.epoch)
 
             if stop_callback and stop_callback.check_stop():
@@ -417,14 +418,15 @@ class Engine:
                 if should_exit:
                     if self.compression_ctrl is None or \
                             (self.compression_ctrl is not None and
-                                self.compression_ctrl.compression_stage == get_nncf_complession_stage().FULLY_COMPRESSED):
+                                self.compression_ctrl.compression_stage == \
+                                    get_nncf_complession_stage().FULLY_COMPRESSED):
                         break
 
         if perf_monitor and not lr_finder: perf_monitor.on_train_end()
         if lr_finder and lr_finder.mode != 'fast_ai': self.restore_model()
         elapsed = round(time.time() - time_start)
         elapsed = str(datetime.timedelta(seconds=elapsed))
-        print('Elapsed {}'.format(elapsed))
+        print(f'Elapsed {elapsed}')
 
         if self.writer is not None:
             self.writer.close()
@@ -460,7 +462,8 @@ class Engine:
         print("backuping model...")
         model_device = next(self.models[self.main_model_name].parameters()).device
         # explicitly put the model on the CPU before storing it in memory
-        self.state_cacher.store(key="model", state_dict=get_model_attr(self.models[self.main_model_name], 'cpu')().state_dict())
+        self.state_cacher.store(key="model",
+                                state_dict=get_model_attr(self.models[self.main_model_name], 'cpu')().state_dict())
         self.state_cacher.store(key="optimizer", state_dict=self.optims[self.main_model_name].state_dict())
         # restore the model device
         get_model_attr(self.models[self.main_model_name],'to')(model_device)
@@ -507,6 +510,9 @@ class Engine:
 
             loss_summary, avg_acc = self.forward_backward(data)
             batch_time.update(time.time() - end)
+            last_main_loss = loss_summary[self.get_model_names()[0]]
+            if math.isnan(last_main_loss) or math.isinf(last_main_loss):
+                raise RuntimeError('Loss is NaN or Inf, exiting the training...')
 
             losses.update(loss_summary)
             accuracy.update(avg_acc)
@@ -519,24 +525,13 @@ class Engine:
                 eta_seconds = batch_time.avg * (nb_this_epoch+nb_future_epochs)
                 eta_str = str(datetime.timedelta(seconds=int(eta_seconds)))
                 print(
-                    'epoch: [{0}/{1}][{2}/{3}]\t'
-                    'time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                    'data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                    'cls acc {accuracy.val:.3f} ({accuracy.avg:.3f})\t'
-                    'eta {eta}\t'
-                    '{losses}\t'
-                    'lr {lr:.6f}'.format(
-                        self.epoch + 1,
-                        self.max_epoch,
-                        self.batch_idx + 1,
-                        self.num_batches,
-                        batch_time=batch_time,
-                        data_time=data_time,
-                        accuracy=accuracy,
-                        eta=eta_str,
-                        losses=losses,
-                        lr=self.get_current_lr()[0]
-                    )
+                    f'epoch: [{self.epoch + 1}/{self.max_epoch}][{self.batch_idx + 1}/{self.num_batches}]\t'
+                    f'time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                    f'data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                    f'cls acc {accuracy.val:.3f} ({accuracy.avg:.3f})\t'
+                    f'eta {eta_str}\t'
+                    f'{losses}\t'
+                    f'lr {self.get_current_lr()[0]:.6f}'
                 )
 
             if self.writer is not None and not lr_finder:
@@ -559,7 +554,7 @@ class Engine:
 
         return losses.meters['loss'].avg
 
-    @abstractmethod
+    @abc.abstractmethod
     def forward_backward(self, data):
         pass
 
@@ -585,115 +580,31 @@ class Engine:
         """
 
         self.set_model_mode('eval')
-        top1, cur_top1, ema_top1 = [-1]*3
-        should_save_ema_model = False
+        models_to_eval = list(self.models.items())
+        top1=[]
+        if (self.use_ema_decay and not lr_finder and not test_only):
+            models_to_eval.append(('EMA model', self.ema_model.module))
 
-        print('##### Evaluating test dataset) #####')
-        # TO DO reduce amount of code for evaluation functions (DRY rule)
-        for model_id, (model_name, model) in enumerate(self.models.items()):
-            ema_condition = (self.use_ema_decay and not lr_finder
-                    and not test_only and model_name == self.main_model_name)
-            model_type = get_model_attr(model, 'type')
+        print('##### Evaluating test dataset #####')
+        for model_name, model in models_to_eval:
             # do not evaluate second model till last epoch
-            if model_type == 'classification':
-                if (model_name != self.main_model_name
+            if (model_name not in [self.main_model_name, 'EMA model']
                     and not test_only and epoch != (self.max_epoch - 1)):
-                    continue
-                cur_top1 = self._evaluate_classification(
-                    model=model,
-                    epoch=epoch,
-                    data_loader=self.test_loader,
-                    model_name=model_name,
-                    topk=topk,
-                    lr_finder=lr_finder
-                )
-                if ema_condition:
-                    ema_top1 = self._evaluate_classification(
-                        model=self.ema_model.module,
-                        epoch=epoch,
-                        data_loader=self.test_loader,
-                        model_name='EMA model',
-                        topk=topk,
-                        lr_finder = lr_finder
-                    )
-            elif model_type == 'multilabel':
-                # do not evaluate second model till last epoch
-                if (model_name != self.main_model_name
-                    and not test_only and epoch != (self.max_epoch - 1)):
-                    continue
-                # we compute mAP, but consider it top1 for consistency
-                # with single label classification
-                cur_top1 = self._evaluate_multilabel_classification(
-                    model=model,
-                    epoch=epoch,
-                    data_loader=self.test_loader,
-                    model_name=model_name,
-                    lr_finder=lr_finder
-                )
-                if ema_condition:
-                    ema_top1 = self._evaluate_multilabel_classification(
-                        model=self.ema_model.module,
-                        epoch=epoch,
-                        data_loader=self.test_loader,
-                        model_name='EMA model',
-                        lr_finder = lr_finder
-                    )
-
-            if model_id == 0:
-                # the function should return accuracy results for the first (main) model only
-                if self.use_ema_decay and ema_top1 >= cur_top1:
-                    should_save_ema_model = True
-                    top1 = ema_top1
-                else:
-                    top1 = cur_top1
-
-        return top1, should_save_ema_model
-
-    @torch.no_grad()
-    def _evaluate_multilabel_classification(self, model, epoch, data_loader, model_name, lr_finder):
-        mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader, model, self.use_gpu)
-
-        if self.writer is not None and not lr_finder:
-            self.writer.add_scalar('Val/{}/mAP'.format(model_name), mAP, epoch + 1)
-
-        if not lr_finder:
-            print('** Results ({}) **'.format(model_name))
-            print('mAP: {:.2%}'.format(mAP))
-            print('P_O: {:.2%}'.format(p_o))
-            print('R_O: {:.2%}'.format(r_o))
-            print('F_O: {:.2%}'.format(f_o))
-            print('mean_P_C: {:.2%}'.format(mean_p_c))
-            print('mean_R_C: {:.2%}'.format(mean_r_c))
-            print('mean_F_C: {:.2%}'.format(mean_f_c))
-
-        return mAP
-
-    @torch.no_grad()
-    def _evaluate_classification(self, model, epoch, data_loader, model_name, topk, lr_finder):
-        labelmap = []
-
-        if data_loader.dataset.classes and get_model_attr(model, 'classification_classes') and \
-                len(data_loader.dataset.classes) < len(get_model_attr(model, 'classification_classes')):
-
-            for class_name in sorted(data_loader.dataset.classes.keys()):
-                labelmap.append(data_loader.dataset.classes[class_name])
-
-        cmc, mAP, norm_cm = metrics.evaluate_classification(data_loader, model, self.use_gpu, topk, labelmap)
-
-        if self.writer is not None and not lr_finder:
-            self.writer.add_scalar('Val/{}/mAP'.format(model_name), mAP, epoch + 1)
-            for i, r in enumerate(topk):
-                self.writer.add_scalar('Val/{}/Top-{}'.format(model_name, r), cmc[i], epoch + 1)
-
-        if not lr_finder:
-            print('** Results ({}) **'.format(model_name))
-            print('mAP: {:.2%}'.format(mAP))
-            for i, r in enumerate(topk):
-                print('Top-{:<3}: {:.2%}'.format(r, cmc[i]))
-            if norm_cm.shape[0] <= 20:
-                metrics.show_confusion_matrix(norm_cm)
-
-        return cmc[0]
+                continue
+            # we may compute some other metric here, but consider it as top1 for consistency
+            # with single label classification
+            cur_top1 = self._evaluate(
+                model=model,
+                epoch=epoch,
+                data_loader=self.test_loader,
+                model_name=model_name,
+                topk=topk,
+                lr_finder=lr_finder
+            )
+            if model_name in [self.main_model_name, 'EMA model']:
+                top1.append(cur_top1)
+        max_top1 = max(top1)
+        return max_top1, top1.index(max_top1)
 
     @staticmethod
     def parse_data_for_train(data, use_gpu=False):
@@ -721,10 +632,14 @@ class Engine:
         """
 
         if (epoch + 1) <= fixbase_epoch and open_layers is not None:
-            print('* Only train {} (epoch: {}/{})'.format(open_layers, epoch + 1, fixbase_epoch))
+            print(f'* Only train {open_layers} (epoch: {epoch + 1}/{fixbase_epoch})')
 
             for model in self.models.values():
                 open_specified_layers(model, open_layers, strict=False)
         else:
             for model in self.models.values():
                 open_all_layers(model)
+
+    @abc.abstractmethod
+    def _evaluate(self, model, epoch, data_loader, model_name, topk, lr_finder):
+        return 0.

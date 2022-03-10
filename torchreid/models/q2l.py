@@ -5,6 +5,7 @@ import math
 from .transformer import build_position_encoding
 from .common import ModelInterface
 from torch.cuda.amp import autocast
+
 from torchreid.losses import AngleSimpleLinear
 
 __all__ = ['build_q2l', 'BackboneWrapper']
@@ -88,7 +89,6 @@ class Query2Label(ModelInterface):
             query_input = self.query_embed.weight
             hs = self.transformer(self.input_proj(src), query_input, pos)[0] # B,K,d
             logits = self.fc(hs[-1])
-
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.amb_t)
 

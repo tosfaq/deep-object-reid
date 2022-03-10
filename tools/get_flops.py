@@ -55,7 +55,11 @@ def main():
     cfg.merge_from_list(args.opts)
     set_random_seed(cfg.train.seed)
 
+<<<<<<< HEAD
     print('Show configuration\n{}\n'.format(cfg))
+=======
+    print(f'Show configuration\n{cfg}\n')
+>>>>>>> ote
 
     if cfg.use_gpu:
         torch.backends.cudnn.benchmark = True
@@ -63,14 +67,19 @@ def main():
     datamanager = build_datamanager(cfg, args.classes)
     num_train_classes = datamanager.num_train_ids
 
-    print('Building main model: {}'.format(cfg.model.name))
+    print(f'Building main model: {cfg.model.name}')
     model = torchreid.models.build_model(**model_kwargs(cfg, num_train_classes))
     macs, num_params = get_model_complexity_info(model, (3, cfg.data.height, cfg.data.width),
+<<<<<<< HEAD
                                                  as_strings=False, verbose=True, print_per_layer_stat=False)
     print('Main model complexity: M params={:,} G flops={:,}'.format(num_params / 10**6, macs * 2 / 10**9))
+=======
+                                                 as_strings=False, verbose=False, print_per_layer_stat=False)
+    print(f'Main model complexity: M params={num_params / 10**6:,} G flops={macs * 2 / 10**9:,}')
+>>>>>>> ote
 
     if args.out:
-        out = list()
+        out = []
         out.append({'key': 'size', 'display_name': 'Size', 'value': num_params / 10**6, 'unit': 'Mp'})
         out.append({'key': 'complexity', 'display_name': 'Complexity', 'value': 2 * macs / 10**9,
                     'unit': 'GFLOPs'})

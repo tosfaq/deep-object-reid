@@ -40,8 +40,7 @@ class TimmModelsWrapper(ModelInterface):
                              else self.model.num_features)
         self.dropout = Dropout(**dropout_cls)
         self.pooling_type = pooling_type
-        print("emb_dim: ", emb_dim)
-        if self.loss in ["am_softmax", "am_binary"]:
+        if "am_softmax" in self.loss or "am_binary" in self.loss:
             self.model.act2 = nn.PReLU()
             self.model.classifier = AngleSimpleLinear(self.num_head_features, self.num_classes)
         elif self.loss == 'am_binary2':
@@ -50,7 +49,7 @@ class TimmModelsWrapper(ModelInterface):
             self.model.act2 = nn.PReLU()
             self.model.classifier = AngleSimpleLinearV2(self.num_classes, emb_dim)
         else:
-            assert self.loss in ["softmax", "asl", "bce"]
+            assert "softmax" in self.loss or "asl" in self.loss
             self.model.classifier = self.model.get_classifier()
 
     def forward(self, x, return_featuremaps=False, return_all=False, **kwargs):

@@ -38,16 +38,6 @@ def make_change_in_cfg(main_cfg, field_name, value):
     set_attr_dict(main_cfg, keys, value)
     return main_cfg
 
-def check_attr_dict(dict_, keys, val, i=0):
-    i = i if i else 0
-    if not keys[i] in dict_:
-        raise RuntimeError(f"{keys} not in config!")
-    elif not isinstance(dict_[keys[i]], dict):
-        if not keys[i] in dict_:
-            raise RuntimeError(f"{keys} not in config!")
-    else:
-        check_attr_dict(dict_[keys[i]], keys, val, i+1)
-
 def set_attr_dict(dict_, keys, val, i=0):
     i = i if i else 0
     if not isinstance(dict_[keys[i]], dict):
@@ -88,7 +78,7 @@ def run_training(cfg, opt_cfg, args, trial):
     max_epochs = opt_cfg["epochs"] if opt_cfg else cfg['train']['max_epoch']
 
     if opt_cfg is not None:
-        #### READING A JSON OPTIMIZATION CONFIG ####
+        ### READING A JSON OPTIMIZATION CONFIG ####
         log_message = "\nnext trial with [ "
         if 'float' in opt_cfg:
             for param in opt_cfg['float']:
@@ -183,7 +173,7 @@ def run_training(cfg, opt_cfg, args, trial):
         smooth_top1 = test_acc.avg
         target_metric = smooth_top1 if engine.target_metric == 'test_acc' else avg_loss
 
-        obj = (engine.best_metric + top1) / 2
+        obj = top1
         if not engine.per_batch_annealing:
             engine.update_lr(output_avg_metric = target_metric)
 
@@ -242,7 +232,7 @@ def main():
         print('Show configuration\n{}\n'.format(cfg))
 
         sampler = TPESampler(n_startup_trials=5, seed=cfg.train.seed)
-        pruner = optuna.pruners.MedianPruner( n_startup_trials=5, n_warmup_steps=4, interval_steps=2)
+        pruner = optuna.pruners.MedianPruner( n_startup_trials=5, n_warmup_steps=5, interval_steps=3)
         study = optuna.create_study(study_name='classification task', direction="maximize", sampler=sampler, pruner=pruner)
         objective_partial = partial(run_training, cfg, opt_cfg, args)
         try:
@@ -268,8 +258,6 @@ def main():
         logger.file.close()
         for name, value in optimized_params.items():
             cfg = make_change_in_cfg(cfg, name, value)
-        cfg.data.height = 448
-        cfg.data.width = 448
         strftime = time.strftime('-%Y-%m-%d-%H-%M-%S')
         log_file = osp.join(cfg.data.save_dir, f'train{strftime}.log')
         mkdir_if_missing(osp.dirname(log_file))

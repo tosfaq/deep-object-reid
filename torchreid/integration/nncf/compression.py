@@ -198,8 +198,9 @@ def wrap_nncf_model(model, cfg,
         resuming_checkpoint = checkpoint_dict
 
     if datamanager_for_init is None and not is_nncf_state(resuming_checkpoint):
-        raise RuntimeError('Either datamanager_for_init or NNCF pre-trained '
-                           'model checkpoint should be set')
+        logger.warning('Either dataloader_for_init or NNCF pre-trained '
+                       'model checkpoint should be set. Without this, '
+                       'quantizers will not be initialized')
 
     nncf_metainfo = None
     if is_nncf_state(resuming_checkpoint):
@@ -261,29 +262,26 @@ def wrap_nncf_model(model, cfg,
                                'dataset since the validation data loader was not passed '
                                'to wrap_nncf_model')
 
-        model_type = get_model_attr(model, 'type')
-        targets = list(test_loader.keys())
+        model_type = get_model_attr(model, 'model_type')
         use_gpu = cur_device.type == 'cuda'
-        for dataset_name in targets:
-            domain = 'source' if dataset_name in datamanager_for_init.sources else 'target'
-            print(f'##### Evaluating {dataset_name} ({domain}) #####')
-            if model_type == 'classification':
-                cmc, _, _ = evaluate_classification(
-                    test_loader[dataset_name]['query'],
-                    model,
-                    use_gpu=use_gpu
-                )
-                accuracy = cmc[0]
-            elif model_type == 'multilabel':
-                mAP, _, _, _, _, _, _ = evaluate_multilabel_classification(
-                    test_loader[dataset_name]['query'],
-                    model,
-                    use_gpu=use_gpu
-                )
-                accuracy = mAP
-            else:
-                raise ValueError(f'Cannot perform a model evaluation on the validation dataset'
-                                 f'since the model has unsupported model_type {model_type or "None"}')
+        print('##### Evaluating test dataset #####')
+        if model_type == 'classification':
+            cmc, _, _ = evaluate_classification(
+                test_loader,
+                model,
+                use_gpu=use_gpu
+            )
+            accuracy = cmc[0]
+        elif model_type == 'multilabel':
+            mAP, _, _, _, _, _, _ = evaluate_multilabel_classification(
+                test_loader,
+                model,
+                use_gpu=use_gpu
+            )
+            accuracy = mAP
+        else:
+            raise ValueError(f'Cannot perform a model evaluation on the validation dataset'
+                                f'since the model has unsupported model_type {model_type or "None"}')
 
         return accuracy
 
@@ -292,11 +290,12 @@ def wrap_nncf_model(model, cfg,
 
     if resuming_checkpoint is None:
         logger.info('No NNCF checkpoint is provided -- register initialize data loader')
-        train_loader = datamanager_for_init.train_loader
-        test_loader = datamanager_for_init.test_loader
-        wrapped_loader = ReidInitializeDataLoader(train_loader)
-        nncf_config = register_default_init_args(nncf_config, wrapped_loader,
-                                                 model_eval_fn=model_eval_fn, device=cur_device)
+        if datamanager_for_init:
+            train_loader = datamanager_for_init.train_loader
+            test_loader = datamanager_for_init.test_loader
+            wrapped_loader = ReidInitializeDataLoader(train_loader)
+            nncf_config = register_default_init_args(nncf_config, wrapped_loader,
+                                                     model_eval_fn=model_eval_fn, device=cur_device)
         model_state_dict = None
         compression_state = None
     else:

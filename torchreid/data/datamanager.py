@@ -16,7 +16,7 @@ from torchreid.data.transforms import build_transforms
 from torchreid.utils import worker_init_fn
 
 
-class ImageDataManager(object):
+class ImageDataManager():
     r"""Image data manager.
 
     Args:
@@ -77,15 +77,13 @@ class ImageDataManager(object):
             filter_classes=filter_classes,
         )
 
-        self._data_counts = train_dataset.data_counts
-        self._num_train_ids = train_dataset.num_train_ids
         if correct_batch_size:
             batch_size_train = self.calculate_batch(batch_size_train, len(train_dataset))
         batch_size_train = max(1, min(batch_size_train, len(train_dataset)))
         self.train_loader = torch.utils.data.DataLoader(
             train_dataset,
             sampler=build_train_sampler(
-                train_dataset.train,
+                train_dataset.data,
                 train_sampler,
             ),
             batch_size=batch_size_train,
@@ -105,8 +103,11 @@ class ImageDataManager(object):
             root=root,
             custom_dataset_roots=custom_dataset_roots,
             custom_dataset_types=custom_dataset_types,
-            filter_classes=filter_classes
+            filter_classes=filter_classes,
         )
+        self._num_train_ids = train_dataset.num_ids
+        assert train_dataset.num_ids == test_dataset.num_ids
+
         self.test_loader = torch.utils.data.DataLoader(
             test_dataset,
             batch_size=max(min(batch_size_test, len(test_dataset)), 1),
@@ -119,9 +120,9 @@ class ImageDataManager(object):
 
         print('\n')
         print('  **************** Summary ****************')
-        print('  # categories      : {}'.format(self._num_train_ids))
-        print('  # train images    : {}'.format(len(train_dataset)))
-        print('  # test images     : {}'.format(len(test_dataset)))
+        print(f'  # categories      : {self._num_train_ids}')
+        print(f'  # train images    : {len(train_dataset)}')
+        print(f'  # test images     : {len(test_dataset)}')
         print('  *****************************************')
         print('\n')
 
@@ -136,8 +137,3 @@ class ImageDataManager(object):
     def num_train_ids(self):
         """Returns the number of training categories."""
         return self._num_train_ids
-
-    @property
-    def data_counts(self):
-        """Returns the number of samples for each ID."""
-        return self._data_counts

@@ -15,10 +15,13 @@ AVAI_SCH = {'single_step', 'multi_step', 'cosine', 'warmup', 'cosine_cycle', 're
 
 def build_lr_scheduler(optimizer, lr_scheduler, base_scheduler, **kwargs):
     if lr_scheduler == 'warmup':
-        base_scheduler = _build_scheduler(optimizer=optimizer, lr_scheduler=base_scheduler, base_scheduler=None, **kwargs)
-        scheduler = _build_scheduler(optimizer=optimizer, lr_scheduler=lr_scheduler, base_scheduler=base_scheduler, **kwargs)
+        base_scheduler = _build_scheduler(optimizer=optimizer, lr_scheduler=base_scheduler,
+                                          base_scheduler=None, **kwargs)
+        scheduler = _build_scheduler(optimizer=optimizer, lr_scheduler=lr_scheduler,
+                                     base_scheduler=base_scheduler, **kwargs)
     else:
-        scheduler = _build_scheduler(optimizer=optimizer, lr_scheduler=lr_scheduler, base_scheduler=None, **kwargs)
+        scheduler = _build_scheduler(optimizer=optimizer, lr_scheduler=lr_scheduler,
+                                     base_scheduler=None, **kwargs)
 
     return scheduler
 
@@ -41,7 +44,7 @@ def _build_scheduler(optimizer,
 
     init_learning_rate = [param_group['lr'] for param_group in optimizer.param_groups]
     if lr_scheduler not in AVAI_SCH:
-        raise ValueError('Unsupported scheduler: {}. Must be one of {}'.format(lr_scheduler, AVAI_SCH))
+        raise ValueError(f'Unsupported scheduler: {lr_scheduler}. Must be one of {AVAI_SCH}')
 
     if isinstance(base_scheduler, WarmupScheduler):
         raise ValueError(
@@ -55,7 +58,7 @@ def _build_scheduler(optimizer,
         if not isinstance(stepsize, int):
             raise TypeError(
                 'For single_step lr_scheduler, stepsize must '
-                'be an integer, but got {}'.format(type(stepsize))
+                f'be an integer, but got {type(stepsize)}'
             )
 
         scheduler = optim.lr_scheduler.StepLR(
@@ -66,7 +69,7 @@ def _build_scheduler(optimizer,
         if not isinstance(stepsize, list):
             raise TypeError(
                 'For multi_step lr_scheduler, stepsize must '
-                'be a list, but got {}'.format(type(stepsize))
+                f'be a list, but got {type(stepsize)}'
             )
 
         scheduler = optim.lr_scheduler.MultiStepLR(
@@ -81,7 +84,8 @@ def _build_scheduler(optimizer,
     elif lr_scheduler == 'warmup':
         if base_scheduler is None:
             raise ValueError("Base scheduler is not defined. Please, add it to the configuration file.")
-        scheduler = WarmupScheduler(optimizer, multiplier=multiplier, total_epoch=warmup, after_scheduler=base_scheduler)
+        scheduler = WarmupScheduler(optimizer, multiplier=multiplier,
+                                    total_epoch=warmup, after_scheduler=base_scheduler)
 
     elif lr_scheduler == 'cosine_cycle':
         scheduler = CosineAnnealingCycleRestart(optimizer, first_cycle_steps=first_cycle_steps, cycle_mult=cycle_mult,
@@ -98,7 +102,7 @@ def _build_scheduler(optimizer,
         scheduler = ReduceLROnPlateauV2(optimizer, epoch_treshold, factor=gamma, patience=patience,
                                         threshold=2e-4, verbose=True, min_lr=lb_lr )
     else:
-        raise ValueError('Unknown scheduler: {}'.format(lr_scheduler))
+        raise ValueError(f'Unknown scheduler: {lr_scheduler}')
 
     return scheduler
 
@@ -153,13 +157,13 @@ class CosineAnnealingCycleRestart(_LRScheduler):
     def get_lr(self):
         if self.step_in_cycle == -1:
             return self.base_lrs
-        elif self.step_in_cycle < self.warmup_steps:
-            return [(self.max_lr - base_lr)*self.step_in_cycle / self.warmup_steps + base_lr for base_lr in self.base_lrs]
-        else:
-            return [base_lr + (self.max_lr - base_lr) \
-                    * (1 + math.cos(math.pi * (self.step_in_cycle-self.warmup_steps) \
-                                    / (self.cur_cycle_steps - self.warmup_steps))) / 2
-                    for base_lr in self.base_lrs]
+        if self.step_in_cycle < self.warmup_steps:
+            return [(self.max_lr - base_lr)*self.step_in_cycle / self.warmup_steps + base_lr \
+                         for base_lr in self.base_lrs]
+        return [base_lr + (self.max_lr - base_lr) \
+                * (1 + math.cos(math.pi * (self.step_in_cycle-self.warmup_steps) \
+                                / (self.cur_cycle_steps - self.warmup_steps))) / 2
+                for base_lr in self.base_lrs]
 
     def step(self, epoch=None):
         if epoch is None:
@@ -168,7 +172,8 @@ class CosineAnnealingCycleRestart(_LRScheduler):
             if self.step_in_cycle >= self.cur_cycle_steps:
                 self.cycle += 1
                 self.step_in_cycle = self.step_in_cycle - self.cur_cycle_steps
-                self.cur_cycle_steps = int((self.cur_cycle_steps - self.warmup_steps) * self.cycle_mult) + self.warmup_steps
+                self.cur_cycle_steps = int((self.cur_cycle_steps - self.warmup_steps) * self.cycle_mult) \
+                                         + self.warmup_steps
         else:
             if epoch >= self.first_cycle_steps:
                 if self.cycle_mult == 1.:
@@ -177,7 +182,8 @@ class CosineAnnealingCycleRestart(_LRScheduler):
                 else:
                     n = int(math.log((epoch / self.first_cycle_steps * (self.cycle_mult - 1) + 1), self.cycle_mult))
                     self.cycle = n
-                    self.step_in_cycle = epoch - int(self.first_cycle_steps * (self.cycle_mult ** n - 1) / (self.cycle_mult - 1))
+                    self.step_in_cycle = epoch - \
+                            int(self.first_cycle_steps * (self.cycle_mult ** n - 1) / (self.cycle_mult - 1))
                     self.cur_cycle_steps = self.first_cycle_steps * self.cycle_mult ** (n)
             else:
                 self.cur_cycle_steps = self.first_cycle_steps
@@ -207,7 +213,8 @@ class WarmupScheduler(_LRScheduler):
                     self.warmup_finished = True
             return [base_lr * self.multiplier for base_lr in self.base_lrs]
 
-        res = [base_lr * ((self.multiplier - 1.) * self.last_epoch / self.total_epoch + 1.) for base_lr in self.base_lrs]
+        res = [base_lr * ((self.multiplier - 1.) * self.last_epoch / self.total_epoch + 1.) \
+                    for base_lr in self.base_lrs]
         return res
 
     def init_lr(self):
@@ -230,7 +237,7 @@ class WarmupScheduler(_LRScheduler):
                 else:
                     self.after_scheduler.step(epoch - self.total_epoch)
         else:
-            return super().step(epoch)
+            super().step(epoch)
 
     def load_state_dict(self, state_dict):
         """Loads the schedulers state.
@@ -266,7 +273,7 @@ class ReduceLROnPlateauV2(optim.lr_scheduler.ReduceLROnPlateau):
             self._last_lr = [group['lr'] for group in self.optimizer.param_groups]
 
     def is_reduced(self):
-        if any([current_lr < init_lr for  init_lr, current_lr in zip(self.init_lr, self._last_lr)]):
+        if any(current_lr < init_lr for  init_lr, current_lr in zip(self.init_lr, self._last_lr)):
             return True
         return False
 

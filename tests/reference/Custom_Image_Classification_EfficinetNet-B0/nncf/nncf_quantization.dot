@@ -489,12 +489,15 @@ strict digraph  {
 "487 EfficientNet/Sequential[features]/ConvBlock[final_block]/PReLU[activ]/prelu_0" [id=487, type=prelu];
 "488 EfficientNet/Sequential[features]/ConvBlock[final_block]/PReLU[activ]/AsymmetricQuantizer/asymmetric_quantize_0" [id=488, type=asymmetric_quantize];
 "489 EfficientNet/adaptive_avg_pool2d_0" [id=489, type=adaptive_avg_pool2d];
-"490 EfficientNet/view_0" [id=490, type=view];
-"491 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/view_0" [id=491, type=view];
-"492 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/normalize_0" [id=492, type=normalize];
-"493 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/normalize_1" [id=493, type=normalize];
-"494 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/mm_0" [id=494, type=mm];
-"495 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/clamp_0" [id=495, type=clamp];
+"490 EfficientNet/AsymmetricQuantizer/asymmetric_quantize_0" [id=490, type=asymmetric_quantize];
+"491 EfficientNet/view_0" [id=491, type=view];
+"492 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/view_0" [id=492, type=view];
+"493 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/normalize_0" [id=493, type=normalize];
+"494 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/AsymmetricQuantizer/asymmetric_quantize_0" [id=494, type=asymmetric_quantize];
+"495 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/normalize_1" [id=495, type=normalize];
+"496 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/AsymmetricQuantizer/asymmetric_quantize_1" [id=496, type=asymmetric_quantize];
+"497 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/mm_0" [id=497, type=mm];
+"498 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/clamp_0" [id=498, type=clamp];
 "0 /nncf_model_input_0" -> "1 AsymmetricQuantizer/asymmetric_quantize_0";
 "1 AsymmetricQuantizer/asymmetric_quantize_0" -> "3 EfficientNet/Sequential[features]/EffiInitBlock[init_block]/ConvBlock[conv]/NNCFConv2d[conv]/conv2d_0";
 "2 EfficientNet/Sequential[features]/EffiInitBlock[init_block]/ConvBlock[conv]/NNCFConv2d[conv]/ModuleDict[pre_ops]/UpdateWeight[0]/SymmetricQuantizer[op]/symmetric_quantize_0" -> "3 EfficientNet/Sequential[features]/EffiInitBlock[init_block]/ConvBlock[conv]/NNCFConv2d[conv]/conv2d_0";
@@ -1057,11 +1060,13 @@ strict digraph  {
 "486 EfficientNet/Sequential[features]/ConvBlock[final_block]/NNCFBatchNorm[bn]/batch_norm_0" -> "487 EfficientNet/Sequential[features]/ConvBlock[final_block]/PReLU[activ]/prelu_0";
 "487 EfficientNet/Sequential[features]/ConvBlock[final_block]/PReLU[activ]/prelu_0" -> "488 EfficientNet/Sequential[features]/ConvBlock[final_block]/PReLU[activ]/AsymmetricQuantizer/asymmetric_quantize_0";
 "488 EfficientNet/Sequential[features]/ConvBlock[final_block]/PReLU[activ]/AsymmetricQuantizer/asymmetric_quantize_0" -> "489 EfficientNet/adaptive_avg_pool2d_0";
-"489 EfficientNet/adaptive_avg_pool2d_0" -> "490 EfficientNet/view_0";
-"490 EfficientNet/view_0" -> "491 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/view_0";
-"491 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/view_0" -> "492 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/normalize_0";
-"492 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/normalize_0" -> "494 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/mm_0";
-"493 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/normalize_1" -> "494 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/mm_0";
-"494 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/mm_0" -> "495 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/clamp_0";
+"489 EfficientNet/adaptive_avg_pool2d_0" -> "490 EfficientNet/AsymmetricQuantizer/asymmetric_quantize_0";
+"490 EfficientNet/AsymmetricQuantizer/asymmetric_quantize_0" -> "491 EfficientNet/view_0";
+"491 EfficientNet/view_0" -> "492 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/view_0";
+"492 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/view_0" -> "493 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/normalize_0";
+"493 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/normalize_0" -> "494 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/AsymmetricQuantizer/asymmetric_quantize_0";
+"494 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/AsymmetricQuantizer/asymmetric_quantize_0" -> "497 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/mm_0";
+"495 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/normalize_1" -> "496 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/AsymmetricQuantizer/asymmetric_quantize_1";
+"496 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/AsymmetricQuantizer/asymmetric_quantize_1" -> "497 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/mm_0";
+"497 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/mm_0" -> "498 EfficientNet/Sequential[output]/AngleSimpleLinear[asl]/clamp_0";
 }
-

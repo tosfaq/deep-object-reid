@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from torchreid.engine import (ImageAMSoftmaxEngine, MultilabelEngine)
+from .image import (ImageAMSoftmaxEngine, MultilabelEngine, MultiheadEngine)
 
 
 def build_engine(cfg, datamanager, model, optimizer, scheduler,
@@ -56,12 +56,16 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             amb_t=cfg.loss.am_binary.amb_t,
             mix_precision=cfg.train.mix_precision)
 
-    if cfg.loss.name in ['softmax', 'am_softmax']:
+    if cfg.model.type == 'classification':
         engine = ImageAMSoftmaxEngine(
             **classification_params
         )
-    elif cfg.loss.name in ['asl', 'bce', 'am_binary', 'am_binary2']:
+    elif cfg.model.type == 'multilabel':
         engine = MultilabelEngine(
+            **classification_params
+        )
+    elif cfg.model.type == 'multihead':
+        engine = MultiheadEngine(
             **classification_params
         )
 
