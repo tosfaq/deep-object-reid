@@ -1,7 +1,0 @@
-parse_output.sh
-run_classification_efficient.py
-run_classification_large2.py
-run_classification_large_75.py
-run_classification_large.py
-run_classification.py
-run_classification_small.py

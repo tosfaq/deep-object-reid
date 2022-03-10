@@ -78,15 +78,9 @@ def get_default_config():
     cfg.model.gcn = CN()
     cfg.model.gcn.rho = 0.25
     cfg.model.gcn.hidden_dim_scale = 1.
-    cfg.model.gcn.emb_dim_scale = 1.
     cfg.model.gcn.thau = 0.4
-    cfg.model.gcn.gcn_layers = 2
-    cfg.model.gcn.smoothing = 'full'
     cfg.model.gcn.layer_type = 'gcn'
-    cfg.model.gcn.use_last_sigmoid = True
-    cfg.model.gcn.gcn_pooling_type = 'max'
     cfg.model.export_onnx_opset = 9
-    cfg.model.tresnet_weights = ''
 
     # mutual learning, auxiliary model
     cfg.mutual_learning = CN()
@@ -485,11 +479,7 @@ def model_kwargs(cfg, num_classes):
         'IN_conv1': cfg.model.IN_conv1,
         'bn_eval': cfg.model.bn_eval,
         'bn_frozen': cfg.model.bn_frozen,
-<<<<<<< HEAD
-        'type': cfg.model.type,
-=======
         'model_type': cfg.model.type,
->>>>>>> ote
         'self_challenging_cfg': cfg.model.self_challenging_cfg,
         'similarity_adjustment': cfg.loss.am_binary.amb_t > 1.,
         'amb_t' : cfg.loss.am_binary.amb_t,
@@ -503,12 +493,7 @@ def model_kwargs(cfg, num_classes):
         'thau': cfg.model.gcn.thau,
         'rho_gcn': cfg.model.gcn.rho,
         'hidden_dim_scale': cfg.model.gcn.hidden_dim_scale,
-        'emb_dim_scale': cfg.model.gcn.emb_dim_scale,
-        'weights': cfg.model.tresnet_weights,
-        'smoothing': cfg.model.gcn.smoothing,
         'layer_type': cfg.model.gcn.layer_type,
-        'use_last_sigmoid': cfg.model.gcn.use_last_sigmoid,
-        'gcn_pooling_type': cfg.model.gcn.gcn_pooling_type,
         'gcn_layers': cfg.model.gcn.gcn_layers
     }
 
