@@ -193,7 +193,7 @@ class MultiLabelClassification(ImageDataset):
                          **kwargs)
 
     @staticmethod
-    def load_annotation(annot_path, data_dir):
+    def load_annotation(annot_path, data_dir, create_adj_matrix=False):
         out_data = []
         with open(annot_path) as f:
             annotation = json.load(f)
@@ -205,7 +205,6 @@ class MultiLabelClassification(ImageDataset):
                 rel_image_path, img_labels = img_info
                 full_image_path = osp.join(data_dir, rel_image_path)
                 labels_idx = [class_to_idx[lbl] for lbl in img_labels if lbl in class_to_idx]
-                # num_obj = len(labels_idx)
                 assert full_image_path
                 if not labels_idx:
                     img_wo_objects += 1
@@ -213,30 +212,40 @@ class MultiLabelClassification(ImageDataset):
         if img_wo_objects:
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
         if create_adj_matrix:
-            print('here', thau)
-            matrix = prepare_adj_matrix(classes, out_data, thau)
-            np.save("./glove/nus_wide_adj_matrix_M_all", matrix)
-            exit()
+            prepare_adj_matrix(classes, out_data)
+            prepare_word_embedings(classes)
         return out_data, class_to_idx
 
-    @staticmethod
-    def prepare_word_embedings(label_set, vectors_path='glove/glove.6B.300d.txt'):
-        with open(vectors_path, 'r') as f:
-            vectors = {}
-            for line in f:
-                vals = line.rstrip().split(' ')
-                vectors[vals[0]] = [float(x) for x in vals[1:]]
-        word_embedings = []
-        for label in label_set:
+
+def prepare_word_embedings(label_set, vectors_path='glove/glove.6B.300d.txt',
+                           saving_path='glove/word_embeddings', one_hot=False):
+    if one_hot:
+        embedings = np.zeros((len(label_set), len(label_set)))
+        for i, cls in enumerate(np.random.permutation(label_set)):
+            embedings[i][cls] = 1
+        return embedings
+
+    with open(vectors_path, 'r') as f:
+        vectors = {}
+        for line in f:
+            vals = line.rstrip().split(' ')
+            vectors[vals[0]] = [float(x) for x in vals[1:]]
+    word_embedings = []
+    for labels in label_set:
+        prob_labels = labels.split(' ')
+        label_embeding = []
+        for label in prob_labels:
             if label not in vectors:
-                print(f'label: {label} is out of dictionary!\n')
-                word_embedings.append(vectors['<unk>'])
-            word_embedings.append(vectors[label])
+                print(f'label / label part: {label} is out of dictionary!\n')
+                label_embeding.append(vectors['<unk>'])
+            else:
+                label_embeding.append(vectors[label])
+        word_embedings.append(np.mean(label_embeding))
 
-        np.save("./glove/nus_wide_word_matrix", word_embedings)
+    np.save(saving_path, word_embedings)
 
 
-def prepare_adj_matrix(label_set, out_data, thau):
+def prepare_adj_matrix(label_set, out_data, saving_path):
     num_classes = len(label_set)
     M = np.zeros((num_classes,num_classes))
     count_all = np.zeros(num_classes)
@@ -255,11 +264,7 @@ def prepare_adj_matrix(label_set, out_data, thau):
                 M[i,j] += 1
 
     M = M / count_all.reshape(num_classes,1)
-    # M[M < thau] = 0.
-    # M[M > 0.9] = 1.
-    # print(M)
-    # exit()
-    return M
+    np.save(saving_path, M)
 
 
 class MultiheadClassification(ImageDataset):
