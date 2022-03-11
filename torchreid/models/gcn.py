@@ -246,8 +246,12 @@ class Image_GCNN(ModelInterface):
             adj = self.gen_adj(self.A).detach()
             x = self.gc1(self.inp, adj)
             x = self.relu(x)
-            x = self.gc2(x, adj)
-            x = self.relu(x)
+            if self.gcn_layers > 1:
+                x = self.gc2(x, adj)
+                x = self.relu(x)
+                if self.gcn_layers == 3:
+                    x = self.gc3(x, adj)
+                    x = self.relu(x)
             if self.pooling == 'max':
                 weights = x.max(dim=0)[0]
             elif self.pooling == 'avg':
@@ -322,7 +326,7 @@ class Image_GCNN(ModelInterface):
 def build_image_gcn(backbone, word_matrix_path, adj_file, num_classes=80, word_emb_size=300,
                     thau = 0.4, rho_gcn=0.25, smoothing='full', pretrain=False, **kwargs):
     adj_matrix = gen_A(num_classes, thau, rho_gcn, smoothing, adj_file)
-    word_matrix = np.load(word_matrix_path)
+    word_matrix = np.load(word_matrix_path, allow_pickle=True)
     model = Image_GCNN(
         backbone=backbone,
         word_matrix=word_matrix,

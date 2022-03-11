@@ -262,7 +262,7 @@ class MultiLabelClassification(ImageDataset):
         if create_adj_matrix:
             print('here', thau)
             matrix = prepare_adj_matrix(classes, out_data, thau)
-            np.save("./glove/nus_wide_adj_matrix_M_all", matrix)
+            np.save("./glove/vg500_adj_matrix_M_all", matrix)
             exit()
         return out_data, class_to_idx
 
