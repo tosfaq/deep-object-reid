@@ -7,6 +7,6 @@
 
 from __future__ import absolute_import, division, print_function
 
-from .am_softmax import AMSoftmaxLoss, AngleSimpleLinear, AngleSimpleLinearV2
-from .asl import AsymmetricLoss, AMBinaryLoss, CentersPush
+from .am_softmax import AMSoftmaxLoss, AngleSimpleLinear
+from .asl import AsymmetricLoss, AMBinaryLoss
 from .cross_entropy_loss import CrossEntropyLoss

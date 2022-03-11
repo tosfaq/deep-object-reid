@@ -16,7 +16,6 @@ from .q2l import *
 from .transformer import *
 from .gcn import build_image_gcn
 from .ml_decoder import build_ml_decoder_model
-from .tresnet import TResnetL, TResnetM
 
 __model_factory = {
     # image classification models
@@ -34,7 +33,6 @@ __model_factory = {
     'efficientnet_b5': efficientnet_b5b,
     'efficientnet_b6': efficientnet_b6b,
     'efficientnet_b7': efficientnet_b7b,
-    'tresnet_l': TResnetL
 }
 
 __model_factory = {**__model_factory, **pytcv_wrapped_models, **timm_wrapped_models}

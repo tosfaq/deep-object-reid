@@ -246,8 +246,12 @@ class Image_GCNN(ModelInterface):
             adj = self.gen_adj(self.A).detach()
             x = self.gc1(self.inp, adj)
             x = self.relu(x)
-            x = self.gc2(x, adj)
-            x = self.relu(x)
+            if self.gcn_layers > 1:
+                x = self.gc2(x, adj)
+                x = self.relu(x)
+                if self.gcn_layers == 3:
+                    x = self.gc3(x, adj)
+                    x = self.relu(x)
             if self.pooling == 'max':
                 weights = x.max(dim=0)[0]
             elif self.pooling == 'avg':

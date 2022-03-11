@@ -140,43 +140,6 @@ class AMBinaryLoss(nn.Module):
         return - self.loss.sum()
 
 
-class CentersPush(nn.Module):
-    def __init__(self, margin=0.3):
-        super().__init__()
-
-        self.margin = margin
-
-    def forward(self, centers):
-        centers = F.normalize(centers, p=2, dim=1)
-
-        # unique_labels = torch.unique(labels)
-        unique_centers = centers
-
-        distances = 1.0 - torch.mm(unique_centers, torch.t(unique_centers)).clamp(-1, 1)
-        # losses = self.margin - distances
-        # print(losses)
-
-        # different_class_pairs = unique_labels.view(-1, 1) != unique_labels.view(1, -1)
-        # pairs_valid_mask = different_class_pairs & (losses > 0.0)
-
-        # losses = torch.where(pairs_valid_mask, losses, torch.zeros_like(losses))
-
-        # num_valid = pairs_valid_mask.sum().float()
-        loss = distances.sum() / centers.size(0)
-
-        return loss
-
-
-class CountingLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, logits, targets):
-        count_num = targets
-        pred_count_num = logits
-        return F.smooth_l1_loss(pred_count_num, count_num)
-
-
 def label_smoothing(targets, smooth_degree):
     if smooth_degree > 0:
         targets = targets * (1 - smooth_degree)

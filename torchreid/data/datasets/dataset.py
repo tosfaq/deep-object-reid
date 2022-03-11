@@ -64,8 +64,9 @@ class ImageDataset:
 
         return output_record
 
-        image = read_image(input_record[0], grayscale=False)
-        obj_id = input_record[1]
+    def __len__(self):
+        return len(self.data)
+
 
     @staticmethod
     def check_before_run(required_files):

@@ -52,7 +52,6 @@ class ImageDataManager():
         custom_dataset_roots=[''],
         custom_dataset_types=[''],
         filter_classes=None,
-        thau=None,
     ):
         self.height = height
         self.width = width

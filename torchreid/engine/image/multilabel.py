@@ -10,7 +10,7 @@ from torch.cuda.amp import GradScaler, autocast
 import numpy as np
 
 from torchreid import metrics
-from torchreid.losses import AsymmetricLoss, AMBinaryLoss, CentersPush
+from torchreid.losses import AsymmetricLoss, AMBinaryLoss
 from torchreid.optim import SAM
 from torchreid.engine import Engine
 
@@ -47,7 +47,6 @@ class MultilabelEngine(Engine):
         self.aug_type = aug_type
         self.lam = None
         self.alpha = alpha
-        self.center_push = None
 
         if loss_name == 'asl':
             self.main_loss = AsymmetricLoss(
@@ -94,9 +93,8 @@ class MultilabelEngine(Engine):
         for step in steps:
             # if sam is enabled then statistics will be written each step, but will be saved only the second time
             # this is made just for convenience
-            loss_summary = dict()
+            loss_summary = {}
             all_models_logits = []
-            all_embedings = []
             num_models = len(self.models)
 
             for i, model_name in enumerate(model_names):
@@ -126,12 +124,6 @@ class MultilabelEngine(Engine):
 
                     loss_summary[f'mutual_{model_names[i]}'] = mutual_loss.item()
                     loss += mutual_loss / (num_models - 1)
-
-                if self.center_push:
-                    for emb in all_embedings:
-                        center_push_loss = self.center_push(emb)
-                        loss += center_push_loss
-
 
                 if self.compression_ctrl:
                     compression_loss = self.compression_ctrl.loss()
