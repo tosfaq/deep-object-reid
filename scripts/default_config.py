@@ -494,7 +494,6 @@ def model_kwargs(cfg, num_classes):
         'rho_gcn': cfg.model.gcn.rho,
         'hidden_dim_scale': cfg.model.gcn.hidden_dim_scale,
         'layer_type': cfg.model.gcn.layer_type,
-        'gcn_layers': cfg.model.gcn.gcn_layers
     }
 
 

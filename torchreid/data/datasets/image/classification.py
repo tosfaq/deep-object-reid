@@ -218,7 +218,7 @@ class MultiLabelClassification(ImageDataset):
 
 
 def prepare_word_embedings(label_set, vectors_path='glove/glove.6B.300d.txt',
-                           saving_path='glove/word_embeddings', one_hot=False):
+                           saving_path='glove/word_embeddings.npy', one_hot=False):
     if one_hot:
         embedings = np.zeros((len(label_set), len(label_set)))
         for i, cls in enumerate(np.random.permutation(label_set)):
@@ -245,7 +245,7 @@ def prepare_word_embedings(label_set, vectors_path='glove/glove.6B.300d.txt',
     np.save(saving_path, word_embedings)
 
 
-def prepare_adj_matrix(label_set, out_data, saving_path):
+def prepare_adj_matrix(label_set, out_data, saving_path='glove/adj_matrix.npy'):
     num_classes = len(label_set)
     M = np.zeros((num_classes,num_classes))
     count_all = np.zeros(num_classes)
