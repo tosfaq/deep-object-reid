@@ -28,7 +28,7 @@ from torchreid.data.transforms import build_inference_transform
 
 
 def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
-                verbose=False, opset=9, extra_check=False):
+                verbose=False, opset=9, extra_check=False, output_names=['output']):
     transform = build_inference_transform(
         cfg.data.height,
         cfg.data.width,
@@ -41,7 +41,6 @@ def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
     input_blob = transform(input_img).unsqueeze(0).to(device)
 
     input_names = ['data']
-    output_names = ['output']
     if not disable_dyn_axes:
         dynamic_axes = {'data': {0: 'batch_size', 1: 'channels', 2: 'height', 3: 'width'}}
     else:
@@ -65,7 +64,7 @@ def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
             output_names=output_names,
             dynamic_axes=dynamic_axes,
             opset_version=opset,
-            operator_export_type=torch.onnx.OperatorExportTypes.ONNX
+            operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
         )
 
     if extra_check:

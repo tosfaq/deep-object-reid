@@ -13,7 +13,7 @@ import torch
 __all__ = ['AverageMeter', 'MetricMeter']
 
 
-class AverageMeter(object):
+class AverageMeter:
     """Computes and stores the average and current value.
 
     Examples::
@@ -48,7 +48,7 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-class MetricMeter(object):
+class MetricMeter:
     """A collection of metrics.
 
     Source: https://github.com/KaiyangZhou/Dassl.pytorch
@@ -85,6 +85,6 @@ class MetricMeter(object):
         output_str = []
         for name, meter in self.meters.items():
             output_str.append(
-                '{} {:.4f} ({:.4f})'.format(name, meter.val, meter.avg)
+                f'{name} {meter.val:.4f} ({meter.avg:.4f})'
             )
         return self.delimiter.join(output_str)

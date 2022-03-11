@@ -8,28 +8,24 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+# pylint: disable=protected-access,pointless-string-statement
+
 from __future__ import absolute_import, division, print_function
 import os
 import os.path as osp
 import gdown
 
-import pickle  # nosec
-import warnings
 from collections import OrderedDict
-from functools import partial
-from pprint import pformat
 from copy import deepcopy
 
 import torch
-import torch.nn as nn
-from torch.nn.modules import module
+from torch import nn
 
 from .tools import mkdir_if_missing, check_isfile
-from torchreid.models import TimmModelsWrapper
 
 __all__ = [
     'save_checkpoint', 'load_checkpoint', 'resume_from_checkpoint',
-    'open_all_layers', 'open_specified_layers', 'count_num_param',
+    'open_all_layers', 'open_specified_layers',
     'load_pretrained_weights', 'ModelEmaV2'
 ]
 
@@ -90,7 +86,7 @@ def save_checkpoint(
     epoch = state['epoch']
     fpath = osp.join(save_dir, f'{name}.pth.tar-' + str(epoch))
     torch.save(state, fpath)
-    print('Checkpoint saved to "{}"'.format(fpath))
+    print(f'Checkpoint saved to "{fpath}"')
     if is_best:
         best_link_path = osp.join(osp.dirname(fpath), f'{name}-best.pth.tar')
         if osp.lexists(best_link_path):
@@ -127,13 +123,13 @@ def download_weights(url, chkpt_name='model_weights'):
         try:
             gdown.download(url, cached_file)
         except Exception as e:
-            print(f"ERROR:: error occurred while \
+            print("ERROR:: error occurred while \
                     downloading file")
             raise e
     try:
         torch.load(cached_file)
     except Exception as e:
-        print(f"ERROR:: error occurred while opening \
+        print("ERROR:: error occurred while opening \
                 file with model weights")
         raise e
     else:
@@ -161,20 +157,23 @@ def load_checkpoint(fpath, map_location=''):
     if fpath is None:
         raise ValueError('File path is None')
     if not osp.exists(fpath):
-        raise FileNotFoundError('File is not found at "{}"'.format(fpath))
+        raise FileNotFoundError(f'File is not found at "{fpath}"')
     if not map_location:
         map_location = None if torch.cuda.is_available() else 'cpu'
     try:
         checkpoint = torch.load(fpath, map_location=map_location)
-    except UnicodeDecodeError:
-        raise RuntimeError('Using pickle reloader could cause vulnerability, so it is blocked')
+    except UnicodeDecodeError as err:
+        """
+        import pickle  # nosec
         pickle.load = partial(pickle.load, encoding="latin1")
         pickle.Unpickler = partial(pickle.Unpickler, encoding="latin1")
         checkpoint = torch.load(
             fpath, pickle_module=pickle, map_location=map_location
         )
+        """
+        raise RuntimeError('Using pickle reloader could cause vulnerability, so it is blocked') from err
     except Exception:
-        print('Unable to load checkpoint from "{}"'.format(fpath))
+        print(f'Unable to load checkpoint from "{fpath}"')
         raise
     return checkpoint
 
@@ -208,7 +207,7 @@ def resume_from_checkpoint(fpath, model, optimizer=None, scheduler=None, device=
         chkpt_name = model.__class__.__name__ + "_resume"
         fpath = download_weights(fpath, chkpt_name=chkpt_name)
 
-    print('Loading checkpoint from "{}"'.format(fpath))
+    print(f'Loading checkpoint from "{fpath}"')
     checkpoint = load_checkpoint(fpath)
     if 'state_dict' in checkpoint:
         load_pretrained_weights(model, pretrained_dict=checkpoint['state_dict'])
@@ -227,36 +226,10 @@ def resume_from_checkpoint(fpath, model, optimizer=None, scheduler=None, device=
         start_epoch = checkpoint['epoch']
     else:
         start_epoch = 0
-    print('Last epoch = {}'.format(start_epoch))
+    print(f'Last epoch = {start_epoch}')
     if 'rank1' in checkpoint.keys():
-        print('Last rank1 = {:.1%}'.format(checkpoint['rank1']))
+        print(f"Last rank1 = {checkpoint['rank1']:.1%}")
     return start_epoch
-
-
-def adjust_learning_rate(
-    optimizer,
-    base_lr,
-    epoch,
-    stepsize=20,
-    gamma=0.1,
-    linear_decay=False,
-    final_lr=0,
-    max_epoch=100
-):
-    r"""Adjusts learning rate.
-
-    Deprecated.
-    """
-    if linear_decay:
-        # linearly decay learning rate from base_lr to final_lr
-        frac_done = epoch / max_epoch
-        lr = frac_done*final_lr + (1.-frac_done) * base_lr
-    else:
-        # decay learning rate by gamma for every stepsize
-        lr = base_lr * (gamma**(epoch // stepsize))
-
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 
 
 def set_bn_to_eval(m):
@@ -309,7 +282,7 @@ def open_specified_layers(model, open_layers, strict=True):
     if strict:
         for layer in open_layers:
             if not hasattr(model, layer):
-                raise ValueError('"{}" is not an attribute of the model, please provide the correct name'.format(layer))
+                raise ValueError(f'"{layer}" is not an attribute of the model, please provide the correct name')
 
     for name, module in model.named_children():
         if name in open_layers:
@@ -322,50 +295,14 @@ def open_specified_layers(model, open_layers, strict=True):
                 p.requires_grad = False
 
 
-def count_num_param(model):
-    r"""Counts number of parameters in a model while ignoring ``self.classifier``.
-
-    Args:
-        model (nn.Module): network model.
-
-    Examples::
-        >>> from torchreid.utils import count_num_param
-        >>> model_size = count_num_param(model)
-
-    .. warning::
-
-        This method is deprecated in favor of
-        ``torchreid.utils.compute_model_complexity``.
-    """
-    warnings.warn(
-        'This method is deprecated and will be removed in the future.'
-    )
-
-    num_param = sum(p.numel() for p in model.parameters())
-
-    if isinstance(model, nn.DataParallel):
-        model = model.module
-
-    if hasattr(model,
-               'classifier') and isinstance(model.classifier, nn.Module):
-        # we ignore the classifier because it is unused at test time
-        num_param -= sum(p.numel() for p in model.classifier.parameters())
-
-    return num_param
-
-
 def _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers):
     if discarded_layers:
         print(
             '** The following layers are discarded '
-            'due to unmatched keys or layer size: {}'.
-            format(pformat(discarded_layers))
+            f'due to unmatched keys or layer size: {discarded_layers}'
         )
     if unmatched_layers:
-        print(
-            '** The following layers were not loaded from checkpoint: {}'.
-            format(pformat(unmatched_layers))
-        )
+        print(f'** The following layers were not loaded from checkpoint: {unmatched_layers}')
 
 
 def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pretrained_dict=None):
@@ -431,18 +368,15 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
     unmatched_layers = sorted(set(model_dict.keys()) - set(new_state_dict))
     if len(matched_layers) == 0:
         print(
-            'The pretrained weights "{}" cannot be loaded, '
-            'please check the key names manually'.format(message)
+            f'The pretrained weights "{message}" cannot be loaded, '
+            'please check the key names manually'
         )
         _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
 
         raise RuntimeError(f'The pretrained weights {message} cannot be loaded')
-    else:
-        print(
-            'Successfully loaded pretrained weights from "{}"'.
-            format(message)
-        )
-        _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
+
+    print(f'Successfully loaded pretrained weights from "{message}"')
+    _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
 
 
 # Is based on
@@ -466,7 +400,7 @@ class ModelEmaV2(nn.Module):
     GPU assignment and distributed training wrappers.
     """
     def __init__(self, model, decay=0.9999, device=None):
-        super(ModelEmaV2, self).__init__()
+        super().__init__()
         # make a copy of the model for accumulating moving average of weights
         self.module = deepcopy(model)
         self.module.eval()

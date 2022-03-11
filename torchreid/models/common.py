@@ -1,6 +1,9 @@
 # Copyright (c) 2018-2021 Oleg Sémery
 # SPDX-License-Identifier: MIT
 #
+# Copyright 2022 Google LLC. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
 # Copyright (C) 2020-2021 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,11 +17,11 @@ import numpy as np
 
 from torchreid.ops import Dropout
 
-_VALID_MODEL_TYPES = ['classification', 'contrastive', 'reid', 'multilabel']
+_VALID_MODEL_TYPES = ['classification', 'multilabel', 'multihead']
 
 class ModelInterface(nn.Module):
     def __init__(self,
-                 type,
+                 model_type,
                  feature_dim,
                  num_classes=1000,
                  pretrained=False,
@@ -31,8 +34,8 @@ class ModelInterface(nn.Module):
                  **kwargs):
         super().__init__()
 
-        assert type in _VALID_MODEL_TYPES
-        self.type = type
+        assert model_type in _VALID_MODEL_TYPES
+        self.model_type = model_type
         self.num_classes = num_classes
         if compute_scale:
             self.scale = self.compute_s(num_classes)
@@ -50,9 +53,6 @@ class ModelInterface(nn.Module):
         self.num_features = feature_dim
         self.mix_precision = mix_precision
         self.use_angle_simple_linear = True if loss in ['am_softmax', 'am_binary'] else False
-
-    def is_classification(self):
-        return self.type == 'classification' or self.type == 'multilabel'
 
     def get_num_features(self):
         return self.num_features
@@ -98,7 +98,7 @@ class ModelInterface(nn.Module):
         ])
 
         return nn.Sequential(*layers)
-    
+
     def get_config_optim(self, lrs):
         parameters = [
             {'params': self.named_parameters()},

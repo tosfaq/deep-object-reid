@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
+
 
 class AsymmetricLoss(nn.Module):
     ''' Notice - optimized version, minimizes memory allocation and gpu uploading,
@@ -20,20 +20,18 @@ class AsymmetricLoss(nn.Module):
         # prevent memory allocation and gpu uploading every iteration, and encourages inplace operations
         self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
 
-    def get_last_scale(self):
-        return 1.
-
-    def forward(self, inputs, targets, scale=1.):
+    def forward(self, inputs, targets, scale=1., aug_index=None, lam=None):
         """"
         Parameters
         ----------
         inputs: input logits
-        targets: targets (multi-label binarized vector)
+        targets: targets (multi-label binarized vector. Elements < 0 are ignored)
         """
-        if self.label_smooth > 0:
-            targets = targets * (1-self.label_smooth)
-            targets[targets == 0] = self.label_smooth
+        inputs, targets = filter_input(inputs, targets)
+        if inputs.shape[0] == 0:
+            return 0.
 
+        targets = label_smoothing(targets, self.label_smooth)
         self.anti_targets = 1 - targets
 
         # Calculating Probabilities
@@ -57,7 +55,7 @@ class AsymmetricLoss(nn.Module):
             self.loss *= self.asymmetric_w
 
         # sum reduction over batch
-        return - self.loss.sum() / inputs.size(0)
+        return - self.loss.sum()
 
 
 class AMBinaryLoss(nn.Module):
@@ -79,26 +77,27 @@ class AMBinaryLoss(nn.Module):
         # prevent memory allocation and gpu uploading every iteration, and encourages inplace operations
         self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
 
-    def get_last_scale(self):
-        return self.s
-
-    def forward(self, cos_theta, targets, scale=None):
+    def forward(self, cos_theta, targets, scale=None, aug_index=None, lam=None):
         """"
         Parameters
         ----------
         cos_theta: dot product between normalized features and proxies
-        targets: targets (multi-label binarized vector)
+        targets: targets (multi-label binarized vector. Elements < 0 are ignored)
         """
         self.s = scale if scale else self.s
-        if self.label_smooth > 0:
-            targets = targets * (1 - self.label_smooth)
-            targets[targets == 0] = self.label_smooth
+
+        cos_theta, targets = filter_input(cos_theta, targets)
+        if cos_theta.shape[0] == 0:
+            return 0.
+
+        targets = label_smoothing(targets, self.label_smooth)
         self.anti_targets = 1 - targets
 
+        # Calculating Probabilities
+        xs_pos = torch.sigmoid(self.s * (cos_theta - self.m))
+        xs_neg = torch.sigmoid(- self.s * (cos_theta + self.m))
+
         if self.asymmetric_focus:
-            # Calculating Probabilities
-            xs_pos = torch.sigmoid(self.s * (cos_theta - self.m))
-            xs_neg = torch.sigmoid(- self.s * (cos_theta + self.m))
             # Asymmetric Probability Shifting
             if self.clip is not None and self.clip > 0:
                 xs_neg = (xs_neg + self.clip).clamp(max=1)
@@ -116,10 +115,25 @@ class AMBinaryLoss(nn.Module):
             balance_koeff_pos = self.k / self.s
             balance_koeff_neg = (1 - self.k) / self.s
 
-        self.loss = balance_koeff_pos * targets * F.logsigmoid(self.s * (cos_theta - self.m))
-        self.loss.add_(balance_koeff_neg * self.anti_targets * F.logsigmoid(- self.s * (cos_theta + self.m)))
+        self.loss = balance_koeff_pos * targets * torch.log(xs_pos)
+        self.loss.add_(balance_koeff_neg * self.anti_targets * torch.log(xs_neg))
 
         if self.asymmetric_focus:
             self.loss *= one_sided_w
 
-        return - self.loss.sum() / cos_theta.size(0)
+        return - self.loss.sum()
+
+
+def label_smoothing(targets, smooth_degree):
+    if smooth_degree > 0:
+        targets = targets * (1 - smooth_degree)
+        targets[targets == 0] = smooth_degree
+    return targets
+
+
+def filter_input(inputs, targets):
+    valid_idx = targets >= 0
+    inputs = inputs[valid_idx]
+    targets = targets[valid_idx]
+
+    return inputs, targets

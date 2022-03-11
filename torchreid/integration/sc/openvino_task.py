@@ -39,7 +39,9 @@ from ote_sdk.entities.model import (
     OptimizationMethod
 )
 from ote_sdk.entities.optimization_parameters import OptimizationParameters
+from ote_sdk.entities.tensor import TensorEntity
 from ote_sdk.entities.resultset import ResultSetEntity
+from ote_sdk.entities.result_media import ResultMediaEntity
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.serialization.label_mapper import LabelSchemaMapper, label_schema_to_bytes
 from ote_sdk.usecases.exportable_code.inference import BaseInferencer
@@ -107,10 +109,11 @@ class OpenVINOClassificationInferencer(BaseInferencer):
     def pre_process(self, image: np.ndarray) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
         return self.model.preprocess(image)
 
-    def post_process(self, prediction: Dict[str, np.ndarray], metadata: Dict[str, Any]) -> AnnotationSceneEntity:
-        prediction = self.model.postprocess(prediction, metadata)
+    def post_process(self, prediction: Dict[str, np.ndarray], metadata: Dict[str, Any]) -> Tuple[AnnotationSceneEntity,
+                                                                                            np.ndarray, np.ndarray]:
+        prediction, features, repr_vectors = self.model.postprocess(prediction, metadata)
 
-        return self.converter.convert_to_annotation(prediction, metadata)
+        return self.converter.convert_to_annotation(prediction, metadata), features, repr_vectors
 
     def forward(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         return self.model.infer_sync(inputs)
@@ -151,10 +154,22 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
         update_progress_callback = default_progress_callback
         if inference_parameters is not None:
             update_progress_callback = inference_parameters.update_progress
+        dump_features = False
+        if inference_parameters is not None:
+            dump_features = not inference_parameters.is_evaluation
         dataset_size = len(dataset)
         for i, dataset_item in enumerate(dataset, 1):
-            predicted_scene = self.inferencer.predict(dataset_item.numpy)
+            predicted_scene, actmap, repr_vector = self.inferencer.predict(dataset_item.numpy)
             dataset_item.append_labels(predicted_scene.annotations[0].get_labels())
+            feature_vec_media = TensorEntity(name="representation_vector", numpy=repr_vector.reshape(-1))
+            dataset_item.append_metadata_item(feature_vec_media, model=self.model)
+            if dump_features:
+                saliency_media = ResultMediaEntity(name="saliency_map", type="Saliency map",
+                                                   annotation_scene=dataset_item.annotation_scene,
+                                                   numpy=actmap, roi=dataset_item.roi,
+                                                   label=predicted_scene.annotations[0].get_labels()[0].label)
+                dataset_item.append_metadata_item(saliency_media, model=self.model)
+
             update_progress_callback(int(i / dataset_size * 100))
         return dataset
 

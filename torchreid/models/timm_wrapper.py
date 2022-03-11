@@ -16,6 +16,7 @@ AVAI_MODELS = {
                 'efficientnetv2_m_21k': 'tf_efficientnetv2_m_in21k',
                 'efficientnetv2_m_1k': 'tf_efficientnetv2_m_in21ft1k',
                 'efficientnetv2_b0' : 'tf_efficientnetv2_b0',
+                'resnet101' : "tv_resnet101"
               }
 
 class TimmModelsWrapper(ModelInterface):
@@ -26,7 +27,6 @@ class TimmModelsWrapper(ModelInterface):
                  pooling_type='avg',
                  **kwargs):
         super().__init__(**kwargs)
-        assert self.is_classification(), f"{model_name} model is adapted for classification tasks only"
         self.pretrained = pretrained
         self.is_mobilenet = True if model_name in ["mobilenetv3_large_100_miil_in21k", "mobilenetv3_large_100_miil"] else False
         self.model = timm.create_model(model_name,
@@ -37,11 +37,11 @@ class TimmModelsWrapper(ModelInterface):
                              else self.model.num_features)
         self.dropout = Dropout(**dropout_cls)
         self.pooling_type = pooling_type
-        if self.loss in ["am_softmax", "am_binary"]:
+        if "am_softmax" in self.loss or "am_binary" in self.loss:
             self.model.act2 = nn.PReLU()
             self.model.classifier = AngleSimpleLinear(self.num_head_features, self.num_classes)
         else:
-            assert self.loss in ["softmax", "asl", "bce"]
+            assert "softmax" in self.loss or "asl" in self.loss
             self.model.classifier = self.model.get_classifier()
 
     def forward(self, x, return_featuremaps=False, return_all=False, **kwargs):

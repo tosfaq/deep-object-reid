@@ -17,9 +17,6 @@ loss:
 sampler:
   train_sampler: 'RandomSampler'
 
-metric_losses:
-  enable: False
-
 train:
   optim: 'sam'
   lr: 0.013
@@ -36,7 +33,6 @@ train:
   gamma: 0.1
   sam:
     rho: 0.07
-  mix_precision: False
 
 test:
   batch_size: 128

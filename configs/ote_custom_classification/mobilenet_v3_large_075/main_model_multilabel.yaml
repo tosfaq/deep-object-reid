@@ -21,14 +21,11 @@ model:
 custom_datasets:
   roots: ['data/coco/train.json', 'data/coco/val.json']
   types: ['multilabel_classification', 'multilabel_classification']
-  names: ['coco_train', 'coco_val']
 
 data:
   root: './'
-  sources: ['coco_train']
-  targets: ['coco_val']
-  height: 448
-  width: 448
+  height: 224
+  width: 224
   norm_mean: [0.485, 0.456, 0.406]
   norm_std: [0.229, 0.224, 0.225]
   save_dir: 'output/mulitilabel/mobilenetv3_large_75'
@@ -48,7 +45,7 @@ loss:
   name: 'am_binary'
   softmax:
     s: 30.0
-    m: 0.15
+    m: 0.01
     compute_s: False
   asl:
     gamma_pos: 0.
@@ -60,14 +57,11 @@ loss:
 sampler:
   train_sampler: 'RandomSampler'
 
-metric_losses:
-  enable: False
-
 train:
   optim: 'sam'
   lr: 0.016
   nbd: True
-  max_epoch: 80
+  max_epoch: 60
   weight_decay: 5e-4
   batch_size: 64
   lr_scheduler: 'onecycle'
@@ -83,9 +77,13 @@ train:
   ema:
     enable: True
     ema_decay: 0.9995
-  mix_precision: False
+  mix_precision: True
 
 test:
   batch_size: 128
   evaluate: False
   eval_freq: 1
+
+sc_integration:
+  epoch_scale: 3.
+  lr_scale: 3.

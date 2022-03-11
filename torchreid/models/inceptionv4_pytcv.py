@@ -17,7 +17,8 @@ import torch.nn as nn
 import torch.nn.init as init
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, EvalModeSetter, rsc
+from torchreid.utils import  EvalModeSetter
+from torchreid.ops import Dropout, rsc
 from .common import Concurrent, ModelInterface
 
 
@@ -685,7 +686,7 @@ class InceptionV4(ModelInterface):
             with EvalModeSetter([self.output], m_type=(nn.BatchNorm1d, nn.BatchNorm2d)):
                 logits = self.output(glob_features.view(x.shape[0], -1))
 
-        if not self.training and self.is_classification():
+        if not self.training:
             return [logits]
 
         if get_embeddings:

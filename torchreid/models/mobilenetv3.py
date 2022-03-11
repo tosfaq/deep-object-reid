@@ -14,7 +14,8 @@ import torch.nn as nn
 from torch.cuda.amp import autocast
 
 from torchreid.losses import AngleSimpleLinear
-from torchreid.ops import Dropout, EvalModeSetter, rsc
+from torchreid.utils import EvalModeSetter
+from torchreid.ops import Dropout, rsc
 from .common import HSigmoid, HSwish, ModelInterface, make_divisible
 
 from torchreid.integration.nncf.compression import get_no_nncf_trace_context_manager, nullcontext
@@ -164,7 +165,7 @@ class MobileNetV3(ModelInterface):
         self.num_head_features = output_channel
         self.num_features = exp_size
 
-        if self.loss == 'softmax' or self.loss == 'asl':
+        if 'softmax' in self.loss or 'asl' in self.loss:
             self.classifier = nn.Sequential(
                 nn.Linear(exp_size, output_channel),
                 nn.BatchNorm1d(output_channel),
@@ -173,7 +174,7 @@ class MobileNetV3(ModelInterface):
                 nn.Linear(output_channel, self.num_classes),
             )
         else:
-            assert self.loss in ['am_softmax', 'am_binary']
+            assert 'am_softmax' in self.loss or 'am_binary' in self.loss
             self.classifier = nn.Sequential(
                 nn.Linear(exp_size, output_channel),
                 nn.BatchNorm1d(output_channel),
@@ -236,16 +237,12 @@ class MobileNetV3(ModelInterface):
 
             if return_all:
                 return [(logits, y, glob_features)]
-            if not self.training and self.is_classification():
+            if not self.training:
                 return [logits]
             if get_embeddings:
                 out_data = [logits, glob_features]
-            elif self.loss in ['softmax', 'am_softmax', 'asl', 'am_binary']:
-                    out_data = [logits]
-            elif self.loss in ['triplet']:
-                out_data = [logits, glob_features]
-            else:
-                raise KeyError("Unsupported loss: {}".format(self.loss))
+
+            out_data = [logits]
 
             return tuple(out_data)
 
