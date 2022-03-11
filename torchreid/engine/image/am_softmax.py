@@ -202,7 +202,6 @@ class ImageAMSoftmaxEngine(Engine):
 
             return loss, loss_summary, acc
 
-            return loss, loss_summary, acc
 
     def _apply_batch_augmentation(self, imgs):
         def rand_bbox(size, lam):

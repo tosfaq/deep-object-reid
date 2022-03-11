@@ -1,6 +1,6 @@
 import timm
 
-from torchreid.losses import AngleSimpleLinear, AngleSimpleLinearV2
+from torchreid.losses import AngleSimpleLinear
 from .common import ModelInterface
 import torchreid.utils as utils
 from torchreid.ops import Dropout
@@ -43,11 +43,6 @@ class TimmModelsWrapper(ModelInterface):
         if "am_softmax" in self.loss or "am_binary" in self.loss:
             self.model.act2 = nn.PReLU()
             self.model.classifier = AngleSimpleLinear(self.num_head_features, self.num_classes)
-        elif self.loss == 'am_binary2':
-            self.proj_embed = nn.Linear(self.num_features, self.num_classes * emb_dim)
-            self.proj_embed.weight = nn.init.xavier_normal_(self.proj_embed.weight)
-            self.model.act2 = nn.PReLU()
-            self.model.classifier = AngleSimpleLinearV2(self.num_classes, emb_dim)
         else:
             assert "softmax" in self.loss or "asl" in self.loss
             self.model.classifier = self.model.get_classifier()
