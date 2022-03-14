@@ -111,9 +111,17 @@ class OpenVINOClassificationInferencer(BaseInferencer):
 
     def post_process(self, prediction: Dict[str, np.ndarray], metadata: Dict[str, Any]) -> Tuple[AnnotationSceneEntity,
                                                                                             np.ndarray, np.ndarray]:
-        prediction, features, repr_vectors = self.model.postprocess(prediction, metadata)
+        prediction = self.model.postprocess(prediction, metadata)
 
-        return self.converter.convert_to_annotation(prediction, metadata), features, repr_vectors
+        return self.converter.convert_to_annotation(prediction, metadata)
+
+    def predict(self, image: np.ndarray) -> AnnotationSceneEntity:
+        image, metadata = self.pre_process(image)
+        raw_predictions = self.forward(image)
+        predictions = self.post_process(raw_predictions, metadata)
+        features, repr_vectors = self.model.postprocess_aux_outputs(raw_predictions, metadata)
+
+        return predictions, features, repr_vectors
 
     def forward(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         return self.model.infer_sync(inputs)
