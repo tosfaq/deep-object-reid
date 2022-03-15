@@ -7,7 +7,7 @@ from torch.cuda.amp import autocast
 import math
 from torchreid.losses import AngleSimpleLinear
 
-__all__ = ['build_gcn']
+__all__ = ['build_image_gcn']
 
 
 def gen_A(num_classes, t, rho, smoothing, adj_file):

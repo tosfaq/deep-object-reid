@@ -8,7 +8,7 @@ from torch.cuda.amp import autocast
 
 from torchreid.losses import AngleSimpleLinear
 
-__all__ = ['build_q2l', 'BackboneWrapper']
+__all__ = ['build_q2l']
 
 class GroupWiseLinear(nn.Module):
     def __init__(self, num_class, hidden_dim, use_bias=True):
