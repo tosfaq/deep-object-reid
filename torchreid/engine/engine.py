@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# pylint: disable=cyclic-import
 # pylint: disable=too-many-branches,multiple-statements
 
 from __future__ import absolute_import, division, print_function

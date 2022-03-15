@@ -53,12 +53,7 @@ class TimmModelsWrapper(ModelInterface):
             if return_featuremaps:
                 return y
             glob_features = self.glob_feature_vector(y, self.pooling_type, reduce_dims=False)
-            if self.loss == 'am_binary2':
-                embedings = self.proj_embed(glob_features.view(x.shape[0], -1))
-                embedings = embedings.reshape(x.size(0), self.num_classes, -1)
-                logits = self.model.classifier(embedings, self.num_classes)
-            else:
-                logits = self.infer_head(glob_features)
+            logits = self.infer_head(glob_features)
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.amb_t)
 

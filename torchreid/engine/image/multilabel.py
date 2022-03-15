@@ -12,7 +12,7 @@ import numpy as np
 from torchreid import metrics
 from torchreid.losses import AsymmetricLoss, AMBinaryLoss
 from torchreid.optim import SAM
-from torchreid.engine import Engine
+from torchreid.engine.engine import Engine
 
 class MultilabelEngine(Engine):
     r"""Multilabel classification engine. It supports ASL, BCE and Angular margin loss with binary classification."""
