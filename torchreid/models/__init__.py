@@ -14,8 +14,8 @@ from .ptcv_wrapper import *
 from .timm_wrapper import *
 from .q2l import *
 from .transformer import *
-from .gcn import build_image_gcn
-from .ml_decoder import build_ml_decoder_model
+from .gcn import *
+from .ml_decoder import *
 
 __model_factory = {
     # image classification models

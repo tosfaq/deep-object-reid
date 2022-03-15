@@ -7,6 +7,9 @@ from torch.cuda.amp import autocast
 import math
 from torchreid.losses import AngleSimpleLinear
 
+__all__ = ['build_gcn']
+
+
 def gen_A(num_classes, t, rho, smoothing, adj_file):
     print(f"ACTUAL MATRIX PARAMS: t: {t}, rho: {rho}, smoothing: {smoothing}")
     _adj = np.load(adj_file)

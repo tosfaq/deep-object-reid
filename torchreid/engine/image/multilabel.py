@@ -84,8 +84,7 @@ class MultilabelEngine(Engine):
 
     def forward_backward(self, data):
         imgs, targets = self.parse_data_for_train(data, use_gpu=self.use_gpu)
-        if self.aug_type == 'mixup':
-            imgs = self._apply_batch_augmentation(imgs)
+        imgs = self._apply_batch_augmentation(imgs)
         model_names = self.get_model_names()
         num_models = len(model_names)
         steps = [1,2] if self.enable_sam and not self.lr_finder else [1]

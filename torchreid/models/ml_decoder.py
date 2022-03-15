@@ -7,6 +7,9 @@ from torch.nn.modules.transformer import _get_activation_fn
 from torchreid.models.common import ModelInterface
 from torch.cuda.amp import autocast
 
+__all__ = ['build_ml_decoder_model']
+
+
 def build_ml_decoder_model(backbone, num_classes=80, num_of_groups=-1, decoder_embedding=768, **kwargs):
     """Create a model
     """
