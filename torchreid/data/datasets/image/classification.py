@@ -173,7 +173,7 @@ class MultiLabelClassification(ImageDataset):
     """Multi label classification dataset.
     """
 
-    def __init__(self, root='', word_vectors_path='', adj_matrix_path='', word_model_path='', **kwargs):
+    def __init__(self, root='', word_emb_path='', adj_matrix_path='', word_model_path='', **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.data_dir = osp.dirname(self.root)
         self.annot = self.root
@@ -185,7 +185,7 @@ class MultiLabelClassification(ImageDataset):
         data, classes = self.load_annotation(
             self.annot,
             self.data_dir,
-            word_vectors_path=word_vectors_path,
+            word_emb_path=word_emb_path,
             adj_matrix_path=adj_matrix_path,
             word_model_path=word_model_path
         )
@@ -196,9 +196,9 @@ class MultiLabelClassification(ImageDataset):
                          **kwargs)
 
     def load_annotation(self, annot_path, data_dir, create_adj_matrix=False,
-                        word_vectors_path='', adj_matrix_path='', word_model_path=''):
+                        word_emb_path='', adj_matrix_path='', word_model_path=''):
         out_data = []
-        create_adj_matrix = all((word_vectors_path, adj_matrix_path, word_model_path))
+        create_adj_matrix = all((word_emb_path, adj_matrix_path, word_model_path))
         with open(annot_path) as f:
             annotation = json.load(f)
             classes = sorted(annotation['classes'])
@@ -217,34 +217,33 @@ class MultiLabelClassification(ImageDataset):
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
         if create_adj_matrix:
             self.prepare_adj_matrix(classes, out_data, adj_matrix_path)
-            self.prepare_word_embedings(classes, word_vectors_path)
+            self.prepare_word_embedings(classes, word_emb_path)
         return out_data, class_to_idx
 
     @staticmethod
     def prepare_word_embedings(label_set, word_model_path='glove/glove.6B.300d.txt',
                             saving_path='glove/word_embeddings.npy', one_hot=False):
         if one_hot:
-            embedings = np.zeros((len(label_set), len(label_set)))
+            word_embedings = np.zeros((len(label_set), len(label_set)))
             for i, cls in enumerate(np.random.permutation(label_set)):
-                embedings[i][cls] = 1
-            return embedings
-
-        with open(word_model_path, 'r') as f:
-            vectors = {}
-            for line in f:
-                vals = line.rstrip().split(' ')
-                vectors[vals[0]] = [float(x) for x in vals[1:]]
-        word_embedings = []
-        for labels in label_set:
-            prob_labels = labels.split(' ')
-            label_embeding = []
-            for label in prob_labels:
-                if label not in vectors:
-                    print(f'label / label part: {label} is out of dictionary!\n')
-                    label_embeding.append(vectors['<unk>'])
-                else:
-                    label_embeding.append(vectors[label])
-            word_embedings.append(np.mean(label_embeding))
+                word_embedings[i][cls] = 1
+        else:
+            with open(word_model_path, 'r') as f:
+                vectors = {}
+                for line in f:
+                    vals = line.rstrip().split(' ')
+                    vectors[vals[0]] = [float(x) for x in vals[1:]]
+            word_embedings = []
+            for labels in label_set:
+                prob_labels = labels.split(' ')
+                label_embeding = []
+                for label in prob_labels:
+                    if label not in vectors:
+                        print(f'label / label part: {label} is out of dictionary!\n')
+                        label_embeding.append(vectors['<unk>'])
+                    else:
+                        label_embeding.append(vectors[label])
+                word_embedings.append(np.mean(label_embeding))
 
         np.save(saving_path, word_embedings)
 

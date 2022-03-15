@@ -68,7 +68,12 @@ class Engine(metaclass=abc.ABCMeta):
                  epoch_interval_for_turn_off_mutual_learning=None,
                  use_ema_decay=False,
                  ema_decay=0.999,
-                 seed=5):
+                 seed=5,
+                 aug_type='',
+                 decay_power=3,
+                 alpha=1.,
+                 size=(224,224),
+                 aug_prob=1.):
 
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
@@ -76,6 +81,7 @@ class Engine(metaclass=abc.ABCMeta):
         self.use_gpu = (torch.cuda.is_available() and use_gpu)
         self.save_all_chkpts = save_all_chkpts
         self.writer = None
+        self.size = size
         self.use_ema_decay = use_ema_decay
         self.start_epoch = 0
         self.lr_finder = lr_finder
@@ -107,6 +113,13 @@ class Engine(metaclass=abc.ABCMeta):
         self.model_names_to_freeze = []
         self.current_lr = None
         self.warmup_finished = True
+        self.aug_type = aug_type
+        self.alpha = alpha
+        self.aug_prob = aug_prob
+        self.aug_index = None
+        self.lam = None
+        self.decay_power = decay_power
+        self.alpha = alpha
 
         if isinstance(models, (tuple, list)):
             assert isinstance(optimizers, (tuple, list))

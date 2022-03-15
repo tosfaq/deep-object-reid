@@ -42,11 +42,6 @@ class MultilabelEngine(Engine):
                         ema_decay=ema_decay)
 
         self.clip_grad = clip_grad
-        self.aug_prob = aug_prob
-        self.aug_index = None
-        self.aug_type = aug_type
-        self.lam = None
-        self.alpha = alpha
 
         if loss_name == 'asl':
             self.main_loss = AsymmetricLoss(

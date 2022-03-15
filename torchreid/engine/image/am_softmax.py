@@ -15,7 +15,6 @@ from torch.cuda.amp import GradScaler, autocast
 
 from torchreid import metrics
 from torchreid.engine.engine import Engine
-from torchreid.utils import sample_mask
 from torchreid.losses import (AMSoftmaxLoss, CrossEntropyLoss)
 from torchreid.optim import SAM
 from torchreid.utils import get_model_attr
@@ -45,7 +44,11 @@ class ImageAMSoftmaxEngine(Engine):
                          target_metric=target_metric,
                          lr_finder=lr_finder,
                          use_ema_decay=use_ema_decay,
-                         ema_decay=ema_decay)
+                         ema_decay=ema_decay,
+                         aug_type=aug_type,
+                         decay_power=decay_power,
+                         alpha=alpha,
+                         size=size)
 
         assert loss_name in ['softmax', 'am_softmax']
         if loss_name == 'am_softmax':
@@ -57,13 +60,6 @@ class ImageAMSoftmaxEngine(Engine):
         for model_name in self.get_model_names():
             assert isinstance(self.optims[model_name], SAM) == self.enable_sam, "SAM must be enabled \
                                                                                  for all models or none of them"
-        self.aug_type = aug_type
-        self.aug_prob = aug_prob
-        self.aug_index = None
-        self.lam = None
-        self.alpha = alpha
-        self.decay_power = decay_power
-        self.size =  size
         self.prev_smooth_metric = 0.
         self.mix_precision = mix_precision
         self.scaler = GradScaler(enabled=mix_precision)
@@ -202,73 +198,6 @@ class ImageAMSoftmaxEngine(Engine):
 
             return loss, loss_summary, acc
 
-
-    def _apply_batch_augmentation(self, imgs):
-        def rand_bbox(size, lam):
-            W = size[2]
-            H = size[3]
-            cut_rat = np.sqrt(1. - lam)
-            cut_w = np.int(W * cut_rat)
-            cut_h = np.int(H * cut_rat)
-
-            # uniform
-            cx = np.random.randint(W)
-            cy = np.random.randint(H)
-
-            bbx1 = np.clip(cx - cut_w // 2, 0, W)
-            bby1 = np.clip(cy - cut_h // 2, 0, H)
-            bbx2 = np.clip(cx + cut_w // 2, 0, W)
-            bby2 = np.clip(cy + cut_h // 2, 0, H)
-
-            return bbx1, bby1, bbx2, bby2
-
-        if self.aug_type == 'fmix':
-            r = np.random.rand(1)
-            if self.alpha > 0 and r[0] <= self.aug_prob:
-                lam, fmask = sample_mask(self.alpha, self.decay_power, self.size)
-                index = torch.randperm(imgs.size(0), device=imgs.device)
-                fmask = torch.from_numpy(fmask).float().to(imgs.device)
-                # Mix the images
-                x1 = fmask * imgs
-                x2 = (1 - fmask) * imgs[index]
-                self.aug_index = index
-                self.lam = lam
-                imgs = x1 + x2
-            else:
-                self.aug_index = None
-                self.lam = None
-
-        elif self.aug_type == 'mixup':
-            r = np.random.rand(1)
-            if self.alpha > 0 and r <= self.aug_prob:
-                lam = np.random.beta(self.alpha, self.alpha)
-                index = torch.randperm(imgs.size(0), device=imgs.device)
-
-                imgs = lam * imgs + (1 - lam) * imgs[index, :]
-                self.lam = lam
-                self.aug_index = index
-            else:
-                self.aug_index = None
-                self.lam = None
-
-        elif self.aug_type == 'cutmix':
-            r = np.random.rand(1)
-            if self.alpha > 0 and r <= self.aug_prob:
-                # generate mixed sample
-                lam = np.random.beta(self.alpha, self.alpha)
-                rand_index = torch.randperm(imgs.size(0), device=imgs.device)
-
-                bbx1, bby1, bbx2, bby2 = rand_bbox(imgs.size(), lam)
-                imgs[:, :, bbx1:bbx2, bby1:bby2] = imgs[rand_index, :, bbx1:bbx2, bby1:bby2]
-                # adjust lambda to exactly match pixel ratio
-                lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (imgs.size()[-1] * imgs.size()[-2]))
-                self.lam = lam
-                self.aug_index = rand_index
-            else:
-                self.aug_index = None
-                self.lam = None
-
-        return imgs
 
     def exit_on_plateau_and_choose_best(self, accuracy):
         '''
