@@ -28,7 +28,7 @@ def get_default_config():
     cfg.lr_finder.min_lr = 0.004
     cfg.lr_finder.step = None
     cfg.lr_finder.num_epochs = 3
-    cfg.lr_finder.epochs_warmup = 5
+    cfg.lr_finder.epochs_warmup = 1
     cfg.lr_finder.stop_after = False
     cfg.lr_finder.path_to_savefig = ''
     cfg.lr_finder.smooth_f = 0.01
@@ -80,6 +80,9 @@ def get_default_config():
     cfg.model.gcn.hidden_dim_scale = 1.
     cfg.model.gcn.thau = 0.4
     cfg.model.gcn.layer_type = 'gcn'
+    cfg.model.gcn.word_emb_path = './glove/word_embeddings.npy'
+    cfg.model.gcn.adj_matrix_path = './glove/adj_matrix.npy'
+    cfg.model.gcn.word_model_path = './glove/glove.6B.300d.npy'
     cfg.model.export_onnx_opset = 9
 
     # mutual learning, auxiliary model
@@ -411,6 +414,9 @@ def imagedata_kwargs(cfg):
         'train_sampler': cfg.sampler.train_sampler,
         'custom_dataset_roots': cfg.custom_datasets.roots,
         'custom_dataset_types': cfg.custom_datasets.types,
+        'word_vectors_path': '',
+        'adj_matrix_path': '',
+        'word_model_path': '',
     }
 
 
@@ -494,6 +500,8 @@ def model_kwargs(cfg, num_classes):
         'rho_gcn': cfg.model.gcn.rho,
         'hidden_dim_scale': cfg.model.gcn.hidden_dim_scale,
         'layer_type': cfg.model.gcn.layer_type,
+        'adj_matrix_path': cfg.model.gcn.adj_matrix_path,
+        'word_emb_path': cfg.model.gcn.word_emb_path
     }
 
 

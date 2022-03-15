@@ -79,21 +79,6 @@ class TransformerDecoderLayerOptimal(nn.Module):
         return tgt
 
 
-# @torch.jit.script
-# class ExtrapClasses(object):
-#     def __init__(self, num_queries: int, group_size: int):
-#         self.num_queries = num_queries
-#         self.group_size = group_size
-#
-#     def __call__(self, h: torch.Tensor, class_embed_w: torch.Tensor, class_embed_b: torch.Tensor, out_extrap:
-#     torch.Tensor):
-#         # h = h.unsqueeze(-1).expand(-1, -1, -1, self.group_size)
-#         h = h[..., None].repeat(1, 1, 1, self.group_size) # torch.Size([bs, 5, 768, groups])
-#         w = class_embed_w.view((self.num_queries, h.shape[2], self.group_size))
-#         out = (h * w).sum(dim=2) + class_embed_b
-#         out = out.view((h.shape[0], self.group_size * self.num_queries))
-#         return out
-
 @torch.jit.script
 class GroupFC(object):
     def __init__(self, embed_len_decoder: int):
@@ -148,9 +133,10 @@ class MLDecoder(ModelInterface):
         self.train_wordvecs = None
         self.test_wordvecs = None
 
-    def forward(self, x):
+    def forward(self, x, return_all=False):
         with autocast(enabled=self.mix_precision):
             x = self.backbone(x, return_featuremaps=True)
+            spat_features = x
             if len(x.shape) == 4:  # [bs,2048, 7,7]
                 embedding_spatial = x.flatten(2).transpose(1, 2)
             else:  # [bs, 197,468]
@@ -174,12 +160,9 @@ class MLDecoder(ModelInterface):
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.amb_t)
 
+            if return_all:
+                glob_features = self.backbone.glob_feature_vector(spat_features, self.backbone.pooling_type, reduce_dims=False)
+                return [(logits, spat_features, glob_features)]
             if not self.training:
                 return [logits]
-
-            elif self.loss in ['asl', 'bce', 'am_binary']:
-                    out_data = [logits]
-            else:
-                raise KeyError("Unsupported loss: {}".format(self.loss))
-
-            return tuple(out_data)
+            return tuple([logits])

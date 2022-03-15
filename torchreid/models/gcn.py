@@ -14,10 +14,7 @@ def gen_A(num_classes, t, rho, smoothing, adj_file):
     _adj[_adj >= t] = 1
     if rho != 0.0:
         _adj = _adj * rho / (_adj.sum(0, keepdims=True) + 1e-6)
-        if smoothing == 'full':
-            _adj = _adj + np.identity(num_classes, np.int)
-        elif smoothing == 'formula':
-            _adj = _adj + np.identity(num_classes, np.int) * (1-rho)
+        _adj = _adj + np.identity(num_classes, np.int)
     return _adj
 
 
@@ -195,10 +192,11 @@ class Image_GCNN(ModelInterface):
         return parameters
 
 
-def build_image_gcn(backbone, word_matrix_path, adj_file, num_classes=80, word_emb_size=300,
-                    thau = 0.4, rho_gcn=0.25, smoothing='full', pretrain=False, **kwargs):
-    adj_matrix = gen_A(num_classes, thau, rho_gcn, smoothing, adj_file)
-    word_matrix = np.load(word_matrix_path)
+def build_image_gcn(backbone, adj_matrix_path, word_emb_path, num_classes=80, thau = 0.4,
+                    rho_gcn=0.25, smoothing='full', pretrain=False, **kwargs):
+    adj_matrix = gen_A(num_classes, thau, rho_gcn, smoothing, adj_matrix_path)
+    word_matrix = np.load(word_emb_path)
+    word_emb_size = word_matrix.size(1)
     model = Image_GCNN(
         backbone=backbone,
         word_matrix=word_matrix,

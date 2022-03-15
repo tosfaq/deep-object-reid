@@ -64,7 +64,7 @@ def build_model(name, **kwargs):
         if backbone_name not in avai_models:
             raise KeyError('Unknown backbone for GCN model: {}. Must be one of {}'.format(backbone_name, avai_models))
         backbone = __model_factory[backbone_name](**kwargs)
-        model = build_image_gcn(backbone, word_matrix_path='glove/word_embeddings.npy', adj_file='glove/adj_matrix.npy', **kwargs)
+        model = build_image_gcn(backbone, **kwargs)
     elif name.startswith('mld'):
         backbone_name = name[4:]
         if backbone_name not in avai_models:
