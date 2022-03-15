@@ -31,6 +31,7 @@ from ote_sdk.entities.annotation import AnnotationSceneEntity
 from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.inference_parameters import InferenceParameters, default_progress_callback
 from ote_sdk.entities.label_schema import LabelSchemaEntity
+from ote_sdk.entities.metadata import FloatMetadata, FloatType
 from ote_sdk.entities.model import (
     ModelEntity,
     ModelFormat,
@@ -46,7 +47,6 @@ from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.serialization.label_mapper import LabelSchemaMapper, label_schema_to_bytes
 from ote_sdk.usecases.exportable_code.inference import BaseInferencer
 from ote_sdk.usecases.exportable_code.prediction_to_annotation_converter import ClassificationToAnnotationConverter
-from ote_sdk.usecases.exportable_code.utils import set_proper_git_commit_hash
 from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
 from ote_sdk.usecases.tasks.interfaces.deployment_interface import IDeploymentTask
 from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
@@ -112,9 +112,17 @@ class OpenVINOClassificationInferencer(BaseInferencer):
 
     def post_process(self, prediction: Dict[str, np.ndarray], metadata: Dict[str, Any]) -> Tuple[AnnotationSceneEntity,
                                                                                             np.ndarray, np.ndarray]:
-        prediction, features, repr_vectors = self.model.postprocess(prediction, metadata)
+        prediction = self.model.postprocess(prediction, metadata)
 
-        return self.converter.convert_to_annotation(prediction, metadata), features, repr_vectors
+        return self.converter.convert_to_annotation(prediction, metadata)
+
+    def predict(self, image: np.ndarray) -> Tuple[AnnotationSceneEntity, np.ndarray, np.ndarray]:
+        image, metadata = self.pre_process(image)
+        raw_predictions = self.forward(image)
+        predictions = self.post_process(raw_predictions, metadata)
+        features, repr_vectors, act_score = self.model.postprocess_aux_outputs(raw_predictions, metadata)
+
+        return predictions, features, repr_vectors, act_score
 
     def forward(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         return self.model.infer_sync(inputs)
@@ -160,8 +168,11 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
             dump_features = not inference_parameters.is_evaluation
         dataset_size = len(dataset)
         for i, dataset_item in enumerate(dataset, 1):
-            predicted_scene, actmap, repr_vector = self.inferencer.predict(dataset_item.numpy)
+            predicted_scene, actmap, repr_vector, act_score = self.inferencer.predict(dataset_item.numpy)
             dataset_item.append_labels(predicted_scene.annotations[0].get_labels())
+            active_score_media = FloatMetadata(name="active_score", value=act_score,
+                                               float_type=FloatType.ACTIVE_SCORE)
+            dataset_item.append_metadata_item(active_score_media, model=self.model)
             feature_vec_media = TensorEntity(name="representation_vector", numpy=repr_vector.reshape(-1))
             dataset_item.append_metadata_item(feature_vec_media, model=self.model)
             if dump_features:
@@ -197,7 +208,6 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
         with tempfile.TemporaryDirectory() as tempdir:
             copyfile(os.path.join(work_dir, "setup.py"), os.path.join(tempdir, "setup.py"))
             copyfile(os.path.join(work_dir, "requirements.txt"), os.path.join(tempdir, "requirements.txt"))
-            set_proper_git_commit_hash(os.path.join(tempdir, "requirements.txt"))
             copytree(os.path.join(work_dir, name_of_package), os.path.join(tempdir, name_of_package))
             config_path = os.path.join(tempdir, name_of_package, "config.json")
             with open(config_path, "w", encoding='utf-8') as f:

@@ -202,7 +202,7 @@ def wrap_nncf_model(model, cfg,
                        'model checkpoint should be set. Without this, '
                        'quantizers will not be initialized')
 
-    nncf_metainfo = None
+    nncf_metainfo = {}
     if is_nncf_state(resuming_checkpoint):
         nncf_metainfo = _get_nncf_metainfo_from_state(resuming_checkpoint)
         nncf_config_data = nncf_metainfo['nncf_config']
