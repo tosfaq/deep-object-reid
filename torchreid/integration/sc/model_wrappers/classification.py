@@ -73,16 +73,27 @@ class OteClassification(Classification):
 
     def postprocess(self, outputs: Dict[str, np.ndarray], metadata: Dict[str, Any]):
         logits = outputs[self.out_layer_name].squeeze()
-        features = preprocess_features_for_actmap(outputs['features'])
-        actmap = get_actmap(features[0], (metadata['original_shape'][1], metadata['original_shape'][0]))
-        repr_vector = outputs['vector']
-
         if self.multilabel:
             predictions = get_multilabel_predictions(logits)
 
         predictions = get_multiclass_predictions(logits)
 
-        return predictions, actmap, repr_vector
+        return predictions
+
+    def postprocess_aux_outputs(self, outputs: Dict[str, np.ndarray], metadata: Dict[str, Any]):
+        features = preprocess_features_for_actmap(outputs['features'])
+        actmap = get_actmap(features[0], (metadata['original_shape'][1], metadata['original_shape'][0]))
+        repr_vector = outputs['vector']
+
+        logits = outputs[self.out_layer_name].squeeze()
+        if self.multilabel:
+            probs = sigmoid_numpy(logits)
+        probs = softmax_numpy(logits)
+
+        act_score = float(np.max(probs) - np.min(probs))
+
+        return actmap, repr_vector, act_score
+
 
 
 def preprocess_features_for_actmap(features):
