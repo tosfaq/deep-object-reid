@@ -24,8 +24,12 @@ from typing import Any, Callable, Dict, List, Optional, Type
 import pytest
 from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.model_template import parse_model_template
-from ote_sdk.entities.model import ModelEntity
+from ote_sdk.entities.model import ModelEntity, ModelFormat, ModelOptimizationType
 from ote_sdk.configuration.helper import create as ote_sdk_configuration_helper_create
+from ote_sdk.usecases.tasks.interfaces.optimization_interface import OptimizationType
+from ote_sdk.usecases.adapters.model_adapter import ModelAdapter
+from ote_sdk.utils.importing import get_impl_class
+
 
 from torchreid.integration.sc.utils import (ClassificationDatasetAdapter,
                                             generate_label_schema)
@@ -42,6 +46,7 @@ from ote_sdk.test_suite.training_tests_helper import (OTETestHelper,
                                                       DefaultOTETestCreationParametersInterface,
                                                       OTETrainingTestInterface)
 from ote_sdk.test_suite.training_tests_actions import (OTETestTrainingAction,
+                                                       is_nncf_enabled,
                                                        BaseOTETestAction,
                                                        OTETestTrainingEvaluationAction,
                                                        OTETestExportAction,
@@ -109,7 +114,7 @@ def get_image_classification_test_action_classes() -> List[Type[BaseOTETestActio
         OTETestExportEvaluationAction,
         OTETestPotAction,
         OTETestPotEvaluationAction,
-        OTETestNNCFAction,
+        ClassificationTestNNCFAction,
         OTETestNNCFEvaluationAction,
         OTETestNNCFExportAction,
         OTETestNNCFExportEvaluationAction,
@@ -271,6 +276,57 @@ class ClassificationTestTrainingAction(OTETestTrainingAction):
         data_collector.log_final_metric("metric_value", score_value)
 
 
+class ClassificationTestNNCFAction(OTETestNNCFAction):
+    _name = "nncf"
+    _depends_stages_names = ["training"]
+
+    def _run_ote_nncf(
+        self, data_collector, model_template, dataset, trained_model, environment
+    ):
+        logger.debug("Get predictions on the validation set for exported model")
+        self.environment_for_nncf = deepcopy(environment)
+
+        logger.info("Create NNCF Task")
+        nncf_task_class_impl_path = model_template.entrypoints.nncf
+        if not nncf_task_class_impl_path:
+            pytest.skip("NNCF is not enabled for this template")
+
+        if not is_nncf_enabled():
+            pytest.skip("NNCF is not installed")
+
+        logger.info("Creating NNCF task and structures")
+        self.nncf_model = ModelEntity(
+            dataset,
+            self.environment_for_nncf.get_model_configuration(),
+        )
+        self.nncf_model.set_data("weights.pth", trained_model.get_data("weights.pth"))
+        
+        if 'aux_model_1.pth' in trained_model.model_adapters:
+            self.nncf_model.set_data("aux_model_1.pth", trained_model.get_data("aux_model_1.pth"))
+
+        self.environment_for_nncf.model = self.nncf_model
+
+        nncf_task_cls = get_impl_class(nncf_task_class_impl_path)
+        self.nncf_task = nncf_task_cls(task_environment=self.environment_for_nncf)
+
+        logger.info("Run NNCF optimization")
+        try:
+            self.nncf_task.optimize(
+                OptimizationType.NNCF, dataset, self.nncf_model, None
+            )
+        except Exception as ex:
+            raise RuntimeError("NNCF optimization failed") from ex
+
+        assert (
+            self.nncf_model.optimization_type == ModelOptimizationType.NNCF
+        ), "Wrong optimization type"
+        assert (
+            self.nncf_model.model_format == ModelFormat.BASE_FRAMEWORK
+        ), "Wrong model format"
+
+        logger.info("NNCF optimization is finished")
+
+
 class TestOTEReallifeClassification(OTETrainingTestInterface):
     """
     The main class of running test in this file.
@@ -406,16 +462,9 @@ class TestOTEReallifeClassification(OTETrainingTestInterface):
              test_parameters,
              test_case_fx, data_collector_fx,
              cur_test_expected_metrics_callback_fx):
-        # TODO(pfinashx): remove after fixing loading aux weights in NNCF
-        if "MobileNet" in test_parameters["model_name"] and (
-                "nncf" in test_parameters["test_stage"]
-                or "nncf_graph" in test_parameters["test_stage"]
-        ):
-            pytest.xfail("The MobileNet model requires loading aux weights for NNCF")
 
-        if "EfficientNet" in test_parameters["model_name"] and \
-                "nncf_graph" in test_parameters["test_stage"]:
-            pytest.xfail("The EfficientNet model has no a reference NNCF graph")
+        if "nncf_graph" in test_parameters["test_stage"]:
+            pytest.xfail("The models has no a reference NNCF graph yet")
 
         test_case_fx.run_stage(test_parameters['test_stage'], data_collector_fx,
                                cur_test_expected_metrics_callback_fx)

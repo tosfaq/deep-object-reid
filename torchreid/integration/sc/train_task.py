@@ -91,7 +91,7 @@ class OTEClassificationTrainingTask(OTEClassificationInferenceTask, ITrainingTas
 
         if self._multilabel:
             self._cfg.train.lr = self._cfg.train.lr / self._cfg.sc_integration.lr_scale
-            self._cfg.train.max_epoch = int(self._cfg.train.max_epoch / self._cfg.sc_integration.epoch_scale)
+            self._cfg.train.max_epoch = max(int(self._cfg.train.max_epoch / self._cfg.sc_integration.epoch_scale), 1)
 
         time_monitor = TrainingProgressCallback(update_progress_callback, num_epoch=self._cfg.train.max_epoch,
                                                 num_train_steps=math.ceil(len(dataset.get_subset(Subset.TRAINING)) /

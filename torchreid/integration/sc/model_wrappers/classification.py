@@ -38,6 +38,27 @@ class OteClassification(Classification):
 
         return parameters
 
+    def _check_io_number(self, inp, outp):
+        pass
+
+    def _get_outputs(self):
+        layer_name = 'logits'
+        layer_shape = self.outputs[layer_name].shape
+
+        if len(layer_shape) != 2 and len(layer_shape) != 4:
+            raise RuntimeError('The Classification model wrapper supports topologies only with 2D or 4D output')
+        if len(layer_shape) == 4 and (layer_shape[2] != 1 or layer_shape[3] != 1):
+            raise RuntimeError('The Classification model wrapper supports topologies only with 4D '
+                               'output which has last two dimensions of size 1')
+        if self.labels:
+            if (layer_shape[1] == len(self.labels) + 1):
+                self.labels.insert(0, 'other')
+                self.logger.warning("\tInserted 'other' label as first.")
+            if layer_shape[1] != len(self.labels):
+                raise RuntimeError("Model's number of classes and parsed "
+                                'labels must match ({} != {})'.format(layer_shape[1], len(self.labels)))
+        return layer_name
+
     def preprocess(self, image: np.ndarray):
         meta = {'original_shape': image.shape}
         resized_image = self.resize(image, (self.w, self.h))
@@ -51,15 +72,46 @@ class OteClassification(Classification):
         return dict_inputs, meta
 
     def postprocess(self, outputs: Dict[str, np.ndarray], metadata: Dict[str, Any]):
-        outputs = outputs[self.out_layer_name].squeeze()
-        self.activate = False
-        if not np.isclose(np.sum(outputs), 1.0, atol=0.01):
-            self.activate = True
-
+        logits = outputs[self.out_layer_name].squeeze()
         if self.multilabel:
-            return get_multilabel_predictions(outputs, activate=self.activate)
+            predictions = get_multilabel_predictions(logits)
 
-        return get_multiclass_predictions(outputs, activate=self.activate)
+        predictions = get_multiclass_predictions(logits)
+
+        return predictions
+
+    def postprocess_aux_outputs(self, outputs: Dict[str, np.ndarray], metadata: Dict[str, Any]):
+        features = preprocess_features_for_actmap(outputs['features'])
+        actmap = get_actmap(features[0], (metadata['original_shape'][1], metadata['original_shape'][0]))
+        repr_vector = outputs['vector']
+
+        logits = outputs[self.out_layer_name].squeeze()
+        if self.multilabel:
+            probs = sigmoid_numpy(logits)
+        probs = softmax_numpy(logits)
+
+        act_score = float(np.max(probs) - np.min(probs))
+
+        return actmap, repr_vector, act_score
+
+
+
+def preprocess_features_for_actmap(features):
+    features = np.mean(features, axis=1)
+    b, h, w = features.shape
+    features = features.reshape(b, h * w)
+    features = np.exp(features)
+    features /= np.sum(features, axis=1, keepdims=True)
+    features = features.reshape(b, h, w)
+    return features
+
+
+def get_actmap(features, output_res):
+    am = cv2.resize(features, output_res)
+    am = 255 * (am - np.min(am)) / (np.max(am) - np.min(am) + 1e-12)
+    am = np.uint8(np.floor(am))
+    am = cv2.applyColorMap(am, cv2.COLORMAP_JET)
+    return am
 
 
 def sigmoid_numpy(x: np.ndarray):

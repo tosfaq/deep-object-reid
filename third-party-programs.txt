@@ -46,13 +46,13 @@ SOFTWARE.
 
 -------------------------------------------------------------
 
-3. CenterCrop, CoarseDropout, Cutout, Equalize, Equalize, GaussianBlur, Posterize, Posterize, RandomCrop
+3. CenterCrop, CoarseDropout, Cutout, Equalize, GaussianBlur, Posterize, Posterize, RandomCrop
    Copyright (c) 2017 Buslaev Alexander, Alexander Parinov, Vladimir Iglovikov
    SPDX-License-Identifier: MIT
 
 -------------------------------------------------------------
 
-4. AugMixAugment
+4. augment_and_mix_transform
    Copyright (c) 2019 Ross Wightman
    SPDX-License-Identifier: Apache-2.0
 
@@ -91,5 +91,47 @@ SOFTWARE.
 -------------------------------------------------------------
 
 10. ModelEmaV2
-   Copyright (c) 2019 Ross Wightman
-   SPDX-License-Identifier: Apache-2.0
+    Copyright (c) 2019 Ross Wightman
+    SPDX-License-Identifier: Apache-2.0
+
+-------------------------------------------------------------
+
+11. TripletLoss, Logger
+    Copyright (c) 2017 Tong Xiao
+    SPDX-License-Identifier: MIT
+
+-------------------------------------------------------------
+
+12. RandomErasing
+    Copyright (c) 2018-2021 Zhun Zhong
+    SPDX-License-Identifier: Apache-2.0
+
+-------------------------------------------------------------
+
+13. AugMixAugment
+    Copyright 2019 Google LLC
+    SPDX-License-Identifier: Apache-2.0
+
+-------------------------------------------------------------
+
+14. collect_env_info
+    Copyright (c) 2018 Facebook
+    SPDX-License-Identifier: MIT
+
+-------------------------------------------------------------
+
+15. RAdam
+    Copyright (c) 2019 Liyuan Liu
+    SPDX-License-Identifier: Apache-2.0
+
+-------------------------------------------------------------
+
+16. SAM
+    Copyright 2020 Google Research
+    SPDX-License-Identifier: Apache-2.0
+
+-------------------------------------------------------------
+
+17. make_divisible
+    Copyright 2022 Google LLC. All rights reserved.
+    SPDX-License-Identifier: Apache-2.0
