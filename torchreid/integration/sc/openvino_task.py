@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions
 # and limitations under the License.
 
-import inspect
 import io
 import json
 import logging
@@ -170,7 +169,6 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
         logger.info('Deploying the model')
 
         work_dir = os.path.dirname(demo.__file__)
-        model_file = inspect.getfile(type(self.inferencer.model))
         parameters = {}
         parameters['type_of_model'] = 'ote_classification'
         parameters['converter_type'] = 'CLASSIFICATION'
@@ -185,14 +183,17 @@ class OpenVINOClassificationTask(IDeploymentTask, IInferenceTask, IEvaluationTas
             arch.writestr(
                 os.path.join("model", "config.json"), json.dumps(parameters, ensure_ascii=False, indent=4)
             )
-            # python files
-            if (inspect.getmodule(self.inferencer.model) in
-               [module[1] for module in inspect.getmembers(model_wrappers, inspect.ismodule)]):
-                arch.write(model_file, os.path.join("python", "model.py"))
+            # model_wrappers files
+            for root, dirs, files in os.walk(os.path.dirname(model_wrappers.__file__)):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arch.write(file_path, os.path.join("python", "model_wrappers", file_path.split("model_wrappers/")[1]))
+            # other python files
             arch.writestr(
                 os.path.join("python", "requirements.txt"),
                 set_proper_git_commit_hash(os.path.join(work_dir, "requirements.txt")),
             )
+            arch.write(os.path.join(work_dir, "LICENSE"), os.path.join("python", "LICENSE"))
             arch.write(os.path.join(work_dir, "README.md"), os.path.join("python", "README.md"))
             arch.write(os.path.join(work_dir, "demo.py"), os.path.join("python", "demo.py"))
         output_model.exportable_code = zip_buffer.getvalue()
