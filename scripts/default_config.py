@@ -80,9 +80,9 @@ def get_default_config():
     cfg.model.gcn.hidden_dim_scale = 1.
     cfg.model.gcn.thau = 0.4
     cfg.model.gcn.layer_type = 'gcn'
-    cfg.model.gcn.word_emb_path = './glove/word_embeddings.npy'
-    cfg.model.gcn.adj_matrix_path = './glove/adj_matrix.npy'
-    cfg.model.gcn.word_model_path = './glove/glove.6B.300d.npy'
+    cfg.model.gcn.word_emb_path = ''
+    cfg.model.gcn.adj_matrix_path = ''
+    cfg.model.gcn.word_model_path = ''
     cfg.model.export_onnx_opset = 9
 
     # mutual learning, auxiliary model
