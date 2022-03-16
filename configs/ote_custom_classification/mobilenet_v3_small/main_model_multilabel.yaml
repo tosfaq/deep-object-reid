@@ -70,7 +70,7 @@ train:
   pct_start: 0.1
   train_patience: 5
   lr_decay_factor: 1000
-  deterministic: True
+  deterministic: False
   target_metric: test_acc
   gamma: 0.1
   sam:

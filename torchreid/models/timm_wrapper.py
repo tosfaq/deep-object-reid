@@ -17,6 +17,8 @@ AVAI_MODELS = {
                 'efficientnetv2_s_1k': 'tf_efficientnetv2_s_in21ft1k',
                 'efficientnetv2_m_21k': 'tf_efficientnetv2_m_in21k',
                 'efficientnetv2_m_1k': 'tf_efficientnetv2_m_in21ft1k',
+                'efficientnetv2_l_21k': 'tf_efficientnetv2_l_in21k',
+                'efficientnetv2_l_1k': 'tf_efficientnetv2_l_in21ft1k',
                 'efficientnetv2_b0' : 'tf_efficientnetv2_b0',
                 'resnet101' : "tv_resnet101"
               }
