@@ -9,7 +9,7 @@ from .common import ModelInterface
 
 import torchreid.utils as utils
 from torchreid.losses import AngleSimpleLinear
-from inplace_abn import InPlaceABN, ABN
+# from inplace_abn import InPlaceABN, ABN
 
 
 class Flatten(nn.Module):
