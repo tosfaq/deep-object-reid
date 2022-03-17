@@ -1,3 +1,6 @@
+# Copyright (c) 2019 Megvii-Nanjing
+# SPDX-License-Identifier: MIT
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

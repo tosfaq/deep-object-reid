@@ -67,7 +67,6 @@ class ImageDataset:
     def __len__(self):
         return len(self.data)
 
-
     @staticmethod
     def check_before_run(required_files):
         """Checks if required files exist before going deeper.

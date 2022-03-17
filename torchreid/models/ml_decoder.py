@@ -1,3 +1,6 @@
+# Copyright (c) 2021 Alibaba-MIIL
+# SPDX-License-Identifier: MIT
+
 from typing import Optional
 
 import torch

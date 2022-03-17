@@ -24,7 +24,7 @@ class ImageAMSoftmaxEngine(Engine):
     """
     def __init__(self, datamanager, models, optimizers, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stopping, lr_decay_factor, loss_name, label_smooth,
-                 margin_type, aug_type, decay_power, alpha, size, lr_finder, aug_prob,
+                 margin_type, aug_type, decay_power, alpha, lr_finder, aug_prob,
                  conf_penalty, pr_product, m, clip_grad, symmetric_ce, enable_rsc,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
                  target_metric, use_ema_decay, ema_decay, mix_precision, **kwargs):
@@ -48,7 +48,7 @@ class ImageAMSoftmaxEngine(Engine):
                          aug_type=aug_type,
                          decay_power=decay_power,
                          alpha=alpha,
-                         size=size)
+                         aug_prob=aug_prob)
 
         assert loss_name in ['softmax', 'am_softmax']
         if loss_name == 'am_softmax':

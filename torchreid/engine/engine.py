@@ -72,7 +72,6 @@ class Engine(metaclass=abc.ABCMeta):
                  aug_type='',
                  decay_power=3,
                  alpha=1.,
-                 size=(224,224),
                  aug_prob=1.):
 
         self.datamanager = datamanager
@@ -81,7 +80,6 @@ class Engine(metaclass=abc.ABCMeta):
         self.use_gpu = (torch.cuda.is_available() and use_gpu)
         self.save_all_chkpts = save_all_chkpts
         self.writer = None
-        self.size = size
         self.use_ema_decay = use_ema_decay
         self.start_epoch = 0
         self.lr_finder = lr_finder
@@ -593,7 +591,7 @@ class Engine(metaclass=abc.ABCMeta):
         if self.aug_type == 'fmix':
             r = np.random.rand(1)
             if self.alpha > 0 and r[0] <= self.aug_prob:
-                lam, fmask = sample_mask(self.alpha, self.decay_power, self.size)
+                lam, fmask = sample_mask(self.alpha, self.decay_power, imgs.shape[-2:])
                 index = torch.randperm(imgs.size(0), device=imgs.device)
                 fmask = torch.from_numpy(fmask).float().to(imgs.device)
                 # Mix the images

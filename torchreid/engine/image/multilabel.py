@@ -229,20 +229,6 @@ class MultilabelEngine(Engine):
         assert 0 < alpha <= 1
         self.prev_smooth_accuracy = alpha * cur_metric + (1. - alpha) * self.prev_smooth_accuracy
 
-    def _apply_batch_augmentation(self, imgs):
-        r = np.random.rand(1)
-        if self.alpha > 0 and r <= self.aug_prob:
-            lam = np.random.beta(self.alpha, self.alpha)
-            index = torch.randperm(imgs.size(0), device=imgs.device)
-
-            imgs = lam * imgs + (1 - lam) * imgs[index, :]
-            self.lam = lam
-            self.aug_index = index
-        else:
-            self.aug_index = None
-            self.lam = None
-        return imgs
-
     @torch.no_grad()
     def _evaluate(self, model, epoch, data_loader, model_name, topk, lr_finder):
         mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader,
