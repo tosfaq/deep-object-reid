@@ -1,3 +1,6 @@
+# Copyright (c) 2021 SlongLiu
+# SPDX-License-Identifier: MIT
+
 import torch
 import torch.nn as nn
 import math
@@ -5,6 +8,8 @@ import math
 from .transformer import build_position_encoding
 from .common import ModelInterface
 from torch.cuda.amp import autocast
+
+from torchreid.losses import AngleSimpleLinear
 
 __all__ = ['build_q2l']
 
@@ -73,7 +78,11 @@ class Query2Label(ModelInterface):
         backbone_features = backbone.num_channels
         self.input_proj = nn.Conv2d(backbone_features, hidden_dim, kernel_size=1)
         self.query_embed = nn.Embedding(num_classes, hidden_dim)
-        self.fc = GroupWiseLinear(num_classes, hidden_dim, use_bias=True)
+        if self.loss == "am_binary":
+            self.fc = AngleSimpleLinear(hidden_dim, num_classes)
+        else:
+            assert self.loss in ['asl', 'bce']
+            self.fc = GroupWiseLinear(num_classes, hidden_dim, use_bias=True)
 
     def forward(self, input):
         with autocast(enabled=self.mix_precision):

@@ -392,7 +392,7 @@ class EfficientNet(ModelInterface):
 
             out_data = [logits]
 
-            return tuple(out_data)
+            return out_data
 
 
 def get_efficientnet(version,

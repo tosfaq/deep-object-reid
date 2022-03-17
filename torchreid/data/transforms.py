@@ -55,7 +55,6 @@ class CenterCrop():
         if self.margin <= 0:
             return image
 
-
         image_height, image_width, _ = image.shape
         if image_width - 2 * self.margin < 2 or image_height - 2 * self.margin < 2:
             return image

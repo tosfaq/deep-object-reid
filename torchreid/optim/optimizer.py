@@ -91,7 +91,6 @@ def _build_optim(model,
                  lr_finder=False,
                  sam_rho = 0.05,
                  sam_adaptive=False):
-
     param_groups = []
     if optim not in AVAI_OPTIMS:
         raise ValueError(
@@ -107,7 +106,6 @@ def _build_optim(model,
         raise TypeError(
             'model given to build_optimizer must be an instance of nn.Module'
         )
-
     if staged_lr:
         if isinstance(new_layers, str):
             if new_layers is None:

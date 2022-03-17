@@ -360,7 +360,6 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
             matched_layers.append(k)
         else:
             discarded_layers.append(k)
-
     model_dict.update(new_state_dict)
     model.load_state_dict(model_dict)
 

@@ -10,7 +10,6 @@ class AsymmetricLoss(nn.Module):
                     probability_margin=0.05, eps=1e-8,
                     label_smooth=0.):
         super().__init__()
-
         self.gamma_neg = gamma_neg
         self.gamma_pos = gamma_pos
         self.label_smooth = label_smooth
@@ -53,7 +52,6 @@ class AsymmetricLoss(nn.Module):
             self.asymmetric_w = torch.pow(1 - self.xs_pos - self.xs_neg,
                                           self.gamma_pos * targets + self.gamma_neg * self.anti_targets)
             self.loss *= self.asymmetric_w
-
         # sum reduction over batch
         return - self.loss.sum()
 
@@ -85,6 +83,12 @@ class AMBinaryLoss(nn.Module):
         targets: targets (multi-label binarized vector. Elements < 0 are ignored)
         """
         self.s = scale if scale else self.s
+        logits_aug_avai = aug_index is not None and lam is not None # augmentations like fmix, cutmix, mixup
+
+        if logits_aug_avai:
+            aug_targets = targets[aug_index]
+            new_targets = targets * lam + aug_targets * (1 - lam)
+            targets = new_targets.clamp(0, 1)
 
         cos_theta, targets = filter_input(cos_theta, targets)
         if cos_theta.shape[0] == 0:
