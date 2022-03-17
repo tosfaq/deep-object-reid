@@ -28,7 +28,7 @@ from torchreid.integration.nncf.compression import (get_nncf_complession_stage,
 from torchreid.optim import ReduceLROnPlateauV2, WarmupScheduler, CosineAnnealingCycleRestart
 from torchreid.utils import (AverageMeter, MetricMeter, get_model_attr,
                              open_all_layers, open_specified_layers,
-                             save_checkpoint, ModelEmaV2)
+                             save_checkpoint, ModelEmaV2, sample_mask)
 
 
 EpochIntervalToValue = namedtuple('EpochIntervalToValue', ['first', 'last', 'value_inside', 'value_outside'])
@@ -68,7 +68,11 @@ class Engine(metaclass=abc.ABCMeta):
                  epoch_interval_for_turn_off_mutual_learning=None,
                  use_ema_decay=False,
                  ema_decay=0.999,
-                 seed=5):
+                 seed=5,
+                 aug_type='',
+                 decay_power=3,
+                 alpha=1.,
+                 aug_prob=1.):
 
         self.datamanager = datamanager
         self.train_loader = self.datamanager.train_loader
@@ -107,6 +111,13 @@ class Engine(metaclass=abc.ABCMeta):
         self.model_names_to_freeze = []
         self.current_lr = None
         self.warmup_finished = True
+        self.aug_type = aug_type
+        self.alpha = alpha
+        self.aug_prob = aug_prob
+        self.aug_index = None
+        self.lam = None
+        self.decay_power = decay_power
+        self.alpha = alpha
 
         if isinstance(models, (tuple, list)):
             assert isinstance(optimizers, (tuple, list))
@@ -557,6 +568,73 @@ class Engine(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def forward_backward(self, data):
         pass
+
+    def _apply_batch_augmentation(self, imgs):
+        def rand_bbox(size, lam):
+            W = size[2]
+            H = size[3]
+            cut_rat = np.sqrt(1. - lam)
+            cut_w = np.int(W * cut_rat)
+            cut_h = np.int(H * cut_rat)
+
+            # uniform
+            cx = np.random.randint(W)
+            cy = np.random.randint(H)
+
+            bbx1 = np.clip(cx - cut_w // 2, 0, W)
+            bby1 = np.clip(cy - cut_h // 2, 0, H)
+            bbx2 = np.clip(cx + cut_w // 2, 0, W)
+            bby2 = np.clip(cy + cut_h // 2, 0, H)
+
+            return bbx1, bby1, bbx2, bby2
+
+        if self.aug_type == 'fmix':
+            r = np.random.rand(1)
+            if self.alpha > 0 and r[0] <= self.aug_prob:
+                lam, fmask = sample_mask(self.alpha, self.decay_power, imgs.shape[-2:])
+                index = torch.randperm(imgs.size(0), device=imgs.device)
+                fmask = torch.from_numpy(fmask).float().to(imgs.device)
+                # Mix the images
+                x1 = fmask * imgs
+                x2 = (1 - fmask) * imgs[index]
+                self.aug_index = index
+                self.lam = lam
+                imgs = x1 + x2
+            else:
+                self.aug_index = None
+                self.lam = None
+
+        elif self.aug_type == 'mixup':
+            r = np.random.rand(1)
+            if self.alpha > 0 and r <= self.aug_prob:
+                lam = np.random.beta(self.alpha, self.alpha)
+                index = torch.randperm(imgs.size(0), device=imgs.device)
+
+                imgs = lam * imgs + (1 - lam) * imgs[index, :]
+                self.lam = lam
+                self.aug_index = index
+            else:
+                self.aug_index = None
+                self.lam = None
+
+        elif self.aug_type == 'cutmix':
+            r = np.random.rand(1)
+            if self.alpha > 0 and r <= self.aug_prob:
+                # generate mixed sample
+                lam = np.random.beta(self.alpha, self.alpha)
+                rand_index = torch.randperm(imgs.size(0), device=imgs.device)
+
+                bbx1, bby1, bbx2, bby2 = rand_bbox(imgs.size(), lam)
+                imgs[:, :, bbx1:bbx2, bby1:bby2] = imgs[rand_index, :, bbx1:bbx2, bby1:bby2]
+                # adjust lambda to exactly match pixel ratio
+                lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (imgs.size()[-1] * imgs.size()[-2]))
+                self.lam = lam
+                self.aug_index = rand_index
+            else:
+                self.aug_index = None
+                self.lam = None
+
+        return imgs
 
     def test(
         self,

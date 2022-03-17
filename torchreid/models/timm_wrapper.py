@@ -2,19 +2,23 @@ import timm
 
 from torchreid.losses import AngleSimpleLinear
 from .common import ModelInterface
+import torchreid.utils as utils
 from torchreid.ops import Dropout
 from torch import nn
 from torch.cuda.amp import autocast
+
 
 __all__ = ["timm_wrapped_models", "TimmModelsWrapper"]
 AVAI_MODELS = {
                 'mobilenetv3_large_21k' : 'mobilenetv3_large_100_miil_in21k',
                 'mobilenetv3_large_1k' : 'mobilenetv3_large_100_miil',
-                'tresnet' : 'tresnet_m',
+                'tresnet_m' : 'tresnet_m',
                 'efficientnetv2_s_21k': 'tf_efficientnetv2_s_in21k',
                 'efficientnetv2_s_1k': 'tf_efficientnetv2_s_in21ft1k',
                 'efficientnetv2_m_21k': 'tf_efficientnetv2_m_in21k',
                 'efficientnetv2_m_1k': 'tf_efficientnetv2_m_in21ft1k',
+                'efficientnetv2_l_21k': 'tf_efficientnetv2_l_in21k',
+                'efficientnetv2_l_1k': 'tf_efficientnetv2_l_in21ft1k',
                 'efficientnetv2_b0' : 'tf_efficientnetv2_b0',
                 'resnet101' : "tv_resnet101"
               }
@@ -25,6 +29,7 @@ class TimmModelsWrapper(ModelInterface):
                  pretrained=False,
                  dropout_cls = None,
                  pooling_type='avg',
+                 emb_dim=1680,
                  **kwargs):
         super().__init__(**kwargs)
         self.pretrained = pretrained
@@ -49,7 +54,6 @@ class TimmModelsWrapper(ModelInterface):
             y = self.extract_features(x)
             if return_featuremaps:
                 return y
-
             glob_features = self._glob_feature_vector(y, self.pooling_type, reduce_dims=False)
             logits = self.infer_head(glob_features)
             if self.similarity_adjustment:
