@@ -346,6 +346,7 @@ class Engine(metaclass=abc.ABCMeta):
             self.configure_lr_finder(trial, lr_finder)
             self.backup_model()
 
+        self.save_dir = save_dir
         self.writer = tb_writer
         time_start = time.time()
         self.start_epoch = start_epoch
@@ -441,6 +442,8 @@ class Engine(metaclass=abc.ABCMeta):
 
         if self.writer is not None:
             self.writer.close()
+
+        self._finalize_training()
 
         return accuracy, self.best_metric
 
@@ -721,3 +724,7 @@ class Engine(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def _evaluate(self, model, epoch, data_loader, model_name, topk, lr_finder):
         return 0.
+
+    @abc.abstractmethod
+    def _finalize_training(self):
+        pass
