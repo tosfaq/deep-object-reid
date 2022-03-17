@@ -26,21 +26,6 @@ def build_ml_decoder_model(backbone, num_classes=80, num_of_groups=-1, decoder_e
     return model
 
 
-def add_ml_decoder_head(model, num_classes, num_of_groups=-1, decoder_embedding=-1):
-    if num_classes == -1:
-        num_classes = model.num_classes
-    num_features = model.num_features
-    model.glob_feature_vector = None
-    if hasattr(model, "model"): # timm models
-        model.model.classifier = MLDecoder(num_classes=num_classes, initial_num_features=num_features, num_of_groups=num_of_groups,
-                                           decoder_embedding=decoder_embedding)
-    else:
-        model.classifier = MLDecoder(num_classes=num_classes, initial_num_features=num_features, num_of_groups=num_of_groups,
-                                     decoder_embedding=decoder_embedding)
-
-    return model
-
-
 class TransformerDecoderLayerOptimal(nn.Module):
     def __init__(self, d_model, nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu",
                  layer_norm_eps=1e-5) -> None:
@@ -164,7 +149,7 @@ class MLDecoder(ModelInterface):
                 logits = self.sym_adjust(logits, self.amb_t)
 
             if return_all:
-                glob_features = self.backbone.glob_feature_vector(spat_features, self.backbone.pooling_type, reduce_dims=False)
+                glob_features = self.backbone._glob_feature_vector(spat_features, self.backbone.pooling_type, reduce_dims=False)
                 return [(logits, spat_features, glob_features)]
             if not self.training:
                 return [logits]

@@ -60,19 +60,6 @@ class ModelInterface(nn.Module):
     def get_num_head_features(self):
         return self.num_head_features
 
-    def get_config_optim(self, lrs):
-        parameters = [
-            {'params': self.named_parameters()},
-        ]
-        if isinstance(lrs, list):
-            assert len(lrs) == len(parameters)
-            parameters[0]['lr'] = lrs[0]
-        else:
-            assert isinstance(lrs, float)
-            parameters[0]['lr'] = lrs
-
-        return parameters
-
     @staticmethod
     def sym_adjust(z, t):
         return 2 * torch.pow((z + 1)/2, t) - 1
@@ -82,7 +69,7 @@ class ModelInterface(nn.Module):
         return float(min(max(np.sqrt(5) * np.log(num_class - 1), 7), 30.))
 
     @staticmethod
-    def glob_feature_vector(x, mode, reduce_dims=True):
+    def _glob_feature_vector(x, mode, reduce_dims=True):
         if mode == 'avg':
             out = F.adaptive_avg_pool2d(x, 1)
         elif mode == 'max':

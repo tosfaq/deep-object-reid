@@ -68,7 +68,7 @@ def build_model(name, **kwargs):
     elif name.startswith('mld'):
         backbone_name = name[4:]
         if backbone_name not in avai_models:
-            raise KeyError('Unknown backbone for Q2L model: {}. Must be one of {}'.format(backbone_name, avai_models))
+            raise KeyError('Unknown backbone for MLD model: {}. Must be one of {}'.format(backbone_name, avai_models))
         backbone = __model_factory[backbone_name](**kwargs)
         model = build_ml_decoder_model(backbone, **kwargs)
     elif name not in avai_models:

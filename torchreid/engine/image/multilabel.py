@@ -39,7 +39,10 @@ class MultilabelEngine(Engine):
                         lr_finder=lr_finder,
                         target_metric=target_metric,
                         use_ema_decay=use_ema_decay,
-                        ema_decay=ema_decay)
+                        ema_decay=ema_decay,
+                        aug_prob=aug_prob,
+                        alpha=alpha,
+                        aug_type=aug_type)
 
         self.clip_grad = clip_grad
 

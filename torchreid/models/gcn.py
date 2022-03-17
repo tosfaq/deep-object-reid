@@ -148,7 +148,7 @@ class Image_GCNN(ModelInterface):
             weights = torch.sigmoid(weights)
 
             weighted_cam = weights.view(1, -1, 1, 1) * spat_features
-            glob_features = self.backbone.glob_feature_vector(weighted_cam, self.backbone.pooling_type, reduce_dims=False)
+            glob_features = self.backbone._glob_feature_vector(weighted_cam, self.backbone.pooling_type, reduce_dims=False)
             logits = self.head(glob_features.view(glob_features.size(0), -1))
 
             if self.similarity_adjustment:
