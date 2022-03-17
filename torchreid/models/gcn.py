@@ -6,6 +6,7 @@ from .common import ModelInterface
 from torch.cuda.amp import autocast
 import math
 from torchreid.losses import AngleSimpleLinear
+from sklearn.decomposition import PCA
 
 def gen_A(num_classes, t, rho, smoothing, adj_file):
     print(f"ACTUAL MATRIX PARAMS: t: {t}, rho: {rho}, smoothing: {smoothing}")
@@ -25,7 +26,7 @@ class GraphAttentionLayer(nn.Module):
     """
     Simple GAT layer, similar to https://arxiv.org/abs/1710.10903
     """
-    def __init__(self, in_features, out_features, dropout=0.0, alpha=0.2, concat=True):
+    def __init__(self, in_features, out_features, dropout=0.1, alpha=0.2, concat=True):
         super(GraphAttentionLayer, self).__init__()
         self.dropout = dropout
         self.in_features = in_features
@@ -203,7 +204,7 @@ class Image_GCNN(ModelInterface):
         super().__init__(**kwargs)
         self.backbone = backbone
         hidden_dim = int(self.backbone.num_features / hidden_dim_scale)
-        embedding_dim = self.backbone.num_features
+        embedding_dim = int(self.backbone.num_features / emb_dim_scale)
         print(f"ACTUAL GCN DIMS: hidden_dim: {hidden_dim}, embedding_dim: {embedding_dim}")
         if layer_type == 'gcn':
             self.layer_block = GraphConvolution
@@ -227,12 +228,17 @@ class Image_GCNN(ModelInterface):
             self.gc3 = self.layer_block(hidden_dim, embedding_dim)
 
         self.relu = nn.LeakyReLU(0.2)
+        # nmf = PCA(n_components=64)
+        # word_matrix = nmf.fit_transform(np.transpose(word_matrix))
+        # self.inp = nn.Parameter(torch.from_numpy(np.transpose(word_matrix)).float())
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
         self.A = nn.Parameter(torch.from_numpy(adj_matrix).float())
-        self.proj_embed = nn.Linear(self.backbone.num_features, self.num_classes * embedding_dim, bias=False)
-        self.proj_embed.weight = torch.nn.init.xavier_normal_(self.proj_embed.weight)
-        self.prototypes = nn.Parameter(torch.Tensor(self.num_classes, embedding_dim))
-        self.prototypes.data.normal_().renorm_(2, 1, 1e-5).mul_(1e5)
+        # self.proj_embed = nn.Linear(self.backbone.num_features, self.num_classes * embedding_dim, bias=False)
+        # self.proj_embed.weight = torch.nn.init.xavier_normal_(self.proj_embed.weight)
+        # self.prototypes = nn.Parameter(torch.Tensor(self.num_classes, embedding_dim))
+        # self.prototypes.data.normal_().renorm_(2, 1, 1e-5).mul_(1e5)
+        self.dropout = self.backbone.dropout
+        # self.proj_linear = nn.Linear(embedding_dim, self.backbone.num_features)
         if self.loss == "am_binary":
             self.head = AngleSimpleLinear(self.backbone.num_features, self.num_classes)
         else:
@@ -258,18 +264,19 @@ class Image_GCNN(ModelInterface):
                 weights = x.mean(dim=0)
             else:
                 weights = x.mean(dim=0) + x.max(dim=0)[0]
-
+            # weights = self.proj_linear(weights)
             if self.use_last_sigmoid:
                 weights = torch.sigmoid(weights)
 
             weighted_cam = weights.view(1, -1, 1, 1) * spat_features
             glob_features = self.backbone.glob_feature_vector(weighted_cam, self.backbone.pooling_type, reduce_dims=False)
+            # glob_features = self.dropout(glob_features)
             # count_num = self.counting_head(glob_features.view(image.size(0), -1))
             # projection head
             ###
             # embedings = self.proj_embed(glob_features.view(image.size(0), -1))
             # embedings = embedings.reshape(image.size(0), self.num_classes, -1)
-            # logits = F.cosine_similarity(embedings, self.prototypes, dim=2)
+            # logits = F.cosine_similarity(embedings, x, dim=2)
             # logits = logits.clamp(-1, 1)
             ###
             logits = self.head(glob_features.view(glob_features.size(0), -1))
@@ -296,15 +303,20 @@ class Image_GCNN(ModelInterface):
 
     @staticmethod
     def gen_adj(A):
+        # model = NMF(n_components=40, n_samples=40)
         D = torch.pow(A.sum(1).float(), -0.5)
         D = torch.diag(D)
         adj = torch.matmul(torch.matmul(A, D).t(), D)
+        # adj = F.interpolate(adj.reshape(1,1,500,500), size=(64,64), mode='bilinear')
+        # W = model.fit_transform(adj.detach().numpy())
+        # print(W, W.shape)
+        # return adj.reshape(64,64)
         return adj
 
     def get_config_optim(self, lrs):
         parameters = [
             {'params': self.head.named_parameters()},
-            # {'params': self.proj_embed.named_parameters()},
+            # {'params': self.proj_linear.named_parameters()},
             # {'params': [('proto.weights', self.prototypes), ]},
             # {'params': self.counting_head.named_parameters()},
             {'params': self.backbone.named_parameters()},

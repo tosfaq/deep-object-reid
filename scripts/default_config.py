@@ -48,14 +48,14 @@ def get_default_config():
     cfg.model.dropout_backbone.sigma = 0.03
     cfg.model.dropout_backbone.kernel = 3
     cfg.model.dropout_backbone.temperature = 0.2
-    cfg.model.dropout_backbone.dist = 'none'
+    cfg.model.dropout_backbone.dist = 'bernoulli'
     cfg.model.dropout_cls = CN()
     cfg.model.dropout_cls.p = 0.0
     cfg.model.dropout_cls.mu = 0.1
     cfg.model.dropout_cls.sigma = 0.03
     cfg.model.dropout_cls.kernel = 3
     cfg.model.dropout_cls.temperature = 0.2
-    cfg.model.dropout_cls.dist = 'none'
+    cfg.model.dropout_cls.dist = 'bernoulli'
     cfg.model.feature_dim = 512  # embedding size
     cfg.model.bn_eval = False
     cfg.model.bn_frozen = False

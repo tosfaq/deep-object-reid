@@ -25,7 +25,7 @@ import torch.nn as nn
 from torch.nn.modules import module
 
 from .tools import mkdir_if_missing, check_isfile
-from torchreid.models import TimmModelsWrapper
+from torchreid.models import TimmModelsWrapper, TResnetL
 
 __all__ = [
     'save_checkpoint', 'load_checkpoint', 'resume_from_checkpoint',
@@ -363,9 +363,6 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
             matched_layers.append(k)
-        elif k.startswith('head.fc.FC'):
-            print(state_dict[k].size())
-            exit()
         else:
             discarded_layers.append(k)
     model_dict.update(new_state_dict)
@@ -387,7 +384,6 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
             format(message)
         )
         _print_loading_weights_inconsistencies(discarded_layers, unmatched_layers)
-
 
 # Is based on
 # https://github.com/rwightman/pytorch-image-models/blob/master/timm/utils/model_ema.py
@@ -412,6 +408,9 @@ class ModelEmaV2(nn.Module):
     def __init__(self, model, decay=0.9999, device=None):
         super(ModelEmaV2, self).__init__()
         # make a copy of the model for accumulating moving average of weights
+        # model.eval()
+        # if isinstance(TResnetL, )
+        # with torch.no_grad():
         self.module = deepcopy(model)
         self.module.eval()
         self.decay = decay

@@ -81,7 +81,7 @@ class MultilabelEngine(Engine):
 
     def forward_backward(self, data):
         imgs, targets = self.parse_data_for_train(data, use_gpu=self.use_gpu)
-        if self.aug_type == 'mixup':
+        if self.aug_type in ['mixup', 'cutmix']:
             imgs = self._apply_batch_augmentation(imgs)
         model_names = self.get_model_names()
         num_models = len(model_names)
@@ -237,15 +237,52 @@ class MultilabelEngine(Engine):
         self.prev_smooth_accuracy = alpha * cur_metric + (1. - alpha) * self.prev_smooth_accuracy
 
     def _apply_batch_augmentation(self, imgs):
-        r = np.random.rand(1)
-        if self.alpha > 0 and r <= self.aug_prob:
-            lam = np.random.beta(self.alpha, self.alpha)
-            index = torch.randperm(imgs.size(0), device=imgs.device)
+        def rand_bbox(size, lam):
+            W = size[2]
+            H = size[3]
+            cut_rat = np.sqrt(1. - lam)
+            cut_w = np.int(W * cut_rat)
+            cut_h = np.int(H * cut_rat)
 
-            imgs = lam * imgs + (1 - lam) * imgs[index, :]
-            self.lam = lam
-            self.aug_index = index
-        else:
-            self.aug_index = None
-            self.lam = None
+            # uniform
+            cx = np.random.randint(W)
+            cy = np.random.randint(H)
+
+            bbx1 = np.clip(cx - cut_w // 2, 0, W)
+            bby1 = np.clip(cy - cut_h // 2, 0, H)
+            bbx2 = np.clip(cx + cut_w // 2, 0, W)
+            bby2 = np.clip(cy + cut_h // 2, 0, H)
+
+            return bbx1, bby1, bbx2, bby2
+
+        if self.aug_type == 'mixup':
+            r = np.random.rand(1)
+            if self.alpha > 0 and r <= self.aug_prob:
+                lam = np.random.beta(self.alpha, self.alpha)
+                index = torch.randperm(imgs.size(0), device=imgs.device)
+
+                imgs = lam * imgs + (1 - lam) * imgs[index, :]
+                self.lam = lam
+                self.aug_index = index
+            else:
+                self.aug_index = None
+                self.lam = None
+
+        elif self.aug_type == 'cutmix':
+            r = np.random.rand(1)
+            if self.alpha > 0 and r <= self.aug_prob:
+                # generate mixed sample
+                lam = np.random.beta(self.alpha, self.alpha)
+                rand_index = torch.randperm(imgs.size(0), device=imgs.device)
+
+                bbx1, bby1, bbx2, bby2 = rand_bbox(imgs.size(), lam)
+                imgs[:, :, bbx1:bbx2, bby1:bby2] = imgs[rand_index, :, bbx1:bbx2, bby1:bby2]
+                # adjust lambda to exactly match pixel ratio
+                lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (imgs.size()[-1] * imgs.size()[-2]))
+                self.lam = lam
+                self.aug_index = rand_index
+            else:
+                self.aug_index = None
+                self.lam = None
+
         return imgs

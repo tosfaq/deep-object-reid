@@ -146,7 +146,7 @@ def _build_optim(model,
                 for name, param in layer_params:
                     if param.requires_grad and isinstance(param, CompressionParameter):
                         compression_params.add(param)
-
+        # lr = [0.02, 0.012, 0.05, 0.05]
         for param_group in get_model_attr(model, 'get_config_optim')(lr):
             if 'weight_decay' in param_group:
                 # weight_decay is already set for these parameters
