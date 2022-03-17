@@ -370,7 +370,7 @@ class EfficientNet(ModelInterface):
                 if module.bias is not None:
                     init.constant_(module.bias, 0)
 
-    def forward(self, x, return_featuremaps=False, get_embeddings=False, return_all=False):
+    def forward(self, x, return_featuremaps=False, get_embeddings=False, return_all=False, apply_scale=False):
         with autocast(enabled=self.mix_precision):
             if self.input_IN is not None:
                 x = self.input_IN(x)
@@ -382,6 +382,8 @@ class EfficientNet(ModelInterface):
             logits = self.output(glob_features.view(x.shape[0], -1))
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.amb_t)
+            if apply_scale:
+                logits *= self.scale
 
             if return_all:
                 return [(logits, y, glob_features)]
