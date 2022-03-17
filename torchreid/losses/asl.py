@@ -75,17 +75,6 @@ class AMBinaryLoss(nn.Module):
         # prevent memory allocation and gpu uploading every iteration, and encourages inplace operations
         self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
 
-    @staticmethod
-    def _valid(params):
-        if isinstance(params, (list, tuple)):
-            for p in params:
-                if p is None:
-                    return False
-        else:
-            if params is None:
-                return False
-        return True
-
     def forward(self, cos_theta, targets, scale=None, aug_index=None, lam=None):
         """"
         Parameters
@@ -94,7 +83,7 @@ class AMBinaryLoss(nn.Module):
         targets: targets (multi-label binarized vector. Elements < 0 are ignored)
         """
         self.s = scale if scale else self.s
-        logits_aug_avai = self._valid([aug_index, lam]) # augmentations like fmix, cutmix, augmix
+        logits_aug_avai = aug_index is not None and lam is not None # augmentations like fmix, cutmix, mixup
 
         if logits_aug_avai:
             aug_targets = targets[aug_index]
