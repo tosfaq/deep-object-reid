@@ -347,6 +347,7 @@ class Engine(metaclass=abc.ABCMeta):
         accuracy, should_save_ema_model = 0, False
         print('=> Start training')
 
+        # marker: example of on_train_begin callback invocation for detection train task
         if perf_monitor and not lr_finder: perf_monitor.on_train_begin()
         for self.epoch in range(self.start_epoch, self.max_epoch):
             # change the NumPy’s seed at every epoch
@@ -501,6 +502,7 @@ class Engine(metaclass=abc.ABCMeta):
         self.num_batches = len(self.train_loader)
         end = time.time()
         for self.batch_idx, data in enumerate(self.train_loader):
+            # marker: example of on_train_batch callback invocation for detection train task
             if perf_monitor and not lr_finder: perf_monitor.on_train_batch_begin(self.batch_idx)
 
             data_time.update(time.time() - end)
