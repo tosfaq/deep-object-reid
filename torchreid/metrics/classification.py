@@ -272,13 +272,6 @@ def tune_multilabel_thresholds(raw_scores, labels):
         hist_pos, _ = np.histogram(pos_scores, bins, density=True)
         hist_neg, _ = np.histogram(neg_scores, bins, density=True)
 
-        '''
-        import matplotlib.pyplot as plt
-        n, _, patches = plt.hist(pos_scores, bins, density=True, facecolor='g', alpha=0.75)
-        n, _, patches = plt.hist(neg_scores, bins, density=True, facecolor='r', alpha=0.75)
-        plt.grid(True)
-        plt.savefig(f'./hist_{i}.png')
-        '''
         intersection_bins = []
 
         for i in range(1, len(hist_neg)):
@@ -293,12 +286,12 @@ def tune_multilabel_thresholds(raw_scores, labels):
     scores = 1. / (1. + np.exp(-1. * raw_scores))
     threshs = np.zeros(labels.shape[1])
 
-    for i in range(labels.shape[1]):
+    for j in range(labels.shape[1]):
         pos_idx = (labels[:, i] > 0).reshape(-1)
         neg_idx = (labels[:, i] < 1).reshape(-1)
 
-        pos_scores = scores[pos_idx, i]
-        neg_scores = scores[neg_idx, i]
+        pos_scores = scores[pos_idx, j]
+        neg_scores = scores[neg_idx, j]
 
         threshs[i] = compute_optimal_thresh(pos_scores, neg_scores, i)
 
