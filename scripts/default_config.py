@@ -28,7 +28,7 @@ def get_default_config():
     cfg.lr_finder.min_lr = 0.004
     cfg.lr_finder.step = None
     cfg.lr_finder.num_epochs = 3
-    cfg.lr_finder.epochs_warmup = 2
+    cfg.lr_finder.epochs_warmup = 1
     cfg.lr_finder.stop_after = False
     cfg.lr_finder.path_to_savefig = ''
     cfg.lr_finder.smooth_f = 0.01
@@ -68,8 +68,6 @@ def get_default_config():
     cfg.model.self_challenging_cfg.drop_p = 0.33
     cfg.model.self_challenging_cfg.drop_batch_p = 0.33
     cfg.model.transformer = CN()
-    cfg.model.transformer.hidden_dim = 2432
-    cfg.model.transformer.dim_feedforward = 2432
     cfg.model.transformer.dropout = 0.1
     cfg.model.transformer.nheads = 4
     cfg.model.transformer.num_encoder_layers = 1
@@ -77,6 +75,14 @@ def get_default_config():
     cfg.model.transformer.pre_norm = False
     cfg.model.transformer.rm_self_attn_dec = True
     cfg.model.transformer.rm_first_self_attn = True
+    cfg.model.gcn = CN()
+    cfg.model.gcn.rho = 0.25
+    cfg.model.gcn.hidden_dim_scale = 1.
+    cfg.model.gcn.thau = 0.4
+    cfg.model.gcn.layer_type = 'gcn'
+    cfg.model.gcn.word_emb_path = ''
+    cfg.model.gcn.adj_matrix_path = ''
+    cfg.model.gcn.word_model_path = ''
     cfg.model.export_onnx_opset = 9
 
     # mutual learning, auxiliary model
@@ -408,6 +414,9 @@ def imagedata_kwargs(cfg):
         'train_sampler': cfg.sampler.train_sampler,
         'custom_dataset_roots': cfg.custom_datasets.roots,
         'custom_dataset_types': cfg.custom_datasets.types,
+        'word_emb_path': cfg.model.gcn.word_emb_path,
+        'adj_matrix_path': cfg.model.gcn.adj_matrix_path,
+        'word_model_path': cfg.model.gcn.word_model_path
     }
 
 
@@ -478,17 +487,21 @@ def model_kwargs(cfg, num_classes):
         'bn_frozen': cfg.model.bn_frozen,
         'model_type': cfg.model.type,
         'self_challenging_cfg': cfg.model.self_challenging_cfg,
-        'hidden_dim': cfg.model.transformer.hidden_dim,
         'similarity_adjustment': cfg.loss.am_binary.amb_t > 1.,
         'amb_t' : cfg.loss.am_binary.amb_t,
         'dropout': cfg.model.transformer.dropout,
         'nheads': cfg.model.transformer.nheads,
-        'dim_feedforward': cfg.model.transformer.dim_feedforward,
         'num_encoder_layers': cfg.model.transformer.num_encoder_layers,
         'num_decoder_layers': cfg.model.transformer.num_decoder_layers,
         'pre_norm': cfg.model.transformer.pre_norm,
         'rm_self_attn_dec': cfg.model.transformer.rm_self_attn_dec,
         'rm_first_self_attn': cfg.model.transformer.rm_first_self_attn,
+        'thau': cfg.model.gcn.thau,
+        'rho_gcn': cfg.model.gcn.rho,
+        'hidden_dim_scale': cfg.model.gcn.hidden_dim_scale,
+        'layer_type': cfg.model.gcn.layer_type,
+        'adj_matrix_path': cfg.model.gcn.adj_matrix_path,
+        'word_emb_path': cfg.model.gcn.word_emb_path
     }
 
 

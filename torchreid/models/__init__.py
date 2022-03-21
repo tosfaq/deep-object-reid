@@ -14,6 +14,8 @@ from .ptcv_wrapper import *
 from .timm_wrapper import *
 from .q2l import *
 from .transformer import *
+from .gcn import *
+from .ml_decoder import *
 
 __model_factory = {
     # image classification models
@@ -55,8 +57,20 @@ def build_model(name, **kwargs):
         if backbone_name not in avai_models:
             raise KeyError('Unknown backbone for Q2L model: {}. Must be one of {}'.format(backbone_name, avai_models))
         backbone = __model_factory[backbone_name](**kwargs)
-        transformer = build_transformer(**kwargs)
-        model = build_q2l(backbone, transformer, **kwargs)
+        transformer = build_transformer(hidden_dim=backbone.num_features, dim_feedforward=backbone.num_features, **kwargs)
+        model = build_q2l(backbone, transformer, hidden_dim=backbone.num_features, **kwargs)
+    elif name.startswith('gcn'):
+        backbone_name = name[4:]
+        if backbone_name not in avai_models:
+            raise KeyError('Unknown backbone for GCN model: {}. Must be one of {}'.format(backbone_name, avai_models))
+        backbone = __model_factory[backbone_name](**kwargs)
+        model = build_image_gcn(backbone, **kwargs)
+    elif name.startswith('mld'):
+        backbone_name = name[4:]
+        if backbone_name not in avai_models:
+            raise KeyError('Unknown backbone for MLD model: {}. Must be one of {}'.format(backbone_name, avai_models))
+        backbone = __model_factory[backbone_name](**kwargs)
+        model = build_ml_decoder_model(backbone, **kwargs)
     elif name not in avai_models:
         raise KeyError('Unknown model: {}. Must be one of {}'.format(name, avai_models))
     else:

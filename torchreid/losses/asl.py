@@ -84,6 +84,13 @@ class AMBinaryLoss(nn.Module):
         cos_theta: dot product between normalized features and proxies
         targets: targets (multi-label binarized vector. Elements < 0 are ignored)
         """
+        logits_aug_avai = aug_index is not None and lam is not None # augmentations like fmix, cutmix, mixup
+
+        if logits_aug_avai:
+            aug_targets = targets[aug_index]
+            new_targets = targets * lam + aug_targets * (1 - lam)
+            targets = new_targets.clamp(0, 1)
+
         self.s = scale if scale else self.s
 
         cos_theta, targets = filter_input(cos_theta, targets)

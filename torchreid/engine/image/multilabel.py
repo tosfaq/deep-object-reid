@@ -17,7 +17,7 @@ class MultilabelEngine(Engine):
     r"""Multilabel classification engine. It supports ASL, BCE and Angular margin loss with binary classification."""
     def __init__(self, datamanager, models, optimizers, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stopping, lr_decay_factor, loss_name, label_smooth,
-                 lr_finder, m, amb_k, amb_t, clip_grad,
+                 lr_finder, m, amb_k, amb_t, clip_grad, aug_prob, alpha, aug_type,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
                  target_metric, use_ema_decay, ema_decay, asl_gamma_pos, asl_gamma_neg, asl_p_m,
                  mix_precision, **kwargs):
@@ -38,11 +38,12 @@ class MultilabelEngine(Engine):
                         lr_finder=lr_finder,
                         target_metric=target_metric,
                         use_ema_decay=use_ema_decay,
-                        ema_decay=ema_decay)
+                        ema_decay=ema_decay,
+                        aug_prob=aug_prob,
+                        alpha=alpha,
+                        aug_type=aug_type)
 
         self.clip_grad = clip_grad
-        self.aug_index = None
-        self.lam = None
 
         if loss_name == 'asl':
             self.main_loss = AsymmetricLoss(
@@ -69,7 +70,6 @@ class MultilabelEngine(Engine):
                 label_smooth=label_smooth,
             )
 
-
         self.enable_sam = isinstance(self.optims[self.main_model_name], SAM)
 
         for model_name in self.get_model_names():
@@ -81,7 +81,7 @@ class MultilabelEngine(Engine):
 
     def forward_backward(self, data):
         imgs, targets = self.parse_data_for_train(data, use_gpu=self.use_gpu)
-
+        imgs = self._apply_batch_augmentation(imgs)
         model_names = self.get_model_names()
         num_models = len(model_names)
         steps = [1,2] if self.enable_sam and not self.lr_finder else [1]
@@ -117,6 +117,7 @@ class MultilabelEngine(Engine):
                             with torch.no_grad():
                                 aux_probs = torch.sigmoid(all_models_logits[j] * self.scales[model_names[j]])
                             mutual_loss += self.kl_div_binary(trg_probs, aux_probs)
+
                     loss_summary[f'mutual_{model_names[i]}'] = mutual_loss.item()
                     loss += mutual_loss / (num_models - 1)
 
