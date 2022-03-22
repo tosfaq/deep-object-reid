@@ -10,6 +10,7 @@ from sklearn.metrics import confusion_matrix
 from terminaltables import AsciiTable
 
 from torchreid.utils import get_model_attr
+from sklearn.metrics import precision_recall_curve
 
 
 __FEATURE_DUMP_MODES = ['none', 'all', 'vecs']
@@ -266,34 +267,13 @@ def mAP(targs, preds, pos_thr=0.5):
 
 
 def tune_multilabel_thresholds(raw_scores, labels):
-
-    def compute_optimal_thresh(pos_scores, neg_scores, i=0):
-        bins = np.linspace(0, 1., num = 100)
-        hist_pos, _ = np.histogram(pos_scores, bins, density=True)
-        hist_neg, _ = np.histogram(neg_scores, bins, density=True)
-
-        intersection_bins = []
-
-        for i in range(1, len(hist_neg)):
-            if hist_pos[i - 1] >= hist_neg[i - 1]:
-                intersection_bins.append(bins[i])
-
-        if not intersection_bins:
-            intersection_bins.append(0.5)
-
-        return np.mean(intersection_bins)
-
     scores = 1. / (1. + np.exp(-1. * raw_scores))
     threshs = np.zeros(labels.shape[1])
 
     for j in range(labels.shape[1]):
-        pos_idx = (labels[:, i] > 0).reshape(-1)
-        neg_idx = (labels[:, i] < 1).reshape(-1)
-
-        pos_scores = scores[pos_idx, j]
-        neg_scores = scores[neg_idx, j]
-
-        threshs[i] = compute_optimal_thresh(pos_scores, neg_scores, i)
+        precision, recall, thresholds = precision_recall_curve(labels[:, j], scores[:, j])
+        fscore = (2 * precision * recall) / (precision + recall)
+        threshs[j] = thresholds[np.argmax(fscore)]
 
     return threshs
 

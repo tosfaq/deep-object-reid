@@ -20,3 +20,4 @@ timm
 addict
 randaugment
 ptflops
+sklearn
