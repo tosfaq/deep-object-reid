@@ -212,7 +212,8 @@ class MobileNetV3(ModelInterface):
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
-    def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None, return_all=False):
+    def forward(self, x, return_featuremaps=False, get_embeddings=False, gt_labels=None, return_all=False,
+                apply_scale=False):
         with autocast(enabled=self.mix_precision):
             if self.input_IN is not None:
                 x = self.input_IN(x)
@@ -234,6 +235,8 @@ class MobileNetV3(ModelInterface):
                     _, logits = self.infer_head(x, skip_pool=True)
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.amb_t)
+            if apply_scale:
+                logits *= self.scale
 
             if return_all:
                 return [(logits, y, glob_features)]

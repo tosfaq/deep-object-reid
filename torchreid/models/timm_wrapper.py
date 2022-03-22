@@ -49,7 +49,7 @@ class TimmModelsWrapper(ModelInterface):
             assert "softmax" in self.loss or "asl" in self.loss
             self.model.classifier = self.model.get_classifier()
 
-    def forward(self, x, return_featuremaps=False, return_all=False, **kwargs):
+    def forward(self, x, return_featuremaps=False, return_all=False, apply_scale=False, **kwargs):
         with autocast(enabled=self.mix_precision):
             y = self.extract_features(x)
             if return_featuremaps:
@@ -58,6 +58,8 @@ class TimmModelsWrapper(ModelInterface):
             logits = self.infer_head(glob_features)
             if self.similarity_adjustment:
                 logits = self.sym_adjust(logits, self.amb_t)
+            if apply_scale:
+                logits *= self.scale
 
             if return_all:
                 return [(logits, y, glob_features)]
