@@ -110,8 +110,8 @@ class GraphConvolution(nn.Module):
 
 
 class Image_GCNN(ModelInterface):
-    def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None, num_classes=80,
-                 hidden_dim_scale=1., emb_dim_scale=1., gcn_layers=2, gcn_pooling_type='max',
+    def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None,
+                 num_classes=80, hidden_dim_scale=1., emb_dim_scale=1.,
                  use_last_sigmoid=True, layer_type='gcn', **kwargs):
         super().__init__(**kwargs)
         self.backbone = backbone
@@ -124,8 +124,6 @@ class Image_GCNN(ModelInterface):
             self.layer_block = GraphAttentionLayer
 
         self.num_classes = num_classes
-        self.pooling = gcn_pooling_type
-        self.gcn_layers = gcn_layers
         self.use_last_sigmoid = use_last_sigmoid
         self.gc1 = self.layer_block(in_channel, hidden_dim)
         self.gc2 = self.layer_block(hidden_dim, embedding_dim)
