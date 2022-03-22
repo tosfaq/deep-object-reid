@@ -28,7 +28,7 @@ class GraphAttentionLayer(nn.Module):
     """
     Simple GAT layer, similar to https://arxiv.org/abs/1710.10903
     """
-    def __init__(self, in_features, out_features, dropout=0.0, alpha=0.2, concat=True):
+    def __init__(self, in_features, out_features, dropout=0.1, alpha=0.2, concat=True):
         super(GraphAttentionLayer, self).__init__()
         self.dropout = dropout
         self.in_features = in_features
