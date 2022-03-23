@@ -21,7 +21,7 @@ class MultiheadEngine(Engine):
     """
     def __init__(self, datamanager, models, optimizers, schedulers, use_gpu, save_all_chkpts,
                  train_patience, early_stopping, lr_decay_factor, loss_name, label_smooth,
-                 margin_type, aug_type, decay_power, alpha, size, lr_finder, aug_prob,
+                 margin_type, aug_type, decay_power, alpha, lr_finder, aug_prob,
                  conf_penalty, pr_product, m, amb_k, amb_t, clip_grad, symmetric_ce, enable_rsc,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
                  target_metric, use_ema_decay, ema_decay,  asl_gamma_pos, asl_gamma_neg, asl_p_m,
