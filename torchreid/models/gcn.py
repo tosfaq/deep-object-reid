@@ -200,7 +200,7 @@ def build_image_gcn(backbone, adj_matrix_path, word_emb_path, num_classes=80, th
                     rho_gcn=0.25, smoothing='full', pretrain=False, **kwargs):
     adj_matrix = gen_A(num_classes, thau, rho_gcn, smoothing, adj_matrix_path)
     word_matrix = np.load(word_emb_path)
-    word_emb_size = word_matrix.size(1)
+    word_emb_size = 300
     model = Image_GCNN(
         backbone=backbone,
         word_matrix=word_matrix,
