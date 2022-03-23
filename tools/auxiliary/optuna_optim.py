@@ -301,6 +301,7 @@ def main():
             cfg = optimizer_cls.make_change_in_cfg(cfg, name, value)
         cfg.data.height = 448
         cfg.data.width = 448
+        cfg.train.optim = 'sam'
         strftime = time.strftime('-%Y-%m-%d-%H-%M-%S')
         log_file = osp.join(cfg.data.save_dir, f'train{strftime}.log')
         mkdir_if_missing(osp.dirname(log_file))
