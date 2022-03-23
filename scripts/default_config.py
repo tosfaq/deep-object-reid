@@ -414,9 +414,6 @@ def imagedata_kwargs(cfg):
         'train_sampler': cfg.sampler.train_sampler,
         'custom_dataset_roots': cfg.custom_datasets.roots,
         'custom_dataset_types': cfg.custom_datasets.types,
-        'word_emb_path': cfg.model.gcn.word_emb_path,
-        'adj_matrix_path': cfg.model.gcn.adj_matrix_path,
-        'word_model_path': cfg.model.gcn.word_model_path
     }
 
 

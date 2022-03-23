@@ -173,7 +173,7 @@ class MultiLabelClassification(ImageDataset):
     """Multi label classification dataset.
     """
 
-    def __init__(self, root='', word_emb_path='', adj_matrix_path='', word_model_path='', **kwargs):
+    def __init__(self, root='', **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.data_dir = osp.dirname(self.root)
         self.annot = self.root
@@ -185,9 +185,6 @@ class MultiLabelClassification(ImageDataset):
         data, classes = self.load_annotation(
             self.annot,
             self.data_dir,
-            word_emb_path=word_emb_path,
-            adj_matrix_path=adj_matrix_path,
-            word_model_path=word_model_path
         )
 
         super().__init__(data,
@@ -195,10 +192,9 @@ class MultiLabelClassification(ImageDataset):
                          num_ids=len(classes),
                          **kwargs)
 
-    def load_annotation(self, annot_path, data_dir, create_adj_matrix=False,
-                        word_emb_path='', adj_matrix_path='', word_model_path=''):
+    def load_annotation(self, annot_path, data_dir, create_adj_matrix=False):
         out_data = []
-        create_adj_matrix = all((word_emb_path, adj_matrix_path, word_model_path))
+        # create_adj_matrix = all((word_emb_path, adj_matrix_path, word_model_path))
         with open(annot_path) as f:
             annotation = json.load(f)
             classes = sorted(annotation['classes'])
@@ -215,9 +211,9 @@ class MultiLabelClassification(ImageDataset):
                 out_data.append((full_image_path, tuple(labels_idx)))
         if img_wo_objects:
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
-        if create_adj_matrix:
-            self.prepare_adj_matrix(classes, out_data, adj_matrix_path)
-            self.prepare_word_embedings(classes, word_emb_path)
+        # if create_adj_matrix:
+        #     self.prepare_adj_matrix(classes, out_data, adj_matrix_path)
+        #     self.prepare_word_embedings(classes, word_emb_path)
         return out_data, class_to_idx
 
     @staticmethod

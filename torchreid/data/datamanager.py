@@ -52,9 +52,6 @@ class ImageDataManager():
         custom_dataset_roots=[''],
         custom_dataset_types=[''],
         filter_classes=None,
-        word_emb_path='',
-        adj_matrix_path='',
-        word_model_path='',
     ):
         self.height = height
         self.width = width
@@ -77,9 +74,6 @@ class ImageDataManager():
             custom_dataset_roots=custom_dataset_roots,
             custom_dataset_types=custom_dataset_types,
             filter_classes=filter_classes,
-            word_emb_path=word_emb_path,
-            adj_matrix_path=adj_matrix_path,
-            word_model_path=word_model_path,
         )
 
         if correct_batch_size:
