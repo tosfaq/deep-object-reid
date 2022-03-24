@@ -292,6 +292,7 @@ def evaluate_multihead_classification(dataloader, model, use_gpu, mixed_cls_head
         total_acc += cls_acc
         total_acc_sl += cls_acc
 
+    ml_map = 0.
     if mixed_cls_heads_info['num_multilabel_classes'] > 0:
         ml_map = mAP(labels[:,mixed_cls_heads_info['num_multiclass_heads']:],
                          scores[:,mixed_cls_heads_info['num_single_label_classes']:])[0]
