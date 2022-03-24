@@ -644,7 +644,8 @@ class Engine(metaclass=abc.ABCMeta):
         epoch,
         topk=(1, 5, 10, 20),
         lr_finder = False,
-        test_only=False
+        test_only=False,
+        **kwargs
     ):
         r"""Tests model on target datasets.
 
@@ -680,7 +681,8 @@ class Engine(metaclass=abc.ABCMeta):
                 data_loader=self.test_loader,
                 model_name=model_name,
                 topk=topk,
-                lr_finder=lr_finder
+                lr_finder=lr_finder,
+                **kwargs
             )
             if model_name in [self.main_model_name, 'EMA model']:
                 top1.append(cur_top1)

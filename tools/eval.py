@@ -29,6 +29,7 @@ from torchreid.utils import (Logger, set_random_seed, load_pretrained_weights,)
 from torchreid.engine import build_engine
 from torchreid.integration.nncf.compression_script_utils import (make_nncf_changes_in_eval,
                                                                  make_nncf_changes_in_config)
+from torchreid.metrics.classification import score_extraction, tune_multilabel_thresholds
 
 
 def main():
@@ -87,7 +88,13 @@ def main():
         check_classification_classes(model, datamanager, args.classes, test_only=True)
 
     engine = build_engine(cfg=cfg, datamanager=datamanager, model=model, optimizer=None, scheduler=None)
-    engine.test(0, topk=(1, 5, 10, 20), test_only=True)
+    extra_args = {}
+    if cfg.test.estimate_multilabel_thresholds and cfg.model.type == 'multilabel':
+        print('Estimation optimal thresholds ...')
+        scores, labels = score_extraction(datamanager.train_loader, model, cfg.use_gpu)
+        thresholds = tune_multilabel_thresholds(scores, labels)
+        extra_args['pos_thresholds'] = thresholds
+    engine.test(0, topk=(1, 5, 10, 20), test_only=True, **extra_args)
 
 
 if __name__ == '__main__':
