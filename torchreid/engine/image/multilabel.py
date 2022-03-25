@@ -4,6 +4,8 @@
 
 from __future__ import absolute_import, division, print_function
 
+import os
+
 import torch
 import torch.nn.functional as F
 from torch.cuda.amp import GradScaler, autocast
@@ -12,6 +14,9 @@ from torchreid import metrics
 from torchreid.losses import AsymmetricLoss, AMBinaryLoss
 from torchreid.optim import SAM
 from torchreid.engine.engine import Engine
+from torchreid.utils import load_pretrained_weights
+from torchreid.metrics.classification import score_extraction, tune_multilabel_thresholds
+
 
 class MultilabelEngine(Engine):
     r"""Multilabel classification engine. It supports ASL, BCE and Angular margin loss with binary classification."""
@@ -20,7 +25,7 @@ class MultilabelEngine(Engine):
                  lr_finder, m, amb_k, amb_t, clip_grad, aug_prob, alpha, aug_type,
                  should_freeze_aux_models, nncf_metainfo, compression_ctrl, initial_lr,
                  target_metric, use_ema_decay, ema_decay, asl_gamma_pos, asl_gamma_neg, asl_p_m,
-                 mix_precision, **kwargs):
+                 mix_precision, estimate_multilabel_thresholds, **kwargs):
 
         super().__init__(datamanager,
                         models=models,
@@ -77,6 +82,7 @@ class MultilabelEngine(Engine):
                                                                                  for all models or none of them"
         self.scaler = GradScaler(enabled=mix_precision)
         self.mix_precision = mix_precision
+        self.estimate_multilabel_thresholds = estimate_multilabel_thresholds
         self.prev_smooth_accuracy = 0.
 
     def forward_backward(self, data):
@@ -229,9 +235,10 @@ class MultilabelEngine(Engine):
         self.prev_smooth_accuracy = alpha * cur_metric + (1. - alpha) * self.prev_smooth_accuracy
 
     @torch.no_grad()
-    def _evaluate(self, model, epoch, data_loader, model_name, topk, lr_finder):
+    def _evaluate(self, model, epoch, data_loader, model_name, topk, lr_finder, pos_thresholds=0.5):
         mAP, mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o = metrics.evaluate_multilabel_classification(data_loader,
                                                                                                       model,
+                                                                                                      pos_thresholds,
                                                                                                       self.use_gpu)
 
         if self.writer is not None and not lr_finder:
@@ -248,3 +255,17 @@ class MultilabelEngine(Engine):
             print(f'mean_F_C: {mean_f_c:.2%}')
 
         return mAP
+
+    @torch.no_grad()
+    def _finalize_training(self):
+        if self.estimate_multilabel_thresholds:
+            print('Estimating optimal thresholds')
+            name, model = list(self.models.items())[0]
+            best_snap_path = os.path.join(self.save_dir, name, f'{name}-best.pth.tar')
+            load_pretrained_weights(model, best_snap_path)
+
+            scores, labels = score_extraction(self.train_loader, model, self.use_gpu)
+            thresholds = tune_multilabel_thresholds(scores, labels)
+            print(f'Estimated per class positive thresholds {thresholds}')
+
+            self._evaluate(model, self.epoch, self.test_loader, name, 1, False, pos_thresholds=thresholds)

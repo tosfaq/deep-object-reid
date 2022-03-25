@@ -10,6 +10,7 @@ from sklearn.metrics import confusion_matrix
 from terminaltables import AsciiTable
 
 from torchreid.utils import get_model_attr
+from sklearn.metrics import precision_recall_curve
 
 
 __FEATURE_DUMP_MODES = ['none', 'all', 'vecs']
@@ -265,14 +266,26 @@ def mAP(targs, preds, pos_thr=0.5):
     return ap.mean(), mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o
 
 
-def evaluate_multilabel_classification(dataloader, model, use_gpu):
+def tune_multilabel_thresholds(raw_scores, labels):
+    scores = 1. / (1. + np.exp(-1. * raw_scores))
+    threshs = np.zeros(labels.shape[1])
+
+    for j in range(labels.shape[1]):
+        precision, recall, thresholds = precision_recall_curve(labels[:, j], scores[:, j])
+        fscore = (2 * precision * recall) / (precision + recall)
+        threshs[j] = thresholds[np.argmax(fscore)]
+
+    return threshs
+
+
+def evaluate_multilabel_classification(dataloader, model, pos_threshs=0.5, use_gpu=True):
     if get_model_attr(model, 'is_ie_model'):
         scores, labels = score_extraction_from_ir(dataloader, model)
     else:
         scores, labels = score_extraction(dataloader, model, use_gpu)
 
     scores = 1. / (1. + np.exp(-1. * scores))
-    mAP_score = mAP(labels, scores)
+    mAP_score = mAP(labels, scores, pos_thr=pos_threshs)
 
     return mAP_score
 

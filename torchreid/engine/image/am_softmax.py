@@ -260,3 +260,6 @@ class ImageAMSoftmaxEngine(Engine):
                 metrics.show_confusion_matrix(norm_cm)
 
         return cmc[0]
+
+    def _finalize_training(self):
+        pass

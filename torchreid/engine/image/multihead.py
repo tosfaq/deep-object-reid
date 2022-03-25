@@ -281,3 +281,6 @@ class MultiheadEngine(Engine):
             print(f'avgClsAcc: {acc:.2%}')
 
         return acc
+
+    def _finalize_training(self):
+        pass

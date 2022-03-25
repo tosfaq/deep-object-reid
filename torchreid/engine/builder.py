@@ -53,7 +53,8 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
             asl_p_m=cfg.loss.asl.p_m,
             amb_k = cfg.loss.am_binary.amb_k,
             amb_t=cfg.loss.am_binary.amb_t,
-            mix_precision=cfg.train.mix_precision)
+            mix_precision=cfg.train.mix_precision,
+            estimate_multilabel_thresholds=cfg.test.estimate_multilabel_thresholds)
 
     if cfg.model.type == 'classification':
         engine = ImageAMSoftmaxEngine(
