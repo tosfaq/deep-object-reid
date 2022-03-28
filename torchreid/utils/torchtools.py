@@ -331,6 +331,7 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
     if not is_file and not pretrained_dict:
         # Then link is presented or something different
         # that will be checked and processed in download function
+        chkpt_name = osp.split(file_path)[1]
         file_path = download_weights(file_path, chkpt_name=chkpt_name)
 
     checkpoint = (load_checkpoint(file_path)
