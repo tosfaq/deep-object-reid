@@ -354,6 +354,7 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
         # discard known prefixes: 'nncf_module.' from NNCF, 'module.' from DataParallel
         k = _remove_prefix(k, 'nncf_module')
         k = _remove_prefix(k, 'module')
+        k = _remove_prefix(k, 'backbone')
 
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
@@ -363,7 +364,6 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
 
     model_dict.update(new_state_dict)
     model.load_state_dict(model_dict)
-
     message = file_path if file_path else "pretrained dict"
     unmatched_layers = sorted(set(model_dict.keys()) - set(new_state_dict))
     if len(matched_layers) == 0:
