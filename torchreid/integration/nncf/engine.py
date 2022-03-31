@@ -11,7 +11,7 @@
  limitations under the License.
 """
 
-def run_acc_aware_training_loop(engine, nncf_config, configure_optimizers_fn):
+def run_acc_aware_training_loop(engine, nncf_config, configure_optimizers_fn, perf_monitor=None):
     from nncf.common.accuracy_aware_training import create_accuracy_aware_training_loop
 
     # Use only main model
@@ -31,7 +31,7 @@ def run_acc_aware_training_loop(engine, nncf_config, configure_optimizers_fn):
     def dec_train(func):
         def inner(*args, **kwargs):
             engine.epoch = kwargs['epoch']
-            func()
+            func(perf_monitor=perf_monitor)
 
         return inner
 
