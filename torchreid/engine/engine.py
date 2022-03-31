@@ -435,7 +435,7 @@ class Engine(metaclass=abc.ABCMeta):
                 if should_exit:
                     if self.compression_ctrl is None or \
                             (self.compression_ctrl is not None and
-                                self.compression_ctrl.compression_stage == \
+                                self.compression_ctrl.compression_stage() == \
                                     get_nncf_complession_stage().FULLY_COMPRESSED):
                         break
 
