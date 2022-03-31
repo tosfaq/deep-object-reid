@@ -127,7 +127,7 @@ def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids
                                                            **lr_scheduler_kwargs(cfg))
             return optimizer, scheduler
 
-        run_acc_aware_training_loop(engine, nncf_config, configure_optimizers_fn)
+        run_acc_aware_training_loop(engine, nncf_config, configure_optimizers_fn, perf_monitor)
     else:
         _, final_accuracy = engine.run(**engine_run_kwargs(cfg), tb_writer=tb_writer,
                                        perf_monitor=perf_monitor, stop_callback=stop_callback)
