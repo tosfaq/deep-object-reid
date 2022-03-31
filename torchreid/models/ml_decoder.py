@@ -4,6 +4,7 @@
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 from torch import nn, Tensor
 from torch.nn.modules.transformer import _get_activation_fn
 
@@ -71,6 +72,23 @@ class TransformerDecoderLayerOptimal(nn.Module):
 
 
 @torch.jit.script
+class GroupASL(object):
+    def __init__(self, embed_len_decoder: int):
+        self.embed_len_decoder = embed_len_decoder
+
+    def __call__(self, h: torch.Tensor, duplicate_pooling: torch.Tensor, out_extrap: torch.Tensor):
+        for i in range(h.shape[1]):
+            h_i = h[:, i, :]
+            if len(duplicate_pooling.shape)==3:
+                w_i = duplicate_pooling[i, :, :]
+            else:
+                w_i = duplicate_pooling
+            h_i = F.normalize(h_i.view(h_i.shape[0], -1), dim=1)
+            w_i = F.normalize(w_i, p=2., dim=0)
+            out_extrap[:, i, :] = torch.matmul(h_i, w_i)
+
+
+@torch.jit.script
 class GroupFC(object):
     def __init__(self, embed_len_decoder: int):
         self.embed_len_decoder = embed_len_decoder
@@ -82,6 +100,8 @@ class GroupFC(object):
                 w_i = duplicate_pooling[i, :, :]
             else:
                 w_i = duplicate_pooling
+            h_i = F.normalize(h_i.view(h_i.shape[0], -1), dim=1)
+            w_i = F.normalize(w_i, p=2., dim=0)
             out_extrap[:, i, :] = torch.matmul(h_i, w_i)
 
 
@@ -111,6 +131,7 @@ class MLDecoder(ModelInterface):
         self.decoder = nn.TransformerDecoder(layer_decode, num_layers=num_layers_decoder)
         self.decoder.embed_standart = embed_standart
         self.decoder.query_embed = query_embed
+        self.llrelu = nn.LeakyReLU(0.2)
 
         # group fully-connected
         self.decoder.num_classes = self.num_classes
@@ -120,7 +141,11 @@ class MLDecoder(ModelInterface):
         self.decoder.duplicate_pooling_bias = torch.nn.Parameter(torch.Tensor(self.num_classes))
         torch.nn.init.xavier_normal_(self.decoder.duplicate_pooling)
         torch.nn.init.constant_(self.decoder.duplicate_pooling_bias, 0)
-        self.decoder.group_fc = GroupFC(embed_len_decoder)
+        if self.loss == 'am_binary':
+            print("CONSTRUCTED ASL")
+            self.decoder.group_fc = GroupASL(embed_len_decoder)
+        else:
+            self.decoder.group_fc = GroupFC(embed_len_decoder)
         self.train_wordvecs = None
         self.test_wordvecs = None
 
@@ -133,7 +158,7 @@ class MLDecoder(ModelInterface):
             else:  # [bs, 197,468]
                 embedding_spatial = x
             embedding_spatial_786 = self.decoder.embed_standart(embedding_spatial)
-            embedding_spatial_786 = torch.nn.functional.relu(embedding_spatial_786, inplace=True)
+            embedding_spatial_786 = self.llrelu(embedding_spatial_786)
 
             bs = embedding_spatial_786.shape[0]
             query_embed = self.decoder.query_embed.weight
