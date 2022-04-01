@@ -1,15 +1,16 @@
-"""
- Copyright (c) 2022 Intel Corporation
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-      http://www.apache.org/licenses/LICENSE-2.0
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-"""
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions
+# and limitations under the License.
 
 import io
 import os.path as osp
@@ -159,7 +160,7 @@ class PTAccuracyAwareTrainingRunner(BaseAccuracyAwareTrainingRunner):
 
         for key, value in prepare_for_tensorboard(statistics).items():
             if isinstance(value, (int, float)):
-                self.add_tensorboard_scalar('compression/statistics/{0}'.format(key),
+                self.add_tensorboard_scalar(f'compression/statistics/{key}',
                                             value, self.cumulative_epoch_count)
 
         self.dump_checkpoint(model, compression_controller)
@@ -169,7 +170,7 @@ class PTAccuracyAwareTrainingRunner(BaseAccuracyAwareTrainingRunner):
         best_path = osp.join(self._checkpoint_save_dir, best_checkpoint_filename)
         self._best_checkpoint = best_path
         copyfile(checkpoint_path, best_path)
-        nncf_logger.info('Copy best checkpoint {} -> {}'.format(checkpoint_path, best_path))
+        nncf_logger.info(f'Copy best checkpoint {checkpoint_path} -> {best_path}')
 
     def dump_checkpoint(self, model, compression_controller):
         if not is_main_process():
@@ -193,7 +194,7 @@ class PTAccuracyAwareTrainingRunner(BaseAccuracyAwareTrainingRunner):
             }
             checkpoint_path = osp.join(self._checkpoint_save_dir, 'acc_aware_checkpoint_last.pth')
             torch.save(checkpoint, checkpoint_path)
-        nncf_logger.info("The checkpoint is saved in {}".format(checkpoint_path))
+        nncf_logger.info(f'The checkpoint is saved in {checkpoint_path}')
         if is_best_checkpoint:
             self._save_best_checkpoint(checkpoint_path)
 
@@ -228,8 +229,8 @@ class PTAccuracyAwareTrainingRunner(BaseAccuracyAwareTrainingRunner):
 
     def load_best_checkpoint(self, model):
         resuming_checkpoint_path = self._best_checkpoint
-        nncf_logger.info('Loading the best checkpoint found during training '
-                         '{}...'.format(resuming_checkpoint_path))
+        nncf_logger.info(f'Loading the best checkpoint found during training '
+                         f'{resuming_checkpoint_path}...')
         if self.load_checkpoint_fn is not None:
             self.load_checkpoint_fn(model, resuming_checkpoint_path)
         else:
@@ -270,12 +271,12 @@ class PTAdaptiveCompressionLevelTrainingRunner(PTAccuracyAwareTrainingRunner,
         super().dump_statistics(model, compression_controller)
 
     def _save_best_checkpoint(self, checkpoint_path):
-        best_checkpoint_filename = 'acc_aware_checkpoint_best_compression_rate_' \
-                                   '{comp_rate:.3f}.pth'.format(comp_rate=self.compression_rate_target)
+        best_checkpoint_filename = f'acc_aware_checkpoint_best_compression_rate_' \
+                                   f'{self.compression_rate_target:.3f}.pth'
         best_path = osp.join(self._checkpoint_save_dir, best_checkpoint_filename)
         self._best_checkpoints[self.compression_rate_target] = best_path
         copyfile(checkpoint_path, best_path)
-        nncf_logger.info('Copy best checkpoint {} -> {}'.format(checkpoint_path, best_path))
+        nncf_logger.info(f'Copy best checkpoint {checkpoint_path} -> {best_path}')
 
     def load_best_checkpoint(self, model):
         # load checkpoint with highest compression rate and positive acc budget
@@ -287,8 +288,8 @@ class PTAdaptiveCompressionLevelTrainingRunner(PTAccuracyAwareTrainingRunner,
             possible_checkpoint_rates = self.get_compression_rates()
         best_checkpoint_compression_rate = sorted(possible_checkpoint_rates)[-1]
         resuming_checkpoint_path = self._best_checkpoints[best_checkpoint_compression_rate]
-        nncf_logger.info('Loading the best checkpoint found during training '
-                         '{}...'.format(resuming_checkpoint_path))
+        nncf_logger.info(f'Loading the best checkpoint found during training '
+                         f'{resuming_checkpoint_path}...')
         if self.load_checkpoint_fn is not None:
             self.load_checkpoint_fn(model, resuming_checkpoint_path)
         else:
