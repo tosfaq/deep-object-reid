@@ -194,7 +194,6 @@ class MultiLabelClassification(ImageDataset):
 
     def load_annotation(self, annot_path, data_dir, create_adj_matrix=False):
         out_data = []
-        # create_adj_matrix = all((word_emb_path, adj_matrix_path, word_model_path))
         with open(annot_path) as f:
             annotation = json.load(f)
             classes = sorted(annotation['classes'])
@@ -211,9 +210,6 @@ class MultiLabelClassification(ImageDataset):
                 out_data.append((full_image_path, tuple(labels_idx)))
         if img_wo_objects:
             print(f'WARNING: there are {img_wo_objects} images without labels and will be treated as negatives')
-        # if create_adj_matrix:
-        #     self.prepare_adj_matrix(classes, out_data, adj_matrix_path)
-        #     self.prepare_word_embedings(classes, word_emb_path)
         return out_data, class_to_idx
 
     @staticmethod

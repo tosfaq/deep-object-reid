@@ -13,6 +13,7 @@ AVAI_MODELS = {
                 'mobilenetv3_large_21k' : 'mobilenetv3_large_100_miil_in21k',
                 'mobilenetv3_large_1k' : 'mobilenetv3_large_100_miil',
                 'tresnet_m' : 'tresnet_m',
+                'tresnet_l' : 'tresnet_l',
                 'efficientnetv2_s_21k': 'tf_efficientnetv2_s_in21k',
                 'efficientnetv2_s_1k': 'tf_efficientnetv2_s_in21ft1k',
                 'efficientnetv2_m_21k': 'tf_efficientnetv2_m_in21k',

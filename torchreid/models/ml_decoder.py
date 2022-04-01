@@ -100,8 +100,6 @@ class GroupFC(object):
                 w_i = duplicate_pooling[i, :, :]
             else:
                 w_i = duplicate_pooling
-            h_i = F.normalize(h_i.view(h_i.shape[0], -1), dim=1)
-            w_i = F.normalize(w_i, p=2., dim=0)
             out_extrap[:, i, :] = torch.matmul(h_i, w_i)
 
 
@@ -141,8 +139,7 @@ class MLDecoder(ModelInterface):
         self.decoder.duplicate_pooling_bias = torch.nn.Parameter(torch.Tensor(self.num_classes))
         torch.nn.init.xavier_normal_(self.decoder.duplicate_pooling)
         torch.nn.init.constant_(self.decoder.duplicate_pooling_bias, 0)
-        if self.loss == 'am_binary':
-            print("CONSTRUCTED ASL")
+        if 'am_binary' in self.loss:
             self.decoder.group_fc = GroupASL(embed_len_decoder)
         else:
             self.decoder.group_fc = GroupFC(embed_len_decoder)
@@ -158,11 +155,12 @@ class MLDecoder(ModelInterface):
             else:  # [bs, 197,468]
                 embedding_spatial = x
             embedding_spatial_786 = self.decoder.embed_standart(embedding_spatial)
-            embedding_spatial_786 = self.llrelu(embedding_spatial_786)
-
+            if 'am_binary' in self.loss:
+                embedding_spatial_786 = self.llrelu(embedding_spatial_786)
+            else:
+                embedding_spatial_786 = F.relu(embedding_spatial_786, inplace=True)
             bs = embedding_spatial_786.shape[0]
             query_embed = self.decoder.query_embed.weight
-            # tgt = query_embed.unsqueeze(1).repeat(1, bs, 1)
             tgt = query_embed.unsqueeze(1).expand(-1, bs, -1)  # no allocation of memory with expand
             h = self.decoder(tgt, embedding_spatial_786.transpose(0, 1))  # [embed_len_decoder, batch, 768]
             h = h.transpose(0, 1)
