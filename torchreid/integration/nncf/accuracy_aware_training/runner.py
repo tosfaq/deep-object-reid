@@ -15,12 +15,13 @@
 import io
 import os.path as osp
 from shutil import copyfile
+from typing import Dict
 
 import os
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from nncf.api.compression import CompressionStage
+from nncf.api.compression import CompressionStage, CompressionAlgorithmController
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -40,11 +41,77 @@ except ImportError:
 
 from nncf.torch.checkpoint_loading import load_state
 from nncf.torch.accuracy_aware_training.utils import is_main_process
+from nncf.common.accuracy_aware_training.runner import TrainingRunner, TrainingRunnerCreator
+from nncf.common.utils.backend import infer_backend_from_compression_controller, BackendType
 from nncf.common.utils.helpers import configure_accuracy_aware_paths
 from nncf.common.utils.logger import logger as nncf_logger
 from nncf.common.utils.tensorboard import prepare_for_tensorboard
-from nncf.common.accuracy_aware_training.runner import BaseAccuracyAwareTrainingRunner
-from nncf.common.accuracy_aware_training.runner import BaseAdaptiveCompressionLevelTrainingRunner
+
+from torchreid.integration.nncf.accuracy_aware_training.base_runner import (
+    BaseAccuracyAwareTrainingRunner,
+    BaseAdaptiveCompressionLevelTrainingRunner
+)
+
+
+class EarlyExitTrainingRunnerCreator(TrainingRunnerCreator):
+    """
+    Class creates an Early Exit Training Runner depending on an used backend.
+    """
+
+    def __init__(self, accuracy_aware_training_params: Dict[str, object],
+                 compression_controller: CompressionAlgorithmController,
+                 lr_updates_needed: bool, verbose: bool, dump_checkpoints: bool):
+        self.accuracy_aware_training_params = accuracy_aware_training_params
+        self.compression_controller = compression_controller
+        self.lr_updates_needed = lr_updates_needed
+        self.verbose = verbose
+        self.dump_checkpoints = dump_checkpoints
+
+    def create_training_loop(self) -> TrainingRunner:
+        """
+        Creates an object of AccuracyAwareTrainingRunner depending on user backend
+
+        :return: AccuracyAwareTrainingRunner object
+        """
+        nncf_backend = infer_backend_from_compression_controller(self.compression_controller)
+        if nncf_backend is BackendType.TORCH:
+            return PTAccuracyAwareTrainingRunner(self.accuracy_aware_training_params, self.lr_updates_needed,
+                                                 self.verbose, self.dump_checkpoints)
+        raise RuntimeError('Got an unsupported value of nncf_backend')
+
+
+class AdaptiveCompressionLevelTrainingRunnerCreator(TrainingRunnerCreator):
+    """
+    Class creates an Adaptive Compression Level Training Runner depending on an used backend.
+    """
+
+    def __init__(self, accuracy_aware_training_params: Dict[str, object],
+                 compression_controller: CompressionAlgorithmController,
+                 lr_updates_needed: bool, verbose: bool, minimal_compression_rate: float,
+                 maximal_compression_rate: float, dump_checkpoints: bool):
+        self.accuracy_aware_training_params = accuracy_aware_training_params
+        self.compression_controller = compression_controller
+        self.lr_updates_needed = lr_updates_needed
+        self.verbose = verbose
+        self.minimal_compression_rate = minimal_compression_rate
+        self.maximal_compression_rate = maximal_compression_rate
+        self.dump_checkpoints = dump_checkpoints
+
+    def create_training_loop(self) -> TrainingRunner:
+        """
+        Creates an object of AdaptiveCompressionLevelTrainingRunner depending on user backend
+
+        :return: AdaptiveCompressionLevelTrainingRunner object
+        """
+        nncf_backend = infer_backend_from_compression_controller(self.compression_controller)
+
+        if nncf_backend is BackendType.TORCH:
+            return PTAdaptiveCompressionLevelTrainingRunner(self.accuracy_aware_training_params,
+                                                            self.lr_updates_needed, self.verbose,
+                                                            self.minimal_compression_rate,
+                                                            self.maximal_compression_rate,
+                                                            self.dump_checkpoints)
+        raise RuntimeError('Got an unsupported value of nncf_backend')
 
 
 class PTAccuracyAwareTrainingRunner(BaseAccuracyAwareTrainingRunner):

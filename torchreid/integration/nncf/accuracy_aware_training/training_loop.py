@@ -26,10 +26,8 @@ from nncf.common.utils.logger import logger as nncf_logger
 from nncf.config.config import NNCFConfig
 from nncf.config.extractors import extract_accuracy_aware_training_params
 
-from torchreid.integration.nncf.accuracy_aware_training.common.runner import (
-    EarlyExitTrainingRunnerCreator
-)
-from torchreid.integration.nncf.accuracy_aware_training.common.runner import (
+from torchreid.integration.nncf.accuracy_aware_training.runner import (
+    EarlyExitTrainingRunnerCreator,
     AdaptiveCompressionLevelTrainingRunnerCreator
 )
 
