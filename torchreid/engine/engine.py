@@ -226,7 +226,7 @@ class Engine(metaclass=abc.ABCMeta):
                 'initial_lr': self.initial_lr,
             }
 
-            if self.compression_ctrl is not None:
+            if self.compression_ctrl is not None and name == self.main_model_name:
                 checkpoint['compression_state'] = self.compression_ctrl.get_compression_state()
                 checkpoint['nncf_metainfo'] = self.nncf_metainfo
 
@@ -435,7 +435,7 @@ class Engine(metaclass=abc.ABCMeta):
                 if should_exit:
                     if self.compression_ctrl is None or \
                             (self.compression_ctrl is not None and
-                                self.compression_ctrl.compression_stage == \
+                                self.compression_ctrl.compression_stage() == \
                                     get_nncf_complession_stage().FULLY_COMPRESSED):
                         break
 

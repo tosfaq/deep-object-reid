@@ -79,7 +79,7 @@ def export_onnx(model, cfg, output_file_path='model', disable_dyn_axes=True,
 
 
 def export_ir(onnx_model_path, norm_mean=[0,0,0], norm_std=[1,1,1], input_shape=None,
-                optimized_model_dir='./ir_model', data_type='FP32'):
+                optimized_model_dir='./ir_model', data_type='FP32', pruning_transformation=False):
     def get_mo_cmd():
         for mo_cmd in ('mo', 'mo.py'):
             try:
@@ -103,5 +103,8 @@ def export_ir(onnx_model_path, norm_mean=[0,0,0], norm_std=[1,1,1], input_shape=
 
     if input_shape:
         command_line.extend(['--input_shape', f"{input_shape}"])
+
+    if pruning_transformation:
+        command_line.extend(['--transform', 'Pruning'])
 
     run(command_line, shell=False, check=True)
