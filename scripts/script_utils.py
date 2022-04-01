@@ -118,7 +118,7 @@ def build_auxiliary_model(config_file, num_classes, use_gpu,
         else:
             model = model.cuda(device_ids[0])
 
-    return model, optimizer, scheduler
+    return model, optimizer, scheduler, aux_cfg
 
 
 @parse_args('v')

@@ -75,9 +75,6 @@ def make_nncf_changes_in_config(cfg,
         raise ValueError('None of the optimization algorithms are enabled')
 
     # default changes
-    if cfg.train.ema.enable:
-        logger.info('Turn off the EMA model -- it should not be used together with NNCF compression')
-        cfg.train.ema.enable = False
     if cfg.lr_finder.enable:
         logger.info('Turn off LR finder -- it should not be used together with NNCF compression')
         cfg.lr_finder.enable = False
@@ -113,8 +110,6 @@ def patch_config(cfg, nncf_preset, max_acc_drop=None):
 
 
 def make_nncf_changes_in_training(model, cfg, classes, command_line_cfg_opts):
-    if cfg.train.ema.enable:
-        raise RuntimeError('EMA model could not be used together with NNCF compression')
     if cfg.lr_finder.enable:
         raise RuntimeError('LR finder could not be used together with NNCF compression')
 
