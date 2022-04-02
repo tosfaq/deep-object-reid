@@ -151,7 +151,7 @@ class MLDecoder(ModelInterface):
             x = self.backbone(x, return_featuremaps=True)
             spat_features = x
             if len(x.shape) == 4:  # [bs,2048, 7,7]
-                embedding_spatial = x.flatten(2).transpose(1, 2)
+               embedding_spatial = x.flatten(2).transpose(1, 2)
             else:  # [bs, 197,468]
                 embedding_spatial = x
             embedding_spatial_786 = self.decoder.embed_standart(embedding_spatial)
