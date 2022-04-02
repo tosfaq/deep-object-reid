@@ -299,8 +299,8 @@ def main():
         logger.file.close()
         for name, value in optimized_params.items():
             cfg = optimizer_cls.make_change_in_cfg(cfg, name, value)
-        cfg.data.height = 576
-        cfg.data.width = 576
+        cfg.data.height = 448
+        cfg.data.width = 448
         cfg.train.optim = "sam"
         strftime = time.strftime('-%Y-%m-%d-%H-%M-%S')
         log_file = osp.join(cfg.data.save_dir, f'train{strftime}.log')

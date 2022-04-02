@@ -100,8 +100,6 @@ class GroupFC(object):
                 w_i = duplicate_pooling[i, :, :]
             else:
                 w_i = duplicate_pooling
-            h_i = F.normalize(h_i.view(h_i.shape[0], -1), dim=1)
-            w_i = F.normalize(w_i, p=2., dim=0)
             out_extrap[:, i, :] = torch.matmul(h_i, w_i)
 
 
