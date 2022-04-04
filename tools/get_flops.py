@@ -43,7 +43,8 @@ def main():
     parser.add_argument('--classes', type=str, nargs='+',
                         help='name of classes in classification dataset')
     parser.add_argument('--out')
-    parser.add_argument('--fvcore', action='store_true')
+    parser.add_argument('--fvcore', action='store_true',
+                        help='option to use fvcore tool from Meta Platforms for the flops counting')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help='Modify config options using the command-line')
     args = parser.parse_args()
@@ -74,7 +75,7 @@ def main():
         input_ = torch.rand((1, 3, cfg.data.height, cfg.data.width), dtype=next(model.parameters()).dtype,
                                              device=next(model.parameters()).device)
         flops = FlopCountAnalysis(model, input_)
-        print(f"Main model complexity by facebook: {flops.total()}")
+        print(f"Main model complexity by fvcore: {flops.total()}")
         print(flop_count_table(flops))
 
     if args.out:

@@ -16,7 +16,6 @@ from .q2l import *
 from .transformer import *
 from .gcn import *
 from .ml_decoder import *
-from .ml_decoder_gcn import *
 
 __model_factory = {
     # image classification models
@@ -68,15 +67,10 @@ def build_model(name, **kwargs):
         model = build_image_gcn(backbone, **kwargs)
     elif name.startswith('mld'):
         backbone_name = name[4:]
-        if backbone_name.startswith('gcn'):
-            backbone_name_orig = backbone_name[4:]
-            if backbone_name_orig not in avai_models:
-                raise KeyError('Unknown backbone for MLD model: {}. Must be one of {}'.format(backbone_name, avai_models))
-            backbone = __model_factory[backbone_name_orig](**kwargs)
-            model = build_ml_decoder_model_gcn(backbone, **kwargs)
-        else:
-            backbone = __model_factory[backbone_name](**kwargs)
-            model = build_ml_decoder_model(backbone, **kwargs)
+        if backbone_name not in avai_models:
+            raise KeyError('Unknown backbone for MLD model: {}. Must be one of {}'.format(backbone_name, avai_models))
+        backbone = __model_factory[backbone_name](**kwargs)
+        model = build_ml_decoder_model(backbone, **kwargs)
     elif name not in avai_models:
         raise KeyError('Unknown model: {}. Must be one of {}'.format(name, avai_models))
     else:
