@@ -71,9 +71,9 @@ class TransformerDecoderLayerOptimal(nn.Module):
         return tgt
 
 
-@torch.jit.script
-class GroupASL(object):
+class GroupASL(nn.Module):
     def __init__(self, embed_len_decoder: int):
+        super().__init__()
         self.embed_len_decoder = embed_len_decoder
 
     def __call__(self, h: torch.Tensor, duplicate_pooling: torch.Tensor, out_extrap: torch.Tensor):
@@ -88,9 +88,9 @@ class GroupASL(object):
             out_extrap[:, i, :] = torch.matmul(h_i, w_i)
 
 
-@torch.jit.script
-class GroupFC(object):
+class GroupFC(nn.Module):
     def __init__(self, embed_len_decoder: int):
+        super().__init__()
         self.embed_len_decoder = embed_len_decoder
 
     def __call__(self, h: torch.Tensor, duplicate_pooling: torch.Tensor, out_extrap: torch.Tensor):
