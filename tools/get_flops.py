@@ -12,7 +12,7 @@ from scripts.default_config import (get_default_config, imagedata_kwargs,
 import torchreid
 from torchreid.utils import set_random_seed
 from ptflops import get_model_complexity_info
-
+from fvcore.nn import FlopCountAnalysis, flop_count_table
 
 def build_datamanager(cfg, classification_classes_filter=None):
     return torchreid.data.ImageDataManager(filter_classes=classification_classes_filter, **imagedata_kwargs(cfg))
@@ -43,6 +43,8 @@ def main():
     parser.add_argument('--classes', type=str, nargs='+',
                         help='name of classes in classification dataset')
     parser.add_argument('--out')
+    parser.add_argument('--fvcore', action='store_true',
+                        help='option to use fvcore tool from Meta Platforms for the flops counting')
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help='Modify config options using the command-line')
     args = parser.parse_args()
@@ -68,6 +70,13 @@ def main():
     macs, num_params = get_model_complexity_info(model, (3, cfg.data.height, cfg.data.width),
                                                  as_strings=False, verbose=False, print_per_layer_stat=False)
     print(f'Main model complexity: M params={num_params / 10**6:,} G flops={macs * 2 / 10**9:,}')
+
+    if args.fvcore:
+        input_ = torch.rand((1, 3, cfg.data.height, cfg.data.width), dtype=next(model.parameters()).dtype,
+                                             device=next(model.parameters()).device)
+        flops = FlopCountAnalysis(model, input_)
+        print(f"Main model complexity by fvcore: {flops.total()}")
+        print(flop_count_table(flops))
 
     if args.out:
         out = []
