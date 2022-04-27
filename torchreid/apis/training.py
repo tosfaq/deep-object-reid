@@ -16,6 +16,7 @@
 
 import sys
 from copy import deepcopy
+import shutil
 
 import torchreid
 from torchreid.engine import build_engine
@@ -117,9 +118,18 @@ def run_training(cfg, datamanager, model, optimizer, scheduler, extra_device_ids
     if cfg.test.test_before_train or cfg.test.evaluate:
         if cfg.test.test_before_train:
             print('Test before training')
-        accuracy = engine.test(0, engine_test_kwargs(cfg), test_only=True)[0]
+        accuracy = engine.test(0, test_only=True)[0]
         if cfg.test.evaluate:
             return accuracy, None
+
+        model_weight_file = None
+        if cfg.model.resume:
+            model_weight_file = cfg.model.resume
+        elif cfg.model.load_weights:
+            model_weight_file = cfg.model.load_weights
+        if model_weight_file is not None:
+            shutil.copy(model_weight_file, f"{cfg.data.save_dir}/best.pth")
+            engine.best_metric = accuracy
 
     nncf_config = cfg.get('nncf_config')
     if nncf_config is not None and is_accuracy_aware_training_set(nncf_config):
