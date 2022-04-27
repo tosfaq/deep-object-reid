@@ -25,8 +25,7 @@ from torchreid.integration.nncf.engine import run_acc_aware_training_loop
 from torchreid.optim import LrFinder
 from scripts.default_config import (lr_finder_run_kwargs,
                                     lr_scheduler_kwargs, model_kwargs,
-                                    optimizer_kwargs, engine_run_kwargs,
-                                    engine_test_kwargs)
+                                    optimizer_kwargs, engine_run_kwargs)
 from torchreid.utils import set_random_seed
 from scripts.script_utils import (build_datamanager, build_auxiliary_model,
                                   put_main_model_on_the_device)
