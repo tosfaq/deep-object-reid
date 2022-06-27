@@ -58,7 +58,7 @@ def check_isfile(fpath):
     isfile = osp.isfile(fpath)
     return isfile
 
-def set_random_seed(seed, deterministic=False):
+def set_random_seed(seed=5, deterministic=True):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     if deterministic:
