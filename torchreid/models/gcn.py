@@ -28,7 +28,7 @@ class GraphAttentionLayer(nn.Module):
     """
     Simple GAT layer, similar to https://arxiv.org/abs/1710.10903
     """
-    def __init__(self, in_features, out_features, dropout=0.0, alpha=0.2, concat=True):
+    def __init__(self, in_features, out_features, dropout=0.1, alpha=0.2, concat=True):
         super(GraphAttentionLayer, self).__init__()
         self.dropout = dropout
         self.in_features = in_features
@@ -110,8 +110,8 @@ class GraphConvolution(nn.Module):
 
 
 class Image_GCNN(ModelInterface):
-    def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None, num_classes=80,
-                 hidden_dim_scale=1., emb_dim_scale=1., gcn_layers=2, gcn_pooling_type='max',
+    def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None,
+                 num_classes=80, hidden_dim_scale=1., emb_dim_scale=1.,
                  use_last_sigmoid=True, layer_type='gcn', **kwargs):
         super().__init__(**kwargs)
         self.backbone = backbone
@@ -124,8 +124,6 @@ class Image_GCNN(ModelInterface):
             self.layer_block = GraphAttentionLayer
 
         self.num_classes = num_classes
-        self.pooling = gcn_pooling_type
-        self.gcn_layers = gcn_layers
         self.use_last_sigmoid = use_last_sigmoid
         self.gc1 = self.layer_block(in_channel, hidden_dim)
         self.gc2 = self.layer_block(hidden_dim, embedding_dim)
@@ -202,7 +200,7 @@ def build_image_gcn(backbone, adj_matrix_path, word_emb_path, num_classes=80, th
                     rho_gcn=0.25, smoothing='full', pretrain=False, **kwargs):
     adj_matrix = gen_A(num_classes, thau, rho_gcn, smoothing, adj_matrix_path)
     word_matrix = np.load(word_emb_path)
-    word_emb_size = word_matrix.size(1)
+    word_emb_size = word_matrix.shape[1]
     model = Image_GCNN(
         backbone=backbone,
         word_matrix=word_matrix,

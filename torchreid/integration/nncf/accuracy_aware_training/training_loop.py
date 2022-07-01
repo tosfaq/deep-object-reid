@@ -73,6 +73,7 @@ class BaseEarlyExitCompressionTrainingLoop():
                                            accuracy_drop, rel_accuracy_drop, accuracy_budget)
             nncf_logger.info('')
         else:
+            self.runner.dump_statistics(model, self.compression_controller)
             nncf_logger.info('Results of the initialization step:')
             self.print_accuracy_statistics(compressed_model_accuracy, uncompressed_model_accuracy,
                                            accuracy_drop, rel_accuracy_drop, accuracy_budget)

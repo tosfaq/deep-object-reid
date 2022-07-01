@@ -211,6 +211,7 @@ def get_default_config():
     cfg.test.eval_freq = -1  # evaluation frequency (-1 means to only test after training)
     cfg.test.start_eval = 0  # start to evaluate after a specific epoch
     cfg.test.test_before_train = False
+    cfg.test.save_initial_metric = False
     cfg.test.estimate_multilabel_thresholds = False
 
     # Augmentations
@@ -415,9 +416,6 @@ def imagedata_kwargs(cfg):
         'train_sampler': cfg.sampler.train_sampler,
         'custom_dataset_roots': cfg.custom_datasets.roots,
         'custom_dataset_types': cfg.custom_datasets.types,
-        'word_emb_path': cfg.model.gcn.word_emb_path,
-        'adj_matrix_path': cfg.model.gcn.adj_matrix_path,
-        'word_model_path': cfg.model.gcn.word_model_path
     }
 
 
