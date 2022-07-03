@@ -42,7 +42,7 @@ from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExportTask
 from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
 from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
-from ote_sdk.utils.labels_utils import get_empty_label, get_leaf_labels, get_ancestors_by_prediction
+from ote_sdk.utils.labels_utils import get_empty_label, get_ancestors_by_prediction
 from scripts.default_config import (get_default_config, imagedata_kwargs,
                                     merge_from_files_with_base, model_kwargs)
 from torchreid.apis.export import export_ir, export_onnx
