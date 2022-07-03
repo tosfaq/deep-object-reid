@@ -79,7 +79,6 @@ class OTEClassificationInferenceTask(IInferenceTask, IEvaluationTask, IExportTas
 
         self._hierarchical = False
         if not self._multilabel and len(task_environment.label_schema.get_groups(False)) > 1:
-            self._labels = get_leaf_labels(task_environment.label_schema)
             self._hierarchical = True
 
         template_file_path = task_environment.model_template.model_template_path

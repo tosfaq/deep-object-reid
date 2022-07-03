@@ -151,7 +151,7 @@ def norm_confusion_matrix(scores, labels):
     cf = confusion_matrix(labels, pred).astype(float)
 
     cls_cnt = np.sum(cf, axis=1, keepdims=True)
-    norm_cm = cf / cls_cnt
+    norm_cm = np.nan_to_num(cf / cls_cnt)
 
     return norm_cm
 
