@@ -351,11 +351,11 @@ class EfficientNet(ModelInterface):
         self.output = nn.Sequential()
         if dropout_cls:
             self.output.add_module("dropout", Dropout(**dropout_cls))
-        if 'am_softmax' == self.loss or 'am_binary' == self.loss:
+        if self.loss in ['am_softmax', 'am_binary']:
             self.output.add_module("asl", AngleSimpleLinear(
                 in_features=final_block_channels,
                 out_features=self.num_classes))
-        elif 'softmax' == self.loss or 'asl' == self.loss:
+        elif self.loss in ['softmax', 'asl', 'softmax,asl']:
             self.output.add_module("fc", nn.Linear(
                 in_features=final_block_channels,
                 out_features=self.num_classes))
