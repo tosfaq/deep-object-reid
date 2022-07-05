@@ -341,7 +341,7 @@ class EfficientNet(ModelInterface):
                         tf_mode=tf_mode))
                 in_channels = out_channels
             self.features.add_module("stage{}".format(i + 1), stage)
-        self.loss = self.loss.split(',') if ',' in self.loss else self.loss
+        self.loss = self.loss.split(',')
         activation = activation if 'softmax' in self.loss else lambda: nn.PReLU(init=0.25)
         self.features.add_module("final_block", conv1x1_block(
             in_channels=in_channels,
