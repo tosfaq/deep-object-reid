@@ -341,7 +341,8 @@ class EfficientNet(ModelInterface):
                         tf_mode=tf_mode))
                 in_channels = out_channels
             self.features.add_module("stage{}".format(i + 1), stage)
-        activation = activation if self.loss == 'softmax' else lambda: nn.PReLU(init=0.25)
+        self.loss = self.loss.split(',') if ',' in self.loss else self.loss
+        activation = activation if 'softmax' in self.loss else lambda: nn.PReLU(init=0.25)
         self.features.add_module("final_block", conv1x1_block(
             in_channels=in_channels,
             out_channels=final_block_channels,
@@ -351,7 +352,7 @@ class EfficientNet(ModelInterface):
         self.output = nn.Sequential()
         if dropout_cls:
             self.output.add_module("dropout", Dropout(**dropout_cls))
-        if 'am_softmax' == self.loss or 'am_binary' == self.loss:
+        if 'am_softmax' in self.loss or 'am_binary' in self.loss:
             self.output.add_module("asl", AngleSimpleLinear(
                 in_features=final_block_channels,
                 out_features=self.num_classes))
