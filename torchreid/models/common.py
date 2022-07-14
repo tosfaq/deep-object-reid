@@ -86,6 +86,25 @@ class ModelInterface(nn.Module):
         return out
 
     @staticmethod
+    def _extract_saliency_map(feature_map):
+        """Generate the saliency map by average feature maps then normalizing to (0, 255)
+
+        Args:
+            feature_map (torch.Tensor): feature maps from backbone
+
+        Returns:
+            torch.Tensor: Saliency Map
+        """
+        saliency_map = torch.sigmoid(torch.mean(feature_map, dim=1))
+        saliency_map = (
+            255
+            * (saliency_map - torch.min(saliency_map))
+            / (torch.max(saliency_map) - torch.min(saliency_map) + 1e-12)
+        )
+        saliency_map = saliency_map.to(torch.uint8)
+        return saliency_map
+
+    @staticmethod
     def _construct_fc_layer(input_dim, output_dim, dropout=None):
         layers = []
 

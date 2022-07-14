@@ -22,7 +22,7 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0,
     return_featuremaps = feature_dump_mode != __FEATURE_DUMP_MODES[0]
 
     with torch.no_grad():
-        out_scores, gt_labels, all_feature_maps, all_feature_vecs = [], [], [], []
+        out_scores, gt_labels, all_saliency_maps, all_feature_vecs = [], [], [], []
         for batch_idx, data in enumerate(data_loader):
             batch_images, batch_labels = data[0], data[1]
             if perf_monitor:
@@ -39,10 +39,10 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0,
                 perf_monitor.on_test_batch_end(batch_idx, None)
 
             if return_featuremaps:
-                logits, features, global_features = model.forward(batch_images,
+                logits, saliency_map, global_features = model.forward(batch_images,
                                                                   return_all=return_featuremaps)[head_id]
                 if feature_dump_mode == __FEATURE_DUMP_MODES[1]:
-                    all_feature_maps.append(features)
+                    all_saliency_maps.append(saliency_map)
                 all_feature_vecs.append(global_features)
             else:
                 logits = model.forward(batch_images)[head_id]
@@ -62,9 +62,9 @@ def score_extraction(data_loader, model, use_gpu, labelmap=[], head_id=0,
             if feature_dump_mode == __FEATURE_DUMP_MODES[2]:
                 return (out_scores, all_feature_vecs), gt_labels
 
-        if all_feature_maps:
-            all_feature_maps = torch.cat(all_feature_maps, 0).data.cpu().numpy()
-            return (out_scores, all_feature_maps, all_feature_vecs), gt_labels
+        if all_saliency_maps:
+            all_saliency_maps = torch.cat(all_saliency_maps, 0).data.cpu().numpy()
+            return (out_scores, all_saliency_maps, all_feature_vecs), gt_labels
 
     return out_scores, gt_labels
 
