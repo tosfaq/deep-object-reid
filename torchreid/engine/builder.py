@@ -10,10 +10,11 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
                  nncf_metainfo=None,
                  compression_ctrl=None,
                  initial_lr=None):
-    if should_freeze_aux_models or nncf_metainfo:
-        if cfg.loss.name not in ['softmax', 'am_softmax', 'am_binary']:
-            raise NotImplementedError('Freezing of aux models or NNCF compression are supported only for '
-                                      'softmax, am_softmax and am_binary losses for data.type = image')
+    # TODO : Align with multihead to comment in below codes
+    # if should_freeze_aux_models or nncf_metainfo:
+    #     if cfg.loss.name not in ['softmax', 'am_softmax', 'am_binary']:
+    #         raise NotImplementedError('Freezing of aux models or NNCF compression are supported only for '
+    #                                   'softmax, am_softmax and am_binary losses for data.type = image')
     initial_lr = initial_lr if initial_lr else cfg.train.lr
     classification_params = dict(
             datamanager=datamanager,
