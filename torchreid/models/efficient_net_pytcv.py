@@ -388,7 +388,8 @@ class EfficientNet(ModelInterface):
                 logits *= self.scale
 
             if return_all:
-                return [(logits, y, glob_features)]
+                saliency_map = self._extract_saliency_map(y)
+                return [(logits, saliency_map, glob_features)]
             if not self.training:
                 return [logits]
             if get_embeddings:
