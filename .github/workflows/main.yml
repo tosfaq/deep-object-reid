@@ -34,8 +34,9 @@ jobs:
           ${{ runner.os }}-
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip pytest pylint
+        python -m pip install --upgrade pip pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        if [ -f optional-requirements.txt ]; then pip install -r optional-requirements.txt; fi
         if [ -f openvino-requirements.txt ]; then pip install -r openvino-requirements.txt; fi
     - name: Install torchreid
       run: |
