@@ -70,12 +70,6 @@ class TimmModelsWrapper(ModelInterface):
             return tuple([logits])
 
     def extract_features(self, x):
-        if self.is_mobilenet:
-            x = self.model.conv_stem(x)
-            x = self.model.bn1(x)
-            x = self.model.act1(x)
-            y = self.model.blocks(x)
-            return y
         return self.model.forward_features(x)
 
     def infer_head(self, x):
