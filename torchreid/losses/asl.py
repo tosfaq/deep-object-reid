@@ -104,6 +104,10 @@ class AMBinaryLoss(nn.Module):
         xs_pos = torch.sigmoid(self.s * (cos_theta - self.m))
         xs_neg = torch.sigmoid(- self.s * (cos_theta + self.m))
 
+        # SphereFace2 balancing coefficients
+        balance_koeff_pos = self.k / self.s
+        balance_koeff_neg = (1 - self.k) / self.s
+
         if self.asymmetric_focus:
             # Asymmetric Probability Shifting
             if self.clip is not None and self.clip > 0:
@@ -114,13 +118,6 @@ class AMBinaryLoss(nn.Module):
             one_sided_gamma = self.gamma_pos * targets + self.gamma_neg * (1 - targets)
             # P_pos ** gamm_neg * (...) + P_neg ** gamma_pos * (...)
             one_sided_w = torch.pow(pt, one_sided_gamma)
-            balance_koeff_pos = self.k / self.s
-            balance_koeff_neg = (1 - self.k) / self.s
-        else:
-            assert not self.asymmetric_focus
-            # SphereFace2 balancing coefficients
-            balance_koeff_pos = self.k / self.s
-            balance_koeff_neg = (1 - self.k) / self.s
 
         self.loss = balance_koeff_pos * targets * torch.log(xs_pos)
         self.loss.add_(balance_koeff_neg * self.anti_targets * torch.log(xs_neg))
