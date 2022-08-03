@@ -16,7 +16,7 @@ onnx
 torchvision==0.9.*
 torch==1.8.*
 optuna
-timm
+timm>=0.6.5
 addict
 randaugment
 ptflops
