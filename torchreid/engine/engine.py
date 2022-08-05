@@ -352,8 +352,8 @@ class Engine(metaclass=abc.ABCMeta):
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch
         assert start_epoch != max_epoch, "the last epoch number cannot be equal the start one"
-        if self.early_stopping or self.target_metric == 'test_acc':
-            assert eval_freq == 1, "early stopping works only with evaluation on each epoch"
+        if self.early_stopping and self.target_metric == 'test_acc':
+            assert eval_freq == 1, "early stopping with test_acc metric works only with evaluation on each epoch"
         self.fixbase_epoch = fixbase_epoch
         test_acc = AverageMeter()
         accuracy, should_save_ema_model = 0, False
