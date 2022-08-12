@@ -22,7 +22,7 @@ from pprint import pformat
 import logging
 import torch
 
-from torchreid.metrics import evaluate_multilabel_classification
+from torchreid.metrics import evaluate_multilabel_classification, evaluate_multihead_classification
 from torchreid.utils import get_model_attr
 from torchreid.utils.tools import random_image
 
@@ -177,6 +177,7 @@ def register_custom_modules():
 
 
 def wrap_nncf_model(model, cfg,
+                    multihead_info=None,
                     checkpoint_dict=None,
                     datamanager_for_init=None):
     # Note that we require to import it here to avoid cyclic imports when import get_no_nncf_trace_context_manager
@@ -279,6 +280,14 @@ def wrap_nncf_model(model, cfg,
                 use_gpu=use_gpu
             )
             accuracy = mAP
+        elif model_type == 'multihead':
+            mhacc, _, _ = evaluate_multihead_classification(
+                test_loader,
+                model,
+                use_gpu,
+                multihead_info
+            )
+            accuracy = mhacc
         else:
             raise ValueError(f'Cannot perform a model evaluation on the validation dataset'
                                 f'since the model has unsupported model_type {model_type or "None"}')

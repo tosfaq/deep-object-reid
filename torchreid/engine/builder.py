@@ -4,6 +4,7 @@
 
 from .image import (ImageAMSoftmaxEngine, MultilabelEngine, MultiheadEngine)
 
+NNCF_ENABLED_LOSS = ['softmax', 'am_softmax', 'am_binary', 'asl']
 
 def build_engine(cfg, datamanager, model, optimizer, scheduler,
                  should_freeze_aux_models=False,
@@ -11,7 +12,7 @@ def build_engine(cfg, datamanager, model, optimizer, scheduler,
                  compression_ctrl=None,
                  initial_lr=None):
     if should_freeze_aux_models or nncf_metainfo:
-        if cfg.loss.name not in ['softmax', 'am_softmax', 'am_binary']:
+        if not all(loss_name in NNCF_ENABLED_LOSS for loss_name in cfg.loss.name.split(',')):
             raise NotImplementedError('Freezing of aux models or NNCF compression are supported only for '
                                       'softmax, am_softmax and am_binary losses for data.type = image')
     initial_lr = initial_lr if initial_lr else cfg.train.lr
