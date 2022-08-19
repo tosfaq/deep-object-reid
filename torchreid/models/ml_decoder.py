@@ -180,3 +180,19 @@ class MLDecoder(ModelInterface):
             if not self.training:
                 return [logits]
             return tuple([logits])
+
+    def get_config_optim(self, lrs):
+        parameters = [
+            {'params': self.backbone.named_parameters()},
+            {'params': self.decoder.named_parameters()},
+        ]
+        if isinstance(lrs, list):
+            assert len(lrs) == len(parameters)
+            for lr, param_dict in zip(lrs, parameters):
+                param_dict['lr'] = lr
+        else:
+            assert isinstance(lrs, float)
+            for param_dict in parameters:
+                param_dict['lr'] = lrs
+
+        return parameters

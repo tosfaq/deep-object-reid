@@ -98,10 +98,7 @@ def main():
                                           args.opts)
     cfg.train.mix_precision = False
     cfg.freeze()
-    num_classes = parse_num_classes(source_datasets=cfg.data.sources,
-                                    classification=cfg.model.type in ('classification', 'multilabel'),
-                                    num_classes=args.num_classes,
-                                    snap_path=cfg.model.load_weights)
+    num_classes = 20
     model = build_model(**model_kwargs(cfg, num_classes))
     if cfg.model.load_weights:
         load_pretrained_weights(model, cfg.model.load_weights)

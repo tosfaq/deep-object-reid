@@ -366,18 +366,18 @@ class Engine(metaclass=abc.ABCMeta):
             if perf_monitor and not lr_finder: perf_monitor.on_epoch_begin(self.epoch)
             if self.compression_ctrl is not None:
                 self.compression_ctrl.scheduler.epoch_step(self.epoch)
-            try:
-                avg_loss = self.train(
-                    print_freq=print_freq,
-                    fixbase_epoch=fixbase_epoch,
-                    open_layers=open_layers,
-                    lr_finder=lr_finder,
-                    perf_monitor=perf_monitor,
-                    stop_callback=stop_callback
-                )
-            except RuntimeError as exp:
-                print(f'Training has failed: {exp}')
-                break
+            # try:
+            avg_loss = self.train(
+                print_freq=print_freq,
+                fixbase_epoch=fixbase_epoch,
+                open_layers=open_layers,
+                lr_finder=lr_finder,
+                perf_monitor=perf_monitor,
+                stop_callback=stop_callback
+            )
+            # except RuntimeError as exp:
+            #     print(f'Training has failed: {exp}')
+            #     break
 
             if self.compression_ctrl is not None:
                 statistics = self.compression_ctrl.statistics()

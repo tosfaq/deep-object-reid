@@ -83,7 +83,7 @@ def get_default_config():
     cfg.model.gcn.word_emb_path = ''
     cfg.model.gcn.adj_matrix_path = ''
     cfg.model.gcn.word_model_path = ''
-    cfg.model.export_onnx_opset = 9
+    cfg.model.export_onnx_opset = 13
 
     # mutual learning, auxiliary model
     cfg.mutual_learning = CN()
