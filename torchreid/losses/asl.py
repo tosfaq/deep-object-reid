@@ -102,7 +102,7 @@ class AMBinaryLoss(nn.Module):
 
         # Calculating Probabilities
         xs_pos = torch.sigmoid(self.s * (cos_theta - self.m))
-        xs_neg = torch.sigmoid(- self.s * (cos_theta + self.m))
+        xs_neg = torch.sigmoid(- self.s * (cos_theta))
 
         # SphereFace2 balancing coefficients
         balance_koeff_pos = self.k / self.s
