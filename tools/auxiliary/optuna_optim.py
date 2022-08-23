@@ -64,7 +64,7 @@ class Optimizer:
     def read_yaml_config(yaml: YAML, config_path: str):
         yaml.default_flow_style = True
         with open(config_path, 'r') as f:
-            cfg = yaml.load(f)
+            cfg = yaml.safe_load(f)
         return cfg
 
     @staticmethod
