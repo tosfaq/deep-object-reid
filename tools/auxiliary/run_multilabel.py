@@ -22,7 +22,7 @@ def get_lr_sets(model_name: str):
 def read_config(yaml: YAML, config_path: str):
     yaml.default_flow_style = True
     with open(config_path, 'r') as f:
-        cfg = yaml.load(f)
+        cfg = yaml.safe_load(f)
     return cfg
 
 def dump_config(yaml: YAML, config_path: str, cfg: dict):
