@@ -14,7 +14,7 @@ model:
   name: 'gcn_efficientnetv2_s_21k'
   type: 'multilabel'
   pretrained: True
-  load_weights:
+  load_weights: https://drive.google.com/uc?export=download&id=1N0t0eShJS3L1cDiY8HTweKfPKJ55h141
   save_all_chkpts: False
   dropout_cls:
     p: 0.1
