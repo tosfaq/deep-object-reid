@@ -11,15 +11,19 @@ lr_finder:
   n_trials: 15
 
 model:
-  name: 'efficientnetv2_s_21k'
+  name: 'gcn_efficientnetv2_s_21k'
   type: 'multilabel'
   pretrained: True
+  load_weights:
   save_all_chkpts: False
   dropout_cls:
     p: 0.1
+  gcn:
+    word_emb_path: ./gan_tools/language_model/word_embeddings_voc.npy
+    adj_matrix_path: ./gan_tools/adj_matrieses/adj_matrix_voc.npy
 
 custom_datasets:
-  roots: ['data/coco/train.json', 'data/coco/val.json']
+  roots: ['data/VOC/train.json', 'data/VOC/val.json']
   types: ['multilabel_classification', 'multilabel_classification']
 
 data:
@@ -28,7 +32,7 @@ data:
   width: 448
   norm_mean: [0.5, 0.5, 0.5]
   norm_std: [0.5, 0.5, 0.5]
-  save_dir: 'output/mulitilabel/efficientnetv2_s_21k'
+  save_dir: 'output/gan_efficientnetv2_s_21k/VOC'
   workers: 6
   transforms:
     random_flip:
@@ -38,28 +42,32 @@ data:
       enable: True
     cutout:
       enable: True
-      cutout_factor: 0.35
-      p: 0.35
+      cutout_factor: 0.4
+      p: 0.5
 
 loss:
-  name: 'asl'
+  name: 'am_binary'
   softmax:
-    s: 1.0
+    s: 17.0
+    m: 0.0
     compute_s: False
   asl:
     gamma_pos: 0.
-    gamma_neg: 4.
+    gamma_neg: 0.
+  am_binary:
+    amb_k: 0.7
+
 
 sampler:
   train_sampler: 'RandomSampler'
 
 train:
   optim: 'sam'
-  lr: 0.0002
+  lr: 0.005
   nbd: True
-  max_epoch: 80
+  max_epoch: 60
   weight_decay: 5e-4
-  batch_size: 64
+  batch_size: 84
   lr_scheduler: 'onecycle'
   early_stopping: True
   pct_start: 0.2
@@ -72,7 +80,7 @@ train:
     rho: 0.05
   ema:
     enable: True
-    ema_decay: 0.9995
+    ema_decay: 0.9993
   mix_precision: True
 
 test:
