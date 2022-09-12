@@ -20,7 +20,7 @@ model:
     p: 0.1
 
 custom_datasets:
-  roots: ['data/COCO/train.json', 'data/COCO/val.json']
+  roots: ['./datasets/COCO/train.json', './datasets/COCO/val.json']
   types: ['multilabel_classification', 'multilabel_classification']
 
 data:

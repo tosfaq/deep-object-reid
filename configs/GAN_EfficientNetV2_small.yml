@@ -23,7 +23,7 @@ model:
     adj_matrix_path: ./gan_tools/adj_matrieses/adj_matrix_voc.npy
 
 custom_datasets:
-  roots: ['data/VOC/train.json', 'data/VOC/val.json']
+  roots: ['./datasets/VOC/train.json', './datasets/VOC/val.json']
   types: ['multilabel_classification', 'multilabel_classification']
 
 data:
