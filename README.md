@@ -5,6 +5,10 @@ It is a part of [OpenVINO™ Training Extensions](https://github.com/opencv/open
 
 The project is based on [Kaiyang Zhou's Torchreid](https://github.com/KaiyangZhou/deep-person-reid) project.
 
+This repositoy contains the implementation of the training tecniques described in paper
+["Combining Metric Learning and Attention Heads For Accurate and Efficient Multilabel Image Classification"]().
+To reproduce the results, see the following [instruction](./multilabel_guide.md).
+
 Its features:
 
 - multi-GPU training
