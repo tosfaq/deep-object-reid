@@ -4,7 +4,7 @@ import os
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Sample showcasing the new API')
+    parser = argparse.ArgumentParser(description='Script to check multilabel annotation')
     parser.add_argument('data_path', help='path to the dataset root')
     parser.add_argument('--train_annotation',
                         help='path to the pre-trained model weights',
