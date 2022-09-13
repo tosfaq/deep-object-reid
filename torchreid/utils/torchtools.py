@@ -328,7 +328,7 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
         if key.startswith(prefix):
             key = key[len(prefix):]
         return key
-    
+
     def _add_prefix(key, prefix):
         prefix = prefix + '.'
         if not key.startswith(prefix):
@@ -363,8 +363,9 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
         # discard known prefixes: 'nncf_module.' from NNCF, 'module.' from DataParallel
         k = _remove_prefix(k, 'nncf_module')
         k = _remove_prefix(k, 'module')
-        k = _add_prefix(k, 'backbone')
-        
+        if not k in model_dict:
+            k = _add_prefix(k, 'backbone')
+
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
             matched_layers.append(k)
