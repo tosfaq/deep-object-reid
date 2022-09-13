@@ -18,6 +18,7 @@ import os.path as osp
 import time
 import sys
 
+import numpy as np
 import torch
 from scripts.default_config import get_default_config, model_kwargs, imagedata_kwargs, merge_from_files_with_base
 from scripts.script_utils import reset_config, build_base_argparser, check_classification_classes
@@ -94,6 +95,7 @@ def main():
         scores, labels = score_extraction(datamanager.train_loader, model, cfg.use_gpu)
         thresholds = tune_multilabel_thresholds(scores, labels)
         extra_args['pos_thresholds'] = thresholds
+        np.save(osp.join(cfg.data.save_dir, 'thresholds.npy'), thresholds)
     engine.test(0, topk=(1, 5, 10, 20), test_only=True, **extra_args)
 
 
