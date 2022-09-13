@@ -21,3 +21,4 @@ addict
 randaugment
 ptflops
 sklearn
+inplace_abn
