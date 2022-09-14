@@ -91,11 +91,14 @@ def main():
     engine = build_engine(cfg=cfg, datamanager=datamanager, model=model, optimizer=None, scheduler=None)
     extra_args = {}
     if cfg.test.estimate_multilabel_thresholds and cfg.model.type == 'multilabel':
-        print('Estimation optimal thresholds ...')
+        print('Estimating optimal thresholds ...')
         scores, labels = score_extraction(datamanager.train_loader, model, cfg.use_gpu)
         thresholds = tune_multilabel_thresholds(scores, labels)
         extra_args['pos_thresholds'] = thresholds
         np.save(osp.join(cfg.data.save_dir, 'thresholds.npy'), thresholds)
+        print(f'Average threshold: {np.mean(thresholds)}, '
+              f'Max threshold: {np.max(thresholds)}, '
+              f'Min threshold: {np.min(thresholds)}')
     engine.test(0, topk=(1, 5, 10, 20), test_only=True, **extra_args)
 
 
