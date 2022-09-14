@@ -112,7 +112,7 @@ class GraphConvolution(nn.Module):
 class Image_GCNN(ModelInterface):
     def __init__(self, backbone, word_matrix, in_channel=300, adj_matrix=None,
                  num_classes=80, hidden_dim_scale=1., emb_dim_scale=1.,
-                 use_last_sigmoid=True, layer_type='gcn', **kwargs):
+                 use_last_sigmoid=True, layer_type='gcn', export_mode=False, **kwargs):
         super().__init__(**kwargs)
         self.backbone = backbone
         hidden_dim = int(self.backbone.num_features / hidden_dim_scale)
@@ -131,6 +131,13 @@ class Image_GCNN(ModelInterface):
         self.relu = nn.LeakyReLU(0.2)
         self.inp = nn.Parameter(torch.from_numpy(word_matrix).float())
         self.A = nn.Parameter(torch.from_numpy(adj_matrix).float())
+
+        self.export_mode = export_mode
+        if self.export_mode:
+            self.gc_weights = nn.Parameter(self._compute_gc_weights())
+        else:
+            self.gc_weights = None
+
         if self.loss == "am_binary":
             self.head = AngleSimpleLinear(self.backbone.num_features, self.num_classes)
         else:
@@ -140,13 +147,10 @@ class Image_GCNN(ModelInterface):
         with autocast(enabled=self.mix_precision):
             spat_features = self.backbone(image, return_featuremaps=True)
 
-            adj = self.gen_adj(self.A).detach()
-            x = self.gc1(self.inp, adj)
-            x = self.relu(x)
-            x = self.gc2(x, adj)
-            x = self.relu(x)
-            weights = x.max(dim=0)[0]
-            weights = torch.sigmoid(weights)
+            if self.export_mode:
+                weights = self.gc_weights
+            else:
+                weights = self._compute_gc_weights()
 
             weighted_cam = weights.view(1, -1, 1, 1) * spat_features
             glob_features = self.backbone._glob_feature_vector(weighted_cam, self.backbone.pooling_type, reduce_dims=False)
@@ -169,6 +173,15 @@ class Image_GCNN(ModelInterface):
                 raise KeyError("Unsupported loss: {}".format(self.loss))
 
             return tuple(out_data)
+
+    def _compute_gc_weights(self):
+        adj = self.gen_adj(self.A).detach()
+        x = self.gc1(self.inp, adj)
+        x = self.relu(x)
+        x = self.gc2(x, adj)
+        x = self.relu(x)
+        weights = x.max(dim=0)[0]
+        return torch.sigmoid(weights)
 
     @staticmethod
     def gen_adj(A):
