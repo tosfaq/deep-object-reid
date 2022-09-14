@@ -22,7 +22,7 @@ from os import path as osp
 import torchreid
 from torchreid.engine import build_engine
 from torchreid.integration.nncf.compression import is_accuracy_aware_training_set
-from torchreid.integration.nncf.engine import run_acc_aware_training_loop
+#from torchreid.integration.nncf.engine import run_acc_aware_training_loop
 from torchreid.optim import LrFinder
 from scripts.default_config import (lr_finder_run_kwargs,
                                     lr_scheduler_kwargs, model_kwargs,
