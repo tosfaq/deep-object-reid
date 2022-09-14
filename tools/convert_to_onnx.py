@@ -30,7 +30,7 @@ from torchreid.integration.nncf.compression_script_utils import (make_nncf_chang
                                                                  make_nncf_changes_in_config)
 
 
-def parse_num_classes(source_datasets, classification=False, num_classes=None, snap_path=None):
+def parse_num_classes(classification=False, num_classes=None, snap_path=None):
     if classification:
         if snap_path:
             chkpt = load_checkpoint(snap_path)
@@ -48,18 +48,7 @@ def parse_num_classes(source_datasets, classification=False, num_classes=None, s
     if num_classes is not None and len(num_classes) > 0:
         return num_classes
 
-    num_clustered = 0
-    num_rest = 0
-    for src in source_datasets:
-        if isinstance(src, (tuple, list)):
-            num_clustered += 1
-        else:
-            num_rest += 1
-
-    total_num_sources = num_clustered + int(num_rest > 0)
-    assert total_num_sources > 0
-
-    return [0] * total_num_sources  # dummy number of classes
+    return [0]
 
 
 def reset_config(cfg):
@@ -98,8 +87,10 @@ def main():
                                           args.opts)
     cfg.train.mix_precision = False
     cfg.freeze()
-    num_classes = 20
-    model = build_model(**model_kwargs(cfg, num_classes))
+    num_classes = parse_num_classes(classification=cfg.model.type in ('classification', 'multilabel'),
+                                    num_classes=args.num_classes,
+                                    snap_path=cfg.model.load_weights)
+    model = build_model(**model_kwargs(cfg, num_classes), export_mode=True)
     if cfg.model.load_weights:
         load_pretrained_weights(model, cfg.model.load_weights)
     else:
