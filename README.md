@@ -21,6 +21,15 @@ the presented labels as a second element.
 
 Annotations and [download instructions](./datasets/README.md) for COCO14, NUS WIDE, VG500 and VOC07 can be found in the `datasets` folder.
 
+## Environment setup
+
+In a clean python environment install an appropriate for your GPU configuraton build of pytorch 1.8.2 LTS.
+
+Install the repository requirements: `pip install -r requirements.txt`.
+If you'd like to use OpenVINO tools, install the corresponding dependencies as well: `pip install -r openvino-requirements.txt`.
+
+After that install the training framework itself: `python setup.py develop`.
+
 ## How to run training
 
 Prior to launching a training, donwload the required dataset, and prepare annotation or
@@ -44,6 +53,23 @@ To run the thresholds estimation process, append `test.estimate_multilabel_thres
 ```bash
 python tools/eval.py --config-file configs/EfficientNetV2_small_gcn.yml --gpu-num 1 custom_datasets.roots "['<data_root>/train.json', '<data_root>/train.json']" model.load_weights <work_dir>/main_model/main_model.pth.tar-1 test.estimate_multilabel_thresholds True
 ```
-Both the output f1 scores are supposed to increase. An .npy file with thresholds is saved to `<work_dir>/thresholds.npy`. Indexes in the output array correspond to alphabetically sorted names of the input classes.
+Both the output f1 scores are supposed to increase. An `.npy` file with the thresholds is saved to `<work_dir>/thresholds.npy`. Indexes in the output array correspond to lexicographically sorted names of the input classes (python built-in function `sorted` is used).
 
 
+## How to export the resulting model to the ONNX or OpenVINO IR fromat
+
+To convert the resulting model to the ONNX format, use the corresponding script:
+```bash
+python tools/convert_to_onnx.py --config-file configs/EfficientNetV2_small_gcn.yml --disable-dyn-axes --output-name <model_name> custom_datasets.roots "['<data_root>/train.json', '<data_root>/train.json']" model.load_weights ./output/gan_efficientnetv2_s_21k/VOC/main_model/main_model.pth.tar-1
+```
+To convert the model to OpenVINO IR, append `--export_ir` to the previous command:
+```bash
+python tools/convert_to_onnx.py --config-file configs/EfficientNetV2_small_gcn.yml --disable-dyn-axes --export_ir --output-name <model_name> custom_datasets.roots "['<data_root>/train.json', '<data_root>/train.json']" model.load_weights ./output/gan_efficientnetv2_s_21k/VOC/main_model/main_model.pth.tar-1
+```
+You can also run evaluation of the resulting IR model:
+
+```bash
+python tools/eval.py --config-file configs/EfficientNetV2_small_gcn.yml custom_datasets.roots "['<data_root>/train.json', '<data_root>/train.json']" model.load_weights ./model.xml
+```
+The output IR model produces logits, that can be converted to class probabilities by applying sigmoid activation.
+Also the IR model assumes the input image pixels to be in [0,255] range with BRG channels order (such images produces cv2.imread() for instance).
