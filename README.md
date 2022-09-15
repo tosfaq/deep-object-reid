@@ -21,6 +21,8 @@ image is a tuple containing a relative path to the image as a first element and 
 the presented labels as a second element.
 
 Annotations and [download instructions](./datasets/README.md) for COCO14, NUS WIDE, VG500 and VOC07 can be found in the `datasets` folder.
+Graph-based branch requires additional inputs: an embedding for each label and a correlation metrix between the labels. For
+VOC, COCO and NUS these inputs are located in `gan_tools` folder.
 
 ## Environment setup
 
@@ -40,6 +42,7 @@ To run a training, use the following command:
 ```bash
 python tools/main.py --config-file configs/EfficientNetV2_small_gcn.yml --gpu-num 1 custom_datasets.roots "['<data_root>/train.json', '<data_root>/train.json']" data.save_dir <work_dir>
 ```
+You can also run estimation of the optimal learning rate value prior to training. To anable this step, append `lr_finder.enable True` to the previous command.
 
 ## How to run evaluation
 After training is done in the working directory will appear weights of the trained model:
