@@ -7,7 +7,7 @@ Supported backbones table:
 
 Model         | Input Resolution | MACs(G)* | mAP on COCO 14* | mAP on PASCAL VOC 07*
 ---           |---               |---        |---      |---
-EfficientNetV2-S ([OI weights](https://drive.google.com/uc?export=download&id=1N0t0eShJS3L1cDiY8HTweKfPKJ55h141) )       |448x448           | 12.28    | 88.75       | 95.86
+EfficientNetV2-S ([OI weights](https://drive.google.com/uc?export=download&id=1N0t0eShJS3L1cDiY8HTweKfPKJ55h141))       |448x448           | 12.28    | 88.75       | 95.86
 EfficientNetV2-L                 |448x448     | 49.92    | 90.10       | 96.05
 TResNet-L                        |448x448     | 36.15    | 90.30       | 96.70
 
