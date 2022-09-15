@@ -3,6 +3,9 @@
 Deep Object Reid is a library for deep-learning image classification and object re-identification, written in [PyTorch](https://pytorch.org/).
 It is a part of [OpenVINO™ Training Extensions](https://github.com/opencv/openvino_training_extensions).
 
+To reprocude the results mentioned in [K. Prokofiev, V. Sovrasov - Combining Metric Learning and Attention Heads For Accurate and Efficient Multilabel Image Classification](https://arxiv.org/abs/2209.06585),
+go to the [multilabel](https://github.com/openvinotoolkit/deep-object-reid/tree/multilabel) branch.
+
 The project is based on [Kaiyang Zhou's Torchreid](https://github.com/KaiyangZhou/deep-person-reid) project.
 
 Its features:
