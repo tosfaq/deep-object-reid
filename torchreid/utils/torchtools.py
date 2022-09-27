@@ -349,9 +349,6 @@ def load_pretrained_weights(model, file_path='', chkpt_name='model_weights', pre
     else:
         state_dict = checkpoint
 
-    if 'state_dict' in state_dict:
-        state_dict = state_dict['state_dict']
-
     model_dict = model.state_dict()
     new_state_dict = OrderedDict()
     matched_layers, discarded_layers = [], []
@@ -426,4 +423,3 @@ class ModelEmaV2(nn.Module):
 
     def set(self, model):
         self._update(model, update_fn=lambda e, m: m)
- 
