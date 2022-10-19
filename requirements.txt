@@ -1,7 +1,7 @@
 numpy
 Pillow
 six
-scipy==1.8.1
+scipy==1.8.0
 opencv-python
 matplotlib
 tb-nightly
