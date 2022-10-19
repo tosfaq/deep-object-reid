@@ -1,7 +1,7 @@
 numpy
 Pillow
 six
-scipy==1.8.1
+scipy==1.5.4
 opencv-python
 matplotlib
 tb-nightly
@@ -15,7 +15,7 @@ torch-lr-finder==0.2.1
 onnx
 torchvision==0.9.*
 torch==1.8.*
-optuna
+optuna==2.10.1
 timm>=0.6.5
 addict
 randaugment
