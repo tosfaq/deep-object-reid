@@ -47,7 +47,7 @@ def get_requirements(filename):
                 requires.append(line)
     return requires, links
 
-packages, links = get_requirements('requirements.txt')
+req, links = get_requirements('requirements.txt')
 
 setup(
     name='torchreid',
@@ -61,6 +61,6 @@ setup(
     #packages=find_packages(include=('torchreid', 'torchreid.*', 'scripts', 'scripts.*')),
     packages=find_packages(),
     include_package_data=True,
-    install_requires=packages,
+    install_requires=req,
     keywords=['Object Re-Identification', 'Image Classification', 'Deep Learning', 'Computer Vision'],
 )
