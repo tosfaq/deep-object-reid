@@ -59,7 +59,6 @@ setup(
     url='https://github.com/openvinotoolkit/deep-object-reid',
     dependency_links=links,
     packages=find_packages(include=('torchreid', 'torchreid.*', 'scripts', 'scripts.*')),
-    package_data={'': glob('scripts/**', recursive=True)},
     include_package_data=True,
     install_requires=packages,
     keywords=['Object Re-Identification', 'Image Classification', 'Deep Learning', 'Computer Vision'],
