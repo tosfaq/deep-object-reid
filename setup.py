@@ -8,6 +8,8 @@
 import os.path as osp
 from setuptools import setup, Extension, find_packages
 
+from glob import glob
+
 import numpy as np
 
 repo_root = osp.dirname(osp.realpath(__file__))
@@ -57,6 +59,7 @@ setup(
     url='https://github.com/openvinotoolkit/deep-object-reid',
     dependency_links=links,
     packages=find_packages(include=('torchreid', 'torchreid.*', 'scripts', 'scripts.*')),
+    package_data={'': glob('scripts/**', recursive=True)},
     install_requires=packages,
     keywords=['Object Re-Identification', 'Image Classification', 'Deep Learning', 'Computer Vision'],
 )
