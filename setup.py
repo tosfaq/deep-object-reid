@@ -50,8 +50,9 @@ def get_requirements(filename):
 req, links = get_requirements('requirements.txt')
 
 setup(
-    name='torchreid',
-    version=find_version(),
+    name='otxreid',
+    # version=find_version(),
+    version='0.3.0',
     description='A library for deep learning object re-ID and classification in PyTorch',
     author='Kaiyang Zhou, Intel Corporation',
     license='Apache-2.0',
