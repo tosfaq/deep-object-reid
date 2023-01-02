@@ -20,4 +20,3 @@ timm>=0.6.5
 addict
 randaugment
 ptflops
-sklearn

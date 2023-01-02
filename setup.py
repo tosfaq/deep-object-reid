@@ -52,7 +52,7 @@ req, links = get_requirements('requirements.txt')
 setup(
     name='otxreid',
     # version=find_version(),
-    version='0.3.0',
+    version='0.3.1',
     description='A library for deep learning object re-ID and classification in PyTorch',
     author='Kaiyang Zhou, Intel Corporation',
     license='Apache-2.0',
