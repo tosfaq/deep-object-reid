@@ -41,7 +41,8 @@ except ImportError:
 
 from nncf.torch.checkpoint_loading import load_state
 from nncf.torch.accuracy_aware_training.utils import is_main_process
-from nncf.common.accuracy_aware_training.runner import TrainingRunner, TrainingRunnerCreator
+from nncf.common.accuracy_aware_training.runner import TrainingRunner
+from nncf.common.accuracy_aware_training.runner_factory import TrainingRunnerCreator
 from nncf.common.utils.backend import infer_backend_from_compression_controller, BackendType
 from nncf.common.utils.helpers import configure_accuracy_aware_paths
 from nncf.common.utils.logger import logger as nncf_logger
