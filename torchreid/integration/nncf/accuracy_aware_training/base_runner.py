@@ -13,7 +13,7 @@
 # and limitations under the License.
 
 from typing import Callable, Dict, List, Optional, Tuple, TypeVar
-from nncf.api.compression import CompressionAlgorithmController
+from nncf.api.compression import CompressionAlgorithmController, CompressionStage
 from nncf.common.accuracy_aware_training.runner import TrainingRunner
 
 ModelType = TypeVar('ModelType')
@@ -70,6 +70,12 @@ class BaseAccuracyAwareTrainingRunner(TrainingRunner):
         else:
             self.minimal_tolerable_accuracy = uncompressed_model_accuracy * \
                                               (1 - 0.01 * self.maximal_relative_accuracy_drop)
+
+    def is_model_fully_compressed(self, compression_controller) -> bool:
+        return compression_controller.compression_stage() == CompressionStage.FULLY_COMPRESSED
+
+    def initialize_logging(self, log_dir=None, tensorboard_writer=None):
+        pass
 
 
 class BaseAdaptiveCompressionLevelTrainingRunner(BaseAccuracyAwareTrainingRunner):
