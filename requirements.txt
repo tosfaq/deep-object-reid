@@ -14,7 +14,7 @@ pytorchcv
 torch-lr-finder==0.2.1
 onnx
 torchvision==0.9.*
-torch==1.8.*
+torch>=1.13.1
 optuna==3.0.2
 timm>=0.6.5
 addict
