@@ -21,7 +21,7 @@ image is a tuple containing a relative path to the image as a first element and 
 the presented labels as a second element.
 
 Annotations and [download instructions](./datasets/README.md) for COCO14, NUS WIDE, VG500 and VOC07 can be found in the `datasets` folder.
-Graph-based branch requires additional inputs: an embedding for each label and a correlation metrix between the labels. For
+Graph-based branch requires additional inputs: an embedding for each label and a correlation matrix between these embeddings. For
 VOC, COCO and NUS these inputs are located in `gan_tools` folder.
 
 ## Environment setup
@@ -40,7 +40,7 @@ Prior to launching a training, download the required dataset, and prepare annota
 use one of the predefined annotation files from the `datasets` folder.
 To run a training, use the following command:
 ```bash
-python tools/main.py --config-file configs/EfficientNetV2_small_gcn.yml --gpu-num 1 custom_datasets.roots "['<data_root>/train.json', '<data_root>/train.json']" data.save_dir <work_dir>
+python tools/main.py --config-file configs/EfficientNetV2_small_gcn.yml --gpu-num 1 custom_datasets.roots "['<data_root>/train.json', '<data_root>/val.json']" data.save_dir <work_dir>
 ```
 You can also run estimation of the optimal learning rate value prior to training. To anable this step, append `lr_finder.enable True` to the previous command.
 
@@ -49,14 +49,14 @@ After training is done in the working directory will appear weights of the train
 `<work_dir>/main_model/main_model.pth.tar-1`.
 To start evaluation, run the following command:
 ```bash
-python tools/eval.py --config-file configs/EfficientNetV2_small_gcn.yml --gpu-num 1 custom_datasets.roots "['<data_root>/train.json', '<data_root>/train.json']" model.load_weights <work_dir>/main_model/main_model.pth.tar-1
+python tools/eval.py --config-file configs/EfficientNetV2_small_gcn.yml --gpu-num 1 custom_datasets.roots "['<data_root>/train.json', '<data_root>/val.json']" model.load_weights <work_dir>/main_model/main_model.pth.tar-1
 ```
 
 ## How to run thresholds estimation
 
 To run the thresholds estimation process, append `test.estimate_multilabel_thresholds True` to the eval command:
 ```bash
-python tools/eval.py --config-file configs/EfficientNetV2_small_gcn.yml --gpu-num 1 custom_datasets.roots "['<data_root>/train.json', '<data_root>/train.json']" model.load_weights <work_dir>/main_model/main_model.pth.tar-1 test.estimate_multilabel_thresholds True
+python tools/eval.py --config-file configs/EfficientNetV2_small_gcn.yml --gpu-num 1 custom_datasets.roots "['<data_root>/train.json', '<data_root>/val.json']" model.load_weights <work_dir>/main_model/main_model.pth.tar-1 test.estimate_multilabel_thresholds True
 ```
 Both the output f1 scores are supposed to increase. An `.npy` file with the thresholds is saved to `<work_dir>/thresholds.npy`. Indexes in the output array correspond to lexicographically sorted names of the input classes (python built-in function `sorted` is used).
 
@@ -65,16 +65,16 @@ Both the output f1 scores are supposed to increase. An `.npy` file with the thre
 
 To convert the resulting model to the ONNX format, use the corresponding script:
 ```bash
-python tools/convert_to_onnx.py --config-file configs/EfficientNetV2_small_gcn.yml --disable-dyn-axes --output-name <model_name> custom_datasets.roots "['<data_root>/train.json', '<data_root>/train.json']" model.load_weights ./output/gan_efficientnetv2_s_21k/VOC/main_model/main_model.pth.tar-1
+python tools/convert_to_onnx.py --config-file configs/EfficientNetV2_small_gcn.yml --disable-dyn-axes --output-name <model_name> custom_datasets.roots "['<data_root>/train.json', '<data_root>/val.json']" model.load_weights ./output/gan_efficientnetv2_s_21k/VOC/main_model/main_model.pth.tar-1
 ```
 To convert the model to OpenVINO IR, append `--export_ir` to the previous command:
 ```bash
-python tools/convert_to_onnx.py --config-file configs/EfficientNetV2_small_gcn.yml --disable-dyn-axes --export_ir --output-name <model_name> custom_datasets.roots "['<data_root>/train.json', '<data_root>/train.json']" model.load_weights ./output/gan_efficientnetv2_s_21k/VOC/main_model/main_model.pth.tar-1
+python tools/convert_to_onnx.py --config-file configs/EfficientNetV2_small_gcn.yml --disable-dyn-axes --export_ir --output-name <model_name> custom_datasets.roots "['<data_root>/train.json', '<data_root>/val.json']" model.load_weights ./output/gan_efficientnetv2_s_21k/VOC/main_model/main_model.pth.tar-1
 ```
 You can also run evaluation of the resulting IR model:
 
 ```bash
-python tools/eval.py --config-file configs/EfficientNetV2_small_gcn.yml custom_datasets.roots "['<data_root>/train.json', '<data_root>/train.json']" model.load_weights ./model.xml
+python tools/eval.py --config-file configs/EfficientNetV2_small_gcn.yml custom_datasets.roots "['<data_root>/train.json', '<data_root>/val.json']" model.load_weights ./model.xml
 ```
 The output IR model produces logits, that can be converted to class probabilities by applying sigmoid activation.
 Also the IR model assumes the input image pixels to be in [0,255] range with BRG channels order (such images produces cv2.imread() for instance).
