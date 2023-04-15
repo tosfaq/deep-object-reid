@@ -1,5 +1,6 @@
 numpy
 Pillow
+pydicom>=2.3.0
 six
 scipy
 opencv-python
