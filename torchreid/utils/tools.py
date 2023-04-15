@@ -22,6 +22,7 @@ import subprocess
 import numpy as np
 import torch
 import cv2 as cv
+import pydicom as dc
 
 __all__ = [
     'mkdir_if_missing', 'check_isfile', 'set_random_seed', "worker_init_fn",
@@ -73,7 +74,7 @@ def worker_init_fn(worker_id):
     random.seed(random.getstate()[1][0] + worker_id)
 
 
-def read_image(path, grayscale=False):
+def read_image(path, grayscale=False, dicom=True):
     """Reads image from path using ``Open CV``.
 
     Args:
@@ -90,7 +91,16 @@ def read_image(path, grayscale=False):
 
     while not got_img:
         try:
-            img = cv.cvtColor(cv.imread(path, cv.IMREAD_COLOR), cv.COLOR_BGR2RGB)
+            if dicom:
+                if '.npy' in path:
+                    img = np.load(path).astype('float32')
+                else:
+                    dc_dataset = dc.dcmread(path, force=True)
+                    img = dc.pixel_data_handlers.apply_modality_lut(dc_dataset.pixel_array, dc_dataset).astype(
+                        'float32')
+                img = np.stack((img, img, img)) # making the image RGB by duplicating grayscale channel
+            else:
+                img = cv.cvtColor(cv.imread(path, cv.IMREAD_COLOR), cv.COLOR_BGR2RGB)
             got_img = True
         except IOError:
             print(f'IOError occurred when reading "{path}".')
