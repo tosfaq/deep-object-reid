@@ -98,6 +98,7 @@ def read_image(path, grayscale=False, dicom=True):
                     dc_dataset = dc.dcmread(path, force=True)
                     img = dc.pixel_data_handlers.apply_modality_lut(dc_dataset.pixel_array, dc_dataset).astype(
                         'float32')
+                img = ((img-img.min())/(img.max()-img.min()))
                 img = np.dstack((img, img, img)) # making the image RGB by duplicating grayscale channel
             else:
                 img = cv.cvtColor(cv.imread(path, cv.IMREAD_COLOR), cv.COLOR_BGR2RGB)

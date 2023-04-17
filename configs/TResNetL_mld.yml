@@ -43,7 +43,7 @@ data:
       p: 0.5
     random_rotate:
       angle: (-10, 10)
-      enable: True
+      enable: False
       p: 0.5
 
 loss:
