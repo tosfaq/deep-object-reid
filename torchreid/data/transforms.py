@@ -43,7 +43,8 @@ class RandomHorizontalFlip():
         if random.random() > self.p:  # nosec
             return image
 
-        image = F.hflip(image)
+        #image = F.hflip(image)
+        image = cv2.flip(image, 0)
 
         return image
 
@@ -319,6 +320,18 @@ class RandomRotate():
     """Random rotate
     """
 
+    @staticmethod
+    def rotate(image, angle, center=None, scale=1.0):
+        (h, w) = image.shape[:2]
+
+        if center is None:
+            center = (w / 2, h / 2)
+
+        M = cv2.getRotationMatrix2D(center, angle, scale)
+        rotated = cv2.warpAffine(image, M, (w, h))
+
+        return rotated
+
     def __init__(self, p=0.5, angle=(-5, 5), values=None, **kwargs):
         self.p = p
         self.angle = angle
@@ -335,7 +348,8 @@ class RandomRotate():
         else:
             rnd_angle = random.randint(self.angle[0], self.angle[1])  # nosec
 
-        image = F.rotate(image, rnd_angle, expand=False, center=None)
+        #image = F.rotate(image, rnd_angle, expand=False, center=None)
+        image = self.rotate(image, rnd_angle)
         return image
 
 
