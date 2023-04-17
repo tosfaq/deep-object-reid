@@ -585,7 +585,7 @@ class Resize:
         self.interpolation = interpolation
         self.to_pill = to_pill
         self.transforms = Compose([
-                ToPILImage() if to_pill else None,
+                #ToPILImage() if to_pill else None,
                 TorchResize(size)
             ])
 
