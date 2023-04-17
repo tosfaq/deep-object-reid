@@ -573,8 +573,8 @@ class RandomCropPad(TorchRandomCrop):
 
 def ocv_resize_2_pil(image, size, interp=cv2.INTER_LINEAR, to_pill=True):
     resized = cv2.resize(image, dsize=size, interpolation=interp)
-    if to_pill:
-        return Image.fromarray(resized, 'RGB')
+    #if to_pill:
+    #    return Image.fromarray(resized, 'RGB')
     return resized
 
 

@@ -41,6 +41,10 @@ data:
       enable: False
       cutout_factor: 0.4
       p: 0.5
+    random_rotate:
+      angle: (-10, 10)
+      enable: True
+      p: 0.5
 
 loss:
   name: 'am_binary'
