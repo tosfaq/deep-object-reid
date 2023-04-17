@@ -74,6 +74,15 @@ def worker_init_fn(worker_id):
     random.seed(random.getstate()[1][0] + worker_id)
 
 
+def preprocess_image(image: np.ndarray) -> np.ndarray:
+    window, level = 1500, -600 # lung window
+    window_min, window_max = level - window // 2, level + window // 2
+    image[image < window_min] = window_min
+    image[image > window_max] = window_max
+    image = (image - image.min()) / (image.max() - image.min())
+    return image
+
+
 def read_image(path, grayscale=False, dicom=True):
     """Reads image from path using ``Open CV``.
 
@@ -98,7 +107,7 @@ def read_image(path, grayscale=False, dicom=True):
                     dc_dataset = dc.dcmread(path, force=True)
                     img = dc.pixel_data_handlers.apply_modality_lut(dc_dataset.pixel_array, dc_dataset).astype(
                         'float32')
-                img = ((img-img.min())/(img.max()-img.min()))
+                img = preprocess_image(img)
                 img = np.dstack((img, img, img)) # making the image RGB by duplicating grayscale channel
             else:
                 img = cv.cvtColor(cv.imread(path, cv.IMREAD_COLOR), cv.COLOR_BGR2RGB)
