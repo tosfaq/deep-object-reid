@@ -574,7 +574,7 @@ class RandomCropPad(TorchRandomCrop):
 def ocv_resize_2_pil(image, size, interp=cv2.INTER_LINEAR, to_pill=True):
     resized = cv2.resize(image, dsize=size, interpolation=interp)
     if to_pill:
-        return Image.fromarray(resized)
+        return Image.fromarray(resized.astype('int32'))
     return resized
 
 
@@ -584,14 +584,14 @@ class Resize:
         self.size = size
         self.interpolation = interpolation
         self.to_pill = to_pill
-        self.transforms = Compose([
-                ToPILImage() if to_pill else None,
-                TorchResize(size)
-            ])
+        # self.transforms = Compose([
+        #        ToPILImage() if to_pill else None,
+        #        TorchResize(size)
+        #    ])
 
     def __call__(self, image):
-        #image = ocv_resize_2_pil(image, self.size, self.interpolation, self.to_pill)
-        image = self.transforms(image.astype('int32'))
+        image = ocv_resize_2_pil(image, self.size, self.interpolation, self.to_pill)
+        # image = self.transforms(image.astype('int32'))
         return image
 
 
