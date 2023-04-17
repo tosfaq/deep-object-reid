@@ -29,6 +29,7 @@ import torch
 import re
 from PIL import Image, ImageOps, ImageEnhance, ImageDraw
 from torchvision.transforms import ColorJitter, Compose, ToTensor, Normalize, ToPILImage, Compose
+from torchvision.transforms import Resize as TorchResize
 from torchvision.transforms import RandomCrop as TorchRandomCrop
 from torchvision.transforms import functional as F
 from randaugment import RandAugment
@@ -584,8 +585,8 @@ class Resize:
         self.interpolation = interpolation
         self.to_pill = to_pill
         self.transforms = Compose([
-                torchvision.transforms.ToPILImage() if to_pill else None,
-                torchvision.transforms.Resize(size)
+                ToPILImage() if to_pill else None,
+                TorchResize(size)
             ])
 
     def __call__(self, image):
