@@ -591,7 +591,7 @@ class Resize:
 
     def __call__(self, image):
         #image = ocv_resize_2_pil(image, self.size, self.interpolation, self.to_pill)
-        image = self.transforms(image.astype('int'))
+        image = self.transforms(image.astype('int32'))
         return image
 
 
