@@ -33,15 +33,15 @@ data:
   norm_mean: [0.5, 0.5, 0.5]
   norm_std: [0.5, 0.5, 0.5]
   save_dir: 'output/gan_efficientnetv2_s_21k/VOC'
-  workers: 6
+  workers: 2
   transforms:
     random_flip:
       enable: True
       p: 0.5
     randaugment:
-      enable: True
+      enable: False
     cutout:
-      enable: True
+      enable: False
       cutout_factor: 0.4
       p: 0.5
 
