@@ -585,13 +585,13 @@ class Resize:
         self.interpolation = interpolation
         self.to_pill = to_pill
         self.transforms = Compose([
-                #ToPILImage() if to_pill else None,
+                ToPILImage() if to_pill else None,
                 TorchResize(size)
             ])
 
     def __call__(self, image):
         #image = ocv_resize_2_pil(image, self.size, self.interpolation, self.to_pill)
-        image = self.transforms(image)
+        image = self.transforms(image.astype('int'))
         return image
 
 
