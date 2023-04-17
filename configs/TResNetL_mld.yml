@@ -36,9 +36,9 @@ data:
       enable: True
       p: 0.5
     randaugment:
-      enable: True
+      enable: False
     cutout:
-      enable: True
+      enable: False
       cutout_factor: 0.4
       p: 0.5
 
