@@ -74,11 +74,12 @@ def worker_init_fn(worker_id):
     random.seed(random.getstate()[1][0] + worker_id)
 
 
-def preprocess_image(image: np.ndarray) -> np.ndarray:
-    window, level = 1500, -600 # lung window
-    window_min, window_max = level - window // 2, level + window // 2
-    image[image < window_min] = window_min
-    image[image > window_max] = window_max
+def preprocess_image(image: np.ndarray, windowing=False) -> np.ndarray:
+    if windowing:
+        window, level = 1500, -600 # lung window
+        window_min, window_max = level - window // 2, level + window // 2
+        image[image < window_min] = window_min
+        image[image > window_max] = window_max
     image = (image - image.min()) / (image.max() - image.min())
     return image
 
