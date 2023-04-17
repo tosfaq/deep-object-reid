@@ -585,7 +585,7 @@ class Resize:
         self.to_pill = to_pill
         self.transforms = Compose([
                 ToPILImage() if to_pill else None,
-                Resize(size[0])
+                Resize(size)
             ])
 
     def __call__(self, image):
